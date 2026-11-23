@@ -1,0 +1,110 @@
+@layer components {
+  .slider {
+    --accent: var(--accent-coral);
+    --accent-foreground: var(--ink-inverse);
+  }
+
+  .switch {
+    --switch-control-bg-checked: var(--status-pass);
+    --switch-control-bg-checked-hover: var(--status-pass);
+  }
+
+  .modal__close-trigger {
+    color: var(--ink-secondary);
+  }
+
+  .modal__dialog,
+  .popover__content {
+    border: 1px solid var(--border-strong);
+    background-color: var(--bg-surface-elevated);
+    box-shadow: var(--shadow-overlay);
+    border-radius: var(--radius-card);
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-surface-elevated: var(--bg-surface-elevated);
+  --color-muted: var(--bg-muted);
+  --color-titanium: var(--bg-titanium);
+  --color-titanium-subtle: var(--bg-titanium-subtle);
+  --color-hairline: var(--border-hairline);
+  --color-strong: var(--border-strong);
+  --color-ink-primary: var(--ink-primary);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-inverse: var(--ink-inverse);
+  --color-accent-coral: var(--accent-coral);
+  --color-accent-coral-soft: var(--accent-coral-soft);
+  --color-status-pass: var(--status-pass);
+  --color-status-pass-soft: var(--status-pass-soft);
+  --color-status-warn: var(--status-warn);
+  --color-status-warn-soft: var(--status-warn-soft);
+  --color-status-fail: var(--status-fail);
+  --color-status-fail-soft: var(--status-fail-soft);
+  --font-sans:
+    var(--font-kanon-sans), "Geist", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    -apple-system, sans-serif;
+  --font-mono: var(--font-kanon-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+  --radius-pill: var(--radius-pill);
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
+  --shadow-overlay: var(--shadow-overlay);
+}
+
+html,
+body {
+  background-color: var(--bg-canvas);
+  color: var(--ink-primary);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+}
+
+::selection {
+  background-color: var(--accent-coral-soft);
+  color: var(--ink-primary);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.kanon-micro-label {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  letter-spacing: 0.04em;
+}
+
+.kanon-topbar-glass {
+  background-color: var(--glass-topbar);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+.kanon-ambient-canvas {
+  background-image: radial-gradient(
+    ellipse 85% 42% at 50% -6%,
+    var(--ambient-glow) 0%,
+    transparent 72%
+  );
+}
+
+.kanon-backdrop {
+  background-color: var(--backdrop-scrim);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}

@@ -1,0 +1,83 @@
+import { z } from "zod";
+
+export const HypothesisStatusSchema = z.enum(["validated", "watching", "warning"]);
+export type HypothesisStatus = z.infer<typeof HypothesisStatusSchema>;
+
+export const ConvictionZoneSchema = z.enum(["attractive", "balanced", "stretched"]);
+export type ConvictionZone = z.infer<typeof ConvictionZoneSchema>;
+
+export const HypothesisSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  metricLabel: z.string().min(1),
+  threshold: z.string().min(1),
+  status: HypothesisStatusSchema,
+  note: z.string().min(1),
+});
+export type Hypothesis = z.infer<typeof HypothesisSchema>;
+
+export const ValuationCaseInputSchema = z.object({
+  eps: z.number().finite().positive(),
+  peMultiple: z.number().finite().positive(),
+  probability: z.number().finite().min(0).max(1).optional(),
+});
+export type ValuationCaseInput = z.infer<typeof ValuationCaseInputSchema>;
+
+export const ValuationScenarioInputSchema = z.object({
+  currentPrice: z.number().finite().positive(),
+  horizonYears: z.number().finite().positive().max(15).default(3),
+  bear: ValuationCaseInputSchema,
+  base: ValuationCaseInputSchema,
+  bull: ValuationCaseInputSchema,
+});
+export type ValuationScenarioInput = z.input<typeof ValuationScenarioInputSchema>;
+
+export const ValuationCaseResultSchema = z.object({
+  eps: z.number(),
+  peMultiple: z.number(),
+  probability: z.number(),
+  targetPrice: z.number(),
+  returnPct: z.number(),
+  cagrPct: z.number(),
+});
+export type ValuationCaseResult = z.infer<typeof ValuationCaseResultSchema>;
+
+export const ValuationScenarioSummarySchema = z.object({
+  currentPrice: z.number(),
+  horizonYears: z.number(),
+  bear: ValuationCaseResultSchema,
+  base: ValuationCaseResultSchema,
+  bull: ValuationCaseResultSchema,
+  upsidePct: z.number(),
+  bullUpsidePct: z.number(),
+  downsidePct: z.number(),
+  riskRewardRatio: z.number().nullable(),
+  bullRiskRewardRatio: z.number().nullable(),
+  isAsymmetricFloor: z.boolean(),
+  expectedTargetPrice: z.number(),
+  expectedReturnPct: z.number(),
+  convictionZone: ConvictionZoneSchema,
+});
+export type ValuationScenarioSummary = z.infer<typeof ValuationScenarioSummarySchema>;
+
+export const SparklinePointSchema = z.object({
+  label: z.string().min(1),
+  price: z.number().finite().positive(),
+});
+export type SparklinePoint = z.infer<typeof SparklinePointSchema>;
+
+export const ThesisCardSchema = z.object({
+  id: z.string().min(1),
+  indexLabel: z.string().regex(/^\d{2}$/),
+  ticker: z.string().min(1).max(10),
+  companyName: z.string().min(1),
+  sectorTag: z.string().min(1),
+  currentPrice: z.number().finite().positive(),
+  lastReviewedAt: z.string().min(1),
+  horizonLabel: z.string().min(1),
+  convictionSummary: z.string().min(1),
+  hypotheses: z.tuple([HypothesisSchema, HypothesisSchema, HypothesisSchema]),
+  valuation: ValuationScenarioSummarySchema,
+  priceHistory: z.array(SparklinePointSchema).min(2),
+});
+export type ThesisCard = z.infer<typeof ThesisCardSchema>;

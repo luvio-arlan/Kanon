@@ -1,0 +1,30 @@
+{
+  "name": "kanon",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "typecheck": "turbo run typecheck",
+    "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs",
+    "design:check": "node scripts/check-design-and-limits.mjs",
+    "check": "pnpm lint && pnpm typecheck && pnpm depcruise && pnpm design:check",
+    "db:push": "pnpm --filter @kanon/core db:push",
+    "prepare": "lefthook install || true"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@types/node": "^24.0.0",
+    "dependency-cruiser": "^18.9.0",
+    "lefthook": "^2.2.2",
+    "turbo": "^2.11.13",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,206 @@
+import type { GlossaryTerm, SecSnapshot } from "../schemas/research";
+
+export const SEED_GLOSSARY_TERMS: readonly GlossaryTerm[] = [
+  {
+    term: "HBM3E",
+    fullName: "High Bandwidth Memory 3 Extended（第五代高带宽内存）",
+    category: "AI 半导体",
+    plainSummary: "把多层 DRAM 芯片垂直堆叠并用硅通孔互联，直接紧贴 GPU 提供超高带宽的数据高速路。",
+    filingContext: "在美光与海力士财报中，HBM3E 决定数据中心毛利率中枢与产能锁单周期。",
+    example: "每颗 Blackwell GPU 搭载 8 颗 HBM3E 堆栈，单卡带宽突破 8 TB/s。",
+  },
+  {
+    term: "CoWoS",
+    fullName: "Chip-on-Wafer-on-Substrate（2.5D 先进封装）",
+    category: "AI 半导体",
+    plainSummary: "台积电将 GPU 逻辑芯片与多颗 HBM 内存集成在同一硅中介层上的核心封装工艺。",
+    filingContext: "财报电话会中常作为 AI 芯片出货的真正物理瓶颈指标，用来交叉验证上游供给。",
+    example: "英伟达季度出货指引往往直接受台积电 CoWoS-L 月产能爬坡速度约束。",
+  },
+  {
+    term: "NVLink",
+    fullName: "NVIDIA High-Speed GPU Interconnect",
+    category: "AI 基础设施",
+    plainSummary: "英伟达专有的 GPU 间高速互联协议，让数十颗芯片像一颗超级大脑协同运算。",
+    filingContext: "在 10-K 中是英伟达维持机柜级系统定价权与 72%+ 毛利率的关键护城河。",
+    example: "GB200 NVL72 机柜通过 NVLink 将 72 颗 GPU 统一成单一高带宽计算域。",
+  },
+  {
+    term: "CapEx",
+    fullName: "Capital Expenditure（资本开支）",
+    category: "财务基础",
+    plainSummary: "企业购买厂房、设备、服务器与晶圆产线等长期资产所花出的真金白银。",
+    filingContext:
+      "分析 AI 算力与存储股时，既要看下游云厂商的 CapEx（需求），也要盯上游晶圆厂 CapEx（未来供给）。",
+    example: "北美四大云厂商年度 CapEx 合计超 3000 亿美元，直接驱动算力与存储周期。",
+  },
+  {
+    term: "ROIC",
+    fullName: "Return on Invested Capital（投入资本回报率）",
+    category: "商业质量",
+    plainSummary: "衡量公司每投入 100 元股东与债权人的钱，一年能赚回多少税后经营利润。",
+    filingContext: "判断商业模式是否为「印钞机」还是「烧钱黑洞」的一票否决核心指标。",
+    example: "长期 ROIC 稳定高于 20% 且高于资本成本的公司，才具备真正复利能力。",
+  },
+  {
+    term: "FCF",
+    fullName: "Free Cash Flow（自由现金流）",
+    category: "财务基础",
+    plainSummary: "经营活动现金流减去维持和发展业务所需的资本开支后，真正可自由支配的现金。",
+    filingContext: "用于检验财报净利润含金量，避免纸面盈利但持续烧钱扩产的陷阱。",
+    example: "FCF = 经营现金流（OCF） - 资本开支（CapEx）。",
+  },
+  {
+    term: "PE",
+    fullName: "Price-to-Earnings Ratio（市盈率）",
+    category: "估值赔率",
+    plainSummary: "股价除以每股收益（EPS），直观表示按当前盈利水平需要多少年回本。",
+    filingContext:
+      "在三情景估值中，周期股高点应给低 PE、低点看正常化 EPS；成长股需匹配增速与永续质量。",
+    example: "3 年后中性 EPS $12.5 × 合理 PE 14 倍 = 目标价 $175。",
+  },
+  {
+    term: "CAGR",
+    fullName: "Compound Annual Growth Rate（年化复合增长率）",
+    category: "估值赔率",
+    plainSummary: "把跨越多年的总涨幅折算成每年的复利增速，用来横向对比不同持有周期的回报。",
+    filingContext: "KANON 估值计算器自动将 3 年目标价空间折算为年化 CAGR，拒绝模糊拍脑袋。",
+    example: "3 年累计上涨 62%，对应年化复利约 17.5%。",
+  },
+  {
+    term: "EV/EBITDA",
+    fullName: "Enterprise Value to EBITDA（企业价值倍数）",
+    category: "估值赔率",
+    plainSummary: "考虑了现金与债务后的真实收购价，除以息税折旧摊销前利润。",
+    filingContext: "对比重资产半导体或负债率不同的同行公司时，比单纯 PE 更客观。",
+    example: "高资本开支周期里，同步核对 EV/EBITDA 与 FCF 收益率避免低估折旧压力。",
+  },
+  {
+    term: "Gross Margin",
+    fullName: "毛利率（(营收 - 营业成本) / 营收）",
+    category: "商业质量",
+    plainSummary: "产品卖出后扣除直接制造与物料成本所留下的毛利比例，直接映射定价权强弱。",
+    filingContext: "顶级买方判断护城河是否松动的首要领先指标，往往比净利更早发出预警。",
+    example: "若英伟达数据中心毛利率跌破 70%，往往意味着定制芯片竞争或封装成本失控。",
+  },
+  {
+    term: "10-K",
+    fullName: "SEC Form 10-K（美股官方年度报告）",
+    category: "一阶资料",
+    plainSummary: "美国证监会强制上市公司提交的完整年度审计报告，包含最硬核的财务明细与风险披露。",
+    filingContext: "Item 1A 风险因素与 Item 7 MD&A 是做红队挑刺与核查商业模式的第一手金矿。",
+    example: "做空或红队反驳前，先读 10-K Item 1A 里管理层自己最怕发生的 3 件事。",
+  },
+  {
+    term: "Moat",
+    fullName: "Economic Moat（商业护城河）",
+    category: "商业质量",
+    plainSummary:
+      "让竞争对手即便砸钱也难以抢走客户和利润的结构性壁垒（生态锁定、规模成本、转换成本）。",
+    filingContext: "Step 1 商业模式滤镜的核心判断，缺少护城河的公司不值得花 3 年深度跟踪。",
+    example: "CUDA 十年积累的开发者与算子库生态，让客户迁移成本远高于芯片差价。",
+  },
+];
+
+export const SEED_SEC_SNAPSHOTS: readonly SecSnapshot[] = [
+  {
+    ticker: "MU",
+    cik: "0000723125",
+    entityName: "MICRON TECHNOLOGY INC",
+    source: "cached-seed",
+    fetchedAt: "2026-11-20T08:00:00.000Z",
+    filings: [
+      {
+        form: "10-K",
+        filingDate: "2025-10-06",
+        reportDate: "2025-08-28",
+        accessionNumber: "0000723125-25-000041",
+        documentUrl:
+          "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000723125&type=10-K",
+        description: "FY2025 年度报告（含 Item 1A HBM 供给风险与分部毛利）",
+      },
+      {
+        form: "10-Q",
+        filingDate: "2026-06-27",
+        reportDate: "2026-05-29",
+        accessionNumber: "0000723125-26-000024",
+        documentUrl:
+          "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000723125&type=10-Q",
+        description: "FY2026 Q3 季报（数据中心收入占比与资本开支披露）",
+      },
+    ],
+    facts: [
+      {
+        metric: "Revenue",
+        label: "年度营业收入",
+        valueFormatted: "$37.4B",
+        period: "FY2025",
+        sourceTag: "us-gaap:Revenues",
+      },
+      {
+        metric: "GrossProfit",
+        label: "年度毛利润",
+        valueFormatted: "$15.9B",
+        period: "FY2025",
+        sourceTag: "us-gaap:GrossProfit",
+      },
+      {
+        metric: "OperatingCashFlow",
+        label: "经营性现金流",
+        valueFormatted: "$16.8B",
+        period: "FY2025",
+        sourceTag: "us-gaap:NetCashProvidedByUsedInOperatingActivities",
+      },
+    ],
+  },
+  {
+    ticker: "NVDA",
+    cik: "0001045810",
+    entityName: "NVIDIA CORP",
+    source: "cached-seed",
+    fetchedAt: "2026-11-20T08:00:00.000Z",
+    filings: [
+      {
+        form: "10-K",
+        filingDate: "2026-02-26",
+        reportDate: "2026-01-25",
+        accessionNumber: "0001045810-26-000023",
+        documentUrl:
+          "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001045810&type=10-K",
+        description: "FY2026 年度报告（数据中心客户集中度与软件生态披露）",
+      },
+      {
+        form: "10-Q",
+        filingDate: "2026-08-27",
+        reportDate: "2026-07-26",
+        accessionNumber: "0001045810-26-000112",
+        documentUrl:
+          "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001045810&type=10-Q",
+        description: "FY2027 Q2 季报（Blackwell 机柜交付与毛利率走势）",
+      },
+    ],
+    facts: [
+      {
+        metric: "Revenue",
+        label: "年度营业收入",
+        valueFormatted: "$196.2B",
+        period: "FY2026",
+        sourceTag: "us-gaap:Revenues",
+      },
+      {
+        metric: "GrossProfit",
+        label: "年度毛利润",
+        valueFormatted: "$145.6B",
+        period: "FY2026",
+        sourceTag: "us-gaap:GrossProfit",
+      },
+      {
+        metric: "NetIncome",
+        label: "年度净利润",
+        valueFormatted: "$108.4B",
+        period: "FY2026",
+        sourceTag: "us-gaap:NetIncomeLoss",
+      },
+    ],
+  },
+];

@@ -1,0 +1,128 @@
+@import "@heroui/styles";
+@import "./theme-bridge.css";
+
+@layer theme {
+  :root,
+  .light,
+  [data-theme="light"] {
+    --bg-canvas: #f7f7f5;
+    --bg-surface: #ffffff;
+    --bg-surface-elevated: #fdfdfc;
+    --bg-muted: #f2f2ef;
+    --bg-titanium: #e5e3dd;
+    --bg-titanium-subtle: #efece6;
+    --border-hairline: rgba(17, 17, 19, 0.08);
+    --border-strong: rgba(17, 17, 19, 0.15);
+    --ink-primary: #111113;
+    --ink-secondary: #5c606b;
+    --ink-muted: #767880;
+    --ink-inverse: #ffffff;
+    --accent-coral: #ea6b4a;
+    --accent-coral-soft: rgba(234, 107, 74, 0.1);
+    --status-pass: #16a34a;
+    --status-pass-soft: rgba(22, 163, 74, 0.1);
+    --status-warn: #d97706;
+    --status-warn-soft: rgba(217, 119, 6, 0.11);
+    --status-fail: #dc2626;
+    --status-fail-soft: rgba(220, 38, 38, 0.1);
+    --glass-topbar: rgba(247, 247, 245, 0.8);
+    --backdrop-scrim: rgba(17, 17, 19, 0.3);
+    --ambient-glow: rgba(229, 227, 221, 0.68);
+    --shadow-card: 0 1px 2px rgba(17, 17, 19, 0.03), 0 10px 26px -18px rgba(17, 17, 19, 0.09);
+    --shadow-card-hover:
+      0 18px 42px -20px rgba(17, 17, 19, 0.16), 0 2px 8px -2px rgba(17, 17, 19, 0.05);
+    --shadow-overlay:
+      0 28px 72px -18px rgba(17, 17, 19, 0.2), 0 4px 18px -4px rgba(17, 17, 19, 0.07);
+    --radius-card: 20px;
+    --radius-control: 10px;
+    --radius-pill: 9999px;
+
+    --background: var(--bg-canvas);
+    --foreground: var(--ink-primary);
+    --surface: var(--bg-surface);
+    --surface-foreground: var(--ink-primary);
+    --surface-secondary: var(--bg-muted);
+    --surface-tertiary: var(--bg-titanium-subtle);
+    --overlay: var(--bg-surface-elevated);
+    --overlay-foreground: var(--ink-primary);
+    --muted: var(--ink-muted);
+    --default: var(--bg-titanium);
+    --default-foreground: var(--ink-primary);
+    --accent: var(--ink-primary);
+    --accent-foreground: var(--ink-inverse);
+    --success: var(--status-pass);
+    --warning: var(--status-warn);
+    --danger: var(--status-fail);
+    --border: var(--border-hairline);
+    --separator: var(--border-hairline);
+    --focus: var(--accent-coral);
+    --field-background: var(--bg-surface);
+    --field-foreground: var(--ink-primary);
+    --field-border: var(--border-hairline);
+    --field-border-width: 1px;
+    --segment: var(--bg-surface);
+    --segment-foreground: var(--ink-primary);
+    --radius: 0.625rem;
+    --backdrop: var(--backdrop-scrim);
+    color-scheme: light;
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    --bg-canvas: #0b0c0e;
+    --bg-surface: #141518;
+    --bg-surface-elevated: #1a1b1f;
+    --bg-muted: #1c1d21;
+    --bg-titanium: #272622;
+    --bg-titanium-subtle: #1d1d1b;
+    --border-hairline: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --ink-primary: #f4f4f2;
+    --ink-secondary: #a9acb5;
+    --ink-muted: #9397a1;
+    --ink-inverse: #0b0c0e;
+    --accent-coral: #ea6b4a;
+    --accent-coral-soft: rgba(234, 107, 74, 0.16);
+    --status-pass: #22c55e;
+    --status-pass-soft: rgba(34, 197, 94, 0.14);
+    --status-warn: #f59e0b;
+    --status-warn-soft: rgba(245, 158, 11, 0.15);
+    --status-fail: #ef4444;
+    --status-fail-soft: rgba(239, 68, 68, 0.15);
+    --glass-topbar: rgba(11, 12, 14, 0.8);
+    --backdrop-scrim: rgba(0, 0, 0, 0.64);
+    --ambient-glow: rgba(229, 227, 221, 0.06);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --shadow-card-hover:
+      0 20px 48px -18px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    --shadow-overlay: 0 32px 80px -14px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+
+    --background: var(--bg-canvas);
+    --foreground: var(--ink-primary);
+    --surface: var(--bg-surface);
+    --surface-foreground: var(--ink-primary);
+    --surface-secondary: var(--bg-muted);
+    --surface-tertiary: var(--bg-titanium-subtle);
+    --overlay: var(--bg-surface-elevated);
+    --overlay-foreground: var(--ink-primary);
+    --muted: var(--ink-muted);
+    --default: var(--bg-titanium);
+    --default-foreground: var(--ink-primary);
+    --accent: var(--ink-primary);
+    --accent-foreground: var(--ink-inverse);
+    --success: var(--status-pass);
+    --warning: var(--status-warn);
+    --danger: var(--status-fail);
+    --border: var(--border-hairline);
+    --separator: var(--border-hairline);
+    --focus: var(--accent-coral);
+    --field-background: var(--bg-surface);
+    --field-foreground: var(--ink-primary);
+    --field-border: var(--border-hairline);
+    --field-border-width: 1px;
+    --segment: var(--bg-surface);
+    --segment-foreground: var(--ink-primary);
+    --backdrop: var(--backdrop-scrim);
+    color-scheme: dark;
+  }
+}
