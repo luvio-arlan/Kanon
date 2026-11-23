@@ -1,7 +1,8 @@
 "use client";
 
 import type { DisciplineEntry, EmotionState, TradeAction } from "@kanon/core";
-import { Badge, Card } from "@kanon/ui";
+import { Card } from "@kanon/ui";
+import { IconCheck } from "@tabler/icons-react";
 
 const ACTION_LABEL: Record<TradeAction, string> = {
   buy: "首次建仓",
@@ -18,32 +19,63 @@ const EMOTION_LABEL: Record<EmotionState, string> = {
   fearful: "恐慌想割",
 };
 
-export function DisciplineTimeline({ entries }: { entries: readonly DisciplineEntry[] }) {
-  if (entries.length === 0) return null;
+function TimelineRow({ entry }: { entry: DisciplineEntry }) {
+  const emotionWarn = entry.emotion === "fomo" || entry.emotion === "fearful";
+
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-ink-primary">历史纪律与复盘记录</h3>
-      {entries.map((entry) => (
-        <Card key={entry.id} className="p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Badge variant="titanium">{ACTION_LABEL[entry.action]}</Badge>
-              <Badge variant={entry.emotion === "calm" ? "pass" : "warn"}>
-                情绪：{EMOTION_LABEL[entry.emotion]}
-              </Badge>
-              {entry.noLeverageConfirmed ? <Badge variant="pass">已核验零杠杆</Badge> : null}
-            </div>
-            <span className="font-mono text-xs text-ink-muted tabular-nums">
-              锚定价 ${entry.priceAnchor.toFixed(2)} · {entry.createdAt.slice(0, 10)}
+    <article className="py-5 first:pt-1 last:pb-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="font-semibold text-ink-primary">{ACTION_LABEL[entry.action]}</span>
+          <span className="font-mono text-ink-secondary tabular-nums">
+            ${entry.priceAnchor.toFixed(2)}
+          </span>
+          <span aria-hidden="true" className="text-ink-muted">
+            ·
+          </span>
+          <span className={emotionWarn ? "text-status-warn" : "text-ink-secondary"}>
+            {EMOTION_LABEL[entry.emotion]}
+          </span>
+          {entry.noLeverageConfirmed ? (
+            <span className="inline-flex items-center gap-1 text-ink-muted">
+              <IconCheck size={13} stroke={1.5} />
+              零杠杆
             </span>
-          </div>
-          <p className="mt-2.5 text-sm text-ink-primary">
-            <span className="font-medium text-ink-muted">认错离场红线：</span>
-            {entry.exitRule}
-          </p>
-          {entry.note ? <p className="mt-1 text-xs text-ink-secondary">{entry.note}</p> : null}
-        </Card>
-      ))}
-    </div>
+          ) : null}
+        </div>
+        <time className="font-mono text-ink-muted tabular-nums">
+          {entry.createdAt.slice(0, 10)}
+        </time>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-ink-primary">
+        <span className="text-ink-muted">离场红线：</span>
+        {entry.exitRule}
+      </p>
+      {entry.note ? (
+        <p className="mt-1 text-xs leading-relaxed text-ink-secondary">{entry.note}</p>
+      ) : null}
+    </article>
+  );
+}
+
+export function DisciplineTimeline({ entries }: { entries: readonly DisciplineEntry[] }) {
+  if (entries.length === 0) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-sm text-ink-secondary">
+          暂无交易复盘留痕。每次仓位动作前先签下零杠杆铁律与认错红线。
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="px-6 py-4">
+      <div className="divide-y divide-hairline">
+        {entries.map((entry) => (
+          <TimelineRow key={entry.id} entry={entry} />
+        ))}
+      </div>
+    </Card>
   );
 }

@@ -1,1 +1,1 @@
-export { DisciplineJournal, type DisciplineJournalProps } from "./components/discipline-journal";
+export { DisciplineJournal } from "./components/discipline-journal";

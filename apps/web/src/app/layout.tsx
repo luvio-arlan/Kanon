@@ -1,4 +1,4 @@
-import { THEME_INIT_SCRIPT, ThemeProvider, Toaster, TooltipProvider } from "@kanon/ui";
+import { THEME_INIT_SCRIPT, ThemeProvider, Toaster } from "@kanon/ui";
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
@@ -36,10 +36,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-dvh bg-canvas text-ink-primary antialiased">
         <ThemeProvider>
-          <TooltipProvider delayDuration={180}>
-            {children}
-            <Toaster />
-          </TooltipProvider>
+          {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

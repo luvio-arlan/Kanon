@@ -2,7 +2,7 @@
 
 import type { EmotionState, TradeAction } from "@kanon/core";
 import { Button, cn, DisciplineSwitch, Input } from "@kanon/ui";
-import { IconShieldLock } from "@tabler/icons-react";
+import { IconAlertCircle, IconShieldLock } from "@tabler/icons-react";
 
 const ACTION_OPTIONS: ReadonlyArray<{ id: TradeAction; label: string }> = [
   { id: "buy", label: "首次建仓" },
@@ -19,47 +19,60 @@ const EMOTION_OPTIONS: ReadonlyArray<{ id: EmotionState; label: string }> = [
   { id: "fearful", label: "恐慌想割" },
 ];
 
-export function ActionAndIronSwitches(props: {
+export function TradeActionRow({
+  action,
+  onAction,
+}: {
   action: TradeAction;
-  noLeverage: boolean;
-  positionCap: boolean;
   onAction: (next: TradeAction) => void;
-  onNoLeverage: (next: boolean) => void;
-  onPositionCap: (next: boolean) => void;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {ACTION_OPTIONS.map((opt) => (
+    <div className="flex flex-wrap gap-1.5">
+      {ACTION_OPTIONS.map((opt) => (
+        <button
+          key={opt.id}
+          type="button"
+          onClick={() => onAction(opt.id)}
+          className={cn(
+            "cursor-pointer rounded-pill border px-3.5 py-1.5 text-xs font-medium transition-colors",
+            action === opt.id
+              ? "border-ink-primary bg-ink-primary text-ink-inverse"
+              : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function EmotionButtons({
+  emotion,
+  onEmotion,
+}: {
+  emotion: EmotionState;
+  onEmotion: (next: EmotionState) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 text-xs text-ink-muted">情绪自检</div>
+      <div className="flex flex-wrap gap-1.5">
+        {EMOTION_OPTIONS.map((opt) => (
           <button
             key={opt.id}
             type="button"
-            onClick={() => props.onAction(opt.id)}
+            onClick={() => onEmotion(opt.id)}
             className={cn(
-              "cursor-pointer rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-colors",
-              props.action === opt.id
-                ? "border-ink-primary bg-ink-primary text-ink-inverse"
-                : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
+              "cursor-pointer rounded-control border px-3 py-1.5 text-xs font-medium transition-colors",
+              emotion === opt.id
+                ? "border-strong bg-muted text-ink-primary"
+                : "border-hairline bg-surface text-ink-secondary hover:text-ink-primary",
             )}
           >
             {opt.label}
           </button>
         ))}
-      </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <DisciplineSwitch
-          label="铁律一：绝不使用任何杠杆"
-          description="严禁融资融券、期权豪赌或两倍杠杆 ETF，仅用自有长钱。"
-          isSelected={props.noLeverage}
-          onChange={props.onNoLeverage}
-          tone="danger"
-        />
-        <DisciplineSwitch
-          label="铁律二：严守单票仓位上限"
-          description="即便看错触发证伪红线，也不会造成不可逆组合回撤。"
-          isSelected={props.positionCap}
-          onChange={props.onPositionCap}
-        />
       </div>
     </div>
   );
@@ -71,70 +84,99 @@ export function EmotionAndPriceRow(props: {
   onEmotion: (next: EmotionState) => void;
   onPrice: (next: number) => void;
 }) {
+  const highEmotion = props.emotion === "fomo" || props.emotion === "fearful";
+
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div>
-        <div className="mb-2 text-xs font-medium text-ink-muted">当前情绪自检</div>
-        <div className="flex flex-wrap gap-2">
-          {EMOTION_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => props.onEmotion(opt.id)}
-              className={cn(
-                "cursor-pointer rounded-control border px-3 py-1.5 text-xs font-medium transition-colors",
-                props.emotion === opt.id
-                  ? "border-accent-coral bg-accent-coral-soft text-accent-coral"
-                  : "border-hairline bg-muted/50 text-ink-secondary hover:text-ink-primary",
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <EmotionButtons emotion={props.emotion} onEmotion={props.onEmotion} />
+        <div className="w-36">
+          <label htmlFor="disc-price" className="mb-1.5 block text-xs text-ink-muted">
+            锚定参考价 ($)
+          </label>
+          <Input
+            id="disc-price"
+            type="number"
+            min={0.5}
+            step={0.5}
+            value={props.priceAnchor}
+            onChange={(e) => props.onPrice(Number(e.target.value) || 0)}
+            className="h-8 font-mono tabular-nums"
+          />
         </div>
       </div>
-      <div>
-        <label htmlFor="disc-price" className="mb-2 block text-xs font-medium text-ink-muted">
-          当前决策价格锚点 ($)
-        </label>
-        <Input
-          id="disc-price"
-          type="number"
-          min={0.5}
-          step={0.5}
-          value={props.priceAnchor}
-          onChange={(e) => props.onPrice(Number(e.target.value) || 0)}
-          className="font-mono tabular-nums"
-        />
-      </div>
+      {highEmotion ? (
+        <div className="flex items-center gap-1.5 text-xs text-status-warn">
+          <IconAlertCircle size={14} stroke={1.5} />
+          <span>检测到情绪波动，建议冷静 24 小时后再执行真实仓位动作</span>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-export function DisciplineSubmitFooter(props: {
-  blocked: boolean;
+function SignatureButtons(props: {
+  disabled: boolean;
   submitting: boolean;
-  canSubmit: boolean;
+  onCancel?: () => void;
   onSave: () => Promise<void>;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      {props.blocked ? (
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-status-fail">
-          <IconShieldLock size={15} stroke={1.5} />
-          未确认「零杠杆铁律」前禁止提交仓位记录
-        </span>
-      ) : (
-        <span className="text-xs text-ink-muted">签字后将永久写入 PostgreSQL 决策复盘台账</span>
-      )}
-      <Button
-        variant="primary"
-        size="md"
-        disabled={props.submitting || props.blocked || !props.canSubmit}
-        onClick={props.onSave}
-      >
-        <span>{props.submitting ? "正在落库..." : "签字并存入复盘卡"}</span>
+    <div className="flex items-center gap-2">
+      {props.onCancel ? (
+        <Button variant="ghost" size="sm" onClick={props.onCancel}>
+          收起
+        </Button>
+      ) : null}
+      <Button variant="primary" size="sm" disabled={props.disabled} onClick={props.onSave}>
+        <span>{props.submitting ? "正在落库..." : "签字入账"}</span>
       </Button>
+    </div>
+  );
+}
+
+export function DisciplineSignatureStrip(props: {
+  noLeverage: boolean;
+  positionCap: boolean;
+  blocked: boolean;
+  submitting: boolean;
+  canSubmit: boolean;
+  onNoLeverage: (next: boolean) => void;
+  onPositionCap: (next: boolean) => void;
+  onCancel?: () => void;
+  onSave: () => Promise<void>;
+}) {
+  return (
+    <div className="space-y-2.5 border-t border-hairline pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-5">
+          <DisciplineSwitch
+            compact
+            label="零杠杆确认"
+            isSelected={props.noLeverage}
+            onChange={props.onNoLeverage}
+            tone="danger"
+          />
+          <DisciplineSwitch
+            compact
+            label="严守单票仓位上限"
+            isSelected={props.positionCap}
+            onChange={props.onPositionCap}
+          />
+        </div>
+        <SignatureButtons
+          disabled={props.submitting || props.blocked || !props.canSubmit}
+          submitting={props.submitting}
+          onCancel={props.onCancel}
+          onSave={props.onSave}
+        />
+      </div>
+      {props.blocked ? (
+        <div className="flex items-center gap-1.5 text-xs font-medium text-status-fail">
+          <IconShieldLock size={14} stroke={1.5} />
+          <span>未确认「零杠杆铁律」前禁止提交仓位记录</span>
+        </div>
+      ) : null}
     </div>
   );
 }

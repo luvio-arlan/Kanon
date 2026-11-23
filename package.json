@@ -15,7 +15,8 @@
     "typecheck": "turbo run typecheck",
     "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs",
     "design:check": "node scripts/check-design-and-limits.mjs",
-    "check": "pnpm lint && pnpm typecheck && pnpm depcruise && pnpm design:check",
+    "knip": "knip",
+    "check": "pnpm lint && pnpm typecheck && pnpm depcruise && pnpm design:check && pnpm knip",
     "db:push": "pnpm --filter @kanon/core db:push",
     "prepare": "lefthook install || true"
   },
@@ -23,6 +24,7 @@
     "@biomejs/biome": "2.6.8",
     "@types/node": "^24.0.0",
     "dependency-cruiser": "^18.9.0",
+    "knip": "^6.47.0",
     "lefthook": "^2.2.2",
     "turbo": "^2.11.13",
     "typescript": "^5.9.3"

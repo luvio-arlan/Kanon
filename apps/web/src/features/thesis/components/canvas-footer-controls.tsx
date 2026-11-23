@@ -4,9 +4,9 @@ import type { GlossaryTerm, ThesisDetail } from "@kanon/core";
 import { Button, CommandMenu, DialogModal, useTheme } from "@kanon/ui";
 import { IconAlertTriangle, IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
+import { AiSettingsModal } from "@/features/ai-settings";
 import { buildCanvasCommandGroups } from "../data/canvas-commands";
 import type { useResearchCanvas } from "../hooks/use-research-canvas";
-import { AiSettingsModal } from "./ai-settings-modal";
 import type { StepId } from "./canvas-chrome";
 
 const STEP_NAMES: Record<StepId, string> = {
@@ -49,7 +49,7 @@ export function StepFooterNav({
   );
 }
 
-export function DeleteThesisDialog({
+function DeleteThesisDialog({
   open,
   companyName,
   ticker,
@@ -105,6 +105,7 @@ export function useCanvasShellActions(params: {
   allTheses: readonly ThesisDetail[];
   glossary: readonly GlossaryTerm[];
   onSelectStep: (step: StepId) => void;
+  onToggleFocus: () => void;
   onOpenAi: () => void;
   onCloseDelete: () => void;
 }) {
@@ -127,6 +128,7 @@ export function useCanvasShellActions(params: {
     onRunDigest: () => trigger(3, "earnings_digest"),
     onRunMemo: () => trigger(5, "investment_memo"),
     onOpenAiSettings: params.onOpenAi,
+    onToggleFocus: params.onToggleFocus,
     onExportMd: () => window.location.assign(`/api/export/thesis/${ctrl.thesis.id}?format=md`),
     onExportGdoc: () => window.location.assign(`/api/export/thesis/${ctrl.thesis.id}?format=gdoc`),
     onToggleTheme: toggleTheme,

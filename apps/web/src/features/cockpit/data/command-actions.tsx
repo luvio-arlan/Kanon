@@ -1,7 +1,6 @@
 import type { GlossaryTerm, ThesisDetail } from "@kanon/core";
 import type { CommandActionGroup, CommandActionItem } from "@kanon/ui";
 import {
-  IconBook2,
   IconCpu,
   IconDownload,
   IconMoon,
@@ -9,7 +8,7 @@ import {
   IconSun,
   IconTrendingUp,
 } from "@tabler/icons-react";
-import { toast } from "sonner";
+import { buildGlossaryGroup } from "@/features/glossary";
 
 function buildWorkspaceActionItems(params: {
   theme: "light" | "dark";
@@ -54,23 +53,6 @@ function buildWorkspaceActionItems(params: {
       onSelect: onToggleTheme,
     },
   ];
-}
-
-export function buildGlossaryGroup(glossary: readonly GlossaryTerm[]): CommandActionGroup {
-  return {
-    heading: "行业术语速查（12 词条）",
-    items: glossary.map((item) => ({
-      id: `term-${item.term}`,
-      label: `${item.term} — ${item.fullName}`,
-      description: item.plainSummary,
-      keywords: [item.term, item.fullName, item.category],
-      icon: <IconBook2 size={15} stroke={1.5} />,
-      onSelect: () =>
-        toast(`${item.term} · ${item.fullName}`, {
-          description: `${item.plainSummary}（${item.filingContext}）`,
-        }),
-    })),
-  };
 }
 
 export function buildCockpitCommandGroups(params: {

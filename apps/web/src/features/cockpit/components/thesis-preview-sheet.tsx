@@ -1,7 +1,7 @@
 "use client";
 
 import type { ThesisDetail, ValuationCaseResult } from "@kanon/core";
-import { Badge, Button, Sheet } from "@kanon/ui";
+import { Badge, Button, buttonVariants, Sheet } from "@kanon/ui";
 import { IconArrowUpRight, IconDownload } from "@tabler/icons-react";
 import Link from "next/link";
 
@@ -86,12 +86,13 @@ function SheetFooterActions({ thesis, onClose }: { thesis: ThesisDetail; onClose
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <Button asChild variant="primary" size="md">
-          <Link href={`/thesis/${thesis.id}`}>
-            <span>进入五步画布</span>
-            <IconArrowUpRight size={15} stroke={1.5} />
-          </Link>
-        </Button>
+        <Link
+          href={`/thesis/${thesis.id}`}
+          className={buttonVariants({ variant: "primary", size: "md" })}
+        >
+          <span>进入五步画布</span>
+          <IconArrowUpRight size={15} stroke={1.5} />
+        </Link>
         <a
           href={`/api/export/thesis/${thesis.id}?format=gdoc`}
           className="inline-flex h-9 items-center gap-1.5 rounded-control border border-hairline bg-surface px-3 text-xs font-medium text-ink-secondary hover:border-strong hover:text-ink-primary"

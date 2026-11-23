@@ -7,14 +7,11 @@ import type {
   ThesisDetail,
   TradeAction,
 } from "@kanon/core";
-import { Card, Input, Textarea } from "@kanon/ui";
-import { IconShieldCheck } from "@tabler/icons-react";
+import { Button, Card, Input, KANON_TRANSITION_FAST, SegmentedTabs, Textarea } from "@kanon/ui";
+import { IconPlus, IconSparkles } from "@tabler/icons-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
-import {
-  ActionAndIronSwitches,
-  DisciplineSubmitFooter,
-  EmotionAndPriceRow,
-} from "./discipline-fields";
+import { DisciplineSignatureStrip, EmotionAndPriceRow, TradeActionRow } from "./discipline-fields";
 import { DisciplineTimeline } from "./discipline-timeline";
 import { InvestmentMemoCard } from "./investment-memo-card";
 
@@ -28,6 +25,8 @@ export interface DisciplineJournalProps {
   onGenerateMemo: () => Promise<void>;
 }
 
+type Step5Tab = "ledger" | "memo";
+
 interface FormState {
   action: TradeAction;
   emotion: EmotionState;
@@ -36,20 +35,6 @@ interface FormState {
   priceAnchor: number;
   exitRule: string;
   note: string;
-}
-
-function ChecklistHeader() {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <div>
-        <h3 className="text-base font-semibold text-ink-primary">交易前铁律检查单</h3>
-        <p className="mt-0.5 text-xs text-ink-secondary">
-          每次仓位动作前强制核对零杠杆铁律与认错红线，拒绝情绪化交易
-        </p>
-      </div>
-      <IconShieldCheck size={20} stroke={1.5} className="text-status-pass" />
-    </div>
-  );
 }
 
 function createInitialForm(defaultPrice: number): FormState {
@@ -64,7 +49,7 @@ function createInitialForm(defaultPrice: number): FormState {
   };
 }
 
-function toDisciplineInput(form: FormState, defaultPrice: number): CreateDisciplineEntryInput {
+function toEntryInput(form: FormState, defaultPrice: number): CreateDisciplineEntryInput {
   return {
     action: form.action,
     emotion: form.emotion,
@@ -76,120 +61,171 @@ function toDisciplineInput(form: FormState, defaultPrice: number): CreateDiscipl
   };
 }
 
-function ExitRuleInputs(props: {
+function ExitRuleFields(props: {
   exitRule: string;
   note: string;
+  redTeamHint?: string;
   onExitRule: (next: string) => void;
   onNote: (next: string) => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label htmlFor="disc-exit-rule" className="text-xs text-ink-muted">
+          认错离场红线（必填）
+        </label>
+        {props.redTeamHint && !props.exitRule.trim() ? (
+          <button
+            type="button"
+            onClick={() => props.onExitRule(props.redTeamHint ?? "")}
+            className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-coral transition-opacity hover:opacity-80"
+          >
+            <IconSparkles size={13} stroke={1.5} />
+            <span>引用红队证伪红线</span>
+          </button>
+        ) : null}
+      </div>
       <Textarea
+        id="disc-exit-rule"
         value={props.exitRule}
         onChange={(e) => props.onExitRule(e.target.value)}
-        placeholder="必填 · 认错离场条件（例如：若连续两季毛利率跌破 38% 或扩产失控，无条件减半仓复盘）"
+        placeholder="若连续两季毛利率跌破阈值或资本开支失控，无条件减半仓复盘..."
+        className="min-h-[76px]"
       />
       <Input
         value={props.note}
         onChange={(e) => props.onNote(e.target.value)}
-        placeholder="补充决策备忘录（可选）..."
+        placeholder="补充决策备忘（可选）"
       />
     </div>
   );
 }
 
-interface ChecklistCardProps {
+function DecisionComposerCard(props: {
   defaultPrice: number;
   submitting: boolean;
   redTeamExitSuggestion?: string;
+  canCollapse: boolean;
+  onClose: () => void;
   onSubmit: (entry: CreateDisciplineEntryInput) => Promise<void>;
-}
-
-function RedTeamExitHint({
-  suggestion,
-  onApply,
-}: {
-  suggestion?: string;
-  onApply: (text: string) => void;
 }) {
-  if (!suggestion) return null;
-  return (
-    <button
-      type="button"
-      onClick={() => onApply(suggestion)}
-      className="w-full cursor-pointer rounded-control border border-dashed border-accent-coral/40 bg-accent-coral-soft/40 px-3.5 py-2 text-left text-xs text-ink-primary transition-colors hover:bg-accent-coral-soft/70"
-    >
-      一键带入红队致命证伪路径作为离场红线：{suggestion}
-    </button>
-  );
-}
-
-function DisciplineChecklistCard(props: ChecklistCardProps) {
   const [form, setForm] = useState<FormState>(() => createInitialForm(props.defaultPrice));
   const patch = (p: Partial<FormState>) => setForm((prev) => ({ ...prev, ...p }));
   const blocked = form.action !== "pass" && !form.noLeverage;
 
   async function handleSave() {
     if (blocked || !form.exitRule.trim()) return;
-    await props.onSubmit(toDisciplineInput(form, props.defaultPrice));
+    await props.onSubmit(toEntryInput(form, props.defaultPrice));
     patch({ exitRule: "", note: "" });
+    props.onClose();
   }
 
   return (
     <Card className="space-y-5 p-6">
-      <ChecklistHeader />
-      <ActionAndIronSwitches
-        action={form.action}
-        noLeverage={form.noLeverage}
-        positionCap={form.positionCap}
-        onAction={(action) => patch({ action })}
-        onNoLeverage={(noLeverage) => patch({ noLeverage })}
-        onPositionCap={(positionCap) => patch({ positionCap })}
-      />
+      <TradeActionRow action={form.action} onAction={(action) => patch({ action })} />
       <EmotionAndPriceRow
         emotion={form.emotion}
         priceAnchor={form.priceAnchor}
         onEmotion={(emotion) => patch({ emotion })}
         onPrice={(priceAnchor) => patch({ priceAnchor })}
       />
-      {!form.exitRule.trim() ? (
-        <RedTeamExitHint
-          suggestion={props.redTeamExitSuggestion}
-          onApply={(exitRule) => patch({ exitRule })}
-        />
-      ) : null}
-      <ExitRuleInputs
+      <ExitRuleFields
         exitRule={form.exitRule}
         note={form.note}
+        redTeamHint={props.redTeamExitSuggestion}
         onExitRule={(exitRule) => patch({ exitRule })}
         onNote={(note) => patch({ note })}
       />
-      <DisciplineSubmitFooter
+      <DisciplineSignatureStrip
+        noLeverage={form.noLeverage}
+        positionCap={form.positionCap}
         blocked={blocked}
         submitting={props.submitting}
         canSubmit={Boolean(form.exitRule.trim())}
+        onNoLeverage={(noLeverage) => patch({ noLeverage })}
+        onPositionCap={(positionCap) => patch({ positionCap })}
+        onCancel={props.canCollapse ? props.onClose : undefined}
         onSave={handleSave}
       />
     </Card>
   );
 }
 
+function LedgerTabView(props: {
+  thesis: ThesisDetail;
+  composerOpen: boolean;
+  submitting: boolean;
+  redTeamExitSuggestion?: string;
+  onCloseComposer: () => void;
+  onSubmitDiscipline: (entry: CreateDisciplineEntryInput) => Promise<void>;
+}) {
+  return (
+    <div className="space-y-5">
+      <AnimatePresence initial={false}>
+        {props.composerOpen ? (
+          <motion.div
+            key="composer"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={KANON_TRANSITION_FAST}
+          >
+            <DecisionComposerCard
+              defaultPrice={props.thesis.currentPrice}
+              submitting={props.submitting}
+              redTeamExitSuggestion={props.redTeamExitSuggestion}
+              canCollapse={props.thesis.disciplineEntries.length > 0}
+              onClose={props.onCloseComposer}
+              onSubmit={props.onSubmitDiscipline}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      <DisciplineTimeline entries={props.thesis.disciplineEntries} />
+    </div>
+  );
+}
+
 export function DisciplineJournal(props: DisciplineJournalProps) {
+  const [tab, setTab] = useState<Step5Tab>("ledger");
+  const [composerOpen, setComposerOpen] = useState(props.thesis.disciplineEntries.length === 0);
+
   return (
     <div className="space-y-6">
-      <DisciplineChecklistCard
-        defaultPrice={props.thesis.currentPrice}
-        submitting={props.submitting}
-        redTeamExitSuggestion={props.redTeamExitSuggestion}
-        onSubmit={props.onSubmitDiscipline}
-      />
-      <DisciplineTimeline entries={props.thesis.disciplineEntries} />
-      <InvestmentMemoCard
-        thesisId={props.thesis.id}
-        memo={props.investmentMemo}
-        loading={props.memoLoading}
-        onGenerate={props.onGenerateMemo}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SegmentedTabs
+          layoutId="step5-mode-tabs"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { id: "ledger", label: "交易纪律台账", count: props.thesis.disciplineEntries.length },
+            { id: "memo", label: "投研备忘录" },
+          ]}
+        />
+        {tab === "ledger" ? (
+          <Button variant="primary" size="sm" onClick={() => setComposerOpen((v) => !v)}>
+            <IconPlus size={14} stroke={1.5} />
+            <span>{composerOpen ? "收起记录单" : "记录新决策"}</span>
+          </Button>
+        ) : null}
+      </div>
+      {tab === "ledger" ? (
+        <LedgerTabView
+          thesis={props.thesis}
+          composerOpen={composerOpen}
+          submitting={props.submitting}
+          redTeamExitSuggestion={props.redTeamExitSuggestion}
+          onCloseComposer={() => setComposerOpen(false)}
+          onSubmitDiscipline={props.onSubmitDiscipline}
+        />
+      ) : (
+        <InvestmentMemoCard
+          thesisId={props.thesis.id}
+          memo={props.investmentMemo}
+          loading={props.memoLoading}
+          onGenerate={props.onGenerateMemo}
+        />
+      )}
     </div>
   );
 }

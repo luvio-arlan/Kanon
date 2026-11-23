@@ -1,7 +1,7 @@
 "use client";
 
 import type { ValuationCaseResult } from "@kanon/core";
-import { Badge, Card, PrecisionSlider } from "@kanon/ui";
+import { Badge, Card, PrecisionSlider, RollingNumber } from "@kanon/ui";
 
 export interface ScenarioEditorCardProps {
   label: string;
@@ -22,7 +22,6 @@ function ScenarioMetricHeader({
   tone,
   result,
 }: Pick<ScenarioEditorCardProps, "label" | "subtitle" | "tone" | "result">) {
-  const sign = result.returnPct > 0 ? "+" : "";
   return (
     <div>
       <div className="flex items-start justify-between gap-2">
@@ -31,15 +30,24 @@ function ScenarioMetricHeader({
           <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>
         </div>
         <Badge variant={tone} className="font-mono tabular-nums">
-          {sign}
-          {result.returnPct.toFixed(1)}%
+          <RollingNumber
+            value={result.returnPct}
+            suffix="%"
+            decimals={1}
+            signDisplay="exceptZero"
+          />
         </Badge>
       </div>
-      <div className="mt-4 flex items-baseline justify-between border-b border-hairline pb-4 font-mono tabular-nums">
-        <span className="text-3xl font-semibold tracking-tight text-ink-primary">
-          ${result.targetPrice.toFixed(1)}
+      <div className="mt-4 flex items-baseline justify-between border-b border-hairline pb-4">
+        <RollingNumber
+          value={result.targetPrice}
+          prefix="$"
+          decimals={1}
+          className="text-3xl font-semibold tracking-tight text-ink-primary"
+        />
+        <span className="text-xs text-ink-secondary">
+          年化 <RollingNumber value={result.cagrPct} suffix="%" decimals={1} />
         </span>
-        <span className="text-xs text-ink-secondary">年化 {result.cagrPct.toFixed(1)}%</span>
       </div>
     </div>
   );

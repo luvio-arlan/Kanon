@@ -1,18 +1,17 @@
 "use client";
 
 import type { GlossaryTerm, SecAnnualFinancial, SecSnapshot, ThesisDetail } from "@kanon/core";
-import { KANON_TRANSITION_FAST } from "@kanon/ui";
-import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { cn, KANON_TRANSITION_FAST } from "@kanon/ui";
+import { IconFocus2 } from "@tabler/icons-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { readByokConfig } from "@/features/ai-settings";
 import { DisciplineJournal } from "@/features/journal";
+import { StepBusinessFilter, StepFirstPrinciples, StepHypotheses } from "@/features/research-steps";
 import { ValuationWorkbench } from "@/features/valuation";
+import { useCanvasChromeState } from "../hooks/use-canvas-chrome";
 import { type InitialCopilotState, useResearchCanvas } from "../hooks/use-research-canvas";
-import { readByokConfig } from "../lib/byok-storage";
 import { CanvasTopbar, type StepId, StepRail } from "./canvas-chrome";
 import { CanvasOverlays, StepFooterNav, useCanvasShellActions } from "./canvas-footer-controls";
-import { StepBusinessFilter } from "./step-business-filter";
-import { StepFirstPrinciples } from "./step-first-principles";
-import { StepHypotheses } from "./step-hypotheses";
 
 export interface ResearchCanvasShellProps {
   initialThesis: ThesisDetail;
@@ -110,70 +109,101 @@ function renderLateSteps(step: 4 | 5, ctrl: CanvasController) {
   );
 }
 
+function FocusExitPill({ onExit }: { onExit: () => void }) {
+  return (
+    <div className="mb-4 flex justify-end">
+      <button
+        type="button"
+        onClick={onExit}
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-pill border border-hairline bg-surface px-3 py-1 text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
+      >
+        <IconFocus2 size={13} stroke={1.5} />
+        <span>退出专注模式 (F)</span>
+      </button>
+    </div>
+  );
+}
+
 function CanvasMainContent(props: {
   activeStep: StepId;
+  direction: number;
+  focusMode: boolean;
   ctrl: CanvasController;
   glossary: readonly GlossaryTerm[];
   onSelectStep: (step: StepId) => void;
-  onRequestDelete: () => void;
+  onExitFocus: () => void;
 }) {
-  const { activeStep, ctrl, glossary, onSelectStep, onRequestDelete } = props;
+  const { activeStep, direction, focusMode, ctrl, glossary, onSelectStep, onExitFocus } = props;
   return (
-    <main className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 py-8 sm:px-10 lg:grid-cols-[248px_minmax(0,1fr)]">
-      <StepRail
-        activeStep={activeStep}
-        thesis={ctrl.thesis}
-        onSelect={onSelectStep}
-        onRequestDelete={onRequestDelete}
-      />
+    <main
+      className={cn(
+        "mx-auto px-6 py-8 sm:px-10",
+        focusMode
+          ? "max-w-3xl"
+          : "grid max-w-6xl grid-cols-1 gap-10 lg:grid-cols-[208px_minmax(0,1fr)]",
+      )}
+    >
+      {focusMode ? (
+        <FocusExitPill onExit={onExitFocus} />
+      ) : (
+        <StepRail activeStep={activeStep} thesis={ctrl.thesis} onSelect={onSelectStep} />
+      )}
       <section className="min-w-0">
-        <motion.div
-          key={activeStep}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={KANON_TRANSITION_FAST}
-        >
-          {activeStep <= 3
-            ? renderEarlySteps(activeStep as 1 | 2 | 3, ctrl, glossary)
-            : renderLateSteps(activeStep as 4 | 5, ctrl)}
-        </motion.div>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeStep}
+            initial={{ opacity: 0, x: direction * 14 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: direction * -10 }}
+            transition={KANON_TRANSITION_FAST}
+          >
+            {activeStep <= 3
+              ? renderEarlySteps(activeStep as 1 | 2 | 3, ctrl, glossary)
+              : renderLateSteps(activeStep as 4 | 5, ctrl)}
+          </motion.div>
+        </AnimatePresence>
         <StepFooterNav activeStep={activeStep} onSelectStep={onSelectStep} />
       </section>
     </main>
   );
 }
 
-function useCanvasChromeState() {
-  const [activeStep, setActiveStep] = useState<StepId>(1);
-  const [modals, setModals] = useState({ cmd: false, ai: false, del: false });
-  const [hasByok, setHasByok] = useState(false);
-
-  useEffect(() => {
-    setHasByok(Boolean(readByokConfig()));
-  }, []);
-
-  const jumpToStep = (step: StepId) => {
-    setActiveStep(step);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-  const setModal = (key: "cmd" | "ai" | "del", val: boolean) =>
-    setModals((prev) => ({ ...prev, [key]: val }));
-
-  return { activeStep, modals, hasByok, setHasByok, jumpToStep, setModal };
+function CanvasShellOverlays(props: {
+  ctrl: CanvasController;
+  ui: ReturnType<typeof useCanvasChromeState>;
+  actions: ReturnType<typeof useCanvasShellActions>;
+}) {
+  const { ctrl, ui, actions } = props;
+  return (
+    <CanvasOverlays
+      thesis={ctrl.thesis}
+      deleting={ctrl.deleting}
+      commandOpen={ui.modals.cmd}
+      aiModalOpen={ui.modals.ai}
+      deleteOpen={ui.modals.del}
+      commandGroups={actions.commandGroups}
+      onCommandOpen={(o) => ui.setModal("cmd", o)}
+      onAiModalOpen={(o) => ui.setModal("ai", o)}
+      onDeleteOpen={(o) => ui.setModal("del", o)}
+      onByokChanged={() => ui.setHasByok(Boolean(readByokConfig()))}
+      onConfirmDelete={actions.handleConfirmDelete}
+    />
+  );
 }
 
 export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
-  const ui = useCanvasChromeState();
+  const ui = useCanvasChromeState(props.initialThesis.id, props.allTheses);
   const ctrl = useResearchCanvas(
     props.initialThesis,
     props.initialSecSnapshot,
     props.initialCopilot,
   );
-  const { commandGroups, handleConfirmDelete } = useCanvasShellActions({
+  const actions = useCanvasShellActions({
     ctrl,
     allTheses: props.allTheses,
     glossary: props.glossary,
     onSelectStep: ui.jumpToStep,
+    onToggleFocus: ui.toggleFocus,
     onOpenAi: () => ui.setModal("ai", true),
     onCloseDelete: () => ui.setModal("del", false),
   });
@@ -183,29 +213,22 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
       <CanvasTopbar
         thesis={ctrl.thesis}
         hasByok={ui.hasByok}
+        focusMode={ui.focusMode}
         onOpenCommand={() => ui.setModal("cmd", true)}
         onOpenAiSettings={() => ui.setModal("ai", true)}
+        onToggleFocus={ui.toggleFocus}
+        onRequestDelete={() => ui.setModal("del", true)}
       />
       <CanvasMainContent
-        activeStep={ui.activeStep}
+        activeStep={ui.nav.step}
+        direction={ui.nav.dir}
+        focusMode={ui.focusMode}
         ctrl={ctrl}
         glossary={props.glossary}
         onSelectStep={ui.jumpToStep}
-        onRequestDelete={() => ui.setModal("del", true)}
+        onExitFocus={ui.toggleFocus}
       />
-      <CanvasOverlays
-        thesis={ctrl.thesis}
-        deleting={ctrl.deleting}
-        commandOpen={ui.modals.cmd}
-        aiModalOpen={ui.modals.ai}
-        deleteOpen={ui.modals.del}
-        commandGroups={commandGroups}
-        onCommandOpen={(open) => ui.setModal("cmd", open)}
-        onAiModalOpen={(open) => ui.setModal("ai", open)}
-        onDeleteOpen={(open) => ui.setModal("del", open)}
-        onByokChanged={() => ui.setHasByok(Boolean(readByokConfig()))}
-        onConfirmDelete={handleConfirmDelete}
-      />
+      <CanvasShellOverlays ctrl={ctrl} ui={ui} actions={actions} />
     </div>
   );
 }

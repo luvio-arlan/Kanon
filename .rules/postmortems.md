@@ -69,6 +69,12 @@
 - **Correct Pattern**: Always pass `render={(triggerProps) => <span {...triggerProps} />}` on inline `<Popover.Trigger<"span">>` primitives, and avoid wrapping rich inline components in `<p>` tags when `<div>` is semantically safer.
 - **Why / Gate**: Guarantees zero SSR/CSR hydration errors on direct reloads across all routes. Verified via live browser direct-reload QA.
 
+### [2026-11-23] Enforce Editorial Subtraction Mechanically (Zero Box-in-Box, Dashed Banners, Flat 20+ File Folders, or Dead UI Primitives)
+
+- **Mistake**: Stacking multi-color switch boxes, dashed coral banners, toolbar button walls, and 3 heterogenous sections on one Step 5 screen, while leaving unused `vaul`/`@radix-ui` packages and 22 components piled in a single flat `thesis/components/` folder.
+- **Correct Pattern**: Default Step 5 to serene monochrome dual tabs (`交易纪律台账` / `投研备忘录`) with progressive composer disclosure and a 44px single-line signature strip; consolidate 100% on HeroUI v3; decompose slices to `<= 12` files per `components/` directory; move network calls out of UI components.
+- **Why / Gate**: Mechanically enforced by `no-box-in-box-card`, `no-dashed-banner-in-form`, `no-block-popover-in-p`, `max-use-effect`, `no-raw-fetch-in-components`, `max-directory-files` in `scripts/ast-guard-rules.mjs` + `pnpm knip` in `pnpm check`.
+
 ### [2026-11-23] Validate Persisted AI JSONB Payloads Server-Side & Keep Copilot Strictly Institutional
 
 - **Mistake**: Importing runtime `@kanon/ai` AI SDK modules inside `"use client"` hooks to cast persisted `copilot_outputs` rows, or letting Copilot actions drift away from core fundamental research.

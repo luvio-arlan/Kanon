@@ -6,14 +6,15 @@ import {
   IconDownload,
   IconFileText,
   IconFlame,
+  IconFocus2,
   IconListCheck,
   IconMoon,
   IconSparkles,
   IconSun,
   IconTrendingUp,
 } from "@tabler/icons-react";
+import { buildGlossaryGroup } from "@/features/glossary";
 import type { StepId } from "../components/canvas-chrome";
-import { buildGlossaryGroup } from "./command-actions";
 
 const STEP_COMMANDS: ReadonlyArray<{ id: StepId; label: string; desc: string }> = [
   { id: 1, label: "Step 01 · 商业模式滤镜", desc: "评估复购、定价权、ROIC 与历史财务基本盘" },
@@ -35,6 +36,7 @@ export interface CanvasCommandParams {
   onRunDigest: () => void;
   onRunMemo: () => void;
   onOpenAiSettings: () => void;
+  onToggleFocus: () => void;
   onExportMd: () => void;
   onExportGdoc: () => void;
   onToggleTheme: () => void;
@@ -92,6 +94,14 @@ function buildArchiveItems(p: CanvasCommandParams): CommandActionItem[] {
       description: "下载可直接导入 Google Docs 的排版档案",
       icon: <IconDownload size={15} stroke={1.5} />,
       onSelect: p.onExportGdoc,
+    },
+    {
+      id: "toggle-focus",
+      label: "切换专注阅读模式",
+      description: "隐藏左侧导轨并居中为 768px 出版级专注视野",
+      shortcut: "F",
+      icon: <IconFocus2 size={15} stroke={1.5} />,
+      onSelect: p.onToggleFocus,
     },
     {
       id: "toggle-theme",

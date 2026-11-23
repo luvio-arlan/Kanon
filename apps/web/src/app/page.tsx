@@ -1,5 +1,5 @@
 import { getKanonDb, listGlossaryTerms, listTheses } from "@kanon/core/db";
-import { CockpitShell } from "@/features/thesis";
+import { CockpitShell } from "@/features/cockpit";
 
 export const dynamic = "force-dynamic";
 

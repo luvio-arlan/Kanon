@@ -1,1 +1,1 @@
-export { ValuationWorkbench, type ValuationWorkbenchProps } from "./components/valuation-workbench";
+export { ValuationWorkbench } from "./components/valuation-workbench";

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { checkExtendedAstGuards, checkFeatureDirDensity } from "./ast-guard-rules.mjs";
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ["apps", "packages"];
@@ -19,6 +20,8 @@ const TINY_TEXT_RE = /\btext-\[(?:[1-9]|1[01])(?:\.\d+)?px\]/;
 const TS_SUPPRESS_RE = /@ts-(?:ignore|nocheck)\b/;
 const TYPE_ESCAPE_RE = /\bas\s+(?:any|never|unknown\s+as)\b/;
 const SPRING_LITERAL_RE = /\b(?:stiffness|damping)\s*:/;
+const DASHED_BANNER_RE =
+  /\bborder-dashed\b.*\bbg-(?:accent-coral|status-)|\bbg-(?:accent-coral|status-).*\bborder-dashed\b/;
 
 const NESTING_KINDS = new Set([
   ts.SyntaxKind.IfStatement,
@@ -88,6 +91,15 @@ function checkSingleLine(relPath, line, lineNo, flags, errors) {
       lineNo,
       "aesthetic-motion",
       "No playful bounce/ping. Use KANON_SPRING.",
+    );
+  }
+  if (!flags.isTestFile && DASHED_BANNER_RE.test(line)) {
+    addError(
+      errors,
+      relPath,
+      lineNo,
+      "no-dashed-banner-in-form",
+      "Dashed colored alert banners clutter editorial forms. Use a quiet inline trigger link instead.",
     );
   }
   if (RAW_ZINDEX_RE.test(line)) {
@@ -181,6 +193,7 @@ function checkAstRules(relPath, content, errors) {
   }
 
   walk(sf, 0);
+  checkExtendedAstGuards(relPath, sf, isTestFile, errors);
 }
 
 function checkFunctionLength(relPath, sf, node, errors) {
@@ -232,6 +245,7 @@ function main() {
     collectFiles(path.join(ROOT, dir), files);
   }
   const errors = [];
+  checkFeatureDirDensity(ROOT, errors);
   for (const filePath of files) {
     const relPath = path.relative(ROOT, filePath).split(path.sep).join("/");
     const content = fs.readFileSync(filePath, "utf8");

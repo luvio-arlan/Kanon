@@ -1,6 +1,6 @@
 "use client";
 
-import * as Dialog from "@radix-ui/react-dialog";
+import { Modal } from "@heroui/react";
 import { IconCornerDownLeft, IconSearch } from "@tabler/icons-react";
 import { Command } from "cmdk";
 import type { ReactNode } from "react";
@@ -161,21 +161,18 @@ export function CommandMenu({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="kanon-backdrop fixed inset-0 z-50" />
-        <Dialog.Content
+    <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange} className="kanon-backdrop">
+      <Modal.Container placement="top" className="pt-[10vh]">
+        <Modal.Dialog
           aria-label="卡农快捷指令"
           className={cn(
-            "fixed left-1/2 top-[11vh] z-50 w-[min(92vw,580px)] -translate-x-1/2",
-            "overflow-hidden rounded-card border border-strong bg-surface-elevated shadow-overlay",
-            "focus:outline-none",
+            "w-[min(92vw,580px)] overflow-hidden rounded-card border border-strong",
+            "bg-surface-elevated p-0 shadow-overlay focus:outline-none",
           )}
         >
-          <Dialog.Title className="sr-only">卡农快捷指令</Dialog.Title>
           <CommandPaletteBody groups={groups} placeholder={placeholder} onRun={handleRun} />
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }

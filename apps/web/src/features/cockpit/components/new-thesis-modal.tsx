@@ -4,7 +4,7 @@ import type { ThesisDetail } from "@kanon/core";
 import { Button, DialogModal, Input, Textarea } from "@kanon/ui";
 import { IconSparkles } from "@tabler/icons-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { apiCreateThesis, type NewThesisDraft } from "../lib/cockpit-api";
 
 export interface NewThesisModalProps {
   open: boolean;
@@ -12,15 +12,7 @@ export interface NewThesisModalProps {
   onCreated: (thesis: ThesisDetail) => void;
 }
 
-interface DraftFields {
-  ticker: string;
-  companyName: string;
-  sectorTag: string;
-  currentPrice: string;
-  convictionSummary: string;
-}
-
-const EMPTY_DRAFT: DraftFields = {
+const EMPTY_DRAFT: NewThesisDraft = {
   ticker: "",
   companyName: "",
   sectorTag: "",
@@ -28,43 +20,12 @@ const EMPTY_DRAFT: DraftFields = {
   convictionSummary: "",
 };
 
-async function submitNewThesis(draft: DraftFields): Promise<ThesisDetail | null> {
-  const priceNum = Number(draft.currentPrice);
-  if (
-    !draft.ticker.trim() ||
-    !draft.companyName.trim() ||
-    !draft.sectorTag.trim() ||
-    priceNum <= 0
-  ) {
-    toast.error("请完整填写美股代码、公司名称、赛道与参考价");
-    return null;
-  }
-  const res = await fetch("/api/theses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ticker: draft.ticker.trim().toUpperCase(),
-      companyName: draft.companyName.trim(),
-      sectorTag: draft.sectorTag.trim(),
-      currentPrice: priceNum,
-      convictionSummary: draft.convictionSummary.trim() || undefined,
-    }),
-  });
-  const json = (await res.json()) as { thesis?: ThesisDetail; error?: string };
-  if (!res.ok || !json.thesis) {
-    toast.error(json.error ?? "创建标的失败");
-    return null;
-  }
-  toast.success(`已新建 ${json.thesis.companyName} (${json.thesis.ticker}) 研究档案`);
-  return json.thesis;
-}
-
 function TickerPriceRow({
   draft,
   onPatch,
 }: {
-  draft: DraftFields;
-  onPatch: (patch: Partial<DraftFields>) => void;
+  draft: NewThesisDraft;
+  onPatch: (patch: Partial<NewThesisDraft>) => void;
 }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -102,8 +63,8 @@ function DraftFormFields({
   draft,
   onPatch,
 }: {
-  draft: DraftFields;
-  onPatch: (patch: Partial<DraftFields>) => void;
+  draft: NewThesisDraft;
+  onPatch: (patch: Partial<NewThesisDraft>) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -143,13 +104,13 @@ function DraftFormFields({
 }
 
 export function NewThesisModal({ open, onOpenChange, onCreated }: NewThesisModalProps) {
-  const [draft, setDraft] = useState<DraftFields>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<NewThesisDraft>(EMPTY_DRAFT);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleCreate() {
     setSubmitting(true);
     try {
-      const created = await submitNewThesis(draft);
+      const created = await apiCreateThesis(draft);
       if (!created) return;
       setDraft(EMPTY_DRAFT);
       onOpenChange(false);

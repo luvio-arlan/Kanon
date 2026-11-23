@@ -1,30 +1,35 @@
 "use client";
 
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import type { ComponentPropsWithoutRef } from "react";
+import { Tooltip as HeroTooltip } from "@heroui/react";
+import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
 
-export const TooltipProvider = TooltipPrimitive.Provider;
-export const Tooltip = TooltipPrimitive.Root;
-export const TooltipTrigger = TooltipPrimitive.Trigger;
+export interface TooltipProps {
+  content: ReactNode;
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}
 
-export function TooltipContent({
-  className,
-  sideOffset = 6,
-  ...props
-}: ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>) {
+export function Tooltip({ content, children, delay = 180, className }: TooltipProps) {
   return (
-    <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Content
-        sideOffset={sideOffset}
+    <HeroTooltip delay={delay}>
+      <HeroTooltip.Trigger<"span">
+        render={(triggerProps) => <span {...triggerProps} />}
+        className="inline-flex items-center"
+      >
+        {children}
+      </HeroTooltip.Trigger>
+      <HeroTooltip.Content
+        offset={8}
         className={cn(
           "z-50 max-w-xs rounded-control border border-hairline bg-ink-primary px-2.5 py-1.5",
           "text-xs text-ink-inverse shadow-overlay",
-          "animate-in fade-in-0 zoom-in-95",
           className,
         )}
-        {...props}
-      />
-    </TooltipPrimitive.Portal>
+      >
+        {content}
+      </HeroTooltip.Content>
+    </HeroTooltip>
   );
 }

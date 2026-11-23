@@ -1,6 +1,6 @@
 import { roundTo, type SecAnnualFinancial, type SecFinancialFact } from "@kanon/core";
 
-export interface SecFactUnit {
+interface SecFactUnit {
   val?: number;
   form?: string;
   fy?: number;

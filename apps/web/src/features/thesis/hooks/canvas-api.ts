@@ -6,7 +6,7 @@ import type {
   UpdateThesisStepInput,
 } from "@kanon/core";
 import { toast } from "sonner";
-import { buildByokHeaders } from "../lib/byok-storage";
+import { buildByokHeaders } from "@/features/ai-settings";
 
 export type CopilotKind = "earnings_digest" | "red_team" | "investment_memo";
 

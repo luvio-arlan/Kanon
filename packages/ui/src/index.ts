@@ -3,6 +3,11 @@ export {
   type ValuationSparklinePoint,
   type ValuationSparklineProps,
 } from "./charts/valuation-sparkline";
+export {
+  ActionMenu,
+  type ActionMenuItem,
+  type ActionMenuProps,
+} from "./components/action-menu";
 export { Badge, type BadgeProps, badgeVariants } from "./components/badge";
 export { Button, type ButtonProps, buttonVariants } from "./components/button";
 export { Card, CardContent, CardFooter, CardHeader, type CardProps } from "./components/card";
@@ -21,6 +26,12 @@ export {
 export { Input, type InputProps } from "./components/input";
 export { KanonMark, type KanonMarkProps } from "./components/kanon-mark";
 export { PrecisionSlider, type PrecisionSliderProps } from "./components/precision-slider";
+export { RollingNumber, type RollingNumberProps } from "./components/rolling-number";
+export {
+  type SegmentedTabItem,
+  SegmentedTabs,
+  type SegmentedTabsProps,
+} from "./components/segmented-tabs";
 export { Sheet, type SheetProps } from "./components/sheet";
 export { Textarea, type TextareaProps } from "./components/textarea";
 export {
@@ -30,12 +41,7 @@ export {
   useTheme,
 } from "./components/theme-provider";
 export { Toaster } from "./components/toaster";
-export {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./components/tooltip";
+export { Tooltip, type TooltipProps } from "./components/tooltip";
 export { cn } from "./lib/cn";
 export {
   KANON_CARD_HOVER,
