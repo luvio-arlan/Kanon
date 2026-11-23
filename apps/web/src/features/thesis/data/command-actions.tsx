@@ -2,6 +2,7 @@ import type { GlossaryTerm, ThesisDetail } from "@kanon/core";
 import type { CommandActionGroup, CommandActionItem } from "@kanon/ui";
 import {
   IconBook2,
+  IconCpu,
   IconDownload,
   IconMoon,
   IconPlus,
@@ -13,10 +14,11 @@ import { toast } from "sonner";
 function buildWorkspaceActionItems(params: {
   theme: "light" | "dark";
   onNewThesis: () => void;
+  onOpenAiSettings: () => void;
   onExportCsv: () => void;
   onToggleTheme: () => void;
 }): CommandActionItem[] {
-  const { theme, onNewThesis, onExportCsv, onToggleTheme } = params;
+  const { theme, onNewThesis, onOpenAiSettings, onExportCsv, onToggleTheme } = params;
   return [
     {
       id: "new-thesis",
@@ -25,6 +27,14 @@ function buildWorkspaceActionItems(params: {
       shortcut: "N",
       icon: <IconPlus size={15} stroke={1.5} />,
       onSelect: onNewThesis,
+    },
+    {
+      id: "ai-settings",
+      label: "配置投研副驾驶引擎（BYOK）",
+      description: "接入自有 Gemini / Claude / OpenAI 密钥，或使用本地一阶引擎",
+      shortcut: "A",
+      icon: <IconCpu size={15} stroke={1.5} />,
+      onSelect: onOpenAiSettings,
     },
     {
       id: "export-csv",
@@ -46,12 +56,30 @@ function buildWorkspaceActionItems(params: {
   ];
 }
 
+export function buildGlossaryGroup(glossary: readonly GlossaryTerm[]): CommandActionGroup {
+  return {
+    heading: "行业术语速查（12 词条）",
+    items: glossary.map((item) => ({
+      id: `term-${item.term}`,
+      label: `${item.term} — ${item.fullName}`,
+      description: item.plainSummary,
+      keywords: [item.term, item.fullName, item.category],
+      icon: <IconBook2 size={15} stroke={1.5} />,
+      onSelect: () =>
+        toast(`${item.term} · ${item.fullName}`, {
+          description: `${item.plainSummary}（${item.filingContext}）`,
+        }),
+    })),
+  };
+}
+
 export function buildCockpitCommandGroups(params: {
   theses: readonly ThesisDetail[];
   glossary: readonly GlossaryTerm[];
   theme: "light" | "dark";
   onOpenThesis: (thesis: ThesisDetail) => void;
   onNewThesis: () => void;
+  onOpenAiSettings: () => void;
   onExportCsv: () => void;
   onToggleTheme: () => void;
 }): CommandActionGroup[] {
@@ -69,19 +97,6 @@ export function buildCockpitCommandGroups(params: {
       })),
     },
     { heading: "研究与导出动作", items: buildWorkspaceActionItems(params) },
-    {
-      heading: "行业术语速查（12 词条）",
-      items: params.glossary.map((item) => ({
-        id: `term-${item.term}`,
-        label: `${item.term} — ${item.fullName}`,
-        description: item.plainSummary,
-        keywords: [item.term, item.fullName, item.category],
-        icon: <IconBook2 size={15} stroke={1.5} />,
-        onSelect: () =>
-          toast(`${item.term} · ${item.fullName}`, {
-            description: `${item.plainSummary}（${item.filingContext}）`,
-          }),
-      })),
-    },
+    buildGlossaryGroup(params.glossary),
   ];
 }

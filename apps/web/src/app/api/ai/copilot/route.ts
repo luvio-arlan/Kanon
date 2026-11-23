@@ -1,8 +1,22 @@
-import { CopilotRequestSchema, runThesisCopilot } from "@kanon/ai";
-import { getKanonDb, getSecSnapshot, getThesisById } from "@kanon/core/db";
+import {
+  type ByokCredentials,
+  ByokProviderSchema,
+  CopilotRequestSchema,
+  runThesisCopilot,
+} from "@kanon/ai";
+import { getKanonDb, getSecSnapshot, getThesisById, upsertCopilotOutput } from "@kanon/core/db";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+function parseByokHeaders(request: Request): ByokCredentials | undefined {
+  const rawProvider = request.headers.get("x-kanon-ai-provider");
+  const apiKey = request.headers.get("x-kanon-ai-key")?.trim();
+  if (!rawProvider || !apiKey) return undefined;
+  const parsed = ByokProviderSchema.safeParse(rawProvider);
+  if (!parsed.success) return undefined;
+  return { provider: parsed.data, apiKey };
+}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -14,7 +28,7 @@ export async function POST(request: Request) {
 
   const parsed = CopilotRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "AI 副驾驶参数不合法。" }, { status: 400 });
+    return NextResponse.json({ error: "投研副驾驶参数不合法。" }, { status: 400 });
   }
 
   const db = await getKanonDb();
@@ -28,6 +42,15 @@ export async function POST(request: Request) {
     action: parsed.data.action,
     thesis,
     secSnapshot,
+    sourceText: parsed.data.sourceText,
+    byok: parseByokHeaders(request),
   });
+
+  await upsertCopilotOutput(db, thesis.id, {
+    action: result.action,
+    engine: result.engine,
+    payload: result.data,
+  });
+
   return NextResponse.json(result);
 }

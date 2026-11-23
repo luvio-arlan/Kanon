@@ -4,6 +4,7 @@ import type {
   BusinessFilter,
   FilterVerdict,
   GlossaryTerm,
+  SecAnnualFinancial,
   ThesisDetail,
   ThesisStatus,
 } from "@kanon/core";
@@ -11,10 +12,12 @@ import { Badge, Card, cn } from "@kanon/ui";
 import { useState } from "react";
 import { GlossaryText } from "@/features/glossary";
 import { BusinessFilterNotesCard } from "./business-filter-notes";
+import { SecAnnualsTable } from "./sec-annuals-table";
 
 export interface StepBusinessFilterProps {
   thesis: ThesisDetail;
   glossary: readonly GlossaryTerm[];
+  annuals?: readonly SecAnnualFinancial[];
   saving: boolean;
   onSave: (payload: {
     status: ThesisStatus;
@@ -79,9 +82,9 @@ function DimensionRow(props: {
         <div className="text-sm font-semibold text-ink-primary">
           <GlossaryText text={props.title} terms={props.glossary} />
         </div>
-        <p className="mt-1 text-xs leading-relaxed text-ink-secondary">
+        <div className="mt-1 text-xs leading-relaxed text-ink-secondary">
           <GlossaryText text={props.prompt} terms={props.glossary} />
-        </p>
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {VERDICTS.map((opt) => (
@@ -142,7 +145,13 @@ function FilterMatrixCard(props: {
   );
 }
 
-export function StepBusinessFilter({ thesis, glossary, saving, onSave }: StepBusinessFilterProps) {
+export function StepBusinessFilter({
+  thesis,
+  glossary,
+  annuals = [],
+  saving,
+  onSave,
+}: StepBusinessFilterProps) {
   const [filter, setFilter] = useState<BusinessFilter>(thesis.businessFilter);
   const [summary, setSummary] = useState(thesis.convictionSummary);
   const nextStatus: ThesisStatus = thesis.status === "archived_veto" ? "active" : "archived_veto";
@@ -156,6 +165,9 @@ export function StepBusinessFilter({ thesis, glossary, saving, onSave }: StepBus
         glossary={glossary}
         onSelect={(key, verdict) => setFilter((prev) => ({ ...prev, [key]: verdict }))}
       />
+      {annuals.length > 0 ? (
+        <SecAnnualsTable annuals={annuals} title="历史财务基本盘佐证（SEC 10-K）" />
+      ) : null}
       <BusinessFilterNotesCard
         status={thesis.status}
         summary={summary}

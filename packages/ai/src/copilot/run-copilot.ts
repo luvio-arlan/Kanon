@@ -1,29 +1,35 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
-import { openai } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { SecSnapshot, ThesisDetail } from "@kanon/core";
 import { generateObject, type LanguageModel } from "ai";
 import {
+  type ByokProvider,
   type CopilotAction,
   type CopilotEngineMode,
   type EarningsDigest,
   EarningsDigestSchema,
+  type InvestmentMemo,
+  InvestmentMemoSchema,
   type RedTeamReport,
   RedTeamReportSchema,
-  type VideoScript,
-  VideoScriptSchema,
 } from "../schemas/copilot";
 import {
   buildGroundedEarningsDigest,
+  buildGroundedInvestmentMemo,
   buildGroundedRedTeam,
-  buildGroundedVideoScript,
 } from "./grounded-fallback";
 
 export type CopilotPayloadMap = {
   earnings_digest: EarningsDigest;
   red_team: RedTeamReport;
-  video_script: VideoScript;
+  investment_memo: InvestmentMemo;
 };
+
+export interface ByokCredentials {
+  provider: ByokProvider;
+  apiKey: string;
+}
 
 export interface CopilotRunResult<TAction extends CopilotAction> {
   action: TAction;
@@ -31,22 +37,33 @@ export interface CopilotRunResult<TAction extends CopilotAction> {
   data: CopilotPayloadMap[TAction];
 }
 
-function resolveByokModel(): LanguageModel | null {
+function resolveByokModel(byok?: ByokCredentials): LanguageModel | null {
+  if (byok?.apiKey.trim()) {
+    const apiKey = byok.apiKey.trim();
+    if (byok.provider === "gemini") return createGoogleGenerativeAI({ apiKey })("gemini-2.5-flash");
+    if (byok.provider === "anthropic")
+      return createAnthropic({ apiKey })("claude-sonnet-4-20250514");
+    return createOpenAI({ apiKey })("gpt-4.1-mini");
+  }
   if (process.env.GEMINI_API_KEY) {
-    return google("gemini-2.5-flash");
+    return createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY })("gemini-2.5-flash");
   }
   if (process.env.ANTHROPIC_API_KEY) {
-    return anthropic("claude-sonnet-4-20250514");
+    return createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })("claude-sonnet-4-20250514");
   }
   if (process.env.OPENAI_API_KEY) {
-    return openai("gpt-4.1-mini");
+    return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })("gpt-4.1-mini");
   }
   return null;
 }
 
-function buildContextBrief(thesis: ThesisDetail, secSnapshot: SecSnapshot | null): string {
+function buildContextBrief(
+  thesis: ThesisDetail,
+  secSnapshot: SecSnapshot | null,
+  sourceText?: string,
+): string {
   const facts = secSnapshot?.facts
-    .map((f) => `${f.label}: ${f.valueFormatted} (${f.period}, ${f.sourceTag})`)
+    .map((f) => `${f.label}: ${f.valueFormatted} (${f.period})`)
     .join("; ");
   const hyps = thesis.hypotheses
     .map((h, i) => `H${i + 1}[${h.status}] ${h.title} (${h.metricLabel} ${h.threshold}): ${h.note}`)
@@ -55,34 +72,12 @@ function buildContextBrief(thesis: ThesisDetail, secSnapshot: SecSnapshot | null
     `标的: ${thesis.companyName} (${thesis.ticker}) | 赛道: ${thesis.sectorTag} | 当前价: $${thesis.currentPrice}`,
     `核心论点: ${thesis.convictionSummary}`,
     `三情景目标价: 悲观 $${thesis.valuation.bear.targetPrice} / 中性 $${thesis.valuation.base.targetPrice} / 乐观 $${thesis.valuation.bull.targetPrice} (赔率 ${thesis.valuation.riskRewardRatio ?? "∞"})`,
-    `SEC 缓存事实: ${facts || "暂未拉取，禁止编造具体财务数字"}`,
+    `SEC 缓存事实: ${facts || "暂未拉取，严禁编造任何具体财务数字"}`,
     `核心假设:\n${hyps}`,
-  ].join("\n");
-}
-
-export async function runThesisCopilot<TAction extends CopilotAction>(params: {
-  action: TAction;
-  thesis: ThesisDetail;
-  secSnapshot: SecSnapshot | null;
-}): Promise<CopilotRunResult<TAction>> {
-  const { action, thesis, secSnapshot } = params;
-  const model = resolveByokModel();
-  const context = buildContextBrief(thesis, secSnapshot);
-
-  if (model) {
-    try {
-      const data = await runWithModel(model, action, context);
-      return { action, engine: "vercel-ai-sdk", data };
-    } catch {
-      // Safe deterministic fallback if external provider errors or rate-limits
-    }
-  }
-
-  return {
-    action,
-    engine: "grounded-local",
-    data: runGroundedLocal(action, thesis, secSnapshot),
-  };
+    sourceText?.trim() ? `用户粘贴的一阶电话会/财报原文:\n${sourceText.trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function runWithModel<TAction extends CopilotAction>(
@@ -91,14 +86,14 @@ async function runWithModel<TAction extends CopilotAction>(
   context: string,
 ): Promise<CopilotPayloadMap[TAction]> {
   const system =
-    "你是 KANON 顶级买方投资研究副驾驶。严禁编造任何未提供的财务数字，必须使用精炼专业的简体中文输出结构化结果。";
+    "你是服务机构级价值投资者的 KANON 买方研究副驾驶。严禁编造任何未提供的财务数字，输出必须客观、克制、专业且使用简体中文。";
 
   if (action === "earnings_digest") {
     const res = await generateObject({
       model,
       schema: EarningsDigestSchema,
       system,
-      prompt: `基于以下档案提炼电话会核心指引、资本开支信号与措辞变化，并附来源锚点：\n${context}`,
+      prompt: `基于以下档案与原文提炼管理层核心指引、资本开支信号与措辞变化，并附原文锚点：\n${context}`,
     });
     return res.object as CopilotPayloadMap[TAction];
   }
@@ -113,23 +108,39 @@ async function runWithModel<TAction extends CopilotAction>(
   }
   const res = await generateObject({
     model,
-    schema: VideoScriptSchema,
+    schema: InvestmentMemoSchema,
     system,
-    prompt: `将以下 5 步研究档案转化为高质感 5-8 分钟美股投研口播大纲（钩子+商业对比+证据+风险）：\n${context}`,
+    prompt: `将以下 5 步研究档案凝练为一份供个人长期记忆与投委会复盘的「一页纸投研备忘录」（核心赔率结论、护城河、一阶证据、下季复盘核查清单与认错离场铁律）：\n${context}`,
   });
   return res.object as CopilotPayloadMap[TAction];
 }
 
-function runGroundedLocal<TAction extends CopilotAction>(
-  action: TAction,
-  thesis: ThesisDetail,
-  secSnapshot: SecSnapshot | null,
-): CopilotPayloadMap[TAction] {
-  if (action === "earnings_digest") {
-    return buildGroundedEarningsDigest(thesis, secSnapshot) as CopilotPayloadMap[TAction];
+export async function runThesisCopilot<TAction extends CopilotAction>(params: {
+  action: TAction;
+  thesis: ThesisDetail;
+  secSnapshot: SecSnapshot | null;
+  sourceText?: string;
+  byok?: ByokCredentials;
+}): Promise<CopilotRunResult<TAction>> {
+  const { action, thesis, secSnapshot, sourceText, byok } = params;
+  const model = resolveByokModel(byok);
+  const context = buildContextBrief(thesis, secSnapshot, sourceText);
+
+  if (model) {
+    try {
+      const data = await runWithModel(model, action, context);
+      return { action, engine: "vercel-ai-sdk", data };
+    } catch {
+      // Safe deterministic fallback if external provider errors or rate-limits
+    }
   }
-  if (action === "red_team") {
-    return buildGroundedRedTeam(thesis, secSnapshot) as CopilotPayloadMap[TAction];
-  }
-  return buildGroundedVideoScript(thesis, secSnapshot) as CopilotPayloadMap[TAction];
+
+  const data =
+    action === "earnings_digest"
+      ? buildGroundedEarningsDigest(thesis, secSnapshot, sourceText)
+      : action === "red_team"
+        ? buildGroundedRedTeam(thesis, secSnapshot)
+        : buildGroundedInvestmentMemo(thesis, secSnapshot);
+
+  return { action, engine: "grounded-local", data: data as CopilotPayloadMap[TAction] };
 }

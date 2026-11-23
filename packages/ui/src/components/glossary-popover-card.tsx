@@ -21,7 +21,8 @@ export function GlossaryPopoverCard({
 }: GlossaryPopoverCardProps) {
   return (
     <Popover>
-      <Popover.Trigger
+      <Popover.Trigger<"span">
+        render={(triggerProps) => <span {...triggerProps} />}
         className={cn(
           "inline cursor-pointer rounded px-1 py-0.5 font-mono text-sm font-medium text-ink-primary",
           "underline decoration-accent-coral/60 decoration-dashed underline-offset-4",

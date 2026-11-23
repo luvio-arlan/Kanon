@@ -1,11 +1,13 @@
 "use client";
 
 import { Button, KANON_TRANSITION_FAST, KanonMark, useTheme } from "@kanon/ui";
-import { IconMoon, IconPlus, IconSearch, IconSun } from "@tabler/icons-react";
+import { IconCpu, IconMoon, IconPlus, IconSearch, IconSun } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 
 export interface CockpitTopbarProps {
+  hasByok: boolean;
   onOpenCommand: () => void;
+  onOpenAiSettings: () => void;
   onNewThesis: () => void;
 }
 
@@ -53,13 +55,18 @@ function ThemeToggleButton() {
   );
 }
 
-export function CockpitTopbar({ onOpenCommand, onNewThesis }: CockpitTopbarProps) {
+export function CockpitTopbar({
+  hasByok,
+  onOpenCommand,
+  onOpenAiSettings,
+  onNewThesis,
+}: CockpitTopbarProps) {
   return (
     <header className="kanon-topbar-glass sticky top-0 z-30 border-b border-hairline">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-6 sm:px-10">
         <BrandCluster />
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onOpenCommand}
@@ -75,6 +82,14 @@ export function CockpitTopbar({ onOpenCommand, onNewThesis }: CockpitTopbarProps
               ⌘K
             </kbd>
           </button>
+
+          <Button variant="outline" size="md" onClick={onOpenAiSettings} title="配置大模型引擎">
+            <span
+              className={`h-1.5 w-1.5 rounded-pill ${hasByok ? "bg-status-pass" : "bg-ink-muted"}`}
+            />
+            <IconCpu size={15} stroke={1.5} />
+            <span className="hidden md:inline">{hasByok ? "BYOK" : "AI 引擎"}</span>
+          </Button>
 
           <Button variant="primary" size="md" onClick={onNewThesis}>
             <IconPlus size={15} stroke={1.5} />

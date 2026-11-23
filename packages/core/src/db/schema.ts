@@ -13,6 +13,7 @@ import type {
   BusinessFilter,
   EmotionState,
   PeerRole,
+  SecAnnualFinancial,
   SecFilingItem,
   SecFinancialFact,
   ThesisStatus,
@@ -111,7 +112,19 @@ export const secFilingsCacheTable = pgTable("sec_filings_cache", {
   source: text("source").$type<"sec-edgar-live" | "cached-seed">().notNull(),
   filings: jsonb("filings").$type<SecFilingItem[]>().notNull(),
   facts: jsonb("facts").$type<SecFinancialFact[]>().notNull(),
+  annuals: jsonb("annuals").$type<SecAnnualFinancial[]>().notNull().default([]),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const copilotOutputsTable = pgTable("copilot_outputs", {
+  id: text("id").primaryKey(),
+  thesisId: text("thesis_id")
+    .notNull()
+    .references(() => thesesTable.id, { onDelete: "cascade" }),
+  action: text("action").$type<"earnings_digest" | "red_team" | "investment_memo">().notNull(),
+  engine: text("engine").$type<"vercel-ai-sdk" | "grounded-local">().notNull(),
+  payload: jsonb("payload").$type<unknown>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const selectThesisRowSchema = createSelectSchema(thesesTable);

@@ -2,10 +2,11 @@
 
 import type { EarningsDigest } from "@kanon/ai";
 import type { CrossCheck, GlossaryTerm, SecSnapshot, ThesisDetail } from "@kanon/core";
-import { Badge, Button, Card } from "@kanon/ui";
+import { Badge, Button, Card, Textarea } from "@kanon/ui";
 import { IconCheck, IconDeviceFloppy, IconSparkles } from "@tabler/icons-react";
 import { useState } from "react";
-import { AddCrossCheckForm, CrossCheckItemCard } from "./cross-check-editor";
+import { AddCrossCheckForm, CrossCheckItemCard, nextAlignment } from "./cross-check-editor";
+import { SecAnnualsTable } from "./sec-annuals-table";
 import { SecFactsPanel } from "./sec-facts-panel";
 
 export interface StepFirstPrinciplesProps {
@@ -17,7 +18,7 @@ export interface StepFirstPrinciplesProps {
   digest: EarningsDigest | null;
   saving: boolean;
   onSyncSec: () => Promise<void>;
-  onRunDigest: () => Promise<void>;
+  onRunDigest: (sourceText?: string) => Promise<void>;
   onSaveCrossChecks: (items: CrossCheck[]) => Promise<void>;
 }
 
@@ -25,7 +26,7 @@ function EarningsDigestPanel({ digest }: { digest: EarningsDigest }) {
   return (
     <Card className="space-y-4 border-accent-coral/30 p-6">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-ink-primary">电话会核心提炼</h3>
+        <h3 className="text-base font-semibold text-ink-primary">电话会核心提炼（已持久化）</h3>
         <Badge variant="coral">{digest.quarterLabel}</Badge>
       </div>
       <p className="text-sm leading-relaxed text-ink-primary">{digest.guidanceSummary}</p>
@@ -51,56 +52,68 @@ function EarningsDigestPanel({ digest }: { digest: EarningsDigest }) {
   );
 }
 
-function StepThreeHeader({ loading, onRun }: { loading: boolean; onRun: () => Promise<void> }) {
+function TranscriptInputCard({
+  sourceText,
+  loading,
+  onChange,
+  onRun,
+}: {
+  sourceText: string;
+  loading: boolean;
+  onChange: (next: string) => void;
+  onRun: () => Promise<void>;
+}) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-ink-primary">
-          Step 3 · 一阶资料与产业链交叉验证
-        </h2>
-        <p className="mt-0.5 text-sm text-ink-secondary">
-          不只听公司一面之词：用 SEC 10-K 与上下游伙伴口径互证真相
-        </p>
+    <Card className="space-y-3 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-ink-primary">
+            电话会纪要 / 10-K 原文精读提炼
+          </div>
+          <div className="mt-0.5 text-xs text-ink-muted">
+            可粘贴最新 Earnings Call 原文片段或直接基于当前档案提炼指引与 CapEx 信号
+          </div>
+        </div>
+        <Button variant="titanium" size="sm" disabled={loading} onClick={onRun}>
+          <IconSparkles size={14} stroke={1.5} />
+          <span>{loading ? "提炼中..." : "提炼电话会"}</span>
+        </Button>
       </div>
-      <Button variant="titanium" size="md" disabled={loading} onClick={onRun}>
-        <IconSparkles size={15} stroke={1.5} />
-        <span>{loading ? "提炼中..." : "提炼电话会"}</span>
-      </Button>
-    </div>
+      <Textarea
+        value={sourceText}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="可选：粘贴季度电话会管理层问答、CapEx 指引或 10-K 风险段落..."
+        className="min-h-[80px]"
+      />
+    </Card>
   );
 }
 
-export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
-  const [checks, setChecks] = useState<CrossCheck[]>(props.thesis.crossChecks);
-
+function CrossCheckListSection(props: {
+  checks: readonly CrossCheck[];
+  glossary: readonly GlossaryTerm[];
+  saving: boolean;
+  onCycle: (id: string) => void;
+  onDelete: (id: string) => void;
+  onAdd: (next: CrossCheck) => void;
+  onSave: () => Promise<void>;
+}) {
   return (
-    <div className="space-y-6">
-      <StepThreeHeader loading={props.digestLoading} onRun={props.onRunDigest} />
-      <SecFactsPanel
-        ticker={props.thesis.ticker}
-        snapshot={props.secSnapshot}
-        syncing={props.secSyncing}
-        onSync={props.onSyncSec}
-      />
-      {props.digest ? <EarningsDigestPanel digest={props.digest} /> : null}
+    <>
       <div className="space-y-3">
-        {checks.map((cc) => (
+        {props.checks.map((cc) => (
           <CrossCheckItemCard
             key={cc.id}
             cc={cc}
             glossary={props.glossary}
-            onDelete={() => setChecks((prev) => prev.filter((item) => item.id !== cc.id))}
+            onCycleAlignment={() => props.onCycle(cc.id)}
+            onDelete={() => props.onDelete(cc.id)}
           />
         ))}
       </div>
-      <AddCrossCheckForm onAdd={(next) => setChecks((prev) => [...prev, next])} />
+      <AddCrossCheckForm onAdd={props.onAdd} />
       <div className="flex justify-end">
-        <Button
-          variant="primary"
-          size="md"
-          disabled={props.saving}
-          onClick={() => props.onSaveCrossChecks(checks)}
-        >
+        <Button variant="primary" size="md" disabled={props.saving} onClick={props.onSave}>
           {props.saving ? (
             <IconCheck size={15} stroke={1.5} />
           ) : (
@@ -109,6 +122,55 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
           <span>{props.saving ? "保存中..." : "保存交叉验证记录"}</span>
         </Button>
       </div>
+    </>
+  );
+}
+
+export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
+  const [checks, setChecks] = useState<CrossCheck[]>(props.thesis.crossChecks);
+  const [transcript, setTranscript] = useState("");
+  const cycleCheck = (id: string) =>
+    setChecks((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, alignment: nextAlignment(item.alignment) } : item,
+      ),
+    );
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-ink-primary">
+          Step 3 · 一阶资料与产业链交叉验证
+        </h2>
+        <p className="mt-0.5 text-sm text-ink-secondary">
+          不只听公司一面之词：用 SEC 多年度财务轨迹、电话会原话与上下游伙伴口径互证真相
+        </p>
+      </div>
+      <SecFactsPanel
+        ticker={props.thesis.ticker}
+        snapshot={props.secSnapshot}
+        syncing={props.secSyncing}
+        onSync={props.onSyncSec}
+      />
+      {props.secSnapshot?.annuals.length ? (
+        <SecAnnualsTable annuals={props.secSnapshot.annuals} />
+      ) : null}
+      <TranscriptInputCard
+        sourceText={transcript}
+        loading={props.digestLoading}
+        onChange={setTranscript}
+        onRun={() => props.onRunDigest(transcript)}
+      />
+      {props.digest ? <EarningsDigestPanel digest={props.digest} /> : null}
+      <CrossCheckListSection
+        checks={checks}
+        glossary={props.glossary}
+        saving={props.saving}
+        onCycle={cycleCheck}
+        onDelete={(id) => setChecks((prev) => prev.filter((item) => item.id !== id))}
+        onAdd={(next) => setChecks((prev) => [...prev, next])}
+        onSave={() => props.onSaveCrossChecks(checks)}
+      />
     </div>
   );
 }

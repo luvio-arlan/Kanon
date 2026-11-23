@@ -4,6 +4,16 @@ export {
   formatThesisMarkdown,
 } from "./export/formatters";
 export {
+  calculateResearchReadiness,
+  type ResearchReadiness,
+  type StepReadinessItem,
+} from "./math/research-readiness";
+export {
+  calculateSensitivityMatrix,
+  type SensitivityCell,
+  type SensitivityMatrix,
+} from "./math/sensitivity-matrix";
+export {
   calculateAverageRiskReward,
   calculatePriceMarkerPosition,
   calculateValuationScenarios,
@@ -30,6 +40,10 @@ export {
   GlossaryTermSchema,
   type PeerRole,
   PeerRoleSchema,
+  type SavedCopilotOutput,
+  SavedCopilotOutputSchema,
+  type SecAnnualFinancial,
+  SecAnnualFinancialSchema,
   type SecFilingItem,
   SecFilingItemSchema,
   type SecFinancialFact,

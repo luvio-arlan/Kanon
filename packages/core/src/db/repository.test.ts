@@ -1,9 +1,13 @@
 import { sql } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { calculateResearchReadiness } from "../math/research-readiness";
+import { calculateSensitivityMatrix } from "../math/sensitivity-matrix";
 import { createMemoryKanonDb, type KanonDb } from "./client";
+import { listCopilotOutputs, upsertCopilotOutput } from "./copilot-store";
 import { addDisciplineEntry, deleteThesis } from "./discipline-mutations";
 import {
+  copilotOutputsTable,
   crossChecksTable,
   disciplineEntriesTable,
   glossaryTermsTable,
@@ -38,6 +42,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
       disciplineEntriesTable,
       glossaryTermsTable,
       secFilingsCacheTable,
+      copilotOutputsTable,
     ];
 
     for (const table of tables) {
@@ -118,5 +123,40 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
       note: "严格零杠杆执行",
     });
     expect(valid?.disciplineEntries.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("persists copilot outputs, evaluates readiness, and builds 5x5 sensitivity matrix", async () => {
+    const saved = await upsertCopilotOutput(db, "thesis-mu", {
+      action: "red_team",
+      engine: "grounded-local",
+      payload: { ticker: "MU", challenges: [] },
+    });
+    expect(saved.action).toBe("red_team");
+
+    const list = await listCopilotOutputs(db, "thesis-mu");
+    expect(list.some((item) => item.action === "red_team")).toBe(true);
+
+    const mu = await getThesisById(db, "thesis-mu");
+    expect(mu).not.toBeNull();
+    if (!mu) return;
+
+    const readiness = calculateResearchReadiness(mu);
+    expect(readiness.completedCount).toBe(5);
+    expect(readiness.scorePct).toBe(100);
+
+    const matrix = calculateSensitivityMatrix({
+      currentPrice: 108,
+      horizonYears: 3,
+      bearEps: 7.5,
+      baseEps: 12.5,
+      bullEps: 16,
+      bearPe: 12,
+      basePe: 14,
+      bullPe: 16,
+    });
+    expect(matrix.epsSteps).toHaveLength(5);
+    expect(matrix.peSteps).toHaveLength(5);
+    expect(matrix.rows[2]?.[2]?.targetPrice).toBe(175);
+    expect(matrix.rows[2]?.[2]?.zone).toBe("margin");
   });
 });

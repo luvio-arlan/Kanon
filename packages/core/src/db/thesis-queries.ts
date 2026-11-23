@@ -172,5 +172,6 @@ export async function getSecSnapshot(db: KanonDb, ticker: string): Promise<SecSn
     fetchedAt: row.fetchedAt.toISOString(),
     filings: row.filings,
     facts: row.facts,
+    annuals: row.annuals ?? [],
   };
 }

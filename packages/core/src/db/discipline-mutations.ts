@@ -58,6 +58,7 @@ export async function upsertSecSnapshot(
       source: parsed.source,
       filings: parsed.filings,
       facts: parsed.facts,
+      annuals: parsed.annuals,
       fetchedAt,
     })
     .onConflictDoUpdate({
@@ -68,6 +69,7 @@ export async function upsertSecSnapshot(
         source: parsed.source,
         filings: parsed.filings,
         facts: parsed.facts,
+        annuals: parsed.annuals,
         fetchedAt,
       },
     });

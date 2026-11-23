@@ -6,7 +6,7 @@
 ## 1. Product Identity
 
 - **Name**: `KANON`（卡农） — `Conviction, composed.` / `在噪音里，谱出自己的确定性。`
-- **Mission**: Linear-grade US stock Investment Thesis OS (desktop-first Web app) — 5-step guided research canvas, first-principles SEC verification, Devil's Advocate AI red-teaming, 3-scenario valuation workbench, and zero-leverage trading discipline.
+- **Mission**: Pure fundamental value-investing OS for serious individual investors & buy-side research institutions (desktop-first Web app) — 5-step guided research canvas, multi-year SEC XBRL verification, Devil's Advocate red-teaming, 3-scenario valuation + 5×5 sensitivity workbench, zero-leverage trading discipline, and one-page Investment Memo archival.
 - **Full Spec**: [docs/PRD.md](docs/PRD.md) | **Institutional Memory**: [.rules/postmortems.md](.rules/postmortems.md)
 
 ## 2. Monorepo Architecture & Hard Boundaries (`.dependency-cruiser.cjs`)
@@ -46,12 +46,12 @@ kanon/
 
 ## 5. Automated 4-Layer Quality Gates
 
-| Layer  | Gate                                        | Enforces                                                                                                                                                                  |
-| :----- | :------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **L1** | `pnpm lint` + `pnpm typecheck`              | Biome strict (zero `any`, zero `console.*`, cognitive complexity <= 12) + `tsc --noEmit` across all 4 workspaces                                                          |
-| **L2** | `pnpm depcruise` + `pnpm design:check`      | Module/DB/UI stack boundaries + AST limits (<= 250 lines/file, <= 50 lines/fn, <= 3 nesting, zero `as any`/`as never`/`as unknown as`, zero Hex/ant-text, `stroke={1.5}`) |
-| **L3** | `pnpm test`                                 | Vitest: valuation math, in-memory Postgres CRUD + 7-table DDL parity, Zero-Leverage Iron Rule, exporters, SEC EDGAR & Zod AI contracts                                    |
-| **L4** | `lefthook.yml` + `.github/workflows/ci.yml` | Pre-commit `pnpm check` + PR gate `pnpm check && pnpm test && pnpm build`                                                                                                 |
+| Layer  | Gate                                        | Enforces                                                                                                                                                                                                |
+| :----- | :------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **L1** | `pnpm lint` + `pnpm typecheck`              | Biome strict (zero `any`, zero `console.*`, cognitive complexity <= 12) + `tsc --noEmit` across all 4 workspaces                                                                                        |
+| **L2** | `pnpm depcruise` + `pnpm design:check`      | Module/DB/UI stack boundaries + AST limits (<= 250 lines/file, <= 50 lines/fn, <= 3 nesting, zero `as any`/`as never`/`as unknown as`, zero Hex/ant-text, `stroke={1.5}`)                               |
+| **L3** | `pnpm test`                                 | Vitest: valuation & 5×5 sensitivity math, readiness scorer, in-memory Postgres CRUD + 8-table DDL parity (`copilot_outputs` included), Zero-Leverage Iron Rule, exporters, SEC EDGAR & Zod AI contracts |
+| **L4** | `lefthook.yml` + `.github/workflows/ci.yml` | Pre-commit `pnpm check` + PR gate `pnpm check && pnpm test && pnpm build`                                                                                                                               |
 
 ## 6. Standard Commands
 

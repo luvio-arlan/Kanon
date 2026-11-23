@@ -97,6 +97,19 @@ export const SecFinancialFactSchema = z.object({
 });
 export type SecFinancialFact = z.infer<typeof SecFinancialFactSchema>;
 
+export const SecAnnualFinancialSchema = z.object({
+  fiscalYear: z.string().min(1),
+  revenue: z.number().nullable(),
+  grossProfit: z.number().nullable(),
+  grossMarginPct: z.number().nullable(),
+  netIncome: z.number().nullable(),
+  operatingCashFlow: z.number().nullable(),
+  capex: z.number().nullable(),
+  freeCashFlow: z.number().nullable(),
+  dilutedEps: z.number().nullable(),
+});
+export type SecAnnualFinancial = z.infer<typeof SecAnnualFinancialSchema>;
+
 export const SecSnapshotSchema = z.object({
   ticker: z.string().min(1),
   cik: z.string().min(1),
@@ -105,8 +118,17 @@ export const SecSnapshotSchema = z.object({
   fetchedAt: z.string().min(1),
   filings: z.array(SecFilingItemSchema),
   facts: z.array(SecFinancialFactSchema),
+  annuals: z.array(SecAnnualFinancialSchema).default([]),
 });
 export type SecSnapshot = z.infer<typeof SecSnapshotSchema>;
+
+export const SavedCopilotOutputSchema = z.object({
+  action: z.enum(["earnings_digest", "red_team", "investment_memo"]),
+  engine: z.enum(["vercel-ai-sdk", "grounded-local"]),
+  payload: z.unknown(),
+  updatedAt: z.string().min(1),
+});
+export type SavedCopilotOutput = z.infer<typeof SavedCopilotOutputSchema>;
 
 export const CreateThesisInputSchema = z.object({
   ticker: z

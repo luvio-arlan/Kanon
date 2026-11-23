@@ -2,50 +2,81 @@ import type { SecSnapshot, ThesisDetail } from "@kanon/core";
 import {
   type EarningsDigest,
   EarningsDigestSchema,
+  type InvestmentMemo,
+  InvestmentMemoSchema,
   type RedTeamReport,
   RedTeamReportSchema,
-  type VideoScript,
-  VideoScriptSchema,
 } from "../schemas/copilot";
 
-export function buildGroundedEarningsDigest(
+function extractTranscriptSnippets(sourceText: string | undefined): string[] {
+  if (!sourceText?.trim()) return [];
+  return sourceText
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 12)
+    .slice(0, 3);
+}
+
+function buildDigestMeta(
   thesis: ThesisDetail,
   secSnapshot: SecSnapshot | null,
-): EarningsDigest {
+  snippets: readonly string[],
+) {
   const latestFiling = secSnapshot?.filings[0];
   const anchor = latestFiling
     ? `${thesis.ticker} ${latestFiling.form} (${latestFiling.filingDate})`
     : `${thesis.ticker} 季度电话会与一阶档案`;
   const factLine = secSnapshot?.facts[0]
-    ? `${secSnapshot.facts[0].label} ${secSnapshot.facts[0].valueFormatted}（${secSnapshot.facts[0].period} · ${secSnapshot.facts[0].sourceTag}）`
-    : `${thesis.companyName} 核心经营指标已锚定当前参考价 $${thesis.currentPrice.toFixed(2)}`;
+    ? `${secSnapshot.facts[0].label} ${secSnapshot.facts[0].valueFormatted}（${secSnapshot.facts[0].period}）`
+    : `当前参考价 $${thesis.currentPrice.toFixed(2)}`;
+  const quarterLabel =
+    snippets.length > 0
+      ? "基于用户粘贴原文提炼"
+      : latestFiling
+        ? `${latestFiling.form} · ${latestFiling.filingDate}`
+        : "最新季度跟踪";
+  const guidanceSummary =
+    snippets.length > 0
+      ? `已基于粘贴原文交叉核对 ${thesis.companyName}（${thesis.ticker}）核心逻辑：${snippets[0]}。对应一阶财务锚点：${factLine}。`
+      : `${thesis.companyName}（${thesis.ticker}）核心跟踪主线：${thesis.convictionSummary} 一阶事实锚点：${factLine}。`;
+  return { anchor, quarterLabel, guidanceSummary };
+}
+
+export function buildGroundedEarningsDigest(
+  thesis: ThesisDetail,
+  secSnapshot: SecSnapshot | null,
+  sourceText?: string,
+): EarningsDigest {
+  const snippets = extractTranscriptSnippets(sourceText);
+  const { anchor, quarterLabel, guidanceSummary } = buildDigestMeta(thesis, secSnapshot, snippets);
+  const crossCheck = thesis.crossChecks[0];
 
   return EarningsDigestSchema.parse({
     ticker: thesis.ticker,
-    quarterLabel: latestFiling
-      ? `${latestFiling.form} · ${latestFiling.filingDate}`
-      : "最新季度跟踪",
-    guidanceSummary: `${thesis.companyName}（${thesis.ticker}）当前核心跟踪主线：${thesis.convictionSummary} 一阶事实锚点：${factLine}。`,
+    quarterLabel,
+    guidanceSummary,
     capexSignals: [
-      `围绕「${thesis.hypotheses[0].metricLabel}」核对管理层最新指引是否守住 ${thesis.hypotheses[0].threshold}。`,
-      thesis.crossChecks[0]
-        ? `产业链互证（${thesis.crossChecks[0].peerCompany}）：${thesis.crossChecks[0].takeaway}`
+      snippets[1]
+        ? `原文关键信号：${snippets[1]}`
+        : `围绕「${thesis.hypotheses[0].metricLabel}」核对管理层最新指引是否守住 ${thesis.hypotheses[0].threshold}。`,
+      crossCheck
+        ? `产业链互证（${crossCheck.peerCompany}）：${crossCheck.takeaway}`
         : "建议在 Step 3 补充至少 1 家上下游核心伙伴的 CapEx 口径对照。",
     ],
     toneShifts: [
-      `核心假设「${thesis.hypotheses[2].title}」当前处于 ${thesis.hypotheses[2].status === "warning" ? "证伪预警" : "持续观察"} 状态，需重点追踪管理层措辞是否转趋谨慎。`,
-      `中性目标价 $${thesis.valuation.base.targetPrice.toFixed(2)}（3 年年化 ${thesis.valuation.base.cagrPct.toFixed(1)}%），警惕市场将短期景气外推为永续增速。`,
+      `核心假设「${thesis.hypotheses[2].title}」处于${thesis.hypotheses[2].status === "warning" ? "证伪预警" : "持续观察"}，需紧盯管理层口径变化。`,
+      `中性目标价 $${thesis.valuation.base.targetPrice.toFixed(1)}（年化 ${thesis.valuation.base.cagrPct.toFixed(1)}%），警惕将短期景气误判为永续增速。`,
     ],
     quotesWithAnchors: [
       {
-        topic: thesis.hypotheses[0].metricLabel,
-        summary: thesis.hypotheses[0].note,
-        sourceAnchor: anchor,
+        topic: snippets.length > 0 ? "粘贴原文核心锚点" : thesis.hypotheses[0].metricLabel,
+        summary: snippets[0] ?? thesis.hypotheses[0].note,
+        sourceAnchor: snippets.length > 0 ? "用户导入电话会 / 财报原文" : anchor,
       },
       {
         topic: thesis.hypotheses[1].metricLabel,
         summary: thesis.hypotheses[1].note,
-        sourceAnchor: thesis.crossChecks[0]?.sourceAnchor ?? anchor,
+        sourceAnchor: crossCheck?.sourceAnchor ?? anchor,
       },
     ],
   });
@@ -66,21 +97,21 @@ export function buildGroundedRedTeam(
       {
         id: "rt-1",
         question: `如果「${thesis.hypotheses[0].title}」在未来两季失速，你的估值底线是否被高估？`,
-        falsificationPath: `当 ${thesis.hypotheses[0].metricLabel} 连续两季跌破 ${thesis.hypotheses[0].threshold}，盈利预期将向悲观 EPS $${thesis.valuation.bear.eps} 靠拢。`,
+        falsificationPath: `当 ${thesis.hypotheses[0].metricLabel} 连续两季未能守住「${thesis.hypotheses[0].threshold}」红线，盈利预期将向悲观 EPS $${thesis.valuation.bear.eps} 靠拢。`,
         severity: "critical",
         sourceAnchor: filingAnchor,
       },
       {
         id: "rt-2",
-        question: `当前中性估值隐含 ${thesis.valuation.base.peMultiple}x PE，若行业资本开支周期见顶，杀估值与杀业绩是否会双击？`,
-        falsificationPath: `若市场把估值中枢压缩至悲观情景 ${thesis.valuation.bear.peMultiple}x，对应下行空间约 ${thesis.valuation.downsidePct.toFixed(1)}%（目标价 $${thesis.valuation.bear.targetPrice.toFixed(2)}）。`,
+        question: `中性假设隐含 ${thesis.valuation.base.peMultiple}x PE，若行业资本开支见顶，杀估值与杀业绩是否会双击？`,
+        falsificationPath: `若估值压缩至悲观情景 ${thesis.valuation.bear.peMultiple}x，对应下行风险约 ${thesis.valuation.downsidePct.toFixed(1)}%（目标价 $${thesis.valuation.bear.targetPrice.toFixed(1)}）。`,
         severity: "high",
         sourceAnchor: `${thesis.ticker} 三情景赔率模型 · 悲观情景`,
       },
       {
         id: "rt-3",
         question: `针对「${thesis.hypotheses[2].title}」，产业链上下游是否已经出现提前备货与透支需求？`,
-        falsificationPath: `若核心观测指标「${thesis.hypotheses[2].metricLabel}」触发 ${thesis.hypotheses[2].threshold} 反向突破，应立即启动交易纪律减仓审查。`,
+        falsificationPath: `若「${thesis.hypotheses[2].metricLabel}」触发 ${thesis.hypotheses[2].threshold} 反向突破，应立即启动交易纪律减仓审查。`,
         severity: "moderate",
         sourceAnchor: thesis.crossChecks[0]?.sourceAnchor ?? filingAnchor,
       },
@@ -88,30 +119,38 @@ export function buildGroundedRedTeam(
   });
 }
 
-export function buildGroundedVideoScript(
+export function buildGroundedInvestmentMemo(
   thesis: ThesisDetail,
   secSnapshot: SecSnapshot | null,
-): VideoScript {
+): InvestmentMemo {
   const ratio =
     thesis.valuation.riskRewardRatio !== null
-      ? `${thesis.valuation.riskRewardRatio.toFixed(2)} 倍`
+      ? `${thesis.valuation.riskRewardRatio.toFixed(2)}×`
       : "无明显下行保底";
-  const secFact = secSnapshot?.facts[0]
-    ? `SEC 财报实证：${secSnapshot.facts[0].period} ${secSnapshot.facts[0].label} 达到 ${secSnapshot.facts[0].valueFormatted}。`
-    : `当前市场参考价 $${thesis.currentPrice.toFixed(2)}，已按三情景完成自主赔率测算。`;
+  const latestAnnual = secSnapshot?.annuals[secSnapshot.annuals.length - 1];
+  const secLine = latestAnnual?.grossMarginPct
+    ? `SEC 历史实证（${latestAnnual.fiscalYear}）：毛利率 ${latestAnnual.grossMarginPct}%，稀释 EPS ${latestAnnual.dilutedEps !== null ? `$${latestAnnual.dilutedEps}` : "见原件"}。`
+    : `当前市场参考价 $${thesis.currentPrice.toFixed(2)}，已完成三情景独立赔率测算。`;
+  const latestExit = thesis.disciplineEntries[0]?.exitRule;
 
-  return VideoScriptSchema.parse({
+  return InvestmentMemoSchema.parse({
     ticker: thesis.ticker,
-    title: `别再听消息买 ${thesis.companyName}（${thesis.ticker}）：3 个可证伪指标算清 ${thesis.horizonYears} 年赔率`,
-    estimatedMinutes: 6,
-    hook: `很多人看 ${thesis.companyName} 只盯着短期涨跌，但真正决定你能不能拿住的，不是 K 线，而是这 3 条写死的证伪红线和自己亲手算出来的赔率锚点。`,
-    businessContrast: `${thesis.companyName} 处在「${thesis.sectorTag}」赛道。核心逻辑一句话：${thesis.convictionSummary}`,
-    firstPrinciplesEvidence: [
-      secFact,
-      `核心假设一：${thesis.hypotheses[0].title}（阈值 ${thesis.hypotheses[0].threshold}）—— ${thesis.hypotheses[0].note}`,
-      `三情景赔率：悲观 $${thesis.valuation.bear.targetPrice.toFixed(0)} / 中性 $${thesis.valuation.base.targetPrice.toFixed(0)} / 乐观 $${thesis.valuation.bull.targetPrice.toFixed(0)}，对应中性 3 年年化 ${thesis.valuation.base.cagrPct.toFixed(1)}%，当前赔率比 ${ratio}。`,
+    headline: `${thesis.companyName}（${thesis.ticker}）一页纸投研备忘录 · ${thesis.horizonYears} 年赔率 ${ratio}`,
+    verdictSummary: `当前价 $${thesis.currentPrice.toFixed(2)}，自主测算 ${thesis.horizonYears} 年悲观 / 中性 / 乐观目标价为 $${thesis.valuation.bear.targetPrice.toFixed(1)} / $${thesis.valuation.base.targetPrice.toFixed(1)} / $${thesis.valuation.bull.targetPrice.toFixed(1)}，中性年化 CAGR ${thesis.valuation.base.cagrPct.toFixed(1)}%，期望目标价 $${thesis.valuation.expectedTargetPrice.toFixed(1)}。`,
+    moatAndQuality: `${thesis.convictionSummary} ${thesis.businessFilter.notes || ""}`.trim(),
+    keyEvidence: [
+      secLine,
+      ...thesis.hypotheses.map(
+        (h, i) => `假设 0${i + 1}（${h.threshold}）：${h.title} — ${h.note}`,
+      ),
     ],
-    riskDisclosure: `最后必须讲清认错条件：重点盯紧「${thesis.hypotheses[2].title}」，一旦触发证伪红线绝不幻想，也绝不使用杠杆放大波动。以上仅为个人研究框架拆解，不构成投资建议。`,
-    closingLine: "在噪音里，把听来的观点，炼成自己算出来的底气。下期见。",
+    nextQuarterChecklist: [
+      `核验「${thesis.hypotheses[0].metricLabel}」最新季报实绩是否稳守 ${thesis.hypotheses[0].threshold}。`,
+      `追踪「${thesis.hypotheses[2].metricLabel}」及上下游伙伴最新 CapEx 与需求表态是否出现分歧。`,
+      "对照 10-Q 现金流量表检查自由现金流转化率，验证盈利质量未因激进扩产恶化。",
+    ],
+    exitDiscipline:
+      latestExit ??
+      `严守零杠杆铁律；若「${thesis.hypotheses[2].title}」触发证伪红线且核心毛利率失守，无条件减仓复盘。`,
   });
 }

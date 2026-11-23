@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  calculateSensitivityMatrix,
   calculateValuationScenarios,
   type ThesisDetail,
   type ValuationScenarioSummary,
@@ -10,6 +11,7 @@ import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useState } from "react";
 import { LiveOddsBanner } from "./live-odds-banner";
 import { ScenarioEditorCard } from "./scenario-editor-card";
+import { SensitivityMatrixCard } from "./sensitivity-matrix-card";
 
 type CaseKey = "bear" | "base" | "bull";
 type CasePair = { eps: number; peMultiple: number };
@@ -17,6 +19,7 @@ type CaseMap = Record<CaseKey, CasePair>;
 
 export interface ValuationWorkbenchProps {
   thesis: ThesisDetail;
+  latestSecEps?: number | null;
   saving: boolean;
   onSave: (payload: { currentPrice: number; horizonYears: number } & CaseMap) => Promise<void>;
 }
@@ -57,15 +60,47 @@ function initialCasesFromThesis(thesis: ThesisDetail): CaseMap {
   };
 }
 
+function HorizonSelector({
+  horizonYears,
+  onHorizon,
+}: {
+  horizonYears: number;
+  onHorizon: (next: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-ink-muted">投资周期</span>
+      <div className="inline-flex rounded-pill border border-hairline bg-muted/70 p-1">
+        {HORIZONS.map((year) => (
+          <button
+            key={year}
+            type="button"
+            onClick={() => onHorizon(year)}
+            className={cn(
+              "cursor-pointer rounded-pill px-3 py-1 font-mono text-xs font-medium transition-colors",
+              horizonYears === year
+                ? "bg-surface text-ink-primary shadow-card"
+                : "text-ink-secondary hover:text-ink-primary",
+            )}
+          >
+            {year} 年
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PriceAndHorizonBar(props: {
   currentPrice: number;
   horizonYears: number;
+  latestSecEps?: number | null;
   onPrice: (next: number) => void;
   onHorizon: (next: number) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-hairline bg-surface px-5 py-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <label htmlFor="kanon-current-price" className="text-sm font-medium text-ink-primary">
           当前参考价 ($)
         </label>
@@ -78,27 +113,13 @@ function PriceAndHorizonBar(props: {
           onChange={(e) => props.onPrice(Number(e.target.value) || 0)}
           className="w-28 font-mono tabular-nums"
         />
+        {props.latestSecEps && props.latestSecEps > 0 ? (
+          <span className="rounded-pill bg-titanium-subtle px-2.5 py-1 font-mono text-xs text-ink-secondary tabular-nums">
+            SEC 最新年报 EPS ${props.latestSecEps.toFixed(2)}
+          </span>
+        ) : null}
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-ink-muted">投资周期</span>
-        <div className="inline-flex rounded-pill border border-hairline bg-muted/70 p-1">
-          {HORIZONS.map((year) => (
-            <button
-              key={year}
-              type="button"
-              onClick={() => props.onHorizon(year)}
-              className={cn(
-                "cursor-pointer rounded-pill px-3 py-1 font-mono text-xs font-medium transition-colors",
-                props.horizonYears === year
-                  ? "bg-surface text-ink-primary shadow-card"
-                  : "text-ink-secondary hover:text-ink-primary",
-              )}
-            >
-              {year} 年
-            </button>
-          ))}
-        </div>
-      </div>
+      <HorizonSelector horizonYears={props.horizonYears} onHorizon={props.onHorizon} />
     </div>
   );
 }
@@ -135,12 +156,55 @@ function ScenarioCardsGrid({
   );
 }
 
-export function ValuationWorkbench({ thesis, saving, onSave }: ValuationWorkbenchProps) {
+function computeValuationBundle(safePrice: number, horizonYears: number, cases: CaseMap) {
+  const summary = calculateValuationScenarios({ currentPrice: safePrice, horizonYears, ...cases });
+  const matrix = calculateSensitivityMatrix({
+    currentPrice: safePrice,
+    horizonYears,
+    bearEps: cases.bear.eps,
+    baseEps: cases.base.eps,
+    bullEps: cases.bull.eps,
+    bearPe: cases.bear.peMultiple,
+    basePe: cases.base.peMultiple,
+    bullPe: cases.bull.peMultiple,
+  });
+  return { summary, matrix };
+}
+
+function ValuationSaveFooter({
+  saving,
+  disabled,
+  onSave,
+}: {
+  saving: boolean;
+  disabled: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <div className="flex justify-end">
+      <Button variant="primary" size="lg" disabled={disabled} onClick={onSave}>
+        {saving ? (
+          <IconCheck size={16} stroke={1.5} />
+        ) : (
+          <IconDeviceFloppy size={16} stroke={1.5} />
+        )}
+        <span>{saving ? "正在写入数据库..." : "保存三情景估值赔率"}</span>
+      </Button>
+    </div>
+  );
+}
+
+export function ValuationWorkbench({
+  thesis,
+  latestSecEps,
+  saving,
+  onSave,
+}: ValuationWorkbenchProps) {
   const [currentPrice, setCurrentPrice] = useState(thesis.currentPrice);
   const [horizonYears, setHorizonYears] = useState(thesis.horizonYears);
   const [cases, setCases] = useState<CaseMap>(() => initialCasesFromThesis(thesis));
   const safePrice = currentPrice > 0 ? currentPrice : 1;
-  const summary = calculateValuationScenarios({ currentPrice: safePrice, horizonYears, ...cases });
+  const { summary, matrix } = computeValuationBundle(safePrice, horizonYears, cases);
   const patchCase = (key: CaseKey, next: Partial<CasePair>) =>
     setCases((prev) => ({ ...prev, [key]: { ...prev[key], ...next } }));
 
@@ -149,13 +213,14 @@ export function ValuationWorkbench({ thesis, saving, onSave }: ValuationWorkbenc
       <div>
         <h2 className="text-lg font-semibold text-ink-primary">Step 4 · 三情景估值赔率计算器</h2>
         <p className="mt-0.5 text-sm text-ink-secondary">
-          拖动悲观 / 中性 / 乐观 EPS 与 PE 滑块，实时算清安全边际与赔率比
+          拖动悲观 / 中性 / 乐观 EPS 与 PE 滑块，结合 5×5 敏感度矩阵算清安全边际与赔率比
         </p>
       </div>
       <LiveOddsBanner summary={summary} />
       <PriceAndHorizonBar
         currentPrice={currentPrice}
         horizonYears={horizonYears}
+        latestSecEps={latestSecEps}
         onPrice={setCurrentPrice}
         onHorizon={setHorizonYears}
       />
@@ -165,21 +230,12 @@ export function ValuationWorkbench({ thesis, saving, onSave }: ValuationWorkbenc
         summary={summary}
         onPatch={patchCase}
       />
-      <div className="flex justify-end">
-        <Button
-          variant="primary"
-          size="lg"
-          disabled={saving || currentPrice <= 0}
-          onClick={() => onSave({ currentPrice: safePrice, horizonYears, ...cases })}
-        >
-          {saving ? (
-            <IconCheck size={16} stroke={1.5} />
-          ) : (
-            <IconDeviceFloppy size={16} stroke={1.5} />
-          )}
-          <span>{saving ? "正在写入数据库..." : "保存三情景估值赔率"}</span>
-        </Button>
-      </div>
+      <SensitivityMatrixCard matrix={matrix} />
+      <ValuationSaveFooter
+        saving={saving}
+        disabled={saving || currentPrice <= 0}
+        onSave={() => onSave({ currentPrice: safePrice, horizonYears, ...cases })}
+      />
     </div>
   );
 }

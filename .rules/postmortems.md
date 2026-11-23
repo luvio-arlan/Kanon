@@ -62,3 +62,15 @@
 - **Mistake**: Omitting `<Switch.Content>` inside HeroUI v3 `<Switch>` (preventing React Aria from mounting the interactive checkbox/switch input), or overriding `.slider__fill` color directly without overriding `--accent` on `.slider` (leaving `.slider__fill::before` in the parent `--accent` color).
 - **Correct Pattern**: Always inspect `packages/ui/node_modules/@heroui/styles` and `@heroui/react/docs/components/*.md` before wrapping components; wrap switch controls inside `<Switch.Content>` and override `--accent` / `--switch-control-bg-checked` on the BEM block class in `theme-bridge.css`.
 - **Why / Gate**: Guarantees native keyboard/pointer accessibility and zero dual-tone pseudo-element conflicts across Light & Dark themes. Verified via live browser QA + `.agents/skills/heroui-theming` scripts.
+
+### [2026-11-23] Never Render HeroUI `<Popover.Trigger>` Default `<div>` Inside Inline `<p>` (React #418)
+
+- **Mistake**: Using HeroUI v3 `<Popover.Trigger>` (which defaults to `<div role="button">`) inside inline `<GlossaryText>` wrapped by `<p>` tags, causing HTML5 auto-closing of `<p>` during SSR and triggering React Error #418 hydration mismatch on direct page reloads.
+- **Correct Pattern**: Always pass `render={(triggerProps) => <span {...triggerProps} />}` on inline `<Popover.Trigger<"span">>` primitives, and avoid wrapping rich inline components in `<p>` tags when `<div>` is semantically safer.
+- **Why / Gate**: Guarantees zero SSR/CSR hydration errors on direct reloads across all routes. Verified via live browser direct-reload QA.
+
+### [2026-11-23] Validate Persisted AI JSONB Payloads Server-Side & Keep Copilot Strictly Institutional
+
+- **Mistake**: Importing runtime `@kanon/ai` AI SDK modules inside `"use client"` hooks to cast persisted `copilot_outputs` rows, or letting Copilot actions drift away from core fundamental research.
+- **Correct Pattern**: Keep every Copilot action strictly aligned with fundamental value investing (`earnings_digest`, `red_team`, `investment_memo`), validate persisted JSONB payloads with `@kanon/ai` Zod `safeParse` inside Server Components before passing typed props to client islands, and keep `import type` only in client modules.
+- **Why / Gate**: Preserves institutional investor product clarity, prevents Node/AI SDK leaks into client bundles, and eliminates unsafe type assertions. Enforced by `packages/ai` Zod schemas + `AGENTS.md` §1 & §3.

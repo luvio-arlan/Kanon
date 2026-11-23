@@ -5,7 +5,7 @@ import type { GlossaryTerm, Hypothesis, HypothesisStatus, ThesisDetail } from "@
 import { Badge, Button, Card, cn, Input, Textarea } from "@kanon/ui";
 import { IconCheck, IconDeviceFloppy, IconFlame } from "@tabler/icons-react";
 import { useState } from "react";
-import { GlossaryText } from "@/features/glossary";
+import { GlossaryChips } from "@/features/glossary";
 
 export interface StepHypothesesProps {
   thesis: ThesisDetail;
@@ -72,7 +72,7 @@ interface EditorCardProps {
 
 function HypothesisEditorCard({ index, item, glossary, onChange }: EditorCardProps) {
   return (
-    <Card className="space-y-4 p-5">
+    <Card className="space-y-3.5 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-sm font-semibold text-ink-primary tabular-nums">
           核心假设 0{index + 1}
@@ -107,10 +107,7 @@ function HypothesisEditorCard({ index, item, glossary, onChange }: EditorCardPro
         placeholder="最新财报佐证或证伪说明..."
         className="min-h-[72px]"
       />
-      <div className="rounded-control bg-muted/60 px-3.5 py-2 text-xs text-ink-secondary">
-        术语快查：
-        <GlossaryText text={`${item.title} · ${item.note}`} terms={glossary} />
-      </div>
+      <GlossaryChips text={`${item.title} ${item.metricLabel} ${item.note}`} terms={glossary} />
     </Card>
   );
 }
@@ -119,7 +116,9 @@ function RedTeamResultCard({ report }: { report: RedTeamReport }) {
   return (
     <Card tone="titanium" className="space-y-4 p-6">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-ink-primary">红队挑刺 · 苛刻空头反驳</h3>
+        <h3 className="text-base font-semibold text-ink-primary">
+          红队挑刺 · 苛刻空头反驳（已持久化）
+        </h3>
         <Badge variant="fail">Devil&apos;s Advocate</Badge>
       </div>
       <div className="space-y-3">
@@ -154,7 +153,7 @@ function StepTwoHeader({ loading, onRun }: { loading: boolean; onRun: () => Prom
       <div>
         <h2 className="text-lg font-semibold text-ink-primary">Step 2 · 三条可证伪核心假设</h2>
         <p className="mt-0.5 text-sm text-ink-secondary">
-          把听来的看多观点拆成最多 3 条可量化、可证伪的硬指标（点击虚线术语可弹出白话释义）
+          把看多逻辑收敛为最多 3 条可量化、可证伪的硬指标，用红队空头视角压力测试
         </p>
       </div>
       <Button variant="coral" size="md" disabled={loading} onClick={onRun}>

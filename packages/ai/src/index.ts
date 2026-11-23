@@ -1,10 +1,13 @@
 export {
+  type ByokCredentials,
   type CopilotPayloadMap,
   type CopilotRunResult,
   runThesisCopilot,
 } from "./copilot/run-copilot";
 export { parseStructuredOutput, type StructuredParseResult } from "./parse-structured";
 export {
+  type ByokProvider,
+  ByokProviderSchema,
   type CopilotAction,
   CopilotActionSchema,
   type CopilotEngineMode,
@@ -15,8 +18,8 @@ export {
   EarningsDigestSchema,
   type EarningsQuote,
   EarningsQuoteSchema,
-  type VideoScript,
-  VideoScriptSchema,
+  type InvestmentMemo,
+  InvestmentMemoSchema,
 } from "./schemas/copilot";
 export {
   type RedTeamChallenge,

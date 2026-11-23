@@ -18,24 +18,27 @@ export const EarningsDigestSchema = z.object({
 });
 export type EarningsDigest = z.infer<typeof EarningsDigestSchema>;
 
-export const VideoScriptSchema = z.object({
+export const InvestmentMemoSchema = z.object({
   ticker: z.string().min(1).max(10),
-  title: z.string().min(4),
-  estimatedMinutes: z.number().min(2).max(20),
-  hook: z.string().min(10),
-  businessContrast: z.string().min(10),
-  firstPrinciplesEvidence: z.array(z.string().min(6)).min(2).max(5),
-  riskDisclosure: z.string().min(10),
-  closingLine: z.string().min(6),
+  headline: z.string().min(6),
+  verdictSummary: z.string().min(10),
+  moatAndQuality: z.string().min(10),
+  keyEvidence: z.array(z.string().min(6)).min(2).max(5),
+  nextQuarterChecklist: z.array(z.string().min(6)).min(2).max(4),
+  exitDiscipline: z.string().min(8),
 });
-export type VideoScript = z.infer<typeof VideoScriptSchema>;
+export type InvestmentMemo = z.infer<typeof InvestmentMemoSchema>;
 
-export const CopilotActionSchema = z.enum(["earnings_digest", "red_team", "video_script"]);
+export const CopilotActionSchema = z.enum(["earnings_digest", "red_team", "investment_memo"]);
 export type CopilotAction = z.infer<typeof CopilotActionSchema>;
+
+export const ByokProviderSchema = z.enum(["gemini", "anthropic", "openai"]);
+export type ByokProvider = z.infer<typeof ByokProviderSchema>;
 
 export const CopilotRequestSchema = z.object({
   thesisId: z.string().min(1),
   action: CopilotActionSchema,
+  sourceText: z.string().max(12000).optional(),
 });
 export type CopilotRequest = z.infer<typeof CopilotRequestSchema>;
 

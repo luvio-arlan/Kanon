@@ -6,7 +6,8 @@ import { drizzle as drizzlePostgres, type PostgresJsDatabase } from "drizzle-orm
 import postgres from "postgres";
 import { KANON_POSTGRES_DDL } from "./ddl";
 import * as schema from "./schema";
-import { SEED_GLOSSARY_TERMS, SEED_SEC_SNAPSHOTS } from "./seed-glossary";
+import { SEED_GLOSSARY_TERMS } from "./seed-glossary";
+import { SEED_SEC_SNAPSHOTS } from "./seed-sec";
 import { SEED_THESIS_RECORDS } from "./seed-theses";
 
 export type KanonDb = PgliteDatabase<typeof schema> | PostgresJsDatabase<typeof schema>;
@@ -30,20 +31,24 @@ async function seedIfEmpty(db: KanonDb): Promise<void> {
       .values([...SEED_GLOSSARY_TERMS])
       .onConflictDoNothing();
   }
-  await db
-    .insert(schema.secFilingsCacheTable)
-    .values(
-      SEED_SEC_SNAPSHOTS.map((snap) => ({
+  for (const snap of SEED_SEC_SNAPSHOTS) {
+    await db
+      .insert(schema.secFilingsCacheTable)
+      .values({
         ticker: snap.ticker,
         cik: snap.cik,
         entityName: snap.entityName,
         source: snap.source,
         filings: snap.filings,
         facts: snap.facts,
+        annuals: snap.annuals,
         fetchedAt: new Date(snap.fetchedAt),
-      })),
-    )
-    .onConflictDoNothing();
+      })
+      .onConflictDoUpdate({
+        target: schema.secFilingsCacheTable.ticker,
+        set: { annuals: snap.annuals },
+      });
+  }
 }
 
 async function insertSeedTheses(db: KanonDb): Promise<void> {

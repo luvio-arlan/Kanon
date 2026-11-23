@@ -1,6 +1,6 @@
 "use client";
 
-import type { VideoScript } from "@kanon/ai";
+import type { InvestmentMemo } from "@kanon/ai";
 import type {
   CreateDisciplineEntryInput,
   EmotionState,
@@ -16,15 +16,16 @@ import {
   EmotionAndPriceRow,
 } from "./discipline-fields";
 import { DisciplineTimeline } from "./discipline-timeline";
-import { VideoScriptCard } from "./video-script-card";
+import { InvestmentMemoCard } from "./investment-memo-card";
 
 export interface DisciplineJournalProps {
   thesis: ThesisDetail;
   submitting: boolean;
-  scriptLoading: boolean;
-  videoScript: VideoScript | null;
+  memoLoading: boolean;
+  investmentMemo: InvestmentMemo | null;
+  redTeamExitSuggestion?: string;
   onSubmitDiscipline: (entry: CreateDisciplineEntryInput) => Promise<void>;
-  onGenerateScript: () => Promise<void>;
+  onGenerateMemo: () => Promise<void>;
 }
 
 interface FormState {
@@ -100,17 +101,37 @@ function ExitRuleInputs(props: {
 interface ChecklistCardProps {
   defaultPrice: number;
   submitting: boolean;
+  redTeamExitSuggestion?: string;
   onSubmit: (entry: CreateDisciplineEntryInput) => Promise<void>;
 }
 
-function DisciplineChecklistCard({ defaultPrice, submitting, onSubmit }: ChecklistCardProps) {
-  const [form, setForm] = useState<FormState>(() => createInitialForm(defaultPrice));
+function RedTeamExitHint({
+  suggestion,
+  onApply,
+}: {
+  suggestion?: string;
+  onApply: (text: string) => void;
+}) {
+  if (!suggestion) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => onApply(suggestion)}
+      className="w-full cursor-pointer rounded-control border border-dashed border-accent-coral/40 bg-accent-coral-soft/40 px-3.5 py-2 text-left text-xs text-ink-primary transition-colors hover:bg-accent-coral-soft/70"
+    >
+      一键带入红队致命证伪路径作为离场红线：{suggestion}
+    </button>
+  );
+}
+
+function DisciplineChecklistCard(props: ChecklistCardProps) {
+  const [form, setForm] = useState<FormState>(() => createInitialForm(props.defaultPrice));
   const patch = (p: Partial<FormState>) => setForm((prev) => ({ ...prev, ...p }));
   const blocked = form.action !== "pass" && !form.noLeverage;
 
   async function handleSave() {
     if (blocked || !form.exitRule.trim()) return;
-    await onSubmit(toDisciplineInput(form, defaultPrice));
+    await props.onSubmit(toDisciplineInput(form, props.defaultPrice));
     patch({ exitRule: "", note: "" });
   }
 
@@ -131,6 +152,12 @@ function DisciplineChecklistCard({ defaultPrice, submitting, onSubmit }: Checkli
         onEmotion={(emotion) => patch({ emotion })}
         onPrice={(priceAnchor) => patch({ priceAnchor })}
       />
+      {!form.exitRule.trim() ? (
+        <RedTeamExitHint
+          suggestion={props.redTeamExitSuggestion}
+          onApply={(exitRule) => patch({ exitRule })}
+        />
+      ) : null}
       <ExitRuleInputs
         exitRule={form.exitRule}
         note={form.note}
@@ -139,7 +166,7 @@ function DisciplineChecklistCard({ defaultPrice, submitting, onSubmit }: Checkli
       />
       <DisciplineSubmitFooter
         blocked={blocked}
-        submitting={submitting}
+        submitting={props.submitting}
         canSubmit={Boolean(form.exitRule.trim())}
         onSave={handleSave}
       />
@@ -153,14 +180,15 @@ export function DisciplineJournal(props: DisciplineJournalProps) {
       <DisciplineChecklistCard
         defaultPrice={props.thesis.currentPrice}
         submitting={props.submitting}
+        redTeamExitSuggestion={props.redTeamExitSuggestion}
         onSubmit={props.onSubmitDiscipline}
       />
       <DisciplineTimeline entries={props.thesis.disciplineEntries} />
-      <VideoScriptCard
+      <InvestmentMemoCard
         thesisId={props.thesis.id}
-        script={props.videoScript}
-        loading={props.scriptLoading}
-        onGenerate={props.onGenerateScript}
+        memo={props.investmentMemo}
+        loading={props.memoLoading}
+        onGenerate={props.onGenerateMemo}
       />
     </div>
   );

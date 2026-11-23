@@ -82,6 +82,19 @@ CREATE TABLE IF NOT EXISTS sec_filings_cache (
   source TEXT NOT NULL,
   filings JSONB NOT NULL,
   facts JSONB NOT NULL,
+  annuals JSONB NOT NULL DEFAULT '[]'::jsonb,
   fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE sec_filings_cache
+  ADD COLUMN IF NOT EXISTS annuals JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+CREATE TABLE IF NOT EXISTS copilot_outputs (
+  id TEXT PRIMARY KEY,
+  thesis_id TEXT NOT NULL REFERENCES theses(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  engine TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 `;

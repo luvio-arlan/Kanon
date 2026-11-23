@@ -4,12 +4,15 @@ import { calculateAverageRiskReward, type GlossaryTerm, type ThesisDetail } from
 import { CommandMenu, KANON_STAGGER_CONTAINER, useTheme } from "@kanon/ui";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { buildCockpitCommandGroups } from "../data/command-actions";
-import { type CockpitFilter, CockpitHeader } from "./cockpit-header";
+import { readByokConfig } from "../lib/byok-storage";
+import { AiSettingsModal } from "./ai-settings-modal";
+import { type CockpitFilter, CockpitHeader, type CockpitViewMode } from "./cockpit-header";
 import { CockpitTopbar } from "./cockpit-topbar";
 import { DisciplineFooterStrip } from "./discipline-footer-strip";
 import { NewThesisModal } from "./new-thesis-modal";
+import { PortfolioComparisonTable } from "./portfolio-comparison-table";
 import { ThesisBentoCard } from "./thesis-bento-card";
 import { ThesisPreviewSheet } from "./thesis-preview-sheet";
 
@@ -19,29 +22,37 @@ export interface CockpitShellProps {
 }
 
 function matchesFilter(thesis: ThesisDetail, filter: CockpitFilter): boolean {
-  if (filter === "attractive" && thesis.valuation.convictionZone !== "attractive") return false;
-  if (filter === "attention" && !thesis.hypotheses.some((h) => h.status !== "validated")) {
-    return false;
-  }
+  if (filter === "archived") return thesis.status === "archived_veto";
+  if (thesis.status === "archived_veto") return false;
+  if (filter === "attractive") return thesis.valuation.convictionZone === "attractive";
+  if (filter === "attention") return thesis.hypotheses.some((h) => h.status !== "validated");
   return true;
 }
 
 function computeStats(theses: readonly ThesisDetail[]) {
-  const validatedCount = theses.reduce(
+  const active = theses.filter((t) => t.status === "active");
+  const validatedCount = active.reduce(
     (sum, item) => sum + item.hypotheses.filter((h) => h.status === "validated").length,
     0,
   );
   const averageRiskReward = calculateAverageRiskReward(
-    theses.map((item) => item.valuation.riskRewardRatio),
+    active.map((item) => item.valuation.riskRewardRatio),
   );
-  return { validatedCount, averageRiskReward };
+  return {
+    activeCount: active.length,
+    archivedCount: theses.length - active.length,
+    validatedCount,
+    averageRiskReward,
+  };
 }
 
-function ThesisGridSection({
+function ThesisCollectionView({
   theses,
+  viewMode,
   onQuickInspect,
 }: {
   theses: readonly ThesisDetail[];
+  viewMode: CockpitViewMode;
   onQuickInspect: (thesis: ThesisDetail) => void;
 }) {
   if (theses.length === 0) {
@@ -50,6 +61,9 @@ function ThesisGridSection({
         <p className="text-sm text-ink-secondary">当前筛选条件下暂无标的，按 ⌘K 随时新建。</p>
       </div>
     );
+  }
+  if (viewMode === "table") {
+    return <PortfolioComparisonTable theses={theses} />;
   }
   return (
     <motion.section
@@ -69,10 +83,13 @@ function ThesisGridSection({
 function CockpitOverlays(props: {
   commandOpen: boolean;
   newModalOpen: boolean;
+  aiModalOpen: boolean;
   previewThesis: ThesisDetail | null;
   commandGroups: ReturnType<typeof buildCockpitCommandGroups>;
   onCommandOpen: (open: boolean) => void;
   onNewModalOpen: (open: boolean) => void;
+  onAiModalOpen: (open: boolean) => void;
+  onAiChanged: () => void;
   onClosePreview: () => void;
   onCreated: (created: ThesisDetail) => void;
 }) {
@@ -89,21 +106,33 @@ function CockpitOverlays(props: {
         onOpenChange={props.onNewModalOpen}
         onCreated={props.onCreated}
       />
+      <AiSettingsModal
+        open={props.aiModalOpen}
+        onOpenChange={props.onAiModalOpen}
+        onChanged={props.onAiChanged}
+      />
     </>
   );
 }
 
-function useCockpitController(initialTheses: ThesisDetail[], glossary: readonly GlossaryTerm[]) {
+function useCockpitUiState(initialTheses: ThesisDetail[], glossary: readonly GlossaryTerm[]) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const [theses, setTheses] = useState<ThesisDetail[]>(initialTheses);
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [newModalOpen, setNewModalOpen] = useState(false);
+  const [modals, setModals] = useState({ cmd: false, create: false, ai: false });
+  const [hasByok, setHasByok] = useState(false);
   const [filter, setFilter] = useState<CockpitFilter>("all");
+  const [viewMode, setViewMode] = useState<CockpitViewMode>("cards");
   const [previewThesis, setPreviewThesis] = useState<ThesisDetail | null>(null);
 
+  useEffect(() => {
+    setHasByok(Boolean(readByokConfig()));
+  }, []);
+
+  const setModal = (key: "cmd" | "create" | "ai", open: boolean) =>
+    setModals((prev) => ({ ...prev, [key]: open }));
   const visibleTheses = useMemo(
-    () => theses.filter((item) => matchesFilter(item, filter)),
+    () => theses.filter((t) => matchesFilter(t, filter)),
     [theses, filter],
   );
   const commandGroups = buildCockpitCommandGroups({
@@ -111,64 +140,77 @@ function useCockpitController(initialTheses: ThesisDetail[], glossary: readonly 
     glossary,
     theme,
     onOpenThesis: (item) => router.push(`/thesis/${item.id}`),
-    onNewThesis: () => setNewModalOpen(true),
-    onExportCsv: () => {
-      window.location.href = "/api/export/portfolio";
-    },
+    onNewThesis: () => setModal("create", true),
+    onOpenAiSettings: () => setModal("ai", true),
+    onExportCsv: () => window.location.assign("/api/export/portfolio"),
     onToggleTheme: toggleTheme,
   });
 
-  function handleCreated(created: ThesisDetail) {
-    setTheses((prev) => [...prev, created]);
-    router.push(`/thesis/${created.id}`);
-  }
-
   return {
+    router,
     theses,
-    visibleTheses,
-    stats: computeStats(theses),
+    setTheses,
+    modals,
+    setModal,
+    hasByok,
+    setHasByok,
     filter,
     setFilter,
-    commandOpen,
-    setCommandOpen,
-    newModalOpen,
-    setNewModalOpen,
+    viewMode,
+    setViewMode,
     previewThesis,
     setPreviewThesis,
+    visibleTheses,
     commandGroups,
-    handleCreated,
   };
 }
 
 export function CockpitShell({ initialTheses, glossary }: CockpitShellProps) {
-  const ctrl = useCockpitController(initialTheses, glossary);
+  const ui = useCockpitUiState(initialTheses, glossary);
+  const stats = computeStats(ui.theses);
+
   return (
     <div className="kanon-ambient-canvas min-h-dvh">
       <CockpitTopbar
-        onOpenCommand={() => ctrl.setCommandOpen(true)}
-        onNewThesis={() => ctrl.setNewModalOpen(true)}
+        hasByok={ui.hasByok}
+        onOpenCommand={() => ui.setModal("cmd", true)}
+        onOpenAiSettings={() => ui.setModal("ai", true)}
+        onNewThesis={() => ui.setModal("create", true)}
       />
       <main className="mx-auto max-w-6xl px-6 pb-14 sm:px-10">
         <CockpitHeader
-          totalCount={ctrl.theses.length}
-          validatedCount={ctrl.stats.validatedCount}
-          totalHypotheses={ctrl.theses.length * 3}
-          averageRiskReward={ctrl.stats.averageRiskReward}
-          filter={ctrl.filter}
-          onFilterChange={ctrl.setFilter}
+          totalCount={stats.activeCount}
+          archivedCount={stats.archivedCount}
+          validatedCount={stats.validatedCount}
+          totalHypotheses={stats.activeCount * 3}
+          averageRiskReward={stats.averageRiskReward}
+          filter={ui.filter}
+          viewMode={ui.viewMode}
+          onFilterChange={ui.setFilter}
+          onViewModeChange={ui.setViewMode}
         />
-        <ThesisGridSection theses={ctrl.visibleTheses} onQuickInspect={ctrl.setPreviewThesis} />
-        <DisciplineFooterStrip onOpenCommand={() => ctrl.setCommandOpen(true)} />
+        <ThesisCollectionView
+          theses={ui.visibleTheses}
+          viewMode={ui.viewMode}
+          onQuickInspect={ui.setPreviewThesis}
+        />
+        <DisciplineFooterStrip onOpenCommand={() => ui.setModal("cmd", true)} />
       </main>
       <CockpitOverlays
-        commandOpen={ctrl.commandOpen}
-        newModalOpen={ctrl.newModalOpen}
-        previewThesis={ctrl.previewThesis}
-        commandGroups={ctrl.commandGroups}
-        onCommandOpen={ctrl.setCommandOpen}
-        onNewModalOpen={ctrl.setNewModalOpen}
-        onClosePreview={() => ctrl.setPreviewThesis(null)}
-        onCreated={ctrl.handleCreated}
+        commandOpen={ui.modals.cmd}
+        newModalOpen={ui.modals.create}
+        aiModalOpen={ui.modals.ai}
+        previewThesis={ui.previewThesis}
+        commandGroups={ui.commandGroups}
+        onCommandOpen={(open) => ui.setModal("cmd", open)}
+        onNewModalOpen={(open) => ui.setModal("create", open)}
+        onAiModalOpen={(open) => ui.setModal("ai", open)}
+        onAiChanged={() => ui.setHasByok(Boolean(readByokConfig()))}
+        onClosePreview={() => ui.setPreviewThesis(null)}
+        onCreated={(created) => {
+          ui.setTheses((prev) => [...prev, created]);
+          ui.router.push(`/thesis/${created.id}`);
+        }}
       />
     </div>
   );
