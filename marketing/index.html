@@ -2,7 +2,9 @@
 <html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F6F5F1" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#07080A" media="(prefers-color-scheme: dark)" />
   <title>KANON · 卡农 — Conviction, composed.</title>
   <meta name="description" content="KANON（卡农）— 面向严肃个人价值投资者与买方投研机构的投资逻辑操作系统。在噪音里，谱出自己的确定性。kanon.hk · By Caius Lu." />
   <meta name="author" content="Caius Lu" />
@@ -159,7 +161,7 @@
       top: 0;
       left: 0;
       right: 0;
-      z-index: 100;
+      z-index: 155;
       padding: 24px 0;
       border-bottom: 1px solid transparent;
       transition: background-color 320ms ease, padding 320ms ease, border-color 320ms ease;
@@ -223,6 +225,63 @@
       background: var(--ink);
       color: var(--ink-inv);
       border-color: var(--ink);
+    }
+
+    /* Mobile menu trigger (hidden on desktop) + Full-Screen Swiss Drawer */
+    .menu-btn {
+      display: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1px solid var(--hairline-2);
+      place-items: center;
+      color: var(--ink);
+      transition: border-color 200ms ease, color 200ms ease;
+    }
+    .menu-btn:hover { border-color: var(--coral); color: var(--coral); }
+    .mobile-drawer {
+      position: fixed;
+      inset: 0;
+      z-index: 150;
+      background: var(--bg);
+      padding: calc(92px + env(safe-area-inset-top, 0px)) 28px calc(36px + env(safe-area-inset-bottom, 0px));
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-10px);
+      transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .mobile-drawer.open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+    .mobile-nav-list {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--hairline);
+    }
+    .mobile-nav-link {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--hairline);
+      font-size: 24px;
+      font-weight: 300;
+      letter-spacing: 0.02em;
+    }
+    .mobile-nav-link span.m-idx {
+      font-size: 12px;
+      color: var(--coral);
+      letter-spacing: 0.14em;
+    }
+    .mobile-drawer-foot {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
     }
 
     /* ========================================================================
@@ -1264,18 +1323,112 @@
 
     @media (max-width: 960px) {
       nav { display: none; }
+      .menu-btn { display: grid; }
       .val-sculpture, .vp-spread { grid-template-columns: 1fr; }
-      .acc-trigger { grid-template-columns: 52px 1fr 28px; gap: 14px; padding-left: 14px; padding-right: 12px; }
-      .acc-summary { grid-column: 2; margin-top: 4px; }
+      .acc-trigger {
+        grid-template-columns: 52px 1fr 28px;
+        gap: 6px 14px;
+        padding-left: 14px;
+        padding-right: 12px;
+      }
+      .acc-idx { grid-column: 1; grid-row: 1; }
+      .acc-title { grid-column: 2; grid-row: 1; }
+      .acc-plus { grid-column: 3; grid-row: 1; }
+      .acc-summary { grid-column: 2 / 4; grid-row: 2; margin-top: 2px; }
       .acc-content { grid-template-columns: 1fr; margin: 0 18px 28px 80px; gap: 20px; }
-      .head-note { text-align: left; }
-      .lock-caption { white-space: normal; }
+      .head-note { text-align: left; text-wrap: balance; }
+      .lock-caption { white-space: normal; max-width: 310px; line-height: 1.65; text-wrap: balance; }
     }
-    @media (max-width: 560px) {
-      .inst-tabs { gap: 16px; }
-      .inst-tab { font-size: 13.5px; }
-      .acc-content { margin: 0 16px 24px 16px; }
-      .acc-spec-line strong { white-space: normal; text-align: left; }
+    @media (max-width: 640px) {
+      header { padding: 16px 0; }
+      header.scrolled { padding: 12px 0; }
+      .wrap { padding: 0 20px; }
+      .nav-cta { display: none; }
+      .hero {
+        min-height: 92svh;
+        padding: 112px 0 60px;
+      }
+      .hero-bg img { object-position: 74% center; }
+      .hero-title { font-size: clamp(3.15rem, 13.8vw, 4.8rem); }
+      .hero-cn { margin-top: 26px; font-size: 1.2rem; }
+      .hero-sub { font-size: 14px; line-height: 1.7; }
+      .hero-actions { margin-top: 30px; gap: 12px; }
+      .btn-hero-primary, .btn-hero-secondary {
+        height: 46px;
+        padding: 0 20px;
+        font-size: 13.5px;
+      }
+      .statement-section { padding: 84px 0 64px; }
+      .statement-lines { font-size: clamp(1.62rem, 6.8vw, 2.2rem); line-height: 1.46; }
+      .fullbleed-photo {
+        height: 52svh;
+        min-height: 310px;
+        clip-path: none !important;
+      }
+      .photo-caption-bar { padding-bottom: 20px; }
+      .photo-caption-inner { font-size: 12px; gap: 6px; }
+      .instrument-section { padding: 80px 0; }
+      .section-head { margin-bottom: 34px; gap: 12px; }
+      .display-h2 { font-size: clamp(2.35rem, 10.5vw, 3.2rem); }
+      .head-note { font-size: 14px; }
+      .inst-bar { gap: 14px; }
+      .inst-tabs { width: 100%; justify-content: space-between; gap: 10px; }
+      .inst-tab { font-size: 13.5px; padding-bottom: 14px; gap: 0; }
+      .inst-tab .t-num { display: none; }
+      .ticker-switch { padding-bottom: 12px; }
+      .inst-stage { padding: 36px 0; min-height: 380px; }
+      .giant-price { font-size: 4rem; }
+      .odds-line { gap: 16px; font-size: 14px; }
+      .odds-num { font-size: 26px; }
+      .dial-sliders { margin-top: 30px; gap: 22px; }
+      .light-matrix { padding: 10px; gap: 6px; border-radius: 16px; }
+      .lm-cell { font-size: 13px; border-radius: 9px; aspect-ratio: 1; }
+      .vp-col p { font-size: 1.32rem; }
+      .red-row { grid-template-columns: 34px 1fr; padding: 18px 0; gap: 10px; }
+      .red-row p { font-size: 1.05rem; }
+      .vault-rings-svg { width: 280px; height: 280px; }
+      .lock-val { font-size: 3.4rem; }
+      .lock-caption { font-size: 13.5px; }
+      .prism-hero { height: 46svh; min-height: 290px; padding: 28px 0; }
+      .accordion-section { padding: 52px 0 80px; }
+      .horizon-section { padding: 80px 0; }
+      .acc-trigger {
+        grid-template-columns: 40px 1fr 28px;
+        gap: 6px 12px;
+        padding: 20px 8px 20px 12px;
+      }
+      .acc-title { font-size: 1.15rem; }
+      .acc-summary {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        padding-left: 52px;
+        font-size: 13.5px;
+        margin-top: 2px;
+      }
+      .acc-content { margin: 0 12px 24px 12px; padding-top: 18px; gap: 16px; }
+      .acc-prose { font-size: 14px; line-height: 1.8; }
+      .acc-spec-box { padding: 14px 16px; gap: 10px; }
+      .acc-spec-line { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; font-size: 12.5px; }
+      .acc-spec-line strong { white-space: normal; text-align: right; }
+      .film-section { padding: 72px 0; }
+      .cinema-play { width: 64px; height: 64px; }
+      .closing { padding-top: 84px; }
+      .closing h2 { font-size: clamp(2.5rem, 11vw, 3.6rem); }
+      .closing-cta-wrap { margin-top: 30px; gap: 12px; }
+      .colophon {
+        margin-top: 56px;
+        justify-content: center;
+        text-align: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+      .bleed-kanon { font-size: 23vw; }
+      .modal-box { padding: 26px 22px; }
+      .toast { right: 16px; left: 16px; bottom: 20px; text-align: center; }
+    }
+    @media (pointer: coarse) {
+      input[type="range"].hair-slider { height: 3px; }
+      input[type="range"].hair-slider::-webkit-slider-thumb { width: 22px; height: 22px; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -1320,9 +1473,32 @@
           </svg>
         </button>
         <button class="nav-cta" id="openAccess">申请内测</button>
+        <button class="menu-btn" id="mobileMenuBtn" aria-label="打开导航菜单" aria-expanded="false">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" id="menuIconSvg" aria-hidden="true">
+            <path d="M2.5 5.2h11M2.5 10.8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />
+          </svg>
+        </button>
       </div>
     </div>
   </header>
+
+  <!-- Mobile Full-Screen Editorial Navigation Drawer -->
+  <div class="mobile-drawer" id="mobileDrawer" aria-hidden="true">
+    <nav class="mobile-nav-list" style="display:flex;" aria-label="Mobile Navigation">
+      <a class="mobile-nav-link" href="#statement"><span>理念</span><span class="m-idx num">01</span></a>
+      <a class="mobile-nav-link" href="#instrument"><span>核心工作台</span><span class="m-idx num">02</span></a>
+      <a class="mobile-nav-link" href="#polyphony"><span>AI 投委会</span><span class="m-idx num">03</span></a>
+      <a class="mobile-nav-link" href="#horizon"><span>演进蓝图</span><span class="m-idx num">04</span></a>
+      <a class="mobile-nav-link" href="#film"><span>品牌宣传片</span><span class="m-idx num">05</span></a>
+    </nav>
+    <div class="mobile-drawer-foot">
+      <button class="btn-hero-primary" id="mobileAccessBtn" style="width:100%; justify-content:center;">申请私密内测</button>
+      <div class="num" style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-3);">
+        <span>kanon.hk</span>
+        <span>jensencuda@gmail.com</span>
+      </div>
+    </div>
+  </div>
 
   <!-- ======================================================================
        ACT 00: MONUMENTAL HERO
@@ -1644,7 +1820,7 @@
     <div class="wrap">
       <div class="section-head reveal">
         <h2 class="display-h2 serif">The <em>Horizon</em>.</h2>
-        <p class="head-note">面向未来十年的机构级演进蓝图 · 点击展开详情</p>
+        <p class="head-note">面向未来十年的机构级演进蓝图 · 点击展开</p>
       </div>
 
       <div class="acc-list" data-accordion="horizon">
@@ -1718,7 +1894,7 @@
           <button class="acc-trigger" aria-expanded="false">
             <span class="acc-idx num">v5.0</span>
             <span class="acc-title">亚 50ms 本地优先引擎</span>
-            <span class="acc-summary">断网亦享端云加密增量同步，保护私密阿尔法</span>
+            <span class="acc-summary">断网亦享端云加密同步，守护私密阿尔法</span>
             <span class="acc-plus" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
             </span>
@@ -2232,20 +2408,23 @@
         lightMatrix.innerHTML = html;
       }
 
-      // Live 3D specular tilt on 5x5 Light-Matrix
-      lightMatrix.addEventListener("pointermove", (e) => {
-        const r = lightMatrix.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width;
-        const y = (e.clientY - r.top) / r.height;
-        lightMatrix.style.setProperty("--mx", `${(x * 100).toFixed(1)}%`);
-        lightMatrix.style.setProperty("--my", `${(y * 100).toFixed(1)}%`);
-        const rx = (0.5 - y) * 9;
-        const ry = (x - 0.5) * 11;
-        lightMatrix.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
-      });
-      lightMatrix.addEventListener("pointerleave", () => {
-        lightMatrix.style.transform = "rotateX(0deg) rotateY(0deg)";
-      });
+      // Live 3D specular tilt on 5x5 Light-Matrix (desktop fine pointer only; zero touch scroll fighting)
+      const isFinePointer = window.matchMedia("(pointer: fine)").matches;
+      if (isFinePointer) {
+        lightMatrix.addEventListener("pointermove", (e) => {
+          const r = lightMatrix.getBoundingClientRect();
+          const x = (e.clientX - r.left) / r.width;
+          const y = (e.clientY - r.top) / r.height;
+          lightMatrix.style.setProperty("--mx", `${(x * 100).toFixed(1)}%`);
+          lightMatrix.style.setProperty("--my", `${(y * 100).toFixed(1)}%`);
+          const rx = (0.5 - y) * 9;
+          const ry = (x - 0.5) * 11;
+          lightMatrix.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
+        });
+        lightMatrix.addEventListener("pointerleave", () => {
+          lightMatrix.style.transform = "rotateX(0deg) rotateY(0deg)";
+        });
+      }
 
       let lastSliderTick = 0;
       function sliderDetent() {
@@ -2306,7 +2485,7 @@
         mechSwitch.classList.add("resist");
         if (vaultRingsSvg) vaultRingsSvg.classList.add("recoil");
         lockCaption.style.color = "var(--coral)";
-        lockCaption.textContent = "已硬性拦截 — 底层契约永久锁定 0.00×，严禁一切杠杆。";
+        lockCaption.textContent = "已硬性拦截 — 底层契约永久锁定 0.00×，严禁杠杆。";
         setTimeout(() => {
           mechSwitch.classList.remove("resist");
           mechSwitch.classList.add("snapped");
@@ -2393,10 +2572,35 @@
       });
 
       const modal = document.getElementById("accessModal");
-      const openM = () => modal.classList.add("open");
-      const closeM = () => modal.classList.remove("open");
+      const mobileDrawer = document.getElementById("mobileDrawer");
+      const mobileMenuBtn = document.getElementById("mobileMenuBtn");
+      const menuIconSvg = document.getElementById("menuIconSvg");
+
+      function setDrawer(open) {
+        mobileDrawer.classList.toggle("open", open);
+        mobileDrawer.setAttribute("aria-hidden", String(!open));
+        mobileMenuBtn.setAttribute("aria-expanded", String(open));
+        document.body.style.overflow = open ? "hidden" : "";
+        menuIconSvg.innerHTML = open
+          ? '<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />'
+          : '<path d="M2.5 5.2h11M2.5 10.8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />';
+      }
+      mobileMenuBtn.addEventListener("click", () => {
+        KanonAudio.tick(1720, 0.036, 0.025);
+        setDrawer(!mobileDrawer.classList.contains("open"));
+      });
+      mobileDrawer.querySelectorAll(".mobile-nav-link").forEach((lnk) => {
+        lnk.addEventListener("click", () => {
+          KanonAudio.tick(1620, 0.032, 0.024);
+          setDrawer(false);
+        });
+      });
+
+      const openM = () => { setDrawer(false); modal.classList.add("open"); };
+      const closeM = () => { setDrawer(false); modal.classList.remove("open"); };
       document.getElementById("openAccess").addEventListener("click", openM);
       document.getElementById("closingAccess").addEventListener("click", openM);
+      document.getElementById("mobileAccessBtn").addEventListener("click", openM);
       document.getElementById("closeModal").addEventListener("click", closeM);
       modal.addEventListener("click", (e) => { if (e.target === modal) closeM(); });
       window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeM(); });

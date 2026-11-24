@@ -1,0 +1,19 @@
+[Unit]
+Description=KANON Investment Thesis OS (Next.js 16)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/kanon
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+EnvironmentFile=-/srv/kanon/.env.local
+ExecStart=/usr/bin/env pnpm --filter @kanon/web start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

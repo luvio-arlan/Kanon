@@ -22,3 +22,8 @@ coverage/
 .DS_Store
 Thumbs.db
 *.log
+
+# Generated video intermediate outputs (final published film lives in marketing/assets/)
+promo-video/preview_stills/
+promo-video/soundtrack.wav
+promo-video/*.mp4
