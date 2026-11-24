@@ -153,6 +153,11 @@ function resolveDataDir(): string {
     fs.mkdirSync(override, { recursive: true });
     return override;
   }
+  if (process.env.VERCEL) {
+    const tmpDir = path.join("/tmp", "kanon-pg");
+    fs.mkdirSync(tmpDir, { recursive: true });
+    return tmpDir;
+  }
   const cwd = process.cwd();
   const root = cwd.endsWith(path.join("apps", "web")) ? path.resolve(cwd, "..", "..") : cwd;
   const dir = path.join(root, ".data", "kanon-pg");
