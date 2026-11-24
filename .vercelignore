@@ -1,8 +1,27 @@
+# Build caches & outputs (never upload local caches to Vercel)
+node_modules/
+.pnpm-store/
+.turbo/
+.next/
+apps/web/.next/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+*.log
+.DS_Store
+
+# Local secrets & database
+.env
+.env.local
+.env.*.local
+.data/
+
+# Non-app repo directories
 marketing/
 promo-video/
 deploy/
 docs/
-.data/
 .github/
 .rules/
 .agents/
