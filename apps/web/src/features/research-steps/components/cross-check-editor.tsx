@@ -1,47 +1,71 @@
 "use client";
 
-import type { Alignment, CrossCheck, GlossaryTerm, PeerRole } from "@kanon/core";
-import { Badge, Button, Card, cn, Input } from "@kanon/ui";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import type { CrossCheck, GlossaryTerm, ThesisSummary } from "@kanon/core";
+import { ActionMenu, Badge, Button, Card, cn, Input } from "@kanon/ui";
+import { IconArrowUpRight, IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
+import Link from "next/link";
 import { useState } from "react";
 import { GlossaryText } from "@/features/glossary";
+import {
+  ALIGN_CYCLE,
+  ALIGN_META,
+  BOTTOM_CHECK_FIELDS,
+  buildCrossCheckFromDraft,
+  EMPTY_CHECK,
+  type NewCheckDraft,
+  nextAlignment,
+  ROLE_LABELS,
+  ROLE_OPTIONS,
+  TOP_CHECK_FIELDS,
+} from "../lib/cross-check-helpers";
 
-const ROLE_OPTIONS: ReadonlyArray<{ id: PeerRole; label: string }> = [
-  { id: "upstream", label: "上游供给" },
-  { id: "downstream", label: "下游客户" },
-  { id: "competitor", label: "直接竞对" },
-  { id: "primary", label: "本公司一阶" },
-];
+export { nextAlignment };
 
-const ALIGN_CYCLE: Alignment[] = ["aligned", "divergent", "pending"];
-
-const ALIGN_META: Record<Alignment, { label: string; variant: "pass" | "fail" | "warn" }> = {
-  aligned: { label: "口径一致", variant: "pass" },
-  divergent: { label: "存在分歧", variant: "fail" },
-  pending: { label: "待继续核实", variant: "warn" },
-};
-
-const ROLE_LABELS = Object.fromEntries(ROLE_OPTIONS.map((r) => [r.id, r.label]));
-
-interface NewCheckDraft {
-  peerCompany: string;
-  peerRole: PeerRole;
-  alignment: Alignment;
-  topic: string;
-  sourceAnchor: string;
-  statement: string;
-  takeaway: string;
+function CrossCheckHeaderRow({
+  cc,
+  onCycleAlignment,
+  onDelete,
+}: {
+  cc: CrossCheck;
+  onCycleAlignment: () => void;
+  onDelete: () => void;
+}) {
+  const align = ALIGN_META[cc.alignment];
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-ink-primary">{cc.peerCompany}</span>
+        <Badge variant="titanium">{ROLE_LABELS[cc.peerRole]}</Badge>
+        <button
+          type="button"
+          onClick={onCycleAlignment}
+          title="点击切换口径一致状态"
+          className="cursor-pointer"
+        >
+          <Badge variant={align.variant}>{align.label}</Badge>
+        </button>
+        {cc.linkedThesisId ? (
+          <Link
+            href={`/thesis/${cc.linkedThesisId}`}
+            className="inline-flex items-center gap-1 rounded-pill border border-hairline bg-muted/60 px-2 py-0.5 text-xs text-ink-secondary hover:border-strong hover:text-ink-primary"
+          >
+            <IconLink size={11} stroke={1.5} />
+            <span>联动档案</span>
+            <IconArrowUpRight size={11} stroke={1.5} />
+          </Link>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        aria-label="删除对照项"
+        onClick={onDelete}
+        className="cursor-pointer rounded-control p-1 text-ink-muted hover:bg-muted hover:text-status-fail"
+      >
+        <IconTrash size={15} stroke={1.5} />
+      </button>
+    </div>
+  );
 }
-
-const EMPTY_CHECK: NewCheckDraft = {
-  peerCompany: "",
-  peerRole: "downstream",
-  alignment: "aligned",
-  topic: "",
-  sourceAnchor: "",
-  statement: "",
-  takeaway: "",
-};
 
 export function CrossCheckItemCard({
   cc,
@@ -54,31 +78,9 @@ export function CrossCheckItemCard({
   onCycleAlignment: () => void;
   onDelete: () => void;
 }) {
-  const align = ALIGN_META[cc.alignment];
   return (
     <Card className="space-y-2 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-ink-primary">{cc.peerCompany}</span>
-          <Badge variant="titanium">{ROLE_LABELS[cc.peerRole]}</Badge>
-          <button
-            type="button"
-            onClick={onCycleAlignment}
-            title="点击切换口径一致状态"
-            className="cursor-pointer"
-          >
-            <Badge variant={align.variant}>{align.label}</Badge>
-          </button>
-        </div>
-        <button
-          type="button"
-          aria-label="删除对照项"
-          onClick={onDelete}
-          className="cursor-pointer rounded-control p-1 text-ink-muted hover:bg-muted hover:text-status-fail"
-        >
-          <IconTrash size={15} stroke={1.5} />
-        </button>
-      </div>
+      <CrossCheckHeaderRow cc={cc} onCycleAlignment={onCycleAlignment} onDelete={onDelete} />
       <div className="text-xs text-ink-muted">
         议题：{cc.topic} · 来源：{cc.sourceAnchor}
       </div>
@@ -88,11 +90,6 @@ export function CrossCheckItemCard({
       <p className="text-xs text-ink-secondary">结论：{cc.takeaway}</p>
     </Card>
   );
-}
-
-export function nextAlignment(current: Alignment): Alignment {
-  const idx = ALIGN_CYCLE.indexOf(current);
-  return ALIGN_CYCLE[(idx + 1) % ALIGN_CYCLE.length] ?? "pending";
 }
 
 function RoleAndAlignPicker({
@@ -142,19 +139,6 @@ function RoleAndAlignPicker({
   );
 }
 
-function buildCrossCheckFromDraft(draft: NewCheckDraft): CrossCheck {
-  return {
-    id: `cc-${Date.now()}`,
-    peerCompany: draft.peerCompany.trim(),
-    peerRole: draft.peerRole,
-    topic: draft.topic.trim(),
-    sourceAnchor: draft.sourceAnchor.trim() || "季报电话会 / SEC 披露",
-    statement: draft.statement.trim(),
-    alignment: draft.alignment,
-    takeaway: draft.takeaway.trim() || "与核心假设形成产业链交叉互证。",
-  };
-}
-
 function DraftInputsGrid({
   draft,
   onPatch,
@@ -163,41 +147,74 @@ function DraftInputsGrid({
   onPatch: (p: Partial<NewCheckDraft>) => void;
 }) {
   return (
-    <>
+    <div className="space-y-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Input
-          value={draft.peerCompany}
-          onChange={(e) => onPatch({ peerCompany: e.target.value })}
-          placeholder="关联公司（如 台积电）"
-        />
-        <Input
-          value={draft.topic}
-          onChange={(e) => onPatch({ topic: e.target.value })}
-          placeholder="印证议题（如 CoWoS 产能）"
-        />
-        <Input
-          value={draft.sourceAnchor}
-          onChange={(e) => onPatch({ sourceAnchor: e.target.value })}
-          placeholder="原文来源锚点"
-        />
+        {TOP_CHECK_FIELDS.map((f) => (
+          <Input
+            key={f.key}
+            value={draft[f.key]}
+            onChange={(e) => onPatch({ [f.key]: e.target.value })}
+            placeholder={f.ph}
+          />
+        ))}
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Input
-          value={draft.statement}
-          onChange={(e) => onPatch({ statement: e.target.value })}
-          placeholder="对方原话口径或数据"
-        />
-        <Input
-          value={draft.takeaway}
-          onChange={(e) => onPatch({ takeaway: e.target.value })}
-          placeholder="交叉印证结论"
-        />
+        {BOTTOM_CHECK_FIELDS.map((f) => (
+          <Input
+            key={f.key}
+            value={draft[f.key]}
+            onChange={(e) => onPatch({ [f.key]: e.target.value })}
+            placeholder={f.ph}
+          />
+        ))}
       </div>
-    </>
+    </div>
   );
 }
 
-export function AddCrossCheckForm({ onAdd }: { onAdd: (item: CrossCheck) => void }) {
+function LinkThesisPicker({
+  linkableTheses,
+  draft,
+  onPatch,
+}: {
+  linkableTheses: readonly ThesisSummary[];
+  draft: NewCheckDraft;
+  onPatch: (p: Partial<NewCheckDraft>) => void;
+}) {
+  if (linkableTheses.length === 0) return null;
+  const linked = linkableTheses.find((t) => t.id === draft.linkedThesisId);
+  return (
+    <ActionMenu
+      ariaLabel="关联库内标的"
+      items={[
+        { id: "none", label: "不关联库内标的", onSelect: () => onPatch({ linkedThesisId: null }) },
+        ...linkableTheses.map((t) => ({
+          id: t.id,
+          label: `${t.companyName} (${t.ticker})`,
+          onSelect: () =>
+            onPatch({
+              linkedThesisId: t.id,
+              peerCompany: draft.peerCompany.trim() || `${t.companyName}（${t.ticker}）`,
+            }),
+        })),
+      ]}
+      trigger={
+        <>
+          <IconLink size={13} stroke={1.5} />
+          <span>{linked ? `已关联：${linked.ticker}` : "关联库内标的（可选）"}</span>
+        </>
+      }
+    />
+  );
+}
+
+export function AddCrossCheckForm({
+  linkableTheses = [],
+  onAdd,
+}: {
+  linkableTheses?: readonly ThesisSummary[];
+  onAdd: (item: CrossCheck) => void;
+}) {
   const [draft, setDraft] = useState<NewCheckDraft>(EMPTY_CHECK);
   const patch = (p: Partial<NewCheckDraft>) => setDraft((prev) => ({ ...prev, ...p }));
   const canAdd = Boolean(draft.peerCompany.trim() && draft.topic.trim() && draft.statement.trim());
@@ -210,7 +227,10 @@ export function AddCrossCheckForm({ onAdd }: { onAdd: (item: CrossCheck) => void
 
   return (
     <Card className="space-y-3 p-5">
-      <div className="text-sm font-semibold text-ink-primary">新增上下游交叉印证</div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-ink-primary">新增上下游交叉印证</div>
+        <LinkThesisPicker linkableTheses={linkableTheses} draft={draft} onPatch={patch} />
+      </div>
       <RoleAndAlignPicker draft={draft} onPatch={patch} />
       <DraftInputsGrid draft={draft} onPatch={patch} />
       <div className="flex justify-end">

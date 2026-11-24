@@ -3,6 +3,7 @@
 import type {
   AgentProposal,
   GlossaryTerm,
+  InboundCrossCheck,
   QuarterlyReview,
   SavedAgentRun,
   SecSnapshot,
@@ -32,6 +33,7 @@ export interface ResearchCanvasShellProps {
   initialRevisions: readonly ThesisRevision[];
   initialReviews: readonly QuarterlyReview[];
   initialAgentRun: SavedAgentRun | null;
+  inboundCrossChecks: readonly InboundCrossCheck[];
 }
 
 function FocusExitPill({ onExit }: { onExit: () => void }) {
@@ -54,6 +56,8 @@ interface CanvasMainProps {
   direction: number;
   focusMode: boolean;
   ctrl: ReturnType<typeof useResearchCanvas>;
+  allTheses: readonly ThesisSummary[];
+  inboundCrossChecks: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
   promotedRule: string | null;
   onDirtyChange: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
@@ -92,6 +96,8 @@ function CanvasMainContent(props: CanvasMainProps) {
             <CanvasStepRenderer
               step={props.activeStep}
               ctrl={props.ctrl}
+              allTheses={props.allTheses}
+              inboundCrossChecks={props.inboundCrossChecks}
               glossary={props.glossary}
               promotedRule={props.promotedRule}
               onDirtyChange={props.onDirtyChange}
@@ -206,6 +212,8 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
         direction={ui.nav.dir}
         focusMode={ui.focusMode}
         ctrl={ctrl}
+        allTheses={props.allTheses}
+        inboundCrossChecks={props.inboundCrossChecks}
         glossary={props.glossary}
         promotedRule={promotedRule}
         onDirtyChange={ui.setDirtyState}

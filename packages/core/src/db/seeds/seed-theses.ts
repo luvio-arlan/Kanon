@@ -10,6 +10,10 @@ export const SEED_THESIS_RECORDS: readonly SeedThesisRecord[] = [
     sectorTag: "AI 存储 · HBM3E",
     currentPrice: 108,
     horizonYears: 3,
+    portfolioRole: "starter",
+    currentWeightPct: 6,
+    targetMaxWeightPct: 12,
+    avgCostBasis: 96,
     convictionSummary:
       "HBM3E 良率与产能卡位推动存储周期抬升，数据中心高毛利占比突破一半，盈利中枢结构性上移。",
     status: "active",
@@ -65,6 +69,7 @@ export const SEED_THESIS_RECORDS: readonly SeedThesisRecord[] = [
         statement: "下一代推理机柜单卡高带宽内存配置继续提升 50%，成为算力吞吐关键瓶颈。",
         alignment: "aligned",
         takeaway: "下游需求口径与美光 2026 年产能售罄说法高度互证。",
+        linkedThesisId: "thesis-nvda",
       },
       {
         id: "mu-cc-2",

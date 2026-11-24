@@ -4,8 +4,10 @@ import type {
   CrossCheck,
   EarningsDigest,
   GlossaryTerm,
+  InboundCrossCheck,
   SecSnapshot,
   ThesisDetail,
+  ThesisSummary,
 } from "@kanon/core";
 import { Button, Card, Textarea } from "@kanon/ui";
 import { IconCheck, IconDeviceFloppy, IconScissors, IconSparkles } from "@tabler/icons-react";
@@ -13,13 +15,16 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { DraftStatusBar } from "@/shared/components/draft-status-bar";
 import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
+import { buildClippedCrossCheck } from "../lib/cross-check-helpers";
 import { AddCrossCheckForm, CrossCheckItemCard, nextAlignment } from "./cross-check-editor";
 import { SecAnnualsTable } from "./sec-annuals-table";
-import { EarningsDigestPanel, SecFactsPanel } from "./sec-facts-panel";
+import { EarningsDigestPanel, InboundCrossChecksPanel, SecFactsPanel } from "./sec-facts-panel";
 import { SourceClipperSheet } from "./source-clipper-sheet";
 
 export interface StepFirstPrinciplesProps {
   thesis: ThesisDetail;
+  allTheses?: readonly ThesisSummary[];
+  inboundCrossChecks?: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
   secSnapshot: SecSnapshot | null;
   secSyncing: boolean;
@@ -80,6 +85,7 @@ function TranscriptInputCard({
 
 function CrossCheckListSection(props: {
   checks: readonly CrossCheck[];
+  linkableTheses: readonly ThesisSummary[];
   glossary: readonly GlossaryTerm[];
   saving: boolean;
   onCycle: (id: string) => void;
@@ -100,7 +106,7 @@ function CrossCheckListSection(props: {
           />
         ))}
       </div>
-      <AddCrossCheckForm onAdd={props.onAdd} />
+      <AddCrossCheckForm linkableTheses={props.linkableTheses} onAdd={props.onAdd} />
       <div className="flex justify-end">
         <Button variant="primary" size="md" disabled={props.saving} onClick={props.onSave}>
           {props.saving ? (
@@ -142,19 +148,6 @@ function useStepThreeDraft(props: StepFirstPrinciplesProps) {
   });
 }
 
-function buildClippedCrossCheck(companyName: string, excerpt: string, anchor: string): CrossCheck {
-  return {
-    id: `cc-clip-${Date.now().toString(36).slice(-5)}`,
-    peerCompany: companyName,
-    peerRole: "primary",
-    topic: "一阶原文精读摘录",
-    sourceAnchor: anchor,
-    statement: excerpt,
-    alignment: "aligned",
-    takeaway: "来自原文精读器划词摘录，待与产业链上下游口径互证。",
-  };
-}
-
 function StepThreeEvidenceBody({
   props,
   transcript,
@@ -188,6 +181,7 @@ function StepThreeEvidenceBody({
         onOpenClipper={onOpenClipper}
       />
       {props.digest ? <EarningsDigestPanel digest={props.digest} /> : null}
+      <InboundCrossChecksPanel items={props.inboundCrossChecks ?? []} />
     </>
   );
 }
@@ -196,17 +190,13 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
   const d = useStepThreeDraft(props);
   const [transcript, setTranscript] = useState("");
   const [clipperOpen, setClipperOpen] = useState(false);
+  const linkable = (props.allTheses ?? []).filter((t) => t.id !== props.thesis.id);
   const cycleCheck = (id: string) =>
-    d.setDraft((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, alignment: nextAlignment(item.alignment) } : item,
-      ),
+    d.setDraft((p) =>
+      p.map((i) => (i.id === id ? { ...i, alignment: nextAlignment(i.alignment) } : i)),
     );
   const clipCrossCheck = (excerpt: string, anchor: string) => {
-    d.setDraft((prev) => [
-      ...prev,
-      buildClippedCrossCheck(props.thesis.companyName, excerpt, anchor),
-    ]);
+    d.setDraft((p) => [...p, buildClippedCrossCheck(props.thesis.companyName, excerpt, anchor)]);
     toast.success("已摘录至 Step 3 交叉验证草稿，记得点击保存");
   };
 
@@ -222,11 +212,12 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
       />
       <CrossCheckListSection
         checks={d.draft}
+        linkableTheses={linkable}
         glossary={props.glossary}
         saving={props.saving}
         onCycle={cycleCheck}
-        onDelete={(id) => d.setDraft((prev) => prev.filter((item) => item.id !== id))}
-        onAdd={(next) => d.setDraft((prev) => [...prev, next])}
+        onDelete={(id) => d.setDraft((p) => p.filter((i) => i.id !== id))}
+        onAdd={(next) => d.setDraft((p) => [...p, next])}
         onSave={d.save}
       />
       <SourceClipperSheet

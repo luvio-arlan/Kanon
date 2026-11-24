@@ -14,6 +14,7 @@ import {
   getThesisById,
   listCopilotOutputs,
   listGlossaryTerms,
+  listInboundCrossChecks,
   listQuarterlyReviews,
   listThesisRevisions,
   listThesisSummaries,
@@ -49,16 +50,25 @@ function hydrateCopilotOutputs(rows: readonly SavedCopilotOutput[]) {
 export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
   const { id } = await params;
   const db = await getKanonDb();
-  const [thesis, glossary, allTheses, savedOutputs, revisions, reviews, latestAgentRun] =
-    await Promise.all([
-      getThesisById(db, id),
-      listGlossaryTerms(db),
-      listThesisSummaries(db),
-      listCopilotOutputs(db, id),
-      listThesisRevisions(db, id),
-      listQuarterlyReviews(db, id),
-      getLatestAgentRun(db, id),
-    ]);
+  const [
+    thesis,
+    glossary,
+    allTheses,
+    savedOutputs,
+    revisions,
+    reviews,
+    latestAgentRun,
+    inboundCrossChecks,
+  ] = await Promise.all([
+    getThesisById(db, id),
+    listGlossaryTerms(db),
+    listThesisSummaries(db),
+    listCopilotOutputs(db, id),
+    listThesisRevisions(db, id),
+    listQuarterlyReviews(db, id),
+    getLatestAgentRun(db, id),
+    listInboundCrossChecks(db, id),
+  ]);
 
   if (!thesis) {
     notFound();
@@ -75,6 +85,7 @@ export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
       initialRevisions={revisions}
       initialReviews={reviews}
       initialAgentRun={latestAgentRun}
+      inboundCrossChecks={inboundCrossChecks}
     />
   );
 }

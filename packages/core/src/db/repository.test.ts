@@ -5,11 +5,13 @@ import { calculateResearchReadiness } from "../math/research-readiness";
 import { calculateSensitivityMatrix } from "../math/sensitivity-matrix";
 import { createMemoryKanonDb, getDbHealthStats, type KanonDb } from "./client";
 import { KANON_MIGRATIONS } from "./migrations";
+import { importThesisArchive } from "./repositories/archive-importer";
 import { listCopilotOutputs, upsertCopilotOutput } from "./repositories/copilot-store";
 import { addDisciplineEntry, deleteThesis } from "./repositories/discipline-mutations";
 import {
   createQuarterlyReview,
   getLatestAgentRun,
+  listInboundCrossChecks,
   listQuarterlyReviews,
   markAgentProposalApplied,
   saveAgentRun,
@@ -226,5 +228,19 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     const revs = await listThesisRevisions(db, "thesis-nvda");
     expect(revs[0]?.step).toBe("quarterly_review");
     expect(revs[0]?.snapshot?.hypotheses.length).toBeGreaterThanOrEqual(3);
+
+    const inbound = await listInboundCrossChecks(db, "thesis-nvda");
+    expect(inbound.some((c) => c.sourceTicker === "MU")).toBe(true);
+
+    const mu = await getThesisById(db, "thesis-mu");
+    expect(mu).not.toBeNull();
+    if (!mu) return;
+    const imported = await importThesisArchive(db, {
+      archive: { schemaVersion: "kanon-archive/v2", thesis: { ...mu, ticker: "MU2" } },
+      mode: "create_copy",
+    });
+    expect(imported.thesis.ticker).toBe("MU2");
+    expect(imported.thesis.hypotheses.length).toBe(mu.hypotheses.length);
+    await deleteThesis(db, imported.thesis.id);
   });
 });

@@ -84,6 +84,21 @@ export const QuarterlyReviewCreateResponseSchema = z.object({
   revisions: z.array(ThesisRevisionSchema),
 });
 
+export const ThesisArchiveImportRequestSchema = z.object({
+  archive: z.object({
+    schemaVersion: z.string().optional(),
+    thesis: ThesisDetailSchema,
+    secSnapshot: SecSnapshotSchema.nullable().optional(),
+  }),
+  mode: z.enum(["create_copy", "overwrite"]).default("create_copy"),
+});
+export type ThesisArchiveImportRequest = z.infer<typeof ThesisArchiveImportRequestSchema>;
+
+export const ThesisArchiveImportResponseSchema = z.object({
+  thesis: ThesisDetailSchema,
+  mode: z.enum(["create_copy", "overwrite"]),
+});
+
 export const CopilotApiResponseSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("red_team"),

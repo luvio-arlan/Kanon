@@ -1,6 +1,11 @@
 "use client";
 
-import type { GlossaryTerm, SecAnnualFinancial } from "@kanon/core";
+import type {
+  GlossaryTerm,
+  InboundCrossCheck,
+  SecAnnualFinancial,
+  ThesisSummary,
+} from "@kanon/core";
 import { DisciplineJournal } from "@/features/journal";
 import { StepBusinessFilter, StepFirstPrinciples, StepHypotheses } from "@/features/research-steps";
 import { ValuationWorkbench } from "@/features/valuation";
@@ -23,6 +28,8 @@ type DirtyCallback = (dirty: boolean, saveAction: (() => Promise<void>) | null) 
 interface EarlyStepsProps {
   step: 1 | 2 | 3;
   ctrl: CanvasController;
+  allTheses: readonly ThesisSummary[];
+  inboundCrossChecks: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
   onDirtyChange: DirtyCallback;
   onPromoteRule: (rule: string) => void;
@@ -30,11 +37,15 @@ interface EarlyStepsProps {
 
 function StepThreeView({
   ctrl,
+  allTheses,
+  inboundCrossChecks,
   glossary,
   onDirtyChange,
   onPromoteRule,
 }: {
   ctrl: CanvasController;
+  allTheses: readonly ThesisSummary[];
+  inboundCrossChecks: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
   onDirtyChange: DirtyCallback;
   onPromoteRule: (rule: string) => void;
@@ -42,6 +53,8 @@ function StepThreeView({
   return (
     <StepFirstPrinciples
       thesis={ctrl.thesis}
+      allTheses={allTheses}
+      inboundCrossChecks={inboundCrossChecks}
       glossary={glossary}
       secSnapshot={ctrl.secSnapshot}
       secSyncing={ctrl.secSyncing}
@@ -59,50 +72,43 @@ function StepThreeView({
   );
 }
 
-function EarlySteps({ step, ctrl, glossary, onDirtyChange, onPromoteRule }: EarlyStepsProps) {
-  if (step === 1) {
+function EarlySteps(p: EarlyStepsProps) {
+  if (p.step === 1) {
     return (
       <StepBusinessFilter
-        thesis={ctrl.thesis}
-        glossary={glossary}
-        annuals={ctrl.secSnapshot?.annuals}
-        quarterlies={ctrl.secSnapshot?.quarterlies}
-        saving={ctrl.saving}
-        onDirtyChange={onDirtyChange}
-        onSave={(p) =>
-          ctrl.patchStep({ step: "business_filter", ...p }, "Step 1 商业模式滤镜已保存")
+        thesis={p.ctrl.thesis}
+        glossary={p.glossary}
+        annuals={p.ctrl.secSnapshot?.annuals}
+        quarterlies={p.ctrl.secSnapshot?.quarterlies}
+        saving={p.ctrl.saving}
+        onDirtyChange={p.onDirtyChange}
+        onSave={(payload) =>
+          p.ctrl.patchStep({ step: "business_filter", ...payload }, "Step 1 商业模式滤镜已保存")
         }
       />
     );
   }
-  if (step === 2) {
+  if (p.step === 2) {
     return (
       <StepHypotheses
-        thesis={ctrl.thesis}
-        glossary={glossary}
-        saving={ctrl.saving}
-        redTeamLoading={ctrl.copilot.busy === "red_team"}
-        redTeam={ctrl.copilot.redTeam}
-        onDirtyChange={onDirtyChange}
+        thesis={p.ctrl.thesis}
+        glossary={p.glossary}
+        saving={p.ctrl.saving}
+        redTeamLoading={p.ctrl.copilot.busy === "red_team"}
+        redTeam={p.ctrl.copilot.redTeam}
+        onDirtyChange={p.onDirtyChange}
         onSave={(hypotheses) =>
-          ctrl.patchStep(
+          p.ctrl.patchStep(
             { step: "hypotheses", hypotheses },
             `${hypotheses.length} 条核心假设已保存`,
           )
         }
-        onRunRedTeam={() => ctrl.runCopilot("red_team")}
-        onPromoteRedTeamRule={onPromoteRule}
+        onRunRedTeam={() => p.ctrl.runCopilot("red_team")}
+        onPromoteRedTeamRule={p.onPromoteRule}
       />
     );
   }
-  return (
-    <StepThreeView
-      ctrl={ctrl}
-      glossary={glossary}
-      onDirtyChange={onDirtyChange}
-      onPromoteRule={onPromoteRule}
-    />
-  );
+  return <StepThreeView {...p} />;
 }
 
 function LateSteps({
@@ -153,6 +159,8 @@ function LateSteps({
 export function CanvasStepRenderer(props: {
   step: StepId;
   ctrl: CanvasController;
+  allTheses: readonly ThesisSummary[];
+  inboundCrossChecks: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
   promotedRule: string | null;
   onDirtyChange: DirtyCallback;
@@ -164,6 +172,8 @@ export function CanvasStepRenderer(props: {
       <EarlySteps
         step={props.step as 1 | 2 | 3}
         ctrl={props.ctrl}
+        allTheses={props.allTheses}
+        inboundCrossChecks={props.inboundCrossChecks}
         glossary={props.glossary}
         onDirtyChange={props.onDirtyChange}
         onPromoteRule={props.onPromoteRule}

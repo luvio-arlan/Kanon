@@ -1,13 +1,22 @@
 "use client";
 
 import { Button, KANON_TRANSITION_FAST, KanonMark, useTheme } from "@kanon/ui";
-import { IconCpu, IconMoon, IconPlus, IconRefresh, IconSearch, IconSun } from "@tabler/icons-react";
+import {
+  IconCpu,
+  IconMoon,
+  IconPlus,
+  IconRefresh,
+  IconSearch,
+  IconSun,
+  IconUpload,
+} from "@tabler/icons-react";
 import { motion } from "framer-motion";
 
 export interface CockpitTopbarProps {
   hasByok: boolean;
   refreshingPrices: boolean;
   onRefreshPrices: () => void;
+  onOpenImport: () => void;
   onOpenCommand: () => void;
   onOpenAiSettings: () => void;
   onNewThesis: () => void;
@@ -56,24 +65,26 @@ function ThemeToggleButton() {
   );
 }
 
+function SearchTriggerButton({ onOpenCommand }: { onOpenCommand: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpenCommand}
+      className="group flex h-9 cursor-pointer items-center gap-3 rounded-control border border-hairline bg-surface px-3.5 text-sm text-ink-secondary shadow-card transition-all duration-150 hover:border-strong hover:text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral"
+    >
+      <IconSearch size={15} stroke={1.5} className="text-ink-muted group-hover:text-ink-primary" />
+      <span className="hidden sm:inline">搜索或指令</span>
+      <kbd className="rounded border border-hairline bg-muted px-1.5 py-0.5 font-mono text-xs text-ink-muted tabular-nums">
+        ⌘K
+      </kbd>
+    </button>
+  );
+}
+
 function TopbarActions(props: CockpitTopbarProps) {
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={props.onOpenCommand}
-        className="group flex h-9 cursor-pointer items-center gap-3 rounded-control border border-hairline bg-surface px-3.5 text-sm text-ink-secondary shadow-card transition-all duration-150 hover:border-strong hover:text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral"
-      >
-        <IconSearch
-          size={15}
-          stroke={1.5}
-          className="text-ink-muted group-hover:text-ink-primary"
-        />
-        <span className="hidden sm:inline">搜索或指令</span>
-        <kbd className="rounded border border-hairline bg-muted px-1.5 py-0.5 font-mono text-xs text-ink-muted tabular-nums">
-          ⌘K
-        </kbd>
-      </button>
+      <SearchTriggerButton onOpenCommand={props.onOpenCommand} />
       <Button
         variant="outline"
         size="md"
@@ -100,6 +111,16 @@ function TopbarActions(props: CockpitTopbarProps) {
       <Button variant="primary" size="md" onClick={props.onNewThesis}>
         <IconPlus size={15} stroke={1.5} />
         <span className="hidden sm:inline">新建标的</span>
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={props.onOpenImport}
+        aria-label="导入 JSON 研究备份"
+        title="导入 JSON 研究备份"
+        className="h-9 w-9"
+      >
+        <IconUpload size={15} stroke={1.5} />
       </Button>
       <ThemeToggleButton />
     </div>

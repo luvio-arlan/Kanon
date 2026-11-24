@@ -9,6 +9,7 @@ import { Badge, Button, buttonVariants, Input, Sheet } from "@kanon/ui";
 import { IconArrowUpRight, IconCheck, IconDownload } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { PositionEditorPanel } from "@/features/portfolio";
 import { apiCalibratePriceAnchor } from "../lib/cockpit-api";
 
 export interface ThesisPreviewSheetProps {
@@ -149,6 +150,7 @@ function SheetBody({
         </p>
       </div>
       <QuickPriceCalibrator thesis={thesis} onUpdated={onUpdated} />
+      <PositionEditorPanel thesis={thesis} onUpdated={onUpdated} />
       <ExpectationsStrip thesis={thesis} />
       <div>
         <div className="flex items-center justify-between">

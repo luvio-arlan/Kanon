@@ -5,11 +5,18 @@ import type { SavedAgentRun } from "../../contracts/api-contracts";
 import {
   type CreateQuarterlyReviewInput,
   CreateQuarterlyReviewSchema,
+  type InboundCrossCheck,
   type QuarterlyReview,
   type ThesisDetail,
 } from "../../schemas/research";
 import { type KanonDb, runInTransaction } from "../client";
-import { agentRunsTable, hypothesesTable, quarterlyReviewsTable, thesesTable } from "../schema";
+import {
+  agentRunsTable,
+  crossChecksTable,
+  hypothesesTable,
+  quarterlyReviewsTable,
+  thesesTable,
+} from "../schema";
 import { recordThesisRevision } from "./revision-queries";
 import { getThesisById } from "./thesis-queries";
 
@@ -179,4 +186,26 @@ export async function createQuarterlyReview(
     );
     return { thesis: updated, review };
   });
+}
+
+export async function listInboundCrossChecks(
+  db: KanonDb,
+  targetThesisId: string,
+): Promise<InboundCrossCheck[]> {
+  return db
+    .select({
+      id: crossChecksTable.id,
+      sourceThesisId: crossChecksTable.thesisId,
+      sourceTicker: thesesTable.ticker,
+      sourceCompanyName: thesesTable.companyName,
+      peerRole: crossChecksTable.peerRole,
+      topic: crossChecksTable.topic,
+      sourceAnchor: crossChecksTable.sourceAnchor,
+      statement: crossChecksTable.statement,
+      alignment: crossChecksTable.alignment,
+      takeaway: crossChecksTable.takeaway,
+    })
+    .from(crossChecksTable)
+    .innerJoin(thesesTable, eq(crossChecksTable.thesisId, thesesTable.id))
+    .where(eq(crossChecksTable.linkedThesisId, targetThesisId));
 }

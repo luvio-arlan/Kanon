@@ -1,0 +1,25 @@
+import { ThesisArchiveImportRequestSchema } from "@kanon/core";
+import { getKanonDb, importThesisArchive } from "@kanon/core/db";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(request: Request) {
+  const startedAt = performance.now();
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
+
+  const parsed = ThesisArchiveImportRequestSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return jsonError(
+      formatZodError(parsed.error, "JSON 备份格式无效，请导入 KANON 导出的 archive.json 文件。"),
+      400,
+      startedAt,
+      "INVALID_ARCHIVE",
+    );
+  }
+
+  const db = await getKanonDb();
+  const imported = await importThesisArchive(db, parsed.data);
+  return jsonOk(imported, startedAt, 201);
+}

@@ -6,7 +6,7 @@ import {
   matchProbabilityPreset,
   PROBABILITY_PRESETS,
 } from "./implied-expectations";
-import { calculatePortfolioAnalytics } from "./portfolio-analytics";
+import { calculatePortfolioAnalytics, suggestKellyCappedWeight } from "./portfolio-analytics";
 import { analyzeSecQuality } from "./sec-analytics";
 import { calculateValuationScenarios } from "./valuation-scenarios";
 
@@ -52,6 +52,19 @@ describe("Institutional Analytics Engines (Expectations, SEC Quality, Portfolio)
       expect(portfolio.averageRiskReward).toBe(2.79);
       expect(portfolio.averageBaseCagrPct).toBeGreaterThan(14);
       expect(portfolio.averageReadinessPct).toBe(100);
+      expect(portfolio.totalWeightPct).toBe(20);
+      expect(portfolio.cashBufferPct).toBe(80);
+      expect(portfolio.weightedBaseCagrPct).toBeGreaterThan(13);
+      expect(portfolio.inBuyZoneCount).toBeGreaterThanOrEqual(1);
+      expect(portfolio.warningThesisCount).toBe(1);
+      expect(portfolio.overCapTickers).toEqual([]);
+      const mu = theses[0];
+      expect(mu).toBeDefined();
+      if (mu) {
+        const kelly = suggestKellyCappedWeight(mu);
+        expect(kelly.maxPct).toBeGreaterThan(0);
+        expect(kelly.maxPct).toBeLessThanOrEqual(mu.targetMaxWeightPct);
+      }
     } finally {
       await close();
     }

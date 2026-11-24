@@ -2,6 +2,7 @@ import type {
   BusinessFilter,
   CrossCheck,
   DisciplineEntry,
+  PortfolioRole,
   ThesisStatus,
 } from "../../schemas/research";
 import type { Hypothesis, SparklinePoint } from "../../schemas/thesis";
@@ -14,6 +15,10 @@ export interface SeedThesisRecord {
   sectorTag: string;
   currentPrice: number;
   horizonYears: number;
+  portfolioRole?: PortfolioRole;
+  currentWeightPct?: number;
+  targetMaxWeightPct?: number;
+  avgCostBasis?: number | null;
   convictionSummary: string;
   status: ThesisStatus;
   lastReviewedLabel: string;

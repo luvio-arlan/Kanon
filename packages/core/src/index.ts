@@ -49,6 +49,9 @@ export {
   type SavedAgentRun,
   SavedAgentRunSchema,
   SecSyncResponseSchema,
+  type ThesisArchiveImportRequest,
+  ThesisArchiveImportRequestSchema,
+  ThesisArchiveImportResponseSchema,
   ThesisMutationResponseSchema,
 } from "./contracts/api-contracts";
 export {
@@ -68,7 +71,10 @@ export {
 } from "./math/implied-expectations";
 export {
   calculatePortfolioAnalytics,
+  type KellyWeightSuggestion,
   type PortfolioAnalytics,
+  type SectorExposure,
+  suggestKellyCappedWeight,
 } from "./math/portfolio-analytics";
 export {
   calculateResearchReadiness,
@@ -133,6 +139,8 @@ export {
   GlossaryTermSchema,
   type HypothesisVerdictItem,
   HypothesisVerdictItemSchema,
+  type InboundCrossCheck,
+  InboundCrossCheckSchema,
   type PeerRole,
   PeerRoleSchema,
   type PortfolioRole,

@@ -13,6 +13,7 @@ export {
   type KanonMigration,
   runKanonMigrations,
 } from "./migrations";
+export { importThesisArchive } from "./repositories/archive-importer";
 export { listCopilotOutputs, upsertCopilotOutput } from "./repositories/copilot-store";
 export {
   addDisciplineEntry,
@@ -22,6 +23,7 @@ export {
 export {
   createQuarterlyReview,
   getLatestAgentRun,
+  listInboundCrossChecks,
   listQuarterlyReviews,
   markAgentProposalApplied,
   saveAgentRun,

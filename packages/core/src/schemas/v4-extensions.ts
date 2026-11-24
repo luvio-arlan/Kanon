@@ -102,3 +102,17 @@ export const CreateQuarterlyReviewSchema = z.object({
   applyStatusUpdates: z.boolean().default(true),
 });
 export type CreateQuarterlyReviewInput = z.infer<typeof CreateQuarterlyReviewSchema>;
+
+export const InboundCrossCheckSchema = z.object({
+  id: z.string().min(1),
+  sourceThesisId: z.string().min(1),
+  sourceTicker: z.string().min(1),
+  sourceCompanyName: z.string().min(1),
+  peerRole: z.enum(["upstream", "downstream", "competitor", "primary"]),
+  topic: z.string().min(1),
+  sourceAnchor: z.string().min(1),
+  statement: z.string().min(1),
+  alignment: z.enum(["aligned", "divergent", "pending"]),
+  takeaway: z.string().min(1),
+});
+export type InboundCrossCheck = z.infer<typeof InboundCrossCheckSchema>;

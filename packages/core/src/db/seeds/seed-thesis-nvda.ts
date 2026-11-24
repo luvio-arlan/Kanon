@@ -8,6 +8,10 @@ export const SEED_THESIS_NVDA: SeedThesisRecord = {
   sectorTag: "AI 算力 · 全栈平台",
   currentPrice: 138,
   horizonYears: 3,
+  portfolioRole: "core",
+  currentWeightPct: 14,
+  targetMaxWeightPct: 18,
+  avgCostBasis: 118,
   convictionSummary:
     "机柜级 NVLink 互联与 CUDA 软件生态护城河稳固，长思考推理需求持续扩大系统级算力溢价。",
   status: "active",
