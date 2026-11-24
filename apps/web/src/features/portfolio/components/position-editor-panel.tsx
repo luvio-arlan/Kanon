@@ -142,9 +142,15 @@ function PositionEditForm({
         ))}
       </div>
       <PositionNumericInputs draft={draft} onPatch={onPatch} />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-ink-muted">{rationale}</span>
-        <Button variant="titanium" size="sm" disabled={saving} onClick={() => void onSave()}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0 flex-1 text-xs leading-relaxed text-ink-muted">{rationale}</span>
+        <Button
+          variant="titanium"
+          size="sm"
+          disabled={saving}
+          onClick={() => void onSave()}
+          className="shrink-0 whitespace-nowrap"
+        >
           <IconCheck size={13} stroke={1.5} />
           <span>{saving ? "保存中..." : "保存仓位"}</span>
         </Button>

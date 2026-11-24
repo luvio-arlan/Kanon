@@ -3,21 +3,36 @@
 import { Modal } from "@heroui/react";
 import { IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { cn } from "../../lib/cn";
 
 export interface SheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   subtitle?: string;
+  size?: "md" | "lg";
   footer?: ReactNode;
   children: ReactNode;
 }
 
-export function Sheet({ open, onOpenChange, title, subtitle, footer, children }: SheetProps) {
+export function Sheet({
+  open,
+  onOpenChange,
+  title,
+  subtitle,
+  size = "md",
+  footer,
+  children,
+}: SheetProps) {
   return (
     <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange} className="kanon-backdrop">
       <Modal.Container className="kanon-sheet-container h-dvh w-full max-w-none items-end justify-center p-3 sm:w-full sm:p-3">
-        <Modal.Dialog className="flex h-full w-[min(92vw,500px)] max-w-none flex-col overflow-hidden rounded-card border border-strong bg-surface-elevated p-0 shadow-overlay focus:outline-none">
+        <Modal.Dialog
+          className={cn(
+            "kanon-dialog-panel flex h-full max-w-none flex-col overflow-hidden rounded-card border border-strong bg-surface-elevated p-0 shadow-overlay focus:outline-none",
+            size === "lg" ? "w-[min(94vw,760px)]" : "w-[min(92vw,500px)]",
+          )}
+        >
           <div className="flex items-start justify-between gap-4 border-b border-hairline px-6 py-5">
             <div>
               <Modal.Heading className="text-lg font-semibold tracking-tight text-ink-primary">

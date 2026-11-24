@@ -138,7 +138,7 @@ function CompareTable({ theses }: { theses: readonly ThesisDetail[] }) {
   ];
   return (
     <div className="overflow-x-auto rounded-card border border-hairline bg-surface">
-      <table className="w-full min-w-[460px] border-collapse">
+      <table className="w-full border-collapse">
         <thead>
           <tr className="bg-muted/50 text-left text-xs">
             <th className="w-28 px-3 py-3 font-medium text-ink-muted">对比维度</th>
@@ -171,6 +171,7 @@ export function CompareThesesSheet(props: CompareThesesSheetProps) {
     <Sheet
       open={props.open}
       onOpenChange={props.onOpenChange}
+      size="lg"
       title={`标的横向并排对比（${props.theses.length} 只）`}
       subtitle="同屏检视安全边际、赔率比、仓位约束与核心预期差，辅助增量资金配置决策"
       footer={

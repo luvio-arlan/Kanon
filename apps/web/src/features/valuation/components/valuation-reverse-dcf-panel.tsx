@@ -74,7 +74,7 @@ function ReverseDcfMetrics({ r }: { r: ReverseDcfResult }) {
         </div>
       </div>
       <div>
-        <div className="font-sans text-ink-muted">预期差（历史 - 隐含）</div>
+        <div className="whitespace-nowrap font-sans text-ink-muted">预期差 (历史-隐含)</div>
         <div className={`mt-1 text-lg font-semibold ${gapTone}`}>
           {r.expectationsGapPct !== null
             ? `${r.expectationsGapPct > 0 ? "+" : ""}${r.expectationsGapPct.toFixed(1)}pct`
@@ -109,7 +109,9 @@ function ReverseDcfCard(props: {
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-ink-primary">反向折现现金流（Reverse DCF）</h3>
-        <Badge variant={badge.variant}>{badge.label}</Badge>
+        <Badge variant={badge.variant} className="shrink-0 whitespace-nowrap">
+          {badge.label}
+        </Badge>
       </div>
       <div className="space-y-2.5">
         <PillGroup
@@ -188,7 +190,7 @@ function TsrDecompositionCard(props: {
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-ink-primary">TSR 股东回报三因子归因（中性）</h3>
-        <Badge variant="titanium" className="font-mono tabular-nums">
+        <Badge variant="titanium" className="shrink-0 whitespace-nowrap font-mono tabular-nums">
           合计 {tsr.totalAnnualizedTsrPct.toFixed(1)}%/yr
         </Badge>
       </div>

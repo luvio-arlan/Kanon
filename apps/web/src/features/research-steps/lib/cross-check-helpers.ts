@@ -1,4 +1,4 @@
-import type { Alignment, CrossCheck, PeerRole } from "@kanon/core";
+import type { Alignment, CrossCheck, EarningsDigest, PeerRole } from "@kanon/core";
 
 export const ROLE_OPTIONS: ReadonlyArray<{ id: PeerRole; label: string }> = [
   { id: "upstream", label: "上游供给" },
@@ -89,4 +89,51 @@ export function buildClippedCrossCheck(
     alignment: "aligned",
     takeaway: "来自原文精读器划词摘录，待与产业链上下游口径互证。",
   };
+}
+
+const SIGNAL_REGEX =
+  /(CapEx|Gross Margin|Operating Margin|Guidance|HBM|FCF|Free Cash Flow|ROIC|Inventory|Buyback|Backlog|ASP|毛利率|资本开支|指引|库存|回购|现金流|订单|产能)/gi;
+
+export interface SignalToken {
+  id: string;
+  text: string;
+  highlight: boolean;
+}
+
+export function tokenizeSignals(text: string): SignalToken[] {
+  const parts = text.split(SIGNAL_REGEX);
+  let cursor = 0;
+  return parts.map((part, i) => {
+    const token = { id: `tok-${cursor}-${part.length}`, text: part, highlight: i % 2 === 1 };
+    cursor += part.length;
+    return token;
+  });
+}
+
+export function buildParagraphItems(sourceText: string, digest: EarningsDigest | null) {
+  const lines = sourceText
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length > 0) {
+    let offset = 0;
+    return lines.map((text) => {
+      const id = `src-${offset}-${text.length}`;
+      offset += text.length + 1;
+      return { id, text };
+    });
+  }
+  if (!digest) return [];
+  return [
+    { id: "dig-guidance", text: digest.guidanceSummary },
+    ...digest.quotesWithAnchors.map((q) => ({
+      id: `dig-q-${q.sourceAnchor}-${q.topic}`,
+      text: `[${q.sourceAnchor}] ${q.topic}：${q.summary}`,
+    })),
+    ...digest.capexSignals.map((s) => ({
+      id: `dig-c-${s.slice(0, 18)}`,
+      text: `CapEx 信号：${s}`,
+    })),
+    ...digest.toneShifts.map((t) => ({ id: `dig-t-${t.slice(0, 18)}`, text: `管理层措辞：${t}` })),
+  ];
 }

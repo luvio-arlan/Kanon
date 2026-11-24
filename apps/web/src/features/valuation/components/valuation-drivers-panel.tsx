@@ -134,13 +134,15 @@ function TopDownEpsCard({
   return (
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <IconCalculator size={16} stroke={1.5} className="text-ink-muted" />
-          <h3 className="text-sm font-semibold text-ink-primary">
-            自上而下 EPS 盈利拆解（{horizonYears} 年）
+        <div className="flex min-w-0 items-center gap-2">
+          <IconCalculator size={16} stroke={1.5} className="shrink-0 text-ink-muted" />
+          <h3 className="truncate text-sm font-semibold text-ink-primary">
+            自上而下 EPS 拆解（{horizonYears} 年）
           </h3>
         </div>
-        <Badge variant="titanium">营收 → 利润 → 股本</Badge>
+        <Badge variant="titanium" className="shrink-0 whitespace-nowrap">
+          营收 → 利润 → 股本
+        </Badge>
       </div>
       <TopDownInputsGrid d={d} patch={(p) => setD((prev) => ({ ...prev, ...p }))} />
       <TopDownFooter res={res} onApply={onApplyBaseEps} />

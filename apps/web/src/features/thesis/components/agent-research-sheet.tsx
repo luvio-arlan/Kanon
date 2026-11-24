@@ -59,11 +59,12 @@ function IcBriefingSummary({ briefing }: { briefing: AgentBriefing }) {
     <div className="space-y-3 rounded-card border border-hairline bg-titanium-subtle p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-ink-muted">
             <span>多角色投委会综合判定</span>
             <Badge variant={briefing.engine === "vercel-ai-sdk" ? "pass" : "default"}>
               {briefing.engine === "vercel-ai-sdk" ? "BYOK 模型综合" : "确定性引擎"}
             </Badge>
+            <Badge variant="titanium">已持久化留痕</Badge>
           </div>
           <div className="mt-1 text-sm font-semibold text-ink-primary">{briefing.verdict}</div>
         </div>
@@ -121,13 +122,19 @@ function ProposalCard({
         {proposal.content}
       </p>
       <p className="mt-2 text-xs text-ink-secondary">依据：{proposal.rationale}</p>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-2.5">
-        <span className="font-mono text-xs text-ink-muted">{proposal.citation}</span>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-hairline pt-2.5">
+        <span
+          title={proposal.citation}
+          className="min-w-0 flex-1 truncate font-mono text-xs text-ink-muted"
+        >
+          {proposal.citation}
+        </span>
         <Button
           variant={applied ? "ghost" : "primary"}
           size="sm"
           disabled={applied}
           onClick={() => void onApply()}
+          className="shrink-0 whitespace-nowrap"
         >
           <IconCheck size={13} stroke={1.5} />
           <span>{applied ? "已采纳写入" : "人机共审 · 采纳"}</span>
@@ -203,15 +210,19 @@ export function AgentResearchSheet(props: AgentResearchSheetProps) {
       subtitle="证据优先 · 5 工具轨迹 · 多角色辩论 · 人机共审 Diff 写入"
       footer={
         <div className="flex items-center justify-between gap-2">
-          <Button
-            variant="titanium"
-            size="sm"
-            disabled={props.running}
-            onClick={() => void props.onRun()}
-          >
-            <IconSparkles size={14} stroke={1.5} />
-            <span>{props.running ? "多步审计运行中..." : "重新运行审计"}</span>
-          </Button>
+          {props.traces.length > 0 || props.running ? (
+            <Button
+              variant="titanium"
+              size="sm"
+              disabled={props.running}
+              onClick={() => void props.onRun()}
+            >
+              <IconSparkles size={14} stroke={1.5} />
+              <span>{props.running ? "多步审计运行中..." : "重新运行审计"}</span>
+            </Button>
+          ) : (
+            <span className="text-xs text-ink-muted">审计结论将自动持久化至数据库</span>
+          )}
           <Button variant="outline" size="sm" onClick={() => props.onOpenChange(false)}>
             关闭
           </Button>

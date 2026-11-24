@@ -49,7 +49,7 @@ function TableHeaderBar({
         {selectedCount >= 2 ? (
           <Button variant="primary" size="sm" onClick={onOpenCompare}>
             <IconColumns3 size={13} stroke={1.5} />
-            <span>并排对比 ({selectedCount})</span>
+            <span>{`并排对比 (${selectedCount})`}</span>
           </Button>
         ) : null}
         <a

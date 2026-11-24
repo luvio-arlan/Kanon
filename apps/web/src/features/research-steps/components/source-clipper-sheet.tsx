@@ -4,6 +4,7 @@ import type { EarningsDigest } from "@kanon/core";
 import { Badge, Button, cn, Input, Sheet, Textarea } from "@kanon/ui";
 import { IconAlertTriangle, IconQuote, IconScissors } from "@tabler/icons-react";
 import { useState } from "react";
+import { buildParagraphItems, tokenizeSignals } from "../lib/cross-check-helpers";
 
 export interface SourceClipperSheetProps {
   open: boolean;
@@ -14,53 +15,6 @@ export interface SourceClipperSheetProps {
   onOpenChange: (open: boolean) => void;
   onClipCrossCheck: (excerpt: string, anchor: string) => void;
   onClipExitRule?: (excerpt: string) => void;
-}
-
-const SIGNAL_REGEX =
-  /(CapEx|Gross Margin|Operating Margin|Guidance|HBM|FCF|Free Cash Flow|ROIC|Inventory|Buyback|Backlog|ASP|毛利率|资本开支|指引|库存|回购|现金流|订单|产能)/gi;
-
-interface TextToken {
-  id: string;
-  text: string;
-  highlight: boolean;
-}
-
-function tokenizeSignals(text: string): TextToken[] {
-  const parts = text.split(SIGNAL_REGEX);
-  let cursor = 0;
-  return parts.map((part, i) => {
-    const token = { id: `tok-${cursor}-${part.length}`, text: part, highlight: i % 2 === 1 };
-    cursor += part.length;
-    return token;
-  });
-}
-
-function buildParagraphItems(sourceText: string, digest: EarningsDigest | null) {
-  const lines = sourceText
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (lines.length > 0) {
-    let offset = 0;
-    return lines.map((text) => {
-      const id = `src-${offset}-${text.length}`;
-      offset += text.length + 1;
-      return { id, text };
-    });
-  }
-  if (!digest) return [];
-  return [
-    { id: "dig-guidance", text: digest.guidanceSummary },
-    ...digest.quotesWithAnchors.map((q) => ({
-      id: `dig-q-${q.sourceAnchor}-${q.topic}`,
-      text: `[${q.sourceAnchor}] ${q.topic}：${q.summary}`,
-    })),
-    ...digest.capexSignals.map((s) => ({
-      id: `dig-c-${s.slice(0, 18)}`,
-      text: `CapEx 信号：${s}`,
-    })),
-    ...digest.toneShifts.map((t) => ({ id: `dig-t-${t.slice(0, 18)}`, text: `管理层措辞：${t}` })),
-  ];
 }
 
 function HighlightedText({ text }: { text: string }) {
@@ -145,6 +99,31 @@ function EmptySourcePrompt({
   );
 }
 
+function ClipperQuotePreview({ quote, onClear }: { quote: string; onClear: () => void }) {
+  return (
+    <div className="rounded-control border border-hairline bg-surface px-3 py-2 text-xs">
+      <div className="flex items-center justify-between gap-2 text-ink-muted">
+        <span className="inline-flex items-center gap-1 font-medium text-ink-secondary">
+          <IconQuote size={13} stroke={1.5} />
+          <span>当前摘录片段</span>
+        </span>
+        {quote ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="cursor-pointer text-ink-muted hover:text-ink-primary"
+          >
+            清空
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-1 line-clamp-2 text-ink-primary">
+        {quote || "尚未选中片段：请在上方划词或点击任意段落"}
+      </p>
+    </div>
+  );
+}
+
 interface ClipperFooterProps {
   activeQuote: string;
   anchor: string;
@@ -158,43 +137,38 @@ interface ClipperFooterProps {
 function ClipperFooter(p: ClipperFooterProps) {
   return (
     <div className="space-y-3">
-      <div className="rounded-control border border-hairline bg-surface px-3 py-2 text-xs">
-        <div className="flex items-center justify-between gap-2 text-ink-muted">
-          <span className="inline-flex items-center gap-1 font-medium text-ink-secondary">
-            <IconQuote size={13} stroke={1.5} />
-            <span>当前摘录片段</span>
-          </span>
-          {p.activeQuote ? (
-            <button
-              type="button"
-              onClick={p.onClear}
-              className="cursor-pointer text-ink-muted hover:text-ink-primary"
-            >
-              清空
-            </button>
-          ) : null}
-        </div>
-        <p className="mt-1 line-clamp-2 text-ink-primary">
-          {p.activeQuote || "尚未选中片段：请在上方划词或点击任意段落"}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <ClipperQuotePreview quote={p.activeQuote} onClear={p.onClear} />
+      <div className="space-y-2">
         <Input
           value={p.anchor}
           onChange={(e) => p.onAnchor(e.target.value)}
-          placeholder="出处锚点（如 FY26 Q4 Call）"
-          className="min-w-[160px] flex-1"
+          placeholder="出处锚点（如 FY26 Q4 Call / 10-K）"
+          className="w-full"
         />
-        <Button variant="titanium" size="sm" disabled={!p.activeQuote} onClick={p.onClipCheck}>
-          <IconScissors size={14} stroke={1.5} />
-          <span>摘录至 Step 3 互证</span>
-        </Button>
-        {p.hasExitHandler ? (
-          <Button variant="primary" size="sm" disabled={!p.activeQuote} onClick={p.onClipExit}>
-            <IconAlertTriangle size={14} stroke={1.5} />
-            <span>带入 Step 5 红线</span>
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="titanium"
+            size="sm"
+            disabled={!p.activeQuote}
+            onClick={p.onClipCheck}
+            className="shrink-0 whitespace-nowrap"
+          >
+            <IconScissors size={14} stroke={1.5} />
+            <span>摘录至 Step 3 互证</span>
           </Button>
-        ) : null}
+          {p.hasExitHandler ? (
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!p.activeQuote}
+              onClick={p.onClipExit}
+              className="shrink-0 whitespace-nowrap"
+            >
+              <IconAlertTriangle size={14} stroke={1.5} />
+              <span>带入 Step 5 红线</span>
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

@@ -79,15 +79,15 @@ function PeripheralAnchorSummary({ thesis }: { thesis: ThesisDetail }) {
         <div className="flex items-center justify-between">
           <span className="font-sans text-ink-secondary">现价 / 目标</span>
           <span className="font-semibold text-ink-primary">
-            ${thesis.currentPrice.toFixed(0)} →{" "}
-            <RollingNumber value={valuation.base.targetPrice} prefix="$" decimals={0} />
+            ${thesis.currentPrice.toFixed(1)} →{" "}
+            <RollingNumber value={valuation.base.targetPrice} prefix="$" decimals={1} />
           </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="font-sans text-ink-secondary">赔率 / 边际</span>
           <span className="text-ink-primary">
             {valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞"}{" "}
-            · {exp.marginOfSafetyPct.toFixed(0)}%
+            · {exp.marginOfSafetyPct.toFixed(1)}%
           </span>
         </div>
         <div className="flex items-center justify-between border-t border-hairline pt-1.5">
@@ -95,7 +95,7 @@ function PeripheralAnchorSummary({ thesis }: { thesis: ThesisDetail }) {
           <span
             className={exp.isBelowHurdle15 ? "font-semibold text-status-pass" : "text-ink-muted"}
           >
-            ${exp.hurdleEntry15.toFixed(1)}
+            <RollingNumber value={exp.hurdleEntry15} prefix="$" decimals={1} />
           </span>
         </div>
       </div>

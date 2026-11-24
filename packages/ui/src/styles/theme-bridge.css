@@ -36,13 +36,29 @@
     animation: kanon-sheet-slide-out 110ms ease-in;
   }
 
+  .kanon-dialog-container[data-entering="true"] {
+    animation: kanon-dialog-enter 160ms var(--ease-kanon);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .popover__content[data-entering="true"],
     .dropdown__popover[data-entering="true"],
     .kanon-sheet-container[data-entering="true"],
-    .kanon-sheet-container[data-exiting="true"] {
+    .kanon-sheet-container[data-exiting="true"],
+    .kanon-dialog-container[data-entering="true"] {
       animation: none;
     }
+  }
+}
+
+@keyframes kanon-dialog-enter {
+  from {
+    opacity: 0.96;
+    transform: scale(0.985) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }
 
@@ -164,6 +180,11 @@ body {
   background-color: var(--backdrop-scrim);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+.kanon-dialog-panel {
+  background-color: var(--bg-surface-elevated);
+  opacity: 1;
 }
 
 .kanon-scroll-thin {

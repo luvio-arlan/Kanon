@@ -101,11 +101,11 @@ function TopbarMenus(props: TopbarMenuProps) {
       <button
         type="button"
         onClick={props.onOpenAgent}
-        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-accent-coral/35 bg-accent-coral-soft px-2.5 text-xs font-medium text-accent-coral transition-all duration-150 hover:border-accent-coral/70 active:scale-[0.97]"
+        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-accent-coral/45 bg-accent-coral-soft px-2.5 text-xs font-medium text-ink-primary transition-all duration-150 hover:border-accent-coral/80 active:scale-[0.97]"
       >
-        <IconSparkles size={14} stroke={1.5} />
+        <IconSparkles size={14} stroke={1.5} className="text-accent-coral" />
         <span className="hidden sm:inline">投研 Agent</span>
-        <kbd className="hidden font-mono text-xs opacity-75 md:inline">⌘J</kbd>
+        <kbd className="hidden font-mono text-xs text-ink-secondary md:inline">⌘J</kbd>
       </button>
       <button
         type="button"

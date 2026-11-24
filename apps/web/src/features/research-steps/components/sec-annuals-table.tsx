@@ -212,13 +212,15 @@ export function SecAnnualsTable({
         onMode={setMode}
       />
       {quality ? <SecQualityStrip quality={quality} /> : null}
-      <SecTabContent
-        mode={mode}
-        annuals={annuals}
-        quarterlies={quarterlies}
-        chartData={chartData}
-        forensics={forensics}
-      />
+      <div role="tabpanel">
+        <SecTabContent
+          mode={mode}
+          annuals={annuals}
+          quarterlies={quarterlies}
+          chartData={chartData}
+          forensics={forensics}
+        />
+      </div>
     </Card>
   );
 }
