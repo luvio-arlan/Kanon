@@ -21,6 +21,32 @@ function getJsxAttr(node, name) {
   return null;
 }
 
+function checkAnimatePresenceGuard(relPath, sf, node, line, errors) {
+  if (!/^apps\/web\/src\/features\//.test(relPath)) return;
+  const modeAttr = getJsxAttr(node, "mode");
+  if (!modeAttr?.initializer || !/["']wait["']/.test(modeAttr.initializer.getText(sf))) return;
+  addError(
+    errors,
+    relPath,
+    line,
+    "no-mode-wait-tab-collapse",
+    '<AnimatePresence mode="wait"> collapses container height for a blank frame on tab switches. Use min-h floor + zero-displacement fade instead (.rules/editorial-craft.md §2).',
+  );
+}
+
+function checkPasswordInputGuard(relPath, sf, node, line, errors) {
+  const typeAttr = getJsxAttr(node, "type");
+  if (!typeAttr?.initializer || !/["']password["']/.test(typeAttr.initializer.getText(sf))) return;
+  if (getJsxAttr(node, "maxLength")) return;
+  addError(
+    errors,
+    relPath,
+    line,
+    "bounded-password-input",
+    "Password <input> MUST declare maxLength (PASSWORD_MAX_LENGTH) so input truncates cleanly without overflowing (.rules/editorial-craft.md §3).",
+  );
+}
+
 function checkJsxGuard(relPath, sf, node, ctx, errors) {
   const tag = node.tagName.getText(sf);
   const line = getLine(sf, node.getStart(sf));
@@ -51,20 +77,8 @@ function checkJsxGuard(relPath, sf, node, ctx, errors) {
       `<${tag}> causes noisy top-edge flashing on navigation. Use persistent layouts and instant state transitions (.rules/editorial-craft.md §2).`,
     );
   }
-  if (tag === "input") {
-    const typeAttr = getJsxAttr(node, "type");
-    if (typeAttr?.initializer && /["']password["']/.test(typeAttr.initializer.getText(sf))) {
-      if (!getJsxAttr(node, "maxLength")) {
-        addError(
-          errors,
-          relPath,
-          line,
-          "bounded-password-input",
-          "Password <input> MUST declare maxLength (PASSWORD_MAX_LENGTH) so input truncates cleanly without overflowing (.rules/editorial-craft.md §3).",
-        );
-      }
-    }
-  }
+  if (tag === "AnimatePresence") checkAnimatePresenceGuard(relPath, sf, node, line, errors);
+  if (tag === "input") checkPasswordInputGuard(relPath, sf, node, line, errors);
 }
 
 function checkCallGuard(relPath, sf, node, state, errors) {

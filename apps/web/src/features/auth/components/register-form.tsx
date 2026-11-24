@@ -34,7 +34,7 @@ function DisplayNameLineField(props: {
           maxLength={24}
           disabled={props.disabled}
           placeholder="留空自动命名"
-          className="h-full w-full min-w-0 bg-transparent text-base text-ink-primary placeholder:text-sm placeholder:text-ink-muted/70 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="kanon-input-canvas h-full w-full min-w-0 bg-transparent text-base text-ink-primary placeholder:text-sm placeholder:text-ink-muted/70 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
         <span
           aria-hidden="true"

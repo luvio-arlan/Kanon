@@ -163,7 +163,7 @@ export function NewThesisModal({ open, onOpenChange, onCreated }: NewThesisModal
       open={open}
       onOpenChange={onOpenChange}
       title="新建美股研究标的"
-      subtitle="输入代码点击「识别」可自动同步 SEC 财报与收盘价，写入 Postgres 后直达五步画布"
+      subtitle="输入代码点击「识别」，自动填充 SEC 财报与参考价并进入五步画布"
       icon={<IconSparkles size={18} stroke={1.5} />}
       footer={
         <>
@@ -171,7 +171,7 @@ export function NewThesisModal({ open, onOpenChange, onCreated }: NewThesisModal
             取消
           </Button>
           <Button variant="primary" size="md" disabled={s.submitting} onClick={s.handleCreate}>
-            {s.submitting ? "正在落库..." : "创建并进入画布"}
+            {s.submitting ? "创建中..." : "创建并开始研究"}
           </Button>
         </>
       }

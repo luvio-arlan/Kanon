@@ -133,7 +133,7 @@ function LateSteps({
         saving={ctrl.saving}
         onDirtyChange={onDirtyChange}
         onSave={(valuationInput) =>
-          ctrl.patchStep({ step: "valuation", valuationInput }, "三情景估值赔率已写入数据库")
+          ctrl.patchStep({ step: "valuation", valuationInput }, "三情景估值赔率已保存")
         }
       />
     );

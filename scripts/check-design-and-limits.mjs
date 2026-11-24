@@ -4,6 +4,7 @@ import ts from "typescript";
 import { checkExtendedAstGuards } from "./ast-guard-rules.mjs";
 import {
   checkDocsEntryParity,
+  checkEditorialUiHygiene,
   checkExpandOnlyMigrations,
   checkGardenAstRules,
   checkMarketingOpticalGuards,
@@ -27,6 +28,8 @@ const TINY_TEXT_RE = /\btext-\[(?:[1-9]|1[01])(?:\.\d+)?px\]/;
 const TS_SUPPRESS_RE = /@ts-(?:ignore|nocheck)\b/;
 const TYPE_ESCAPE_RE = /\bas\s+(?:any|never|unknown\s+as)\b/;
 const SPRING_LITERAL_RE = /\b(?:stiffness|damping)\s*:/;
+const BLUR_FILTER_MOTION_RE = /\bfilter\s*:\s*["']blur\(/;
+const USER_DB_JARGON_RE = /\bPostgreSQL\b|\bPostgres\b|落库/;
 const DASHED_BANNER_RE =
   /\bborder-dashed\b.*\bbg-(?:accent-coral|status-)|\bbg-(?:accent-coral|status-).*\bborder-dashed\b/;
 
@@ -69,6 +72,34 @@ function checkTextRules(relPath, lines, errors) {
     const line = lines[i] ?? "";
     const lineNo = i + 1;
     checkSingleLine(relPath, line, lineNo, { isTokenSheet, isMotionSource, isTestFile }, errors);
+  }
+}
+
+function checkEditorialLineRules(relPath, line, lineNo, flags, errors) {
+  if (!flags.isMotionSource && !flags.isTestFile && SPRING_LITERAL_RE.test(line)) {
+    addError(errors, relPath, lineNo, "locked-motion-token", "Import KANON_SPRING from @kanon/ui.");
+  }
+  if (!flags.isTestFile && BLUR_FILTER_MOTION_RE.test(line)) {
+    addError(
+      errors,
+      relPath,
+      lineNo,
+      "no-filter-blur-transition",
+      'Animating filter: "blur(...)" causes GPU repaint jank on heavy cards/tables. Use opacity/transform only (.rules/editorial-craft.md §2).',
+    );
+  }
+  if (
+    !flags.isTestFile &&
+    /^apps\/web\/src\/features\//.test(relPath) &&
+    USER_DB_JARGON_RE.test(line)
+  ) {
+    addError(
+      errors,
+      relPath,
+      lineNo,
+      "no-user-facing-db-jargon",
+      "Avoid exposing Postgres/PostgreSQL/落库 infrastructure jargon in user-facing UI features (.rules/editorial-craft.md §1).",
+    );
   }
 }
 
@@ -121,9 +152,7 @@ function checkSingleLine(relPath, line, lineNo, flags, errors) {
       "Font size < 12px creates visual clutter. Use text-xs (12px) minimum and text-sm (14px+) for body copy.",
     );
   }
-  if (!flags.isMotionSource && !flags.isTestFile && SPRING_LITERAL_RE.test(line)) {
-    addError(errors, relPath, lineNo, "locked-motion-token", "Import KANON_SPRING from @kanon/ui.");
-  }
+  checkEditorialLineRules(relPath, line, lineNo, flags, errors);
   if (flags.isTokenSheet || flags.isTestFile) return;
   checkColorLine(relPath, line, lineNo, errors);
 }
@@ -257,6 +286,7 @@ function main() {
   checkExpandOnlyMigrations(ROOT, errors);
   checkDocsEntryParity(ROOT, errors);
   checkMarketingOpticalGuards(ROOT, errors);
+  checkEditorialUiHygiene(ROOT, errors);
   for (const filePath of files) {
     const relPath = path.relative(ROOT, filePath).split(path.sep).join("/");
     const content = fs.readFileSync(filePath, "utf8");

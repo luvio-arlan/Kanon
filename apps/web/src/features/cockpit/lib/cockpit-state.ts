@@ -5,23 +5,46 @@ import { useTheme } from "@kanon/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readByokConfig } from "@/features/ai-settings";
-import type { CockpitFilter, CockpitSortBy, CockpitViewMode } from "../components/cockpit-header";
+import type {
+  CockpitFilter,
+  CockpitFilterCounts,
+  CockpitSortBy,
+  CockpitViewMode,
+} from "../components/cockpit-header";
 import { buildCockpitCommandGroups } from "../data/command-actions";
 import { useCockpitShortcuts } from "./use-cockpit-shortcuts";
 
-function matchesFilter(thesis: ThesisDetail, filter: CockpitFilter, query: string): boolean {
+function matchesQuery(thesis: ThesisDetail, query: string): boolean {
   const q = query.trim().toLowerCase();
-  if (
-    q &&
-    !`${thesis.ticker} ${thesis.companyName} ${thesis.sectorTag}`.toLowerCase().includes(q)
-  ) {
-    return false;
-  }
+  if (!q) return true;
+  return `${thesis.ticker} ${thesis.companyName} ${thesis.sectorTag}`.toLowerCase().includes(q);
+}
+
+function matchesFilter(thesis: ThesisDetail, filter: CockpitFilter, query: string): boolean {
+  if (!matchesQuery(thesis, query)) return false;
   if (filter === "archived") return thesis.status === "archived_veto";
   if (thesis.status === "archived_veto") return false;
   if (filter === "attractive") return thesis.valuation.convictionZone === "attractive";
   if (filter === "attention") return thesis.hypotheses.some((h) => h.status !== "validated");
   return true;
+}
+
+function computeFilterCounts(theses: readonly ThesisDetail[], query: string): CockpitFilterCounts {
+  let all = 0;
+  let attractive = 0;
+  let attention = 0;
+  let archived = 0;
+  for (const t of theses) {
+    if (!matchesQuery(t, query)) continue;
+    if (t.status === "archived_veto") {
+      archived += 1;
+      continue;
+    }
+    all += 1;
+    if (t.valuation.convictionZone === "attractive") attractive += 1;
+    if (t.hypotheses.some((h) => h.status !== "validated")) attention += 1;
+  }
+  return { all, attractive, attention, archived };
 }
 
 function sortTheses(items: readonly ThesisDetail[], sortBy: CockpitSortBy): ThesisDetail[] {
@@ -31,8 +54,9 @@ function sortTheses(items: readonly ThesisDetail[], sortBy: CockpitSortBy): Thes
       (a, b) => (b.valuation.riskRewardRatio ?? 99) - (a.valuation.riskRewardRatio ?? 99),
     );
   }
-  if (sortBy === "cagr")
+  if (sortBy === "cagr") {
     return copy.sort((a, b) => b.valuation.base.cagrPct - a.valuation.base.cagrPct);
+  }
   if (sortBy === "margin") {
     return copy.sort(
       (a, b) =>
@@ -59,9 +83,14 @@ function useCockpitCollection(initialTheses: ThesisDetail[]) {
       ),
     [theses, filter, query, sortBy],
   );
+  const filterCounts = useMemo(() => computeFilterCounts(theses, query), [theses, query]);
   const replaceThesis = (updated: ThesisDetail) => {
     setTheses((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     setPreviewThesis((prev) => (prev?.id === updated.id ? updated : prev));
+  };
+  const resetFilters = () => {
+    setFilter("all");
+    setQuery("");
   };
 
   return {
@@ -70,6 +99,8 @@ function useCockpitCollection(initialTheses: ThesisDetail[]) {
     replaceThesis,
     filter,
     setFilter,
+    filterCounts,
+    resetFilters,
     sortBy,
     setSortBy,
     query,

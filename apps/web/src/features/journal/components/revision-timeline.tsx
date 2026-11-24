@@ -219,7 +219,7 @@ export function RevisionTimeline({ revisions }: { revisions: readonly ThesisRevi
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-hairline pb-3 text-xs text-ink-muted">
         <span className="inline-flex items-center gap-1.5 font-medium text-ink-secondary">
           <IconHistory size={14} stroke={1.5} />
-          <span>跨季度研究演进日志（Postgres 持久化）</span>
+          <span>跨季度研究演进日志</span>
         </span>
         <div className="flex items-center gap-3">
           {withSnapshots.length >= 2 ? (

@@ -22,7 +22,7 @@ function buildWorkspaceActionItems(params: {
     {
       id: "new-thesis",
       label: "新建美股标的画布",
-      description: "写入数据库并开启五步引导研究（滤镜 → 假设 → SEC → 赔率 → 铁律）",
+      description: "开启五步引导研究（滤镜 → 假设 → 财报 → 估值 → 纪律）",
       shortcut: "N",
       icon: <IconPlus size={15} stroke={1.5} />,
       onSelect: onNewThesis,

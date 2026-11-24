@@ -81,7 +81,7 @@ export function PhoneField({ value, onChange, disabled = false, externalError }:
           onBlur={() => setTouched(true)}
           placeholder="138 0013 8000"
           aria-invalid={Boolean(errorMsg)}
-          className="h-full w-full min-w-0 bg-transparent font-mono text-base tracking-wider text-ink-primary tabular-nums placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-muted/70 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="kanon-input-canvas h-full w-full min-w-0 bg-transparent font-mono text-base tracking-wider text-ink-primary tabular-nums placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-muted/70 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
         <PhoneTrailingAction
           hasDigits={digits.length > 0}

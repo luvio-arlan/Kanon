@@ -1,7 +1,7 @@
 "use client";
 
 import type { PortfolioAnalytics } from "@kanon/core";
-import { ActionMenu, cn, KANON_SPRING } from "@kanon/ui";
+import { ActionMenu, SegmentedTabs } from "@kanon/ui";
 import {
   IconCheck,
   IconChevronDown,
@@ -10,17 +10,25 @@ import {
   IconTable,
   IconX,
 } from "@tabler/icons-react";
-import { motion } from "framer-motion";
-import type { ReactNode, RefObject } from "react";
+import type { RefObject } from "react";
+import { AttentionRadarStrip } from "@/features/portfolio";
 import { PortfolioTelemetryStrip } from "./portfolio-telemetry-strip";
 
 export type CockpitFilter = "all" | "attractive" | "attention" | "archived";
 export type CockpitViewMode = "cards" | "table";
 export type CockpitSortBy = "index" | "odds" | "cagr" | "margin";
 
+export interface CockpitFilterCounts {
+  all: number;
+  attractive: number;
+  attention: number;
+  archived: number;
+}
+
 export interface CockpitHeaderProps {
   analytics: PortfolioAnalytics;
   filter: CockpitFilter;
+  filterCounts: CockpitFilterCounts;
   viewMode: CockpitViewMode;
   sortBy: CockpitSortBy;
   query: string;
@@ -29,102 +37,17 @@ export interface CockpitHeaderProps {
   onViewModeChange: (next: CockpitViewMode) => void;
   onSortChange: (next: CockpitSortBy) => void;
   onQueryChange: (next: string) => void;
+  onFocusBuyZone: () => void;
+  onFocusWarnings: () => void;
+  onOpenStressTest: () => void;
 }
 
 const SORT_OPTIONS: ReadonlyArray<{ id: CockpitSortBy; label: string }> = [
-  { id: "index", label: "默认编号" },
+  { id: "index", label: "默认" },
   { id: "odds", label: "赔率优先" },
-  { id: "cagr", label: "CAGR 优先" },
+  { id: "cagr", label: "年化优先" },
   { id: "margin", label: "安全边际" },
 ];
-
-function FilterTabs({
-  filter,
-  archivedCount,
-  onFilterChange,
-}: {
-  filter: CockpitFilter;
-  archivedCount: number;
-  onFilterChange: (next: CockpitFilter) => void;
-}) {
-  const options: Array<{ id: CockpitFilter; label: string }> = [
-    { id: "all", label: "全部标的" },
-    { id: "attractive", label: "高赔率" },
-    { id: "attention", label: "需关注" },
-    ...(archivedCount > 0 ? [{ id: "archived" as const, label: `已否决 (${archivedCount})` }] : []),
-  ];
-
-  return (
-    <div className="inline-flex items-center rounded-pill border border-hairline bg-titanium-subtle p-1 shadow-card">
-      {options.map((option) => {
-        const active = filter === option.id;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onFilterChange(option.id)}
-            className={cn(
-              "relative inline-flex h-7 cursor-pointer items-center justify-center whitespace-nowrap rounded-pill px-3.5 text-xs font-medium leading-none transition-colors duration-150",
-              active ? "text-ink-primary" : "text-ink-secondary hover:text-ink-primary",
-            )}
-          >
-            {active ? (
-              <motion.span
-                layoutId="cockpit-filter-pill"
-                transition={KANON_SPRING}
-                className="absolute inset-0 rounded-pill border border-hairline bg-surface shadow-pill-active"
-              />
-            ) : null}
-            <span className="relative z-10">{option.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function ViewModeSwitch({
-  viewMode,
-  onChange,
-}: {
-  viewMode: CockpitViewMode;
-  onChange: (next: CockpitViewMode) => void;
-}) {
-  const modes: ReadonlyArray<{ id: CockpitViewMode; label: string; icon: ReactNode }> = [
-    { id: "cards", label: "卡片", icon: <IconLayoutGrid size={14} stroke={1.5} /> },
-    { id: "table", label: "赔率对比", icon: <IconTable size={14} stroke={1.5} /> },
-  ];
-  return (
-    <div className="inline-flex items-center rounded-pill border border-hairline bg-surface p-1 shadow-card">
-      {modes.map((m) => {
-        const active = viewMode === m.id;
-        return (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => onChange(m.id)}
-            className={cn(
-              "relative inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-pill px-3 text-xs font-medium leading-none transition-colors duration-150",
-              active ? "text-ink-primary" : "text-ink-secondary hover:text-ink-primary",
-            )}
-          >
-            {active ? (
-              <motion.span
-                layoutId="cockpit-view-pill"
-                transition={KANON_SPRING}
-                className="absolute inset-0 rounded-pill border border-hairline bg-titanium-subtle shadow-pill-active"
-              />
-            ) : null}
-            <span className="relative z-10 inline-flex items-center gap-1.5">
-              {m.icon}
-              <span>{m.label}</span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function SortDropdown({
   sortBy,
@@ -133,7 +56,7 @@ function SortDropdown({
   sortBy: CockpitSortBy;
   onSortChange: (next: CockpitSortBy) => void;
 }) {
-  const activeSortLabel = SORT_OPTIONS.find((opt) => opt.id === sortBy)?.label ?? "默认编号";
+  const activeSortLabel = SORT_OPTIONS.find((opt) => opt.id === sortBy)?.label ?? "默认";
   const items = SORT_OPTIONS.map((opt) => ({
     id: opt.id,
     label: opt.label,
@@ -150,10 +73,10 @@ function SortDropdown({
     <ActionMenu
       ariaLabel="标的排序方式"
       items={items}
-      triggerClassName="h-9 rounded-pill px-3.5 shadow-card"
+      triggerClassName="h-9 rounded-pill px-3"
       trigger={
         <>
-          <span>排序：{activeSortLabel}</span>
+          <span>{activeSortLabel}</span>
           <IconChevronDown size={13} stroke={1.5} className="text-ink-muted" />
         </>
       }
@@ -161,75 +84,97 @@ function SortDropdown({
   );
 }
 
-function SearchAndSortControls(props: {
+function InlineFilterInput(props: {
   query: string;
-  sortBy: CockpitSortBy;
   searchInputRef: RefObject<HTMLInputElement | null>;
   onQueryChange: (next: string) => void;
-  onSortChange: (next: CockpitSortBy) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative flex items-center">
-        <IconSearch
-          size={14}
-          stroke={1.5}
-          className="pointer-events-none absolute left-3 text-ink-muted"
+    <div className="relative flex items-center">
+      <IconSearch
+        size={14}
+        stroke={1.5}
+        className="pointer-events-none absolute left-3 text-ink-muted"
+      />
+      <input
+        ref={props.searchInputRef}
+        type="text"
+        value={props.query}
+        onChange={(e) => props.onQueryChange(e.target.value)}
+        placeholder="筛选代码 ( / )"
+        aria-label="筛选标的"
+        className="h-9 w-40 rounded-pill border border-hairline bg-surface pl-8 pr-7 text-xs text-ink-primary transition-colors placeholder:text-ink-muted focus:border-strong focus:outline-none focus:ring-1 focus:ring-accent-coral/50 sm:w-44"
+      />
+      {props.query ? (
+        <button
+          type="button"
+          onClick={() => props.onQueryChange("")}
+          aria-label="清除筛选"
+          className="absolute right-2.5 cursor-pointer text-ink-muted hover:text-ink-primary"
+        >
+          <IconX size={13} stroke={1.5} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function CockpitControlBar(props: CockpitHeaderProps) {
+  const filterItems = [
+    { id: "all" as const, label: "全部", count: props.filterCounts.all },
+    { id: "attractive" as const, label: "高赔率", count: props.filterCounts.attractive },
+    { id: "attention" as const, label: "需关注", count: props.filterCounts.attention },
+    ...(props.filterCounts.archived > 0
+      ? [{ id: "archived" as const, label: "已否决", count: props.filterCounts.archived }]
+      : []),
+  ];
+
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+      <SegmentedTabs
+        layoutId="cockpit-filter-pill"
+        value={props.filter}
+        onChange={props.onFilterChange}
+        items={filterItems}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <InlineFilterInput
+          query={props.query}
+          searchInputRef={props.searchInputRef}
+          onQueryChange={props.onQueryChange}
         />
-        <input
-          ref={props.searchInputRef}
-          type="text"
-          value={props.query}
-          onChange={(e) => props.onQueryChange(e.target.value)}
-          placeholder="筛选代码 / 赛道 ( / )"
-          aria-label="筛选标的"
-          className="h-9 w-48 rounded-pill border border-hairline bg-surface pl-8 pr-7 text-xs text-ink-primary shadow-card placeholder:text-ink-muted focus:border-strong focus:outline-none focus:ring-2 focus:ring-accent-coral/40 sm:w-56"
+        <SortDropdown sortBy={props.sortBy} onSortChange={props.onSortChange} />
+        <SegmentedTabs
+          layoutId="cockpit-view-pill"
+          value={props.viewMode}
+          onChange={props.onViewModeChange}
+          items={[
+            { id: "cards", label: "卡片", icon: <IconLayoutGrid size={13} stroke={1.5} /> },
+            { id: "table", label: "矩阵", icon: <IconTable size={13} stroke={1.5} /> },
+          ]}
         />
-        {props.query ? (
-          <button
-            type="button"
-            onClick={() => props.onQueryChange("")}
-            aria-label="清除筛选"
-            className="absolute right-2.5 cursor-pointer text-ink-muted hover:text-ink-primary"
-          >
-            <IconX size={13} stroke={1.5} />
-          </button>
-        ) : null}
       </div>
-      <SortDropdown sortBy={props.sortBy} onSortChange={props.onSortChange} />
     </div>
   );
 }
 
 export function CockpitHeader(props: CockpitHeaderProps) {
   return (
-    <section className="pb-5 pt-9">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div>
-          <div className="kanon-micro-label text-ink-muted">KANON · FUNDAMENTAL CONVICTION OS</div>
-          <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-[-0.03em] text-ink-primary sm:text-[34px]">
-            在噪音里，谱出自己的确定性。
-          </h1>
-        </div>
-        <SearchAndSortControls
-          query={props.query}
-          sortBy={props.sortBy}
-          searchInputRef={props.searchInputRef}
-          onQueryChange={props.onQueryChange}
-          onSortChange={props.onSortChange}
+    <section className="pb-6 pt-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-ink-primary">研究工作台</h1>
+        <AttentionRadarStrip
+          analytics={props.analytics}
+          onFocusBuyZone={props.onFocusBuyZone}
+          onFocusWarnings={props.onFocusWarnings}
+          onOpenStressTest={props.onOpenStressTest}
         />
       </div>
-
-      <PortfolioTelemetryStrip analytics={props.analytics} />
-
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <FilterTabs
-          filter={props.filter}
-          archivedCount={props.analytics.archivedCount}
-          onFilterChange={props.onFilterChange}
-        />
-        <ViewModeSwitch viewMode={props.viewMode} onChange={props.onViewModeChange} />
-      </div>
+      <PortfolioTelemetryStrip
+        analytics={props.analytics}
+        onOpenStressTest={props.onOpenStressTest}
+      />
+      <CockpitControlBar {...props} />
     </section>
   );
 }

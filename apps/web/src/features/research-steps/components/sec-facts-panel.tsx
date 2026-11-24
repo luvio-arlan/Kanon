@@ -70,7 +70,7 @@ export function SecFactsPanel({ ticker, snapshot, syncing, onSync }: SecFactsPan
           </div>
           <p className="mt-1 text-xs text-ink-secondary">
             {snapshot
-              ? `${snapshot.entityName} · CIK ${snapshot.cik}（所有财务锚点均读自 Postgres 缓存，严禁大模型编造）`
+              ? `${snapshot.entityName} · CIK ${snapshot.cik}（财务锚点均源自 SEC 官方档案）`
               : `点击一键拉取 ${ticker} 官方 10-K / 10-Q 原件列表与 XBRL 财务事实`}
           </p>
         </div>

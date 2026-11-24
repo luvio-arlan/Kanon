@@ -1,6 +1,7 @@
 import { KANON_POSTGRES_DDL as BASELINE_SQL } from "./0001-baseline";
 import { KANON_V4_MIGRATION_SQL } from "./0002-v4-institutional";
 import { KANON_ACCOUNTS_MIGRATION_SQL } from "./0003-accounts-auth";
+import { KANON_PERF_INDEXES_SQL } from "./0004-perf-indexes";
 
 export interface KanonMigration {
   id: string;
@@ -33,6 +34,11 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Multi-user accounts & sessions tables with per-user thesis isolation and +86 phone identity",
     sql: KANON_ACCOUNTS_MIGRATION_SQL,
+  },
+  {
+    id: "0004_perf_indexes",
+    description: "Expand-only lookup indexes on hot thesis child tables and cross-check links",
+    sql: KANON_PERF_INDEXES_SQL,
   },
 ];
 

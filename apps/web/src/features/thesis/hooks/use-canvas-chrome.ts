@@ -30,9 +30,21 @@ function useDirtyTracker() {
   return { dirtyRef, saveActionRef, setDirtyState };
 }
 
-function useGuardedNavigation(currentId: string, allTheses: readonly ThesisSummary[]) {
+function syncCanvasStepUrl(currentId: string, step: StepId) {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(null, "", `/thesis/${currentId}?step=${step}`);
+  if (window.scrollY > 120) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
+function useGuardedNavigation(
+  currentId: string,
+  allTheses: readonly ThesisSummary[],
+  initialStep: StepId,
+) {
   const router = useRouter();
-  const [nav, setNav] = useState<{ step: StepId; dir: number }>({ step: 1, dir: 1 });
+  const [nav, setNav] = useState<{ step: StepId; dir: number }>({ step: initialStep, dir: 1 });
   const [pendingNav, setPendingNav] = useState<PendingNavTarget | null>(null);
   const { dirtyRef, saveActionRef, setDirtyState } = useDirtyTracker();
 
@@ -40,9 +52,9 @@ function useGuardedNavigation(currentId: string, allTheses: readonly ThesisSumma
     (target: PendingNavTarget) => {
       if (target.type === "thesis") return router.push(`/thesis/${target.id}`);
       setNav((prev) => ({ step: target.step, dir: target.step >= prev.step ? 1 : -1 }));
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      syncCanvasStepUrl(currentId, target.step);
     },
-    [router],
+    [currentId, router],
   );
   const requestNav = useCallback(
     (target: PendingNavTarget) => {
@@ -77,11 +89,15 @@ function useGuardedNavigation(currentId: string, allTheses: readonly ThesisSumma
   return { nav, pendingNav, setDirtyState, resolvePendingNav, jumpToStep, cycleThesis };
 }
 
-export function useCanvasChromeState(currentId: string, allTheses: readonly ThesisSummary[]) {
+export function useCanvasChromeState(
+  currentId: string,
+  allTheses: readonly ThesisSummary[],
+  initialStep: StepId = 1,
+) {
   const [focusMode, setFocusMode] = useState(false);
   const [modals, setModals] = useState({ cmd: false, ai: false, del: false, agent: false });
   const [hasByok, setHasByok] = useState(false);
-  const navCtrl = useGuardedNavigation(currentId, allTheses);
+  const navCtrl = useGuardedNavigation(currentId, allTheses, initialStep);
 
   useEffect(() => {
     setHasByok(Boolean(readByokConfig()));

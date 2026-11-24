@@ -146,7 +146,7 @@ export function InvestmentMemoCard({
         <MemoArticleBody memo={memo} />
       ) : (
         <div className="mt-6 border-t border-hairline pt-8 pb-4 text-center text-sm text-ink-muted">
-          尚未生成投研备忘录。点击右上角按钮，基于前 4 步一阶档案一键凝练并落库。
+          尚未生成投研备忘录。点击右上角按钮，基于前 4 步一阶档案一键凝练并保存。
         </div>
       )}
     </Card>

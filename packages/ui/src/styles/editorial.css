@@ -54,8 +54,39 @@
   }
 }
 
-a:focus-visible,
-button:focus-visible {
-  outline: 1.5px solid var(--accent-coral);
-  outline-offset: 3px;
+@layer base {
+  a:focus-visible,
+  button:focus-visible {
+    outline: 1.5px solid var(--accent-coral);
+    outline-offset: 2px;
+  }
+}
+
+/* Browser autofill hygiene — eliminate default blue tint in Light & Dark themes */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--ink-primary);
+  caret-color: var(--ink-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--autofill-bg, var(--bg-surface)) inset;
+  box-shadow: 0 0 0 1000px var(--autofill-bg, var(--bg-surface)) inset;
+  transition:
+    background-color 999999s ease-in-out 0s,
+    color 999999s ease-in-out 0s;
+}
+
+input:autofill,
+textarea:autofill,
+select:autofill {
+  color: var(--ink-primary);
+  caret-color: var(--ink-primary);
+  box-shadow: 0 0 0 1000px var(--autofill-bg, var(--bg-surface)) inset;
+  transition: background-color 999999s ease-in-out 0s;
+}
+
+.kanon-input-canvas {
+  --autofill-bg: var(--bg-canvas);
 }

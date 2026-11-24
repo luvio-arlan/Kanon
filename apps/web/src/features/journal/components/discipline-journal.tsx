@@ -38,10 +38,8 @@ type Step5Tab = "ledger" | "reviews" | "memo" | "revisions";
 function Step5Header() {
   return (
     <div>
-      <h2 className="text-lg font-semibold text-ink-primary">Step 5 · 交易纪律与投研备忘录</h2>
-      <p className="mt-0.5 text-sm text-ink-secondary">
-        每次建仓或调仓前先签零杠杆铁律与离场红线，凝练一页纸 IC Memo 并追踪跨季度研究演进
-      </p>
+      <h2 className="text-lg font-semibold text-ink-primary">Step 5 · 交易纪律与备忘录</h2>
+      <p className="mt-0.5 text-xs text-ink-muted">建仓前先定离场红线，持续沉淀复盘与一页备忘录</p>
     </div>
   );
 }
@@ -124,17 +122,15 @@ function Step5AnimatedTab(
   },
 ) {
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={props.tab}
-        variants={KANON_LENS_VARIANTS}
-        initial="enter"
-        animate="center"
-        exit="exit"
-      >
-        <Step5TabContent {...props} />
-      </motion.div>
-    </AnimatePresence>
+    <motion.div
+      key={props.tab}
+      variants={KANON_LENS_VARIANTS}
+      initial="enter"
+      animate="center"
+      className="min-h-[360px]"
+    >
+      <Step5TabContent {...props} />
+    </motion.div>
   );
 }
 

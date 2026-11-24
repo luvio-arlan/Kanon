@@ -15,7 +15,7 @@ import {
   SecFinancialChart,
   SegmentedTabs,
 } from "@kanon/ui";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { formatCompact } from "../lib/forensic-cells";
 import { SecForensicsView, SecQuarterliesTable } from "./sec-forensics-views";
@@ -143,17 +143,15 @@ function SecTabContent({
       <SecTableGrid annuals={annuals} />
     );
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={mode}
-        variants={KANON_LENS_VARIANTS}
-        initial="enter"
-        animate="center"
-        exit="exit"
-      >
-        {inner}
-      </motion.div>
-    </AnimatePresence>
+    <motion.div
+      key={mode}
+      variants={KANON_LENS_VARIANTS}
+      initial="enter"
+      animate="center"
+      className="min-h-[220px]"
+    >
+      {inner}
+    </motion.div>
   );
 }
 

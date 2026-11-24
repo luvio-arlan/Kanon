@@ -130,7 +130,7 @@ function PasswordInputLine(props: PasswordInputLineProps) {
         onBlur={props.onBlur}
         placeholder={props.placeholder ?? "输入密码"}
         aria-invalid={props.hasError}
-        className="h-full w-full min-w-0 bg-transparent text-base tracking-wide text-ink-primary placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-muted/70 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        className="kanon-input-canvas h-full w-full min-w-0 bg-transparent text-base tracking-wide text-ink-primary placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-muted/70 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       />
       <PasswordTrailingSlot
         visible={props.visible}

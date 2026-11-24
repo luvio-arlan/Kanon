@@ -230,7 +230,7 @@ export function AgentResearchSheet(props: AgentResearchSheetProps) {
               <span>{props.running ? "多步审计运行中..." : "重新运行审计"}</span>
             </Button>
           ) : (
-            <span className="text-xs text-ink-muted">审计结论将自动持久化至数据库</span>
+            <span className="text-xs text-ink-muted">审计结论将自动保存</span>
           )}
           <Button variant="outline" size="sm" onClick={() => props.onOpenChange(false)}>
             关闭

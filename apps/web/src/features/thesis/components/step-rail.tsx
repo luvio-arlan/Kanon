@@ -5,7 +5,7 @@ import {
   calculateResearchReadiness,
   type ThesisDetail,
 } from "@kanon/core";
-import { cn, KANON_SPRING, ReadinessRing, RollingNumber } from "@kanon/ui";
+import { cn, KANON_TAB_TRANSITION, ReadinessRing, RollingNumber } from "@kanon/ui";
 import { IconCheck } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useMemo } from "react";
@@ -36,22 +36,22 @@ function StepRailItem({
       type="button"
       onClick={onSelect}
       className={cn(
-        "relative flex w-full cursor-pointer items-center justify-between gap-2 rounded-control px-3 py-2.5 text-left transition-colors",
+        "relative flex w-full cursor-pointer items-center justify-between gap-2 rounded-control px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-coral/70",
         active ? "text-ink-primary" : "text-ink-secondary hover:bg-muted/50 hover:text-ink-primary",
       )}
     >
       {active ? (
         <motion.span
           layoutId="canvas-step-rail-bg"
-          transition={KANON_SPRING}
-          className="absolute inset-0 rounded-control border border-hairline bg-surface shadow-pill-active"
+          transition={KANON_TAB_TRANSITION}
+          className="pointer-events-none absolute inset-0 rounded-control border border-hairline bg-surface shadow-pill-active"
         />
       ) : null}
       {active ? (
         <motion.span
           layoutId="canvas-step-rail-bar"
-          transition={KANON_SPRING}
-          className="absolute bottom-2 left-0 top-2 w-0.5 rounded-pill bg-accent-coral"
+          transition={KANON_TAB_TRANSITION}
+          className="pointer-events-none absolute bottom-2 left-0 top-2 w-0.5 rounded-pill bg-accent-coral"
         />
       ) : null}
       <span className="relative z-10 flex min-w-0 items-center gap-2.5">
@@ -114,15 +114,16 @@ export function StepRail({
   onSelect: (step: StepId) => void;
 }) {
   const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
+  const activeStepMeta = readiness.steps[activeStep - 1];
 
   return (
     <aside className="no-print space-y-5 lg:sticky lg:top-20 lg:self-start">
       <div className="space-y-2.5 px-3">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs font-medium text-ink-secondary">研究成熟度</div>
+            <div className="text-xs font-medium text-ink-secondary">研究进度</div>
             <div className="mt-0.5 font-mono text-xs text-ink-muted tabular-nums">
-              已完成 {readiness.completedCount}/5 步
+              {readiness.completedCount}/5 步 · {activeStepMeta?.hint}
             </div>
           </div>
           <ReadinessRing scorePct={readiness.scorePct} size={28} />
@@ -149,7 +150,6 @@ export function StepRail({
         ))}
       </nav>
       <PeripheralAnchorSummary thesis={thesis} />
-      <div className="px-3 font-mono text-xs text-ink-muted/80">1–5 切步 · F 专注 · ⌘K</div>
     </aside>
   );
 }

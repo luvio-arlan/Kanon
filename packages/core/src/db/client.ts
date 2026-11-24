@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { sql } from "drizzle-orm";
 import { drizzle as drizzlePglite, PgliteDatabase } from "drizzle-orm/pglite";
 import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -47,7 +48,7 @@ function createPersistentState(): DbState {
   if (connectionString) {
     const sqlClient = postgres(connectionString, {
       prepare: false,
-      max: 5,
+      max: 10,
       idle_timeout: 20,
       connect_timeout: 10,
     });
@@ -103,18 +104,21 @@ export async function runInTransaction<T>(
 }
 
 export async function getDbHealthStats(db: KanonDb): Promise<DbHealthStats> {
-  const [theses, glossary, secRows, revRows] = await Promise.all([
-    db.select({ id: schema.thesesTable.id }).from(schema.thesesTable),
-    db.select({ term: schema.glossaryTermsTable.term }).from(schema.glossaryTermsTable),
-    db.select({ ticker: schema.secFilingsCacheTable.ticker }).from(schema.secFilingsCacheTable),
-    db.select({ id: schema.thesisRevisionsTable.id }).from(schema.thesisRevisionsTable),
-  ]);
+  const result = await db.execute(sql`
+    SELECT
+      (SELECT count(*)::int FROM theses) AS theses_count,
+      (SELECT count(*)::int FROM glossary_terms) AS glossary_count,
+      (SELECT count(*)::int FROM sec_filings_cache) AS sec_cached_count,
+      (SELECT count(*)::int FROM thesis_revisions) AS revisions_count
+  `);
+  const rows = Array.isArray(result) ? result : result.rows;
+  const row = (rows[0] ?? {}) as Record<string, unknown>;
   return {
     engine: db instanceof PgliteDatabase ? "pglite-embedded" : "postgres-external",
-    thesesCount: theses.length,
-    glossaryCount: glossary.length,
-    secCachedCount: secRows.length,
-    revisionsCount: revRows.length,
+    thesesCount: Number(row.theses_count ?? 0),
+    glossaryCount: Number(row.glossary_count ?? 0),
+    secCachedCount: Number(row.sec_cached_count ?? 0),
+    revisionsCount: Number(row.revisions_count ?? 0),
   };
 }
 

@@ -143,6 +143,7 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -157,7 +158,8 @@ body {
 
 button:focus:not(:focus-visible),
 a:focus:not(:focus-visible),
-[role="button"]:focus:not(:focus-visible) {
+[role="button"]:focus:not(:focus-visible),
+[role="tab"]:focus:not(:focus-visible) {
   outline: none;
 }
 

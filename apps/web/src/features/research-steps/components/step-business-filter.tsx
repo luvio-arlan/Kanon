@@ -128,10 +128,8 @@ function FilterMatrixCard(props: {
     <Card className="p-6">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
         <div>
-          <h2 className="text-lg font-semibold text-ink-primary">Step 1 · 商业模式一票否决滤镜</h2>
-          <p className="mt-0.5 text-sm text-ink-secondary">
-            先用顶级买方标尺排除烂生意，再决定是否投入 3 年时间深度研究
-          </p>
+          <h2 className="text-lg font-semibold text-ink-primary">Step 1 · 商业模式滤镜</h2>
+          <p className="mt-0.5 text-xs text-ink-muted">先排除烂生意，再投入深度研究</p>
         </div>
         <Badge variant={statusTone}>{statusText}</Badge>
       </div>

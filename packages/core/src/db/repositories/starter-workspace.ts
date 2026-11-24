@@ -23,81 +23,63 @@ function mapLinkedId(
   return idMap.get(linkedThesisId) ?? null;
 }
 
-async function insertStarterThesisChildren(
-  tx: KanonDb,
-  userId: string,
-  scopedId: string,
-  item: SeedThesisRecord,
-  idMap: Map<string, string>,
-): Promise<void> {
-  await tx
-    .insert(hypothesesTable)
-    .values(
-      item.hypotheses.map((h, idx) => ({
+function buildThesisValues(userId: string, scopedId: string, item: SeedThesisRecord) {
+  return {
+    id: scopedId,
+    userId,
+    indexOrder: item.indexOrder,
+    ticker: item.ticker,
+    companyName: item.companyName,
+    sectorTag: item.sectorTag,
+    currentPrice: item.currentPrice,
+    horizonYears: item.horizonYears,
+    portfolioRole: item.portfolioRole ?? ("watchlist" as const),
+    currentWeightPct: item.currentWeightPct ?? 0,
+    targetMaxWeightPct: item.targetMaxWeightPct ?? 15,
+    avgCostBasis: item.avgCostBasis ?? null,
+    convictionSummary: item.convictionSummary,
+    status: item.status,
+    businessFilter: item.businessFilter,
+    lastReviewedLabel: "模板预置 · 可自由编辑",
+  };
+}
+
+function collectStarterChildren(userId: string, idMap: Map<string, string>) {
+  const hypotheses: (typeof hypothesesTable.$inferInsert)[] = [];
+  const crossChecks: (typeof crossChecksTable.$inferInsert)[] = [];
+  const valuations: (typeof valuationScenariosTable.$inferInsert)[] = [];
+  const disciplines: (typeof disciplineEntriesTable.$inferInsert)[] = [];
+
+  for (const item of SEED_THESIS_RECORDS) {
+    const scopedId = idMap.get(item.id) ?? buildUserScopedId(userId, item.id);
+    for (let idx = 0; idx < item.hypotheses.length; idx += 1) {
+      const h = item.hypotheses[idx];
+      if (!h) continue;
+      hypotheses.push({
         ...h,
         id: buildUserScopedId(userId, h.id),
         thesisId: scopedId,
         sortOrder: idx,
-      })),
-    )
-    .onConflictDoNothing();
-
-  await tx
-    .insert(crossChecksTable)
-    .values(
-      item.crossChecks.map((cc) => ({
+      });
+    }
+    for (const cc of item.crossChecks) {
+      crossChecks.push({
         ...cc,
         id: buildUserScopedId(userId, cc.id),
         thesisId: scopedId,
         linkedThesisId: mapLinkedId(cc.linkedThesisId, idMap),
-      })),
-    )
-    .onConflictDoNothing();
-
-  await tx
-    .insert(valuationScenariosTable)
-    .values({ thesisId: scopedId, ...item.valuationInput })
-    .onConflictDoNothing();
-
-  await tx
-    .insert(disciplineEntriesTable)
-    .values(
-      item.disciplineEntries.map((entry) => ({
+      });
+    }
+    valuations.push({ thesisId: scopedId, ...item.valuationInput });
+    for (const entry of item.disciplineEntries) {
+      disciplines.push({
         ...entry,
         id: buildUserScopedId(userId, entry.id),
         thesisId: scopedId,
-      })),
-    )
-    .onConflictDoNothing();
-}
-
-async function insertStarterThesisRow(
-  tx: KanonDb,
-  userId: string,
-  scopedId: string,
-  item: SeedThesisRecord,
-): Promise<void> {
-  await tx
-    .insert(thesesTable)
-    .values({
-      id: scopedId,
-      userId,
-      indexOrder: item.indexOrder,
-      ticker: item.ticker,
-      companyName: item.companyName,
-      sectorTag: item.sectorTag,
-      currentPrice: item.currentPrice,
-      horizonYears: item.horizonYears,
-      portfolioRole: item.portfolioRole ?? "watchlist",
-      currentWeightPct: item.currentWeightPct ?? 0,
-      targetMaxWeightPct: item.targetMaxWeightPct ?? 15,
-      avgCostBasis: item.avgCostBasis ?? null,
-      convictionSummary: item.convictionSummary,
-      status: item.status,
-      businessFilter: item.businessFilter,
-      lastReviewedLabel: "模板预置 · 可自由编辑",
-    })
-    .onConflictDoNothing();
+      });
+    }
+  }
+  return { hypotheses, crossChecks, valuations, disciplines };
 }
 
 export async function provisionStarterWorkspaceForUser(tx: KanonDb, userId: string): Promise<void> {
@@ -108,14 +90,27 @@ export async function provisionStarterWorkspaceForUser(tx: KanonDb, userId: stri
     .limit(1);
   if (existing.length > 0) return;
 
-  const idMap = new Map<string, string>();
-  for (const item of SEED_THESIS_RECORDS) {
-    idMap.set(item.id, buildUserScopedId(userId, item.id));
-  }
+  const idMap = new Map(
+    SEED_THESIS_RECORDS.map((item) => [item.id, buildUserScopedId(userId, item.id)]),
+  );
+  const thesisRows = SEED_THESIS_RECORDS.map((item) =>
+    buildThesisValues(userId, idMap.get(item.id) ?? buildUserScopedId(userId, item.id), item),
+  );
+  const children = collectStarterChildren(userId, idMap);
 
-  for (const item of SEED_THESIS_RECORDS) {
-    const scopedId = idMap.get(item.id) ?? buildUserScopedId(userId, item.id);
-    await insertStarterThesisRow(tx, userId, scopedId, item);
-    await insertStarterThesisChildren(tx, userId, scopedId, item, idMap);
-  }
+  await tx.insert(thesesTable).values(thesisRows).onConflictDoNothing();
+  await Promise.all([
+    children.hypotheses.length > 0
+      ? tx.insert(hypothesesTable).values(children.hypotheses).onConflictDoNothing()
+      : Promise.resolve(),
+    children.crossChecks.length > 0
+      ? tx.insert(crossChecksTable).values(children.crossChecks).onConflictDoNothing()
+      : Promise.resolve(),
+    children.valuations.length > 0
+      ? tx.insert(valuationScenariosTable).values(children.valuations).onConflictDoNothing()
+      : Promise.resolve(),
+    children.disciplines.length > 0
+      ? tx.insert(disciplineEntriesTable).values(children.disciplines).onConflictDoNothing()
+      : Promise.resolve(),
+  ]);
 }

@@ -39,6 +39,7 @@ export {
   saveAgentRun,
 } from "./repositories/review-and-agent-store";
 export { listThesisRevisions, recordThesisRevision } from "./repositories/revision-queries";
+export { loadThesisCanvasBootstrap } from "./repositories/thesis-canvas-bootstrap";
 export { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
 export {
   getThesisById,

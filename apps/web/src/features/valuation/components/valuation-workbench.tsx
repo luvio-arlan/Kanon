@@ -3,7 +3,7 @@
 import { checkScenarioMonotonicity, type SecAnnualFinancial, type ThesisDetail } from "@kanon/core";
 import { Button, KANON_LENS_VARIANTS, SegmentedTabs } from "@kanon/ui";
 import { IconAlertTriangle, IconDeviceFloppy } from "@tabler/icons-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DraftStatusBar } from "@/shared/components/draft-status-bar";
@@ -36,10 +36,8 @@ function ValuationHeaderBar({
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 className="text-lg font-semibold text-ink-primary">Step 4 · 双引擎估值与赔率工作台</h2>
-        <p className="mt-0.5 text-sm text-ink-secondary">
-          默认聚焦三情景赔率与 5×5 敏感度矩阵，可按需切换自上而下 EPS / EV-FCF 与 Reverse-DCF 检验
-        </p>
+        <h2 className="text-lg font-semibold text-ink-primary">Step 4 · 三情景估值与赔率</h2>
+        <p className="mt-0.5 text-xs text-ink-muted">锚定三年赔率区间，按需切换拆解与反向验证</p>
       </div>
       <SegmentedTabs
         layoutId="valuation-lens-tabs"
@@ -125,18 +123,15 @@ function ValuationLensBody(props: {
     );
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={lens}
-        variants={KANON_LENS_VARIANTS}
-        initial="enter"
-        animate="center"
-        exit="exit"
-        className="space-y-6"
-      >
-        {content}
-      </motion.div>
-    </AnimatePresence>
+    <motion.div
+      key={lens}
+      variants={KANON_LENS_VARIANTS}
+      initial="enter"
+      animate="center"
+      className="min-h-[420px] space-y-6"
+    >
+      {content}
+    </motion.div>
   );
 }
 
@@ -151,7 +146,7 @@ function SaveValuationButton(props: { saving: boolean; disabled: boolean; onSave
         onClick={props.onSave}
       >
         {!props.saving ? <IconDeviceFloppy size={16} stroke={1.5} /> : null}
-        <span>{props.saving ? "正在写入数据库..." : "保存三情景估值赔率"}</span>
+        <span>{props.saving ? "保存中..." : "保存估值赔率"}</span>
       </Button>
     </div>
   );

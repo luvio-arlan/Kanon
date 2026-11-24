@@ -63,7 +63,7 @@ export async function apiPostDiscipline(
     toast.error(res.error);
     return null;
   }
-  toast.success("交易纪律复盘卡已落库");
+  toast.success("交易纪律复盘卡已保存");
   return { thesis: res.data.thesis, revisions: res.data.revisions };
 }
 
@@ -99,11 +99,11 @@ export async function apiRunCopilot(
   }
   const { data } = res;
   if (data.engine === "vercel-ai-sdk") {
-    toast.success("已完成 BYOK 模型结构化分析并落库");
+    toast.success("已完成 BYOK 模型结构化分析并保存");
   } else if (data.fallbackReason) {
     toast.warning(`已降级为本地一阶分析（${data.fallbackReason}）`);
   } else {
-    toast.success("已基于一阶档案生成分析并落库");
+    toast.success("已基于一阶档案生成分析并保存");
   }
   if (data.action === "red_team") return { action: "red_team", data: data.data };
   if (data.action === "earnings_digest") return { action: "earnings_digest", data: data.data };

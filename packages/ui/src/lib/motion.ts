@@ -7,6 +7,13 @@ export const KANON_SPRING = {
   mass: 0.72,
 } as const satisfies Transition;
 
+export const KANON_TAB_TRANSITION = {
+  type: "spring",
+  stiffness: 520,
+  damping: 42,
+  mass: 0.65,
+} as const satisfies Transition;
+
 const KANON_EASE_EDITORIAL = [0.16, 1, 0.3, 1] as const;
 
 export const KANON_TRANSITION_FAST = {
@@ -53,36 +60,31 @@ export const KANON_FADE_UP_ITEM: Variants = {
 };
 
 export const KANON_LENS_VARIANTS: Variants = {
-  enter: { opacity: 0, y: 4 },
+  enter: { opacity: 0 },
   center: {
     opacity: 1,
-    y: 0,
-    transition: { duration: 0.15, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.16, ease: [0.22, 1, 0.36, 1] },
   },
   exit: {
     opacity: 0,
-    y: -3,
-    transition: { duration: 0.1, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.08, ease: [0.22, 1, 0.36, 1] },
   },
 };
 
 export const KANON_STEP_VARIANTS: Variants = {
   enter: (direction: number) => ({
     opacity: 0,
-    x: direction * 10,
-    filter: "blur(2px)",
+    x: direction * 8,
   }),
   center: {
     opacity: 1,
     x: 0,
-    filter: "blur(0px)",
     transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
   },
   exit: (direction: number) => ({
     opacity: 0,
-    x: direction * -8,
-    filter: "blur(1.5px)",
-    transition: { duration: 0.12, ease: [0.22, 1, 0.36, 1] },
+    x: direction * -6,
+    transition: { duration: 0.1, ease: [0.22, 1, 0.36, 1] },
   }),
 };
 

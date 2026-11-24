@@ -51,7 +51,7 @@ function normalizeHypotheses(rows: HypothesisRow[]): Hypothesis[] {
   return result;
 }
 
-function buildValuationInput(row: ThesisRow, valuationRow: ValuationRow | undefined) {
+export function buildValuationInput(row: ThesisRow, valuationRow: ValuationRow | undefined) {
   return {
     currentPrice: row.currentPrice,
     horizonYears: row.horizonYears,
@@ -83,7 +83,7 @@ function groupByThesisId<T extends { thesisId: string }>(rows: readonly T[]): Ma
   return map;
 }
 
-function hydrateThesis(params: {
+export function hydrateThesis(params: {
   row: ThesisRow;
   hypotheses: HypothesisRow[];
   crossChecks: CrossCheckRow[];

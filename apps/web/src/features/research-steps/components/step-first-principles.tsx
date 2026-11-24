@@ -128,10 +128,8 @@ function isCrossCheckArray(val: unknown): val is CrossCheck[] {
 function StepThreeHeading() {
   return (
     <div>
-      <h2 className="text-lg font-semibold text-ink-primary">Step 3 · 一阶资料与产业链交叉验证</h2>
-      <p className="mt-0.5 text-sm text-ink-secondary">
-        不只听公司一面之词：用 SEC 多年度财务轨迹、电话会原话与上下游伙伴口径互证真相
-      </p>
+      <h2 className="text-lg font-semibold text-ink-primary">Step 3 · 一阶资料印证</h2>
+      <p className="mt-0.5 text-xs text-ink-muted">用官方财报与上下游口径交叉验证核心假设</p>
     </div>
   );
 }

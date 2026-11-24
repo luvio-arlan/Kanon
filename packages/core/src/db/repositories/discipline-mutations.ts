@@ -112,8 +112,16 @@ export async function upsertSecSnapshot(
   return parsed;
 }
 
+const GLOSSARY_CACHE = new WeakMap<KanonDb, GlossaryTerm[]>();
+
 export async function listGlossaryTerms(db: KanonDb): Promise<GlossaryTerm[]> {
-  return db.select().from(glossaryTermsTable).orderBy(asc(glossaryTermsTable.term));
+  const cached = GLOSSARY_CACHE.get(db);
+  if (cached) return [...cached];
+  const rows = await db.select().from(glossaryTermsTable).orderBy(asc(glossaryTermsTable.term));
+  if (rows.length > 0) {
+    GLOSSARY_CACHE.set(db, rows);
+  }
+  return [...rows];
 }
 
 export async function getSecSnapshot(db: KanonDb, ticker: string): Promise<SecSnapshot | null> {

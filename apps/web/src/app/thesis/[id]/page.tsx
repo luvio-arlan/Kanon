@@ -7,18 +7,7 @@ import {
   RedTeamReportSchema,
 } from "@kanon/ai";
 import type { SavedCopilotOutput } from "@kanon/core";
-import {
-  getKanonDb,
-  getLatestAgentRun,
-  getSecSnapshot,
-  getThesisById,
-  listCopilotOutputs,
-  listGlossaryTerms,
-  listInboundCrossChecks,
-  listQuarterlyReviews,
-  listThesisRevisions,
-  listThesisSummaries,
-} from "@kanon/core/db";
+import { getKanonDb, loadThesisCanvasBootstrap } from "@kanon/core/db";
 import { notFound, redirect } from "next/navigation";
 import { getServerAuthContext } from "@/app/api/_lib/auth-session";
 import { ResearchCanvasShell } from "@/features/thesis";
@@ -27,6 +16,13 @@ export const dynamic = "force-dynamic";
 
 interface ThesisPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ step?: string }>;
+}
+
+function parseInitialStep(raw?: string): 1 | 2 | 3 | 4 | 5 {
+  const n = Number(raw);
+  if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5) return n;
+  return 1;
 }
 
 function parseRow<T>(
@@ -48,49 +44,30 @@ function hydrateCopilotOutputs(rows: readonly SavedCopilotOutput[]) {
   };
 }
 
-export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
-  const { id } = await params;
+export default async function ThesisCanvasPage({ params, searchParams }: ThesisPageProps) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const auth = await getServerAuthContext();
   if (!auth.user) {
     redirect(`/login?next=${encodeURIComponent(`/thesis/${id}`)}`);
   }
   const db = await getKanonDb();
-  const [
-    thesis,
-    glossary,
-    allTheses,
-    savedOutputs,
-    revisions,
-    reviews,
-    latestAgentRun,
-    inboundCrossChecks,
-  ] = await Promise.all([
-    getThesisById(db, id, auth.user.id),
-    listGlossaryTerms(db),
-    listThesisSummaries(db, auth.user.id),
-    listCopilotOutputs(db, id),
-    listThesisRevisions(db, id),
-    listQuarterlyReviews(db, id),
-    getLatestAgentRun(db, id),
-    listInboundCrossChecks(db, id),
-  ]);
-
-  if (!thesis) {
+  const data = await loadThesisCanvasBootstrap(db, id, auth.user.id);
+  if (!data) {
     notFound();
   }
 
-  const secSnapshot = await getSecSnapshot(db, thesis.ticker);
   return (
     <ResearchCanvasShell
-      initialThesis={thesis}
-      allTheses={allTheses}
-      glossary={glossary}
-      initialSecSnapshot={secSnapshot}
-      initialCopilot={hydrateCopilotOutputs(savedOutputs)}
-      initialRevisions={revisions}
-      initialReviews={reviews}
-      initialAgentRun={latestAgentRun}
-      inboundCrossChecks={inboundCrossChecks}
+      initialThesis={data.thesis}
+      initialStep={parseInitialStep(query.step)}
+      allTheses={data.allTheses}
+      glossary={data.glossary}
+      initialSecSnapshot={data.secSnapshot}
+      initialCopilot={hydrateCopilotOutputs(data.savedOutputs)}
+      initialRevisions={data.revisions}
+      initialReviews={data.reviews}
+      initialAgentRun={data.latestAgentRun}
+      inboundCrossChecks={data.inboundCrossChecks}
     />
   );
 }

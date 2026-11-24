@@ -48,14 +48,16 @@ export async function createUserSession(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
 
-  await db.delete(sessionsTable).where(lt(sessionsTable.expiresAt, now));
-  await db.insert(sessionsTable).values({
-    id: `sess-${crypto.randomUUID().slice(0, 12)}`,
-    userId,
-    tokenHash,
-    expiresAt,
-    createdAt: now,
-  });
+  await Promise.all([
+    db.delete(sessionsTable).where(lt(sessionsTable.expiresAt, now)),
+    db.insert(sessionsTable).values({
+      id: `sess-${crypto.randomUUID().slice(0, 12)}`,
+      userId,
+      tokenHash,
+      expiresAt,
+      createdAt: now,
+    }),
+  ]);
   return { token, expiresAt };
 }
 
@@ -112,12 +114,13 @@ export async function authenticateUser(
   if (!matched) return null;
 
   const now = new Date();
-  await db
-    .update(usersTable)
-    .set({ lastLoginAt: now, updatedAt: now })
-    .where(eq(usersTable.id, row.id));
-
-  const session = await createUserSession(db, row.id);
+  const [, session] = await Promise.all([
+    db
+      .update(usersTable)
+      .set({ lastLoginAt: now, updatedAt: now })
+      .where(eq(usersTable.id, row.id)),
+    createUserSession(db, row.id),
+  ]);
   return { user: toPublicUser(row), sessionToken: session.token, expiresAt: session.expiresAt };
 }
 

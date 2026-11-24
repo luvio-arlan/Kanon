@@ -13,7 +13,7 @@ import type {
 } from "@kanon/core";
 import { cn, KANON_STEP_VARIANTS } from "@kanon/ui";
 import { IconFocus2 } from "@tabler/icons-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useState } from "react";
 import { readByokConfig } from "@/features/ai-settings";
 import { useCanvasChromeState } from "../hooks/use-canvas-chrome";
@@ -26,6 +26,7 @@ import { CanvasStepRenderer } from "./canvas-step-renderer";
 
 export interface ResearchCanvasShellProps {
   initialThesis: ThesisDetail;
+  initialStep?: StepId;
   allTheses: readonly ThesisSummary[];
   glossary: readonly GlossaryTerm[];
   initialSecSnapshot: SecSnapshot | null;
@@ -83,29 +84,26 @@ function CanvasMainContent(props: CanvasMainProps) {
           onSelect={props.onSelectStep}
         />
       )}
-      <section className="min-w-0">
-        <AnimatePresence mode="wait" initial={false} custom={props.direction}>
-          <motion.div
-            key={props.activeStep}
-            custom={props.direction}
-            variants={KANON_STEP_VARIANTS}
-            initial="enter"
-            animate="center"
-            exit="exit"
-          >
-            <CanvasStepRenderer
-              step={props.activeStep}
-              ctrl={props.ctrl}
-              allTheses={props.allTheses}
-              inboundCrossChecks={props.inboundCrossChecks}
-              glossary={props.glossary}
-              promotedRule={props.promotedRule}
-              onDirtyChange={props.onDirtyChange}
-              onClearPromoted={props.onClearPromoted}
-              onPromoteRule={props.onPromoteRule}
-            />
-          </motion.div>
-        </AnimatePresence>
+      <section className="min-h-[540px] min-w-0">
+        <motion.div
+          key={props.activeStep}
+          custom={props.direction}
+          variants={KANON_STEP_VARIANTS}
+          initial="enter"
+          animate="center"
+        >
+          <CanvasStepRenderer
+            step={props.activeStep}
+            ctrl={props.ctrl}
+            allTheses={props.allTheses}
+            inboundCrossChecks={props.inboundCrossChecks}
+            glossary={props.glossary}
+            promotedRule={props.promotedRule}
+            onDirtyChange={props.onDirtyChange}
+            onClearPromoted={props.onClearPromoted}
+            onPromoteRule={props.onPromoteRule}
+          />
+        </motion.div>
         <div className="no-print">
           <StepFooterNav activeStep={props.activeStep} onSelectStep={props.onSelectStep} />
         </div>
@@ -163,7 +161,7 @@ function CanvasOverlaysBridge({
 
 function useCanvasBindings(props: ResearchCanvasShellProps) {
   const [promotedRule, setPromotedRule] = useState<string | null>(null);
-  const ui = useCanvasChromeState(props.initialThesis.id, props.allTheses);
+  const ui = useCanvasChromeState(props.initialThesis.id, props.allTheses, props.initialStep ?? 1);
   const ctrl = useResearchCanvas(
     props.initialThesis,
     props.initialSecSnapshot,

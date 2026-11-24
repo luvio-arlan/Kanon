@@ -1,6 +1,6 @@
 "use client";
 
-import { KANON_SPRING, KanonMark } from "@kanon/ui";
+import { KANON_TAB_TRANSITION, KanonMark } from "@kanon/ui";
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { ThemeOrbButton } from "@/shared/components/theme-orb-button";
@@ -18,7 +18,7 @@ export interface AuthShellProps {
 
 function AuthTopBar() {
   return (
-    <header className="flex h-20 items-center justify-between px-6 sm:px-12 lg:justify-end">
+    <header className="flex h-16 items-center justify-between px-6 sm:px-12 lg:justify-end">
       <a
         href={OFFICIAL_SITE_URL}
         aria-label="返回 KANON 官网"
@@ -62,7 +62,7 @@ function AuthModeTabs({
             role="tab"
             aria-selected={active}
             onClick={() => onModeChange(tab.key)}
-            className={`relative cursor-pointer pb-3 text-sm transition-colors duration-200 ${
+            className={`relative cursor-pointer pb-3 text-sm transition-colors duration-200 focus:outline-none focus-visible:outline-none focus-visible:text-accent-coral ${
               active ? "font-medium text-ink-primary" : "text-ink-muted hover:text-ink-primary"
             }`}
           >
@@ -70,8 +70,8 @@ function AuthModeTabs({
             {active ? (
               <motion.span
                 layoutId="auth-mode-inkbar"
-                transition={KANON_SPRING}
-                className="absolute inset-x-0 -bottom-px h-[1.5px] bg-accent-coral"
+                transition={KANON_TAB_TRANSITION}
+                className="pointer-events-none absolute inset-x-0 -bottom-px h-[1.5px] bg-accent-coral"
               />
             ) : null}
           </button>
@@ -87,7 +87,7 @@ export function AuthShell({ mode, onModeChange, children }: AuthShellProps) {
       <AuthMonolithStage />
       <div className="flex flex-col lg:col-span-6">
         <AuthTopBar />
-        <main className="flex flex-1 items-start justify-center px-6 pb-12 pt-[clamp(24px,9vh,88px)] sm:px-12">
+        <main className="flex flex-1 items-start justify-center px-6 pb-14 pt-[clamp(48px,15vh,148px)] sm:px-12">
           <div className="w-full max-w-[380px]">
             <AuthModeTabs mode={mode} onModeChange={onModeChange} />
             <div className="relative mt-8 overflow-x-clip">{children}</div>

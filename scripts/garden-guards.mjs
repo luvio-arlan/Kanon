@@ -260,3 +260,48 @@ export function checkMarketingOpticalGuards(rootDir, errors) {
   }
   checkSvgStrokeDrawPaths(html, relPath, strokeDrawClasses, errors);
 }
+
+export function checkEditorialUiHygiene(rootDir, errors) {
+  const bridgeRel = "packages/ui/src/styles/theme-bridge.css";
+  const bridgePath = path.join(rootDir, bridgeRel);
+  if (fs.existsSync(bridgePath)) {
+    const css = fs.readFileSync(bridgePath, "utf8");
+    if (!/scrollbar-gutter\s*:\s*stable\b/.test(css)) {
+      addError(
+        errors,
+        bridgeRel,
+        1,
+        "css-scrollbar-gutter-stable",
+        "html MUST declare `scrollbar-gutter: stable` to prevent horizontal layout jitter on tab switches (.rules/editorial-craft.md §2).",
+      );
+    }
+  }
+
+  const editorialRel = "packages/ui/src/styles/editorial.css";
+  const editorialPath = path.join(rootDir, editorialRel);
+  if (fs.existsSync(editorialPath)) {
+    const css = fs.readFileSync(editorialPath, "utf8");
+    const hasAutofill =
+      /:-webkit-autofill\b/.test(css) &&
+      /-webkit-text-fill-color\s*:\s*var\(--ink-primary\)/.test(css) &&
+      /\.kanon-input-canvas\b/.test(css);
+    if (!hasAutofill) {
+      addError(
+        errors,
+        editorialRel,
+        1,
+        "css-autofill-hygiene",
+        "editorial.css MUST override :-webkit-autofill with semantic tokens and define .kanon-input-canvas (.rules/editorial-craft.md §3).",
+      );
+    }
+    if (!/@layer\s+base\s*\{[\s\S]*button:focus-visible/.test(css)) {
+      addError(
+        errors,
+        editorialRel,
+        1,
+        "css-layered-focus-visible",
+        "Global button:focus-visible in editorial.css MUST be wrapped in `@layer base` so Tailwind focus-visible utilities are never overridden (.rules/editorial-craft.md §2).",
+      );
+    }
+  }
+}

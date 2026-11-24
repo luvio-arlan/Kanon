@@ -67,8 +67,8 @@ function ByokKeyField({ apiKey, onChange }: { apiKey: string; onChange: (next: s
       <div className="flex items-start gap-2 rounded-control bg-muted/70 p-3 text-xs leading-relaxed text-ink-secondary">
         <IconShieldLock size={15} stroke={1.5} className="mt-0.5 shrink-0 text-status-pass" />
         <span>
-          密钥仅保存在当前浏览器本地，单次调用时通过请求头透传给模型接口，绝不写入数据库。所有财务事实均锚定
-          SEC 缓存，大模型禁止编造数字。
+          密钥仅保存在当前浏览器本地，单次调用时通过请求头直连模型接口，不会上传或存储到服务器。所有财务事实均锚定
+          SEC 官方缓存，禁止模型编造数字。
         </span>
       </div>
     </>

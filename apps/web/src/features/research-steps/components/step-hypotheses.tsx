@@ -59,12 +59,8 @@ function StepTwoHeader({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 className="text-lg font-semibold text-ink-primary">
-          Step 2 · 可证伪核心假设（{count} 条）
-        </h2>
-        <p className="mt-0.5 text-sm text-ink-secondary">
-          默认聚焦 3 条核心前提，多引擎巨头最多可扩展至 5 条，并用红队空头视角压力测试
-        </p>
+        <h2 className="text-lg font-semibold text-ink-primary">Step 2 · 核心假设（{count} 条）</h2>
+        <p className="mt-0.5 text-xs text-ink-muted">聚焦 3–5 条可证伪前提，支持红队压力测试</p>
       </div>
       <Button variant="coral" size="md" disabled={loading} onClick={onRun}>
         <IconFlame size={15} stroke={1.5} />

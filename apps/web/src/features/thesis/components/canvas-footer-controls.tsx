@@ -69,7 +69,7 @@ function DeleteThesisDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`永久删除 ${ticker} 研究档案？`}
-      subtitle="删除后该标的的商业滤镜、核心假设、估值模型与交易纪律记录将从数据库中彻底清除"
+      subtitle="删除后该标的的滤镜、假设、估值与纪律记录将被彻底清除"
       icon={<IconAlertTriangle size={18} stroke={1.5} />}
       footer={
         <>
@@ -156,7 +156,7 @@ function UnsavedChangesDialog(props: {
         if (!open) void props.onResolve("cancel");
       }}
       title="当前步骤有未保存修改"
-      subtitle="草稿已自动暂存本地，建议落库后再切换，避免研究思考中断"
+      subtitle="草稿已暂存本地，建议保存后再切换"
       icon={<IconAlertTriangle size={18} stroke={1.5} />}
       footer={
         <>
@@ -178,8 +178,7 @@ function UnsavedChangesDialog(props: {
       }
     >
       <p className="text-sm leading-relaxed text-ink-secondary">
-        你可以直接点击「保存并切换」同步写入 PostgreSQL 并跳转，或按{" "}
-        <kbd className="font-mono">⌘S</kbd> 随时快速落库。
+        你可以点击「保存并切换」同步保存后跳转，或按 <kbd className="font-mono">⌘S</kbd> 快速保存。
       </p>
     </DialogModal>
   );

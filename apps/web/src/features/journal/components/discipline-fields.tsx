@@ -129,7 +129,7 @@ function SignatureButtons(props: {
         </Button>
       ) : null}
       <Button variant="primary" size="sm" disabled={props.disabled} onClick={props.onSave}>
-        <span>{props.submitting ? "正在落库..." : "签字入账"}</span>
+        <span>{props.submitting ? "保存中..." : "签字入账"}</span>
       </Button>
     </div>
   );
