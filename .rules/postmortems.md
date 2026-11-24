@@ -93,6 +93,26 @@
 - **Correct Pattern**: Enforce `<= 12` source files across all workspace source subdirectories, run versioned expand-only migrations (`packages/core/src/db/migrations/`) with destructive-SQL scanning, discover all Drizzle `pgTable` schemas dynamically via `is(entry, PgTable)` in `repository.test.ts`, route all client JSON/SSE through `kanonFetch` / Zod `safeParse`, propagate structured `fallbackReason` instead of empty catches, and verify `AGENTS.md` links/commands mechanically.
 - **Why / Gate**: Mechanically enforced by `universal-max-directory-files`, `no-unchecked-json-cast`, `no-silent-catch`, `expand-only-migrations`, `no-client-runtime-ai-import`, and `docs-entry-parity` in `scripts/garden-guards.mjs` + dynamic DDL parity in `packages/core/src/db/repository.test.ts`.
 
+### [2026-11-24] Brand Site & Motion Craft Standards (Zero Blue Focus Rings, Zero Orphan Wraps, Zero Hover Jitter, Zero Cheap Polka-Dot Particles, Zero Meta-Tech Copy)
+
+- **Mistake**:
+  1. Leaving browser-default `:focus` blue outlines visible on mouse clicks across switches and accordion buttons.
+  2. Using `flex` key-value spec rows without `white-space: nowrap` on short Chinese labels, causing mid-word wraps (`终端形/态`, `底层引/擎`) and single-character orphan tails (`报`, `权杠杆。`).
+  3. Rendering giant display numerals (`0.00×`, `$211`) in `JetBrains Mono` with dotted zeros instead of clean open tabular Swiss numerals, or setting tight `overflow: hidden` clips that slice italic `p` descenders.
+  4. Combining CSS `:hover { transform }` transitions with JS `pointermove` translation on buttons, causing cheap boundary jitter on hover.
+  5. Floating scattered circular dot particles over luxury photography and using generic scale-zoom on every photo instead of architectural light-slit/refraction choreography.
+  6. Breaking the fourth wall in customer-facing brand copy (`15 秒纯代码生成 · 60fps`), auto-collapsing open accordion cards when clicking siblings, or placing mismatched thin Songti Chinese side-by-side with tall narrow English serif on film end cards.
+- **Correct Pattern**:
+  1. Suppress default mouse-click focus outlines (`:focus { outline: none; }`) and style keyboard accessibility exclusively via `:focus-visible { outline: 1.5px solid var(--coral); outline-offset: 3px; }`.
+  2. Structure key-value spec rows with fixed-width CSS Grid (`grid-template-columns: 76px minmax(0, 1fr)`) and `white-space: nowrap` on labels, keeping single-sentence captions clean on one line on desktop.
+  3. Render oversized KPIs & lock readouts in clean geometric sans (`font-feature-settings: "tnum" 1, "zero" 0`) and reserve generous descender padding (`padding-bottom >= 0.2em`) inside animated clip masks.
+  4. Never fight CSS hover transforms with JS pointer translation on buttons—use smooth CSS specular light-sheen sweeps and clean state transitions.
+  5. Favor brand-authentic acoustic/architectural motion (pluckable harmonic Canon strings, vertical shutter slits, optical refraction sweeps, mechanical shackle lock-shut physics + subtle Web Audio tactile foley with mute toggle).
+  6. Keep copy 100% customer-facing (`观看宣传视频`, zero implementation meta-jargon), keep expanded detail drawers independently open until toggled closed, and lock up bilingual film end cards vertically (`KanonMark` → `KANON` → `— 卡 农 —` in clean modern Chinese sans → italic tagline).
+  7. Never wrap a 16×16 browser favicon in a heavy solid-black rounded square or squash its aspect ratio—use a transparent, adaptive SVG monogram (`@media (prefers-color-scheme: dark)`).
+  8. Prefer liquid volumetric architectural light flow over generic wavy ribbon/sine-line backgrounds, and open prestige brand films in poised stillness rather than frantic static or jittery visual noise.
+- **Why / Gate**: Prevents "AI-template" visual drift across marketing surfaces, motion films, and interactive demos. Permanent rule in `.rules/postmortems.md` + mandatory multi-viewport visual QA before delivery.
+
 ### [2026-11-24] Always Guard HeroUI Modal Opacity, Drawer Widths & Consistent NumberFlow Rounding
 
 - **Mistake**: Relying solely on HeroUI's default 250ms `heroui-overlay-enter-105` animation (`opacity: 0 -> 1`) on `DialogModal` caused background content to bleed through during modal entry; fixed `500px` `Sheet` width caused horizontal overflow on multi-ticker comparison tables; mixing JS `.toFixed(1)` with `RollingNumber` (`Intl.NumberFormat`) caused a `$0.1` discrepancy on IEEE-754 half-way floats like `130.45`.

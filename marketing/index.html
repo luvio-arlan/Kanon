@@ -1,0 +1,2423 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KANON · 卡农 — Conviction, composed.</title>
+  <meta name="description" content="KANON（卡农）— 面向严肃个人价值投资者与买方投研机构的投资逻辑操作系统。在噪音里，谱出自己的确定性。kanon.hk · By Caius Lu." />
+  <meta name="author" content="Caius Lu" />
+  <link rel="canonical" href="https://kanon.hk" />
+  <meta property="og:title" content="KANON · 卡农 — Conviction, composed." />
+  <meta property="og:description" content="在噪音里，谱出自己的确定性。面向严肃个人价值投资者与买方投研机构的投资逻辑操作系统。" />
+  <meta property="og:url" content="https://kanon.hk" />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <!-- Featherlight transparent adaptive architectural monogram favicon (zero heavy black box!) -->
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+
+  <style>
+    /* ==========================================================================
+       KANON V3 — SWISS ARCHITECTURAL MONOGRAPH & PROGRESSIVE DISCLOSURE
+       ========================================================================== */
+    :root,
+    [data-theme="dark"] {
+      --bg: #07080a;
+      --bg-2: #0e1014;
+      --bg-drawer: #0c0e12;
+      --surface: #14161c;
+      --ink: #f3f1eb;
+      --ink-2: #989aa3;
+      --ink-3: #5d606a;
+      --ink-inv: #07080a;
+      --titanium: #e5e3dd;
+      --hairline: rgba(229, 227, 221, 0.10);
+      --hairline-2: rgba(229, 227, 221, 0.22);
+      --coral: #ea6b4a;
+      --coral-soft: rgba(234, 107, 74, 0.14);
+      --emerald: #34d399;
+      --scrim-x: linear-gradient(96deg, #07080a 0%, rgba(7, 8, 10, 0.88) 42%, rgba(7, 8, 10, 0.28) 76%, rgba(7, 8, 10, 0.56) 100%);
+      --scrim-y: linear-gradient(180deg, rgba(7, 8, 10, 0.35) 0%, transparent 22%, transparent 60%, #07080a 95%, #07080a 100%);
+      --glass: rgba(7, 8, 10, 0.72);
+      --switch-track: #12141a;
+      --switch-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.65);
+      color-scheme: dark;
+    }
+
+    [data-theme="light"] {
+      --bg: #f6f5f1;
+      --bg-2: #ffffff;
+      --bg-drawer: #efede7;
+      --surface: #e8e5dd;
+      --ink: #111113;
+      --ink-2: #575a64;
+      --ink-3: #8c909b;
+      --ink-inv: #f6f5f1;
+      --titanium: #2a2926;
+      --hairline: rgba(17, 17, 19, 0.09);
+      --hairline-2: rgba(17, 17, 19, 0.20);
+      --coral: #d95a38;
+      --coral-soft: rgba(217, 90, 56, 0.11);
+      --emerald: #059669;
+      --scrim-x: linear-gradient(96deg, #f6f5f1 0%, rgba(246, 245, 241, 0.94) 48%, rgba(246, 245, 241, 0.52) 78%, rgba(246, 245, 241, 0.72) 100%);
+      --scrim-y: linear-gradient(180deg, rgba(246, 245, 241, 0.42) 0%, transparent 20%, transparent 52%, #f6f5f1 90%, #f6f5f1 100%);
+      --glass: rgba(246, 245, 241, 0.78);
+      --switch-track: #e6e3da;
+      --switch-shadow: inset 0 2px 6px rgba(17, 17, 19, 0.12);
+      color-scheme: light;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      font-family: "Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.65;
+      overflow-x: hidden;
+      transition: background-color 480ms cubic-bezier(0.22, 1, 0.36, 1), color 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .serif { font-family: "Instrument Serif", "Noto Serif SC", Georgia, serif; }
+    .mono {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "zero" 0, "tnum" 1;
+    }
+    /* Clean Swiss architectural numerals (zero-dot, optical tabular) */
+    .num {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1, "cv05" 1, "zero" 0;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+    img, video { display: block; max-width: 100%; }
+
+    /* Zero default Chrome blue focus rings on mouse click; crisp warm coral ring only on keyboard Tab */
+    :focus { outline: none; }
+    :focus-visible {
+      outline: 1.5px solid var(--coral);
+      outline-offset: 3px;
+    }
+
+    .grain {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 90;
+      opacity: 0.026;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 220px 220px;
+    }
+
+    .progress-line {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 1.5px;
+      width: 0%;
+      background: var(--coral);
+      z-index: 120;
+      pointer-events: none;
+    }
+
+    /* ========================================================================
+       SHARED ARCHITECTURAL GRID CONTAINER
+       ======================================================================== */
+    .wrap {
+      width: 100%;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 clamp(24px, 5vw, 64px);
+    }
+    section[id] { scroll-margin-top: 84px; }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 860ms cubic-bezier(0.22, 1, 0.36, 1), transform 860ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .reveal.in { opacity: 1; transform: translateY(0); }
+
+    /* ========================================================================
+       HEADER — RAZOR-ALIGNED TO THE SAME 1240PX RAIL
+       ======================================================================== */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 24px 0;
+      border-bottom: 1px solid transparent;
+      transition: background-color 320ms ease, padding 320ms ease, border-color 320ms ease;
+    }
+    header.scrolled {
+      padding: 15px 0;
+      background: var(--glass);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border-bottom-color: var(--hairline);
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.24em;
+    }
+    nav {
+      display: flex;
+      align-items: center;
+      gap: clamp(22px, 3vw, 40px);
+      font-size: 13.5px;
+      color: var(--ink-2);
+    }
+    nav a { transition: color 200ms ease; }
+    nav a:hover { color: var(--ink); }
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .theme-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid var(--hairline-2);
+      display: grid;
+      place-items: center;
+      color: var(--ink-2);
+      transition: border-color 200ms ease, color 200ms ease, transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .theme-btn:hover { color: var(--ink); border-color: var(--ink); transform: rotate(180deg); }
+    .nav-cta {
+      font-size: 13px;
+      height: 34px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 1px solid var(--hairline-2);
+      display: inline-flex;
+      align-items: center;
+      transition: all 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .nav-cta:hover {
+      background: var(--ink);
+      color: var(--ink-inv);
+      border-color: var(--ink);
+    }
+
+    /* ========================================================================
+       ACT 00: MONUMENTAL HERO (SEAMLESS LIGHT/DARK DISSOLVE & ZERO CLIPPING)
+       ======================================================================== */
+    .hero {
+      position: relative;
+      min-height: 100svh;
+      display: flex;
+      align-items: flex-end;
+      padding: 140px 0 clamp(72px, 10vh, 120px);
+      overflow: hidden;
+    }
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+    .hero-bg img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: 68% center;
+      opacity: 0.78;
+      transform: scale(1.04);
+      transition: transform 1100ms cubic-bezier(0.22, 1, 0.36, 1), opacity 400ms ease;
+    }
+    [data-theme="light"] .hero-bg img {
+      opacity: 0.22;
+      filter: contrast(1.04) brightness(1.10) saturate(0.88);
+    }
+    .hero-bg::before,
+    .hero-bg::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .hero-bg::before { background: var(--scrim-x); }
+    .hero-bg::after { background: var(--scrim-y); }
+
+    #silkCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 3;
+      max-width: 780px;
+    }
+    .hero-title {
+      font-size: clamp(4.2rem, 10vw, 9.4rem);
+      line-height: 0.92;
+      letter-spacing: -0.042em;
+      font-weight: 400;
+    }
+    /* Generous descender buffer prevents italic 'p' clipping at any font scale */
+    .hero-title .clip {
+      display: block;
+      overflow: hidden;
+      padding: 0.04em 0.06em 0.22em 0;
+      margin-bottom: -0.18em;
+    }
+    .hero-title .slide {
+      display: block;
+      transform: translateY(112%);
+      animation: heroRise 1020ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .hero-title .clip:nth-child(2) .slide { animation-delay: 140ms; }
+    @keyframes heroRise { to { transform: translateY(0); } }
+    .hero-title em {
+      font-style: italic;
+      background: linear-gradient(125deg, var(--ink) 18%, var(--titanium) 60%, var(--coral) 132%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero-title .dot {
+      color: var(--coral);
+      -webkit-text-fill-color: var(--coral);
+    }
+
+    .hero-cn {
+      margin-top: 40px;
+      font-size: clamp(1.25rem, 2.1vw, 1.7rem);
+      font-weight: 300;
+      letter-spacing: 0.06em;
+      color: var(--ink);
+      opacity: 0;
+      animation: fadeUp 900ms 360ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .hero-sub {
+      margin-top: 12px;
+      font-size: 15px;
+      color: var(--ink-2);
+      font-weight: 300;
+      max-width: 480px;
+      opacity: 0;
+      animation: fadeUp 900ms 440ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .hero-actions {
+      margin-top: 38px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      opacity: 0;
+      animation: fadeUp 900ms 540ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .btn-hero-primary {
+      position: relative;
+      overflow: hidden;
+      height: 46px;
+      padding: 0 24px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--ink-inv);
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: background-color 260ms ease, color 260ms ease, box-shadow 260ms ease;
+    }
+    .btn-hero-primary::after,
+    .btn-hero-secondary::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.22) 50%, transparent 80%);
+      transform: translateX(-120%);
+      transition: transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+      pointer-events: none;
+    }
+    .btn-hero-primary:hover {
+      background: var(--coral);
+      color: #ffffff;
+      box-shadow: 0 12px 32px -12px rgba(234, 107, 74, 0.55);
+    }
+    .btn-hero-primary:hover::after,
+    .btn-hero-secondary:hover::after {
+      transform: translateX(120%);
+    }
+    .btn-hero-primary:active,
+    .btn-hero-secondary:active {
+      transform: scale(0.98);
+    }
+    .btn-hero-secondary {
+      position: relative;
+      overflow: hidden;
+      height: 46px;
+      padding: 0 22px;
+      border-radius: 999px;
+      border: 1px solid var(--hairline-2);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 400;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: border-color 240ms ease, color 240ms ease, background-color 240ms ease;
+    }
+    .btn-hero-secondary:hover {
+      border-color: var(--coral);
+      color: var(--coral);
+      background: var(--coral-soft);
+    }
+
+    /* ========================================================================
+       ACT 01: KINETIC MANIFESTO + SCROLL-SCRUBBED APERTURE SANCTUARY
+       ======================================================================== */
+    .statement-section {
+      padding: clamp(120px, 16vh, 210px) 0 clamp(88px, 12vh, 148px);
+    }
+    .statement-lines {
+      max-width: 960px;
+      font-size: clamp(2rem, 4.4vw, 3.9rem);
+      line-height: 1.40;
+      letter-spacing: -0.025em;
+      font-weight: 400;
+    }
+    .st-line {
+      display: block;
+      color: var(--ink-3);
+      opacity: 0.24;
+      transform: translateY(10px);
+      transition: color 640ms ease, opacity 640ms ease, transform 680ms cubic-bezier(0.22, 1, 0.36, 1);
+      margin-bottom: 0.20em;
+    }
+    .st-line.lit { color: var(--ink); opacity: 1; transform: translateY(0); }
+    .st-line.lit .accent { color: var(--coral); }
+
+    /* Multi-Dimensional Editorial Image Choreography (Architectural Shutter Slit + Optical Sweep) */
+    .aperture-wrap {
+      width: 100%;
+      overflow: hidden;
+    }
+    .fullbleed-photo {
+      position: relative;
+      width: 100%;
+      height: clamp(440px, 72vh, 780px);
+      overflow: hidden;
+      clip-path: inset(0 var(--shutter-x, 7%) 0 var(--shutter-x, 7%) round var(--shutter-r, 14px));
+      will-change: clip-path;
+    }
+    .fullbleed-photo img {
+      width: 100%;
+      height: 116%;
+      object-fit: cover;
+      transform: translateY(var(--img-py, -6%));
+      will-change: transform;
+    }
+    .fullbleed-photo::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 54%, rgba(7, 8, 10, 0.80) 100%);
+      pointer-events: none;
+    }
+    .photo-caption-bar {
+      position: absolute;
+      inset: auto 0 0 0;
+      z-index: 2;
+      padding-bottom: clamp(24px, 3.5vw, 44px);
+      transform: translateY(var(--cap-py, 0px));
+      will-change: transform;
+    }
+    .photo-caption-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 13.5px;
+      letter-spacing: 0.08em;
+      color: rgba(243, 241, 235, 0.90);
+    }
+
+    /* ========================================================================
+       ACT 02: CORE WORKBENCH (SLIDING CORAL INDICATOR + CLEAN SWISS NUMERALS)
+       ======================================================================== */
+    .instrument-section {
+      padding: clamp(112px, 15vh, 188px) 0;
+    }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 28px;
+      flex-wrap: wrap;
+      margin-bottom: clamp(44px, 6vh, 68px);
+    }
+    .display-h2 {
+      font-size: clamp(2.7rem, 5.6vw, 5.1rem);
+      line-height: 0.98;
+      letter-spacing: -0.035em;
+      font-weight: 400;
+    }
+    .display-h2 em { font-style: italic; color: var(--titanium); }
+    .head-note {
+      font-size: 15.5px;
+      color: var(--ink-2);
+      font-weight: 300;
+      text-align: right;
+    }
+
+    /* Tab bar with precision sliding coral indicator (zero orphaned borders) */
+    .inst-bar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 1px solid var(--hairline);
+      flex-wrap: wrap;
+    }
+    .inst-tabs {
+      position: relative;
+      display: flex;
+      gap: clamp(20px, 3.5vw, 44px);
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+    }
+    .inst-tabs::-webkit-scrollbar { display: none; }
+    .inst-tab {
+      padding: 0 0 18px;
+      font-size: 15px;
+      color: var(--ink-3);
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+      transition: color 220ms ease;
+    }
+    .inst-tab .t-num {
+      font-size: 12px;
+      opacity: 0.65;
+    }
+    .inst-tab:hover { color: var(--ink-2); }
+    .inst-tab.active { color: var(--ink); }
+    .inst-tab.active .t-num { color: var(--coral); opacity: 1; }
+    .tab-ink-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 1.5px;
+      width: 0;
+      background: var(--coral);
+      transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1), width 360ms cubic-bezier(0.22, 1, 0.36, 1);
+      pointer-events: none;
+    }
+
+    .ticker-switch {
+      display: inline-flex;
+      gap: 6px;
+      padding-bottom: 14px;
+    }
+    .ticker-opt {
+      font-size: 12.5px;
+      letter-spacing: 0.10em;
+      padding: 4px 11px;
+      border-radius: 999px;
+      color: var(--ink-3);
+      border: 1px solid transparent;
+      transition: all 200ms ease;
+    }
+    .ticker-opt:hover { color: var(--ink-2); }
+    .ticker-opt.active {
+      color: var(--coral);
+      border-color: rgba(234, 107, 74, 0.36);
+      background: var(--coral-soft);
+    }
+
+    .inst-stage {
+      padding: clamp(48px, 6.5vh, 80px) 0;
+      border-bottom: 1px solid var(--hairline);
+      min-height: 460px;
+      display: flex;
+      align-items: center;
+    }
+    .inst-panel {
+      display: none;
+      width: 100%;
+      animation: panelGlide 380ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .inst-panel.active { display: block; }
+    @keyframes panelGlide {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Tab 03: Valuation Dial & 5x5 Light Matrix */
+    .val-sculpture {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: clamp(36px, 6vw, 96px);
+      align-items: center;
+    }
+    .val-eyebrow {
+      font-size: 13px;
+      color: var(--ink-3);
+      margin-bottom: 10px;
+      letter-spacing: 0.04em;
+    }
+    .giant-price {
+      font-size: clamp(4.2rem, 7.6vw, 7rem);
+      line-height: 0.95;
+      letter-spacing: -0.045em;
+      font-weight: 300;
+    }
+    .odds-line {
+      margin-top: 18px;
+      display: flex;
+      align-items: baseline;
+      gap: 28px;
+      flex-wrap: wrap;
+      font-size: 15px;
+      color: var(--ink-2);
+    }
+    .odds-num {
+      font-size: 32px;
+      color: var(--coral);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+
+    .dial-sliders {
+      margin-top: 42px;
+      display: grid;
+      gap: 26px;
+      max-width: 400px;
+    }
+    .dial-row-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 14px;
+      color: var(--ink-2);
+      margin-bottom: 12px;
+    }
+    .dial-row-head strong { color: var(--ink); font-weight: 500; }
+    input[type="range"].hair-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--hairline-2);
+      outline: none;
+    }
+    input[type="range"].hair-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 2px solid var(--coral);
+      cursor: pointer;
+      transition: transform 160ms ease, background-color 160ms ease;
+    }
+    input[type="range"].hair-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+      background: var(--coral);
+    }
+
+    .matrix-tilt-shell {
+      perspective: 1100px;
+    }
+    .light-matrix {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--hairline);
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.025), transparent 60%);
+      transform-style: preserve-3d;
+      transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), border-color 240ms ease;
+      overflow: hidden;
+    }
+    .light-matrix::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgba(234, 107, 74, 0.14), transparent 62%);
+      opacity: 0;
+      transition: opacity 280ms ease;
+      pointer-events: none;
+    }
+    .light-matrix:hover { border-color: var(--hairline-2); }
+    .light-matrix:hover::before { opacity: 1; }
+    .lm-cell {
+      aspect-ratio: 1.15;
+      border-radius: 12px;
+      border: 1px solid var(--hairline);
+      display: grid;
+      place-items: center;
+      font-size: clamp(14px, 1.5vw, 18.5px);
+      font-weight: 400;
+      color: var(--ink-2);
+      transition: background-color 260ms ease, border-color 260ms ease, color 260ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .lm-cell:hover:not(.center) {
+      border-color: var(--hairline-2);
+      color: var(--ink);
+      transform: translateZ(10px) scale(1.03);
+    }
+    .lm-cell.center {
+      background: linear-gradient(145deg, #f28162, var(--coral));
+      border-color: var(--coral);
+      color: #ffffff;
+      font-weight: 500;
+      box-shadow: 0 20px 52px -10px rgba(234, 107, 74, 0.58);
+      transform: translateZ(18px) scale(1.05);
+    }
+
+    /* Tab 01: Variant Perception + Live Dual-Trajectory Chart */
+    .vp-spread {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(32px, 6vw, 96px);
+      align-items: start;
+    }
+    .vp-col .vp-tag {
+      display: block;
+      font-size: 13px;
+      letter-spacing: 0.14em;
+      color: var(--ink-3);
+      margin-bottom: 18px;
+    }
+    .vp-col p {
+      font-size: clamp(1.45rem, 2.5vw, 2.15rem);
+      line-height: 1.45;
+      font-weight: 300;
+      color: var(--ink-2);
+    }
+    .vp-col.ours .vp-tag { color: var(--coral); }
+    .vp-col.ours p { color: var(--ink); }
+    .vp-chart-wrap {
+      margin-top: 40px;
+      padding-top: 26px;
+      border-top: 1px solid var(--hairline);
+    }
+    .vp-curve-draw {
+      stroke-dasharray: 980;
+      stroke-dashoffset: 980;
+      animation: drawCurve 1.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes drawCurve { to { stroke-dashoffset: 0; } }
+    .vp-beacon {
+      animation: beaconPulse 2.4s ease-in-out infinite;
+      transform-origin: center;
+    }
+    @keyframes beaconPulse {
+      0%, 100% { opacity: 0.25; transform: scale(1); }
+      50% { opacity: 0.72; transform: scale(1.55); }
+    }
+
+    /* Tab 02: Red Team */
+    .red-list { display: grid; }
+    .red-row {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--hairline);
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      align-items: baseline;
+      gap: 16px;
+    }
+    .red-row:last-child { border-bottom: none; }
+    .red-row span { color: var(--coral); font-size: 13.5px; }
+    .red-row p { font-size: clamp(1.12rem, 1.9vw, 1.55rem); font-weight: 300; line-height: 1.55; }
+
+    /* Tab 04: Tactile Hardware Zero-Leverage Switch + Rotating Horological Rings */
+    .lock-sanctuary {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 28px 0;
+      gap: 24px;
+      overflow: hidden;
+    }
+    .vault-rings-svg {
+      position: absolute;
+      width: 390px;
+      height: 390px;
+      pointer-events: none;
+      opacity: 0.42;
+      transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease;
+    }
+    .vault-ring-cw {
+      transform-origin: 200px 200px;
+      animation: spinCW 34s linear infinite;
+    }
+    .vault-ring-ccw {
+      transform-origin: 200px 200px;
+      animation: spinCCW 26s linear infinite;
+    }
+    @keyframes spinCW { to { transform: rotate(360deg); } }
+    @keyframes spinCCW { to { transform: rotate(-360deg); } }
+    .vault-rings-svg.recoil {
+      opacity: 0.85;
+      transform: scale(1.06) rotate(8deg);
+    }
+    .mech-wrap {
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
+    .mech-pulse {
+      position: absolute;
+      inset: -14px;
+      border-radius: 999px;
+      border: 1.5px solid var(--coral);
+      opacity: 0;
+      transform: scale(0.92);
+      pointer-events: none;
+    }
+    .mech-pulse.fire {
+      animation: lockRing 560ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes lockRing {
+      0% { opacity: 0.8; transform: scale(0.96); }
+      100% { opacity: 0; transform: scale(1.24); }
+    }
+    .mech-switch {
+      width: 172px;
+      height: 76px;
+      border-radius: 999px;
+      border: 1px solid var(--hairline-2);
+      background: var(--switch-track);
+      box-shadow: var(--switch-shadow);
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      transition: border-color 220ms ease;
+    }
+    .mech-switch:hover { border-color: var(--ink-2); }
+    .mech-knob {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, var(--ink), var(--titanium));
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.38);
+      display: grid;
+      place-items: center;
+      color: var(--ink-inv);
+      z-index: 2;
+      transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .mech-track-lbl {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      color: var(--ink-3);
+      padding-right: 18px;
+      user-select: none;
+    }
+    .mech-switch.resist {
+      border-color: var(--coral);
+    }
+    .mech-switch.resist .mech-knob {
+      transform: translateX(30px);
+    }
+    .shackle-path {
+      transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+      transform-origin: center;
+    }
+    .mech-switch.resist .shackle-path {
+      transform: translateY(-3.2px);
+    }
+    .mech-switch.snapped .mech-knob {
+      animation: knobSnap 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes knobSnap {
+      0% { transform: translateX(0) scale(1); }
+      35% { transform: translateX(-3px) scale(0.95); }
+      100% { transform: translateX(0) scale(1); }
+    }
+    .lock-val {
+      font-size: clamp(3.4rem, 6.4vw, 5.4rem);
+      line-height: 1;
+      font-weight: 300;
+      letter-spacing: -0.04em;
+    }
+    .lock-val span { color: var(--coral); font-weight: 300; }
+    .lock-caption {
+      font-size: 15px;
+      color: var(--ink-2);
+      white-space: nowrap;
+      transition: color 240ms ease;
+    }
+
+    /* ========================================================================
+       ACT 03 & ACT 04: RAZOR-ALIGNED EXPANDABLE ARCHITECTURAL INDEXES
+       ======================================================================== */
+    .prism-hero {
+      position: relative;
+      width: 100%;
+      height: clamp(380px, 60vh, 640px);
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+      padding: clamp(36px, 5vw, 68px) 0;
+    }
+    .prism-hero img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 114%;
+      object-fit: cover;
+      opacity: 0.88;
+      transform: translateY(var(--prism-py, -4%));
+      will-change: transform;
+    }
+    .prism-light-sweep {
+      position: absolute;
+      inset: -20%;
+      background: linear-gradient(112deg, transparent 36%, rgba(234, 107, 74, 0.14) 48%, rgba(255, 255, 255, 0.14) 51%, transparent 64%);
+      transform: translateX(var(--prism-beam, -30%));
+      pointer-events: none;
+      z-index: 1;
+      will-change: transform;
+    }
+    .prism-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(7, 8, 10, 0.16) 0%, rgba(7, 8, 10, 0.86) 100%);
+    }
+    .prism-hero .wrap {
+      position: relative;
+      z-index: 2;
+      color: #f3f1eb;
+    }
+    .prism-hero .display-h2 {
+      padding-bottom: 0.08em;
+    }
+    .prism-hero .display-h2 em {
+      color: #e5e3dd;
+    }
+    .split-l { display: inline-block; transform: translateX(var(--split-l, 0px)); will-change: transform; }
+    .split-r { display: inline-block; transform: translateX(var(--split-r, 0px)); will-change: transform; }
+
+    .accordion-section {
+      padding: clamp(68px, 9vh, 112px) 0 clamp(104px, 14vh, 160px);
+    }
+    .horizon-section {
+      padding: clamp(104px, 14vh, 168px) 0;
+      border-top: 1px solid var(--hairline);
+    }
+    .acc-list {
+      border-top: 1px solid var(--hairline);
+    }
+    .acc-item {
+      border-bottom: 1px solid var(--hairline);
+      position: relative;
+      overflow: hidden;
+      transition: background-color 280ms ease, border-color 280ms ease;
+    }
+    .acc-item::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(460px circle at var(--mx, 50%) var(--my, 50%), rgba(234, 107, 74, 0.08), transparent 62%);
+      opacity: 0;
+      transition: opacity 260ms ease;
+      pointer-events: none;
+    }
+    .acc-item:hover::after { opacity: 1; }
+    .acc-item::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--coral);
+      transform: scaleY(0);
+      transform-origin: top;
+      transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .acc-item.open {
+      background: var(--bg-drawer);
+      border-bottom-color: var(--hairline-2);
+    }
+    .acc-item.open::before {
+      transform: scaleY(1);
+    }
+
+    /* Strict, unchanging column geometry: zero wobble, razor vertical alignment */
+    .acc-trigger {
+      width: 100%;
+      text-align: left;
+      padding: clamp(24px, 3.2vh, 34px) 18px clamp(24px, 3.2vh, 34px) 20px;
+      display: grid;
+      grid-template-columns: 72px minmax(180px, 280px) 1fr 32px;
+      align-items: center;
+      gap: 24px;
+    }
+    .acc-idx {
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      color: var(--ink-3);
+      transition: color 240ms ease;
+    }
+    .acc-item:hover .acc-idx,
+    .acc-item.open .acc-idx {
+      color: var(--coral);
+    }
+    .acc-title {
+      font-size: clamp(1.22rem, 2vw, 1.68rem);
+      font-weight: 400;
+      letter-spacing: -0.015em;
+      color: var(--ink);
+    }
+    .acc-summary {
+      font-size: 15px;
+      color: var(--ink-2);
+      font-weight: 300;
+      text-align: left;
+    }
+    .acc-plus {
+      width: 28px;
+      height: 28px;
+      justify-self: end;
+      display: grid;
+      place-items: center;
+      color: var(--ink-3);
+      transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1), color 220ms ease;
+    }
+    .acc-item:hover .acc-plus { color: var(--ink); }
+    .acc-item.open .acc-plus {
+      transform: rotate(45deg);
+      color: var(--coral);
+    }
+
+    /* Silky CSS Grid height animation (0fr -> 1fr) */
+    .acc-body {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 440ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .acc-item.open .acc-body {
+      grid-template-rows: 1fr;
+    }
+    .acc-inner {
+      overflow: hidden;
+    }
+    .acc-content {
+      margin: 0 28px 34px 116px;
+      padding-top: 24px;
+      border-top: 1px solid var(--hairline);
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 36px;
+      align-items: start;
+      opacity: 0;
+      transform: translateY(-6px);
+      transition: opacity 380ms 80ms ease, transform 420ms 60ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .acc-item.open .acc-content {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .acc-prose {
+      font-size: 14.5px;
+      line-height: 1.88;
+      color: var(--ink-2);
+      font-weight: 300;
+    }
+    .acc-spec-box {
+      padding: 20px 22px;
+      border-radius: 12px;
+      border: 1px solid var(--hairline);
+      background: var(--bg);
+      display: grid;
+      gap: 12px;
+    }
+    .acc-spec-line {
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr);
+      align-items: baseline;
+      gap: 16px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--ink-3);
+    }
+    .acc-spec-line span {
+      white-space: nowrap;
+    }
+    .acc-spec-line strong {
+      color: var(--ink);
+      font-weight: 500;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .acc-spec-line strong.coral { color: var(--coral); }
+    .acc-spec-line strong.emerald { color: var(--emerald); }
+
+    /* ========================================================================
+       ACT 05: BRAND FILM THEATER (ZERO META-TECH COPY)
+       ======================================================================== */
+    .film-section {
+      padding: clamp(88px, 12vh, 152px) 0;
+      border-top: 1px solid var(--hairline);
+    }
+    .cinema-box {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #050608;
+      border: 1px solid var(--hairline);
+      cursor: pointer;
+    }
+    .cinema-box video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .cinema-veil {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      background: rgba(5, 6, 8, 0.34);
+      transition: opacity 320ms ease;
+    }
+    .cinema-veil.hidden { opacity: 0; pointer-events: none; }
+    .cinema-play {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      border: 1px solid rgba(243, 241, 235, 0.45);
+      background: rgba(7, 8, 10, 0.56);
+      backdrop-filter: blur(14px);
+      display: grid;
+      place-items: center;
+      color: #f3f1eb;
+      transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), border-color 260ms ease;
+    }
+    .cinema-box:hover .cinema-play {
+      transform: scale(1.08);
+      border-color: var(--coral);
+    }
+    .cinema-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--ink-3);
+    }
+
+    /* ========================================================================
+       ACT 06: MONUMENTAL CLOSING & AUTHOR COLOPHON
+       ======================================================================== */
+    .closing {
+      padding: clamp(120px, 17vh, 200px) 0 0;
+      border-top: 1px solid var(--hairline);
+      text-align: center;
+      overflow: hidden;
+    }
+    .closing h2 {
+      font-size: clamp(3rem, 7vw, 6.6rem);
+      line-height: 0.98;
+      letter-spacing: -0.04em;
+      font-weight: 400;
+    }
+    .closing h2 em { font-style: italic; color: var(--titanium); }
+    .closing-cta-wrap {
+      margin-top: 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .colophon {
+      margin-top: clamp(72px, 11vh, 124px);
+      padding: 26px 0 8px;
+      border-top: 1px solid var(--hairline);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+    .colophon .mail { color: var(--coral); transition: opacity 200ms ease; }
+    .colophon .mail:hover { opacity: 0.78; }
+
+    .bleed-kanon {
+      font-size: clamp(6rem, 22vw, 23rem);
+      line-height: 0.80;
+      letter-spacing: -0.055em;
+      user-select: none;
+      background: linear-gradient(180deg, var(--ink) 0%, rgba(229, 227, 221, 0.08) 95%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      transform: translateY(14%);
+      margin-top: 12px;
+    }
+
+    /* Private Access Modal & Toast */
+    .scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 160;
+      background: rgba(5, 6, 8, 0.72);
+      backdrop-filter: blur(12px);
+      display: none;
+      place-items: center;
+      padding: 24px;
+    }
+    .scrim.open { display: grid; }
+    .modal-box {
+      width: 100%;
+      max-width: 460px;
+      padding: 36px;
+      border-radius: 18px;
+      background: var(--bg-2);
+      border: 1px solid var(--hairline-2);
+    }
+    .modal-box h3 { font-size: 32px; font-weight: 400; margin-bottom: 10px; }
+    .modal-box p { font-size: 14.5px; color: var(--ink-2); margin-bottom: 24px; }
+    .m-input {
+      width: 100%;
+      padding: 13px 0;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--hairline-2);
+      color: var(--ink);
+      font-size: 15px;
+      margin-bottom: 20px;
+      outline: none;
+    }
+    .m-input:focus { border-bottom-color: var(--coral); }
+
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      z-index: 180;
+      padding: 12px 20px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--ink-inv);
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(14px);
+      pointer-events: none;
+      transition: all 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 960px) {
+      nav { display: none; }
+      .val-sculpture, .vp-spread { grid-template-columns: 1fr; }
+      .acc-trigger { grid-template-columns: 52px 1fr 28px; gap: 14px; padding-left: 14px; padding-right: 12px; }
+      .acc-summary { grid-column: 2; margin-top: 4px; }
+      .acc-content { grid-template-columns: 1fr; margin: 0 18px 28px 80px; gap: 20px; }
+      .head-note { text-align: left; }
+      .lock-caption { white-space: normal; }
+    }
+    @media (max-width: 560px) {
+      .inst-tabs { gap: 16px; }
+      .inst-tab { font-size: 13.5px; }
+      .acc-content { margin: 0 16px 24px 16px; }
+      .acc-spec-line strong { white-space: normal; text-align: left; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="progress-line" id="progressLine" aria-hidden="true"></div>
+
+  <!-- Razor-Aligned Navigation -->
+  <header id="siteHeader">
+    <div class="wrap header-inner">
+      <a href="#top" class="brand" aria-label="KANON Home">
+        <svg width="18" height="21" viewBox="8 0 84 100" fill="none" aria-hidden="true">
+          <path d="M16.3 0H24.8L27.4 48.1L12 66.3L16.3 0Z" fill="currentColor" />
+          <path d="M73.8 0H89.4C88.2 21.5 76.2 38.2 49.6 50C35.2 63.4 27.6 79.4 26.7 100H10.6C11.4 77.2 19.6 60.8 36 50C59.8 34.4 72.1 19.8 73.8 0Z" fill="currentColor" />
+          <path d="M54.5 54.8C64.2 63.6 74.8 77.5 88.9 100H72.1C64.5 84.8 56.6 70.6 46.8 60.4L54.5 54.8Z" fill="var(--coral)" />
+        </svg>
+        <span>KANON</span>
+      </a>
+
+      <nav aria-label="Primary">
+        <a href="#statement">理念</a>
+        <a href="#instrument">工作台</a>
+        <a href="#polyphony">投委会</a>
+        <a href="#horizon">演进蓝图</a>
+        <a href="#film">宣传片</a>
+      </nav>
+
+      <div class="nav-right">
+        <button class="theme-btn" id="soundToggle" title="交互音效开/关" aria-label="Toggle Interaction Sound">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" id="soundIcon" aria-hidden="true">
+            <path d="M2.5 6h2.8L9 3v10l-3.7-3H2.5V6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+            <path d="M11.6 5.4a3.6 3.6 0 0 1 0 5.2M13.5 3.8a6 6 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button class="theme-btn" id="themeToggle" aria-label="Toggle Dark / Light Theme">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.35" />
+            <path d="M8 2a6 6 0 0 1 0 12V2Z" fill="currentColor" />
+          </svg>
+        </button>
+        <button class="nav-cta" id="openAccess">申请内测</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ======================================================================
+       ACT 00: MONUMENTAL HERO
+       ====================================================================== -->
+  <section class="hero" id="top">
+    <div class="hero-bg" aria-hidden="true">
+      <img src="./assets/hero-titanium-monolith.jpg" alt="" id="heroImg" />
+    </div>
+    <canvas id="silkCanvas" aria-hidden="true"></canvas>
+
+    <div class="wrap">
+      <div class="hero-content">
+        <h1 class="hero-title serif">
+          <span class="clip"><span class="slide">Conviction,</span></span>
+          <span class="clip"><span class="slide"><em>composed</em><span class="dot">.</span></span></span>
+        </h1>
+        <p class="hero-cn">在噪音里，谱出自己的确定性。</p>
+        <p class="hero-sub">面向深度个人价值投资者与买方投研机构的投资逻辑操作系统。</p>
+        <div class="hero-actions">
+          <a href="#instrument" class="btn-hero-primary">
+            <span>体验核心工作台</span>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 3.2v9.6M4.2 9.2 8 13l3.8-3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </a>
+          <a href="#film" class="btn-hero-secondary" id="heroPlayJump">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M3.5 2.4 11.4 7 3.5 11.6V2.4Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+            </svg>
+            <span>观看宣传视频</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       ACT 01: KINETIC MANIFESTO + FULL-BLEED SANCTUARY
+       ====================================================================== -->
+  <section class="statement-section" id="statement">
+    <div class="wrap">
+      <div class="statement-lines" id="statementLines">
+        <span class="st-line">没有跳动的 K 线。</span>
+        <span class="st-line">没有算命式对话。</span>
+        <span class="st-line">没有一分钱杠杆。</span>
+        <span class="st-line">只留第一性原理，与<span class="accent">自己算出来的底气</span>。</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="aperture-wrap">
+    <figure class="fullbleed-photo aperture-target" aria-label="Architectural Sanctuary">
+      <img src="./assets/sanctuary-architecture.jpg" alt="Minimalist concrete and titanium reading sanctuary" id="sanctuaryImg" loading="lazy" />
+      <figcaption class="photo-caption-bar">
+        <div class="wrap photo-caption-inner">
+          <span>KANON · 卡农</span>
+          <span>给长期主义者的安静研究圣殿</span>
+        </div>
+      </figcaption>
+    </figure>
+  </div>
+
+  <!-- ======================================================================
+       ACT 02: CORE WORKBENCH (PURE PRECISION)
+       ====================================================================== -->
+  <section class="instrument-section" id="instrument">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2 class="display-h2 serif">Pure <em>Precision</em>.</h2>
+        <p class="head-note">为严谨基本面研究打造的核心工作台。</p>
+      </div>
+
+      <div class="inst-bar">
+        <div class="inst-tabs" id="instTabs" role="tablist">
+          <button class="inst-tab" data-tab="vp" role="tab"><span class="t-num num">01</span>预期差</button>
+          <button class="inst-tab" data-tab="red" role="tab"><span class="t-num num">02</span>红队拷问</button>
+          <button class="inst-tab active" data-tab="val" role="tab"><span class="t-num num">03</span>估值矩阵</button>
+          <button class="inst-tab" data-tab="lock" role="tab"><span class="t-num num">04</span>零杠杆铁律</button>
+          <div class="tab-ink-bar" id="tabInkBar" aria-hidden="true"></div>
+        </div>
+        <div class="ticker-switch num" role="group" aria-label="Switch stock dossier">
+          <button class="ticker-opt active" data-tk="NVDA">NVDA</button>
+          <button class="ticker-opt" data-tk="MU">MU</button>
+          <button class="ticker-opt" data-tk="TSM">TSM</button>
+        </div>
+      </div>
+
+      <div class="inst-stage">
+        <!-- Tab 01: Variant Perception -->
+        <div class="inst-panel" data-panel="vp">
+          <div class="vp-spread">
+            <div class="vp-col">
+              <span class="vp-tag mono">MARKET CONSENSUS · 市场共识</span>
+              <p id="vpCons">市场将算力开支视作一次性周期见顶，给予远期倍数折价。</p>
+            </div>
+            <div class="vp-col ours">
+              <span class="vp-tag mono">VARIANT PERCEPTION · 我们的预期差</span>
+              <p id="vpOurs">推理算力正把 AI 转化为按 Token 计费的持续水电煤。</p>
+            </div>
+          </div>
+          <div class="vp-chart-wrap">
+            <svg viewBox="0 0 1100 130" width="100%" height="118" fill="none" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="vpArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#ea6b4a" stop-opacity="0.22" />
+                  <stop offset="100%" stop-color="#ea6b4a" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M 10 102 C 260 98, 560 95, 1080 86" stroke="currentColor" stroke-opacity="0.24" stroke-width="1.4" stroke-dasharray="5 7" />
+              <path d="M 10 104 C 240 102, 520 82, 780 48 C 910 31, 1005 18, 1080 12 L 1080 126 L 10 126 Z" fill="url(#vpArea)" />
+              <path id="vpCurvePath" class="vp-curve-draw" d="M 10 104 C 240 102, 520 82, 780 48 C 910 31, 1005 18, 1080 12" stroke="#ea6b4a" stroke-width="2" stroke-linecap="round" />
+              <circle cx="1080" cy="12" r="10" fill="#ea6b4a" class="vp-beacon" />
+              <circle cx="1080" cy="12" r="3.5" fill="#ea6b4a" />
+            </svg>
+            <div style="display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink-3); margin-top:4px;">
+              <span>虚线：市场共识定价轨迹</span>
+              <span style="color:var(--coral);">实线：KANON 复利预期差曲线</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 02: Red Team -->
+        <div class="inst-panel" data-panel="red">
+          <div class="red-list" id="redList">
+            <div class="red-row"><span class="num">01</span><p>若四大云厂明年资本开支增速转负，估值倍数将回撤多少？</p></div>
+            <div class="red-row"><span class="num">02</span><p>前四大客户贡献超 44% 营收，定制 ASIC 是否正削弱定价权？</p></div>
+            <div class="red-row"><span class="num">03</span><p>连续两季毛利率跌破 69% 时，你是否能无条件执行认错离场？</p></div>
+          </div>
+          <div style="margin-top: 28px;">
+            <button class="btn-hero-secondary" id="shuffleBearBtn" style="height:38px; padding:0 18px; font-size:13px;">
+              <span>切换空头拷问视角</span>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.4-3.7M13.5 2.8v2.6h-2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tab 03 (Default): Sculptural 5x5 Valuation Light-Matrix -->
+        <div class="inst-panel active" data-panel="val">
+          <div class="val-sculpture">
+            <div>
+              <div class="val-eyebrow">三年远期中性目标价</div>
+              <div class="giant-price num" id="gPrice">$211</div>
+              <div class="odds-line num">
+                <span>上下行赔率 <strong class="odds-num" id="gOdds">2.02×</strong></span>
+                <span id="gCagr">年化复合 +15.2%</span>
+              </div>
+
+              <div class="dial-sliders">
+                <div>
+                  <div class="dial-row-head num"><span>远期每股收益 EPS</span><strong id="vEpsLbl">$6.80</strong></div>
+                  <input class="hair-slider" type="range" id="sEps" min="3.0" max="11.0" step="0.1" value="6.8" />
+                </div>
+                <div>
+                  <div class="dial-row-head num"><span>合理市盈率 P/E</span><strong id="vPeLbl">31×</strong></div>
+                  <input class="hair-slider" type="range" id="sPe" min="15" max="45" step="1" value="31" />
+                </div>
+              </div>
+            </div>
+
+            <div class="matrix-tilt-shell">
+              <div class="light-matrix num" id="lightMatrix" aria-label="5 by 5 Valuation Sensitivity Matrix"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 04: Tactile Hardware Zero-Leverage Switch -->
+        <div class="inst-panel" data-panel="lock">
+          <div class="lock-sanctuary">
+            <svg class="vault-rings-svg" id="vaultRingsSvg" viewBox="0 0 400 400" fill="none" aria-hidden="true">
+              <g class="vault-ring-cw">
+                <circle cx="200" cy="200" r="184" stroke="currentColor" stroke-opacity="0.16" stroke-width="1" stroke-dasharray="3 9" />
+                <path d="M 200 16 A 184 184 0 0 1 285 37" stroke="#ea6b4a" stroke-width="2" stroke-linecap="round" />
+              </g>
+              <g class="vault-ring-ccw">
+                <circle cx="200" cy="200" r="146" stroke="currentColor" stroke-opacity="0.22" stroke-width="1" stroke-dasharray="1 11" />
+                <path d="M 110 315 A 146 146 0 0 1 65 256" stroke="#ea6b4a" stroke-opacity="0.7" stroke-width="1.6" stroke-linecap="round" />
+              </g>
+            </svg>
+            <div class="mech-wrap">
+              <div class="mech-pulse" id="mechPulse" aria-hidden="true"></div>
+              <button class="mech-switch" id="mechSwitch" aria-label="Zero-leverage hardware lock">
+                <span class="mech-knob">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="overflow:visible;" aria-hidden="true">
+                    <path class="shackle-path" d="M8 11V7.5a4 4 0 0 1 8 0V11" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" />
+                    <rect x="5" y="11" width="14" height="10" rx="2.5" stroke="currentColor" stroke-width="1.75" />
+                  </svg>
+                </span>
+                <span class="mech-track-lbl mono">LOCKED</span>
+              </button>
+            </div>
+            <div class="lock-val num">0.00<span>×</span></div>
+            <p class="lock-caption" id="lockCaption">点击尝试开启杠杆 — 零杠杆铁律已在底层契约永久锁死。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       ACT 03: POLYPHONY — FULL-BLEED PRISM + EXPANDABLE FOUR VOICES
+       ====================================================================== -->
+  <section id="polyphony">
+    <div class="prism-hero" id="prismHero">
+      <img src="./assets/polyphony-prisms.jpg" alt="Optical prisms refracting light into parallel polyphonic lines" loading="lazy" />
+      <div class="prism-light-sweep" aria-hidden="true"></div>
+      <div class="wrap">
+        <h2 class="display-h2 serif reveal"><span class="split-l">Four Voices.</span><br/><span class="split-r">One <em>Verdict</em>.</span></h2>
+      </div>
+    </div>
+
+    <div class="accordion-section">
+      <div class="wrap">
+        <div class="section-head reveal" style="margin-bottom: 36px;">
+          <div style="font-size: 16px; color: var(--ink-2); font-weight: 300;">四声部 AI 投委会 — 不做单一回声室聊天框</div>
+          <div style="font-size: 13px; color: var(--ink-3);">点击任意角色展开深度机制</div>
+        </div>
+
+        <div class="acc-list" data-accordion="polyphony">
+          <article class="acc-item reveal">
+            <button class="acc-trigger" aria-expanded="false">
+              <span class="acc-idx num">01</span>
+              <span class="acc-title">基本面主笔</span>
+              <span class="acc-summary">穿透商业本质、定价权与复利护城河</span>
+              <span class="acc-plus" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+              </span>
+            </button>
+            <div class="acc-body">
+              <div class="acc-inner">
+                <div class="acc-content">
+                  <p class="acc-prose">剥离短期股价波动与宏观叙事，围绕「水电煤复购属性、上下游定价权、ROIC 含金量与管理层资本配置记录」四大铁律结构化拆解公司质地。不合格标的在第一步即触发一票否决并归档排雷。</p>
+                  <div class="acc-spec-box num">
+                    <div class="acc-spec-line"><span>核心输出</span><strong>护城河四维评级 + 预期差卡片</strong></div>
+                    <div class="acc-spec-line"><span>典型观测</span><strong class="emerald">ROIC &gt; 68% · FCF 转化 94%</strong></div>
+                    <div class="acc-spec-line"><span>落库状态</span><strong>结构化写入研究画布 Step 1</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="acc-item reveal">
+            <button class="acc-trigger" aria-expanded="false">
+              <span class="acc-idx num">02</span>
+              <span class="acc-title">法务会计审计</span>
+              <span class="acc-summary">直连 SEC XBRL 原件，零幻觉核查现金流</span>
+              <span class="acc-plus" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+              </span>
+            </button>
+            <div class="acc-body">
+              <div class="acc-inner">
+                <div class="acc-content">
+                  <p class="acc-prose">严禁大模型凭记忆编造任何财务数字。系统直连官方 SEC EDGAR API 拉取多年度 10-K / 10-Q 标准化 XBRL 标签，自动扫描应收账款异常、存货周转天数与股权激励稀释，将利润表与真实自由现金流逐项交叉对账。</p>
+                  <div class="acc-spec-box num">
+                    <div class="acc-spec-line"><span>数据真源</span><strong>SEC EDGAR 官方 XBRL API</strong></div>
+                    <div class="acc-spec-line"><span>溯源锚点</span><strong class="coral">10-K 原件页码级坐标绑定</strong></div>
+                    <div class="acc-spec-line"><span>数学引擎</span><strong>纯函数确定性计算（零幻觉）</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="acc-item reveal">
+            <button class="acc-trigger" aria-expanded="false">
+              <span class="acc-idx num">03</span>
+              <span class="acc-title">苛刻空头红队</span>
+              <span class="acc-summary">永远站在你的反面，寻找逻辑证伪路径</span>
+              <span class="acc-plus" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+              </span>
+            </button>
+            <div class="acc-body">
+              <div class="acc-inner">
+                <div class="acc-content">
+                  <p class="acc-prose">针对你写下的 3 条核心看多假设，强制切换至顶级做空机构视角，系统性构造最具杀伤力的反驳路径与事前验尸（Pre-Mortem）剧本。每一条空头反驳均可一键写入 Step 5 作为不可违背的认错离场红线。</p>
+                  <div class="acc-spec-box num">
+                    <div class="acc-spec-line"><span>对抗机制</span><strong>魔鬼代言人（Devil's Advocate）</strong></div>
+                    <div class="acc-spec-line"><span>联动闭环</span><strong class="coral">一键转为量化止损与证伪红线</strong></div>
+                    <div class="acc-spec-line"><span>记录留存</span><strong>持久化归档，支持跨季度回看</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="acc-item reveal">
+            <button class="acc-trigger" aria-expanded="false">
+              <span class="acc-idx num">04</span>
+              <span class="acc-title">人类终审主权</span>
+              <span class="acc-summary">AI 只提交提案，每一笔记录由你亲自批准</span>
+              <span class="acc-plus" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+              </span>
+            </button>
+            <div class="acc-body">
+              <div class="acc-inner">
+                <div class="acc-content">
+                  <p class="acc-prose">顶级投资绝不能认知外包。KANON 的所有 AI 推理与工具调用轨迹均透明实时可见，并以「提案（Proposal）」形态呈现——只有经由你亲自审阅并点击采纳（Human-in-the-Loop），才会正式落入你的核心档案与一页纸投委会备忘录。</p>
+                  <div class="acc-spec-box num">
+                    <div class="acc-spec-line"><span>隐私架构</span><strong>BYOK（Gemini / Claude / OpenAI）</strong></div>
+                    <div class="acc-spec-line"><span>数据主权</span><strong class="emerald">本地 Postgres · 绝不外泄</strong></div>
+                    <div class="acc-spec-line"><span>导出格式</span><strong>Google Docs · Markdown · CSV</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       ACT 04: THE HORIZON (v4 -> v6 EXPANDABLE EXHIBITION MONOGRAPH)
+       ====================================================================== -->
+  <section class="horizon-section" id="horizon">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2 class="display-h2 serif">The <em>Horizon</em>.</h2>
+        <p class="head-note">面向未来十年的机构级演进蓝图 · 点击展开详情</p>
+      </div>
+
+      <div class="acc-list" data-accordion="horizon">
+        <article class="acc-item reveal">
+          <button class="acc-trigger" aria-expanded="false">
+            <span class="acc-idx num">v4.0</span>
+            <span class="acc-title">十年 SEC 语义金库</span>
+            <span class="acc-summary">任意论点一键高亮跳转至 10-K 原始页码</span>
+            <span class="acc-plus" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="acc-body">
+            <div class="acc-inner">
+              <div class="acc-content">
+                <p class="acc-prose">构建覆盖单家公司过去十年全部 10-K、10-Q、20-F 与季度电话会逐字稿的专属语料金库。结合语义向量与精准词法检索，点击研究结论中的任何引用标记，右侧原件阅览器毫秒级定位并高亮对应会计附注与原文段落。</p>
+                <div class="acc-spec-box num">
+                  <div class="acc-spec-line"><span>检索引擎</span><strong>pgvector + BM25 混合索引</strong></div>
+                  <div class="acc-spec-line"><span>交互体验</span><strong class="coral">原件侧栏高亮 · 零跳出阅读心流</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="acc-item reveal">
+          <button class="acc-trigger" aria-expanded="false">
+            <span class="acc-idx num">v4.0</span>
+            <span class="acc-title">跨季度假设漂移雷达</span>
+            <span class="acc-summary">财报落地即刻捕捉管理层措辞与逻辑裂缝</span>
+            <span class="acc-plus" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="acc-body">
+            <div class="acc-inner">
+              <div class="acc-content">
+                <p class="acc-prose">真正的风险往往藏在连续两个季度财报措辞的细微偏移中。每当持仓标的发布新季报，雷达自动对比管理层对 CapEx、毛利率与竞争格局的表述变化，对照你写下的三条核心假设发出「假设漂移」早期预警。</p>
+                <div class="acc-spec-box num">
+                  <div class="acc-spec-line"><span>核心能力</span><strong>季度电话会措辞 Diff &amp; 情绪衰减检测</strong></div>
+                  <div class="acc-spec-line"><span>风控价值</span><strong class="coral">在市场共识崩塌前识别基本面裂缝</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="acc-item reveal">
+          <button class="acc-trigger" aria-expanded="false">
+            <span class="acc-idx num">v4.0</span>
+            <span class="acc-title">多角色投委会对抗室</span>
+            <span class="acc-summary">四声部复调辩论，直出一页纸投研备忘录</span>
+            <span class="acc-plus" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="acc-body">
+            <div class="acc-inner">
+              <div class="acc-content">
+                <p class="acc-prose">在真金白银下注之前，先让基本面主笔、法务会计、做空红队与组合经理四位专属 Agent 围绕你的标的展开完整圆桌交锋。系统自动提炼核心分歧点与可验证催化剂，输出机构投委会级一页纸决议纪要。</p>
+                <div class="acc-spec-box num">
+                  <div class="acc-spec-line"><span>辩论结构</span><strong>多 Agent 独立质询 + 投票分歧留痕</strong></div>
+                  <div class="acc-spec-line"><span>输出交付</span><strong class="emerald">可直接归档复盘的 IC Memo</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="acc-item reveal">
+          <button class="acc-trigger" aria-expanded="false">
+            <span class="acc-idx num">v5.0</span>
+            <span class="acc-title">亚 50ms 本地优先引擎</span>
+            <span class="acc-summary">断网亦享端云加密增量同步，保护私密阿尔法</span>
+            <span class="acc-plus" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="acc-body">
+            <div class="acc-inner">
+              <div class="acc-content">
+                <p class="acc-prose">告别传统网页端转圈等待。引入基于 Postgres WAL 的本地优先增量同步引擎，无论在万米高空航程还是跨国调研现场，所有读写均在亚 50ms 内瞬时响应，联网后自动完成端到端加密增量合并。</p>
+                <div class="acc-spec-box num">
+                  <div class="acc-spec-line"><span>底层引擎</span><strong>Postgres WAL 增量同步</strong></div>
+                  <div class="acc-spec-line"><span>交互延迟</span><strong class="emerald">&lt; 50ms 离线零卡顿</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="acc-item reveal">
+          <button class="acc-trigger" aria-expanded="false">
+            <span class="acc-idx num">v5.0</span>
+            <span class="acc-title">全市场 MCP 神经总线</span>
+            <span class="acc-summary">无缝直连 Form 4、13F 与机构协作工作流</span>
+            <span class="acc-plus" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="acc-body">
+            <div class="acc-inner">
+              <div class="acc-content">
+                <p class="acc-prose">以开放的 Model Context Protocol 协议打通顶级投研生态：实时订阅 SEC Form 4 高管增减持、13F 顶级买方机构持仓异动、供应链调研纪要，并与 Notion、Linear、Google Workspace 及机构内部数据库建立双向工作流。</p>
+                <div class="acc-spec-box num">
+                  <div class="acc-spec-line"><span>连接协议</span><strong>开放 Financial MCP 总线</strong></div>
+                  <div class="acc-spec-line"><span>团队协作</span><strong>RBAC / RLS 隔离与审计链</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="acc-item reveal">
+          <button class="acc-trigger" aria-expanded="false">
+            <span class="acc-idx num">v6.0</span>
+            <span class="acc-title">十年个人认知图谱</span>
+            <span class="acc-summary">量化追踪预测校准度，让判断力自身复利</span>
+            <span class="acc-plus" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+            </span>
+          </button>
+          <div class="acc-body">
+            <div class="acc-inner">
+              <div class="acc-content">
+                <p class="acc-prose">资产会复利，真正的认知同样如此。跨越 3 至 10 年完整周期，KANON 通过 Brier Score 持续校准你每一条历史假设的胜率与赔率偏差，清晰勾勒你的能力圈边界与反复出现的情绪盲区，并配以静默的原生 macOS 极速终端。</p>
+                <div class="acc-spec-box num">
+                  <div class="acc-spec-line"><span>长期价值</span><strong>预测校准度与错题记忆引擎</strong></div>
+                  <div class="acc-spec-line"><span>终端形态</span><strong class="coral">macOS 原生端 · 零盘中打扰</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       ACT 05: BRAND FILM THEATER
+       ====================================================================== -->
+  <section class="film-section" id="film">
+    <div class="wrap">
+      <div class="section-head reveal" style="margin-bottom: 32px;">
+        <h2 class="display-h2 serif">Brand <em>Film</em>.</h2>
+        <p class="head-note">二十四秒，看见 KANON 的克制与秩序。</p>
+      </div>
+
+      <div class="cinema-box reveal" id="cinemaBox">
+        <video id="launchFilm" preload="metadata" playsinline poster="./assets/hero-titanium-monolith.jpg">
+          <source src="./assets/kanon-brand-film.mp4" type="video/mp4" />
+        </video>
+        <div class="cinema-veil" id="cinemaVeil">
+          <div class="cinema-play" aria-label="播放品牌宣传视频">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="margin-left:3px;" aria-hidden="true">
+              <path d="M6.5 4.5 19.5 12 6.5 19.5V4.5Z" fill="currentColor" />
+            </svg>
+          </div>
+          <span style="font-size:13px; letter-spacing:0.18em; color:rgba(243,241,235,0.84);">播放宣传视频 · 00:24</span>
+        </div>
+      </div>
+
+      <div class="cinema-bar num">
+        <span id="filmClock">00:00 / 00:24</span>
+        <button id="muteBtn" style="color: var(--ink-2);">声音已开启</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       ACT 06: MONUMENTAL CLOSING & AUTHOR COLOPHON
+       ====================================================================== -->
+  <footer class="closing">
+    <div class="wrap">
+      <h2 class="serif reveal">Compose your <em>own</em><br/>conviction.</h2>
+      <div class="closing-cta-wrap reveal">
+        <button class="btn-hero-primary" id="closingAccess">申请私密内测</button>
+        <a href="mailto:jensencuda@gmail.com" class="btn-hero-secondary num">jensencuda@gmail.com</a>
+      </div>
+
+      <div class="colophon num">
+        <span>KANON · 卡农 &nbsp;·&nbsp; <a href="https://kanon.hk" style="color:var(--ink);">kanon.hk</a> &nbsp;—&nbsp; BY CAIUS LU</span>
+        <button class="mail" id="copyMailBtn" title="点击复制邮箱">jensencuda@gmail.com</button>
+      </div>
+    </div>
+    <div class="bleed-kanon serif" aria-hidden="true">KANON</div>
+  </footer>
+
+  <!-- Private Access Modal -->
+  <div class="scrim" id="accessModal" role="dialog" aria-modal="true" aria-label="申请私密内测">
+    <div class="modal-box" id="accessBody">
+      <h3 class="serif">Private Access.</h3>
+      <p>面向严肃的独立价值投资者与买方研究团队限量开放。</p>
+      <form id="accessForm">
+        <input class="m-input" id="fName" required placeholder="您的称呼 / Name" />
+        <input class="m-input" id="fEmail" type="email" required placeholder="联系邮箱 / Email" />
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+          <button type="submit" class="btn-hero-primary">确认预约</button>
+          <button type="button" id="closeModal" style="font-size:13.5px; color:var(--ink-3);">取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast num" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      const header = document.getElementById("siteHeader");
+      const progressLine = document.getElementById("progressLine");
+      const heroImg = document.getElementById("heroImg");
+      const sanctuaryImg = document.getElementById("sanctuaryImg");
+      const stLines = Array.from(document.querySelectorAll(".st-line"));
+      const statementWrap = document.getElementById("statementLines");
+
+      /* =====================================================================
+         0. PROCEDURAL WEB AUDIO TACTILE SOUND ENGINE (LEICA × TEENAGE ENG.)
+         ===================================================================== */
+      const KanonAudio = (() => {
+        let ctx = null;
+        let enabled = true;
+        let lastPluck = 0;
+
+        function ensure() {
+          if (!enabled) return null;
+          if (!ctx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return null;
+            ctx = new AC();
+          }
+          if (ctx.state === "suspended") ctx.resume().catch(() => {});
+          return ctx;
+        }
+
+        function tick(freq = 1850, vol = 0.045, decay = 0.032) {
+          const ac = ensure();
+          if (!ac) return;
+          const now = ac.currentTime;
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(freq, now);
+          osc.frequency.exponentialRampToValueAtTime(freq * 0.45, now + decay);
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start(now);
+          osc.stop(now + decay + 0.01);
+        }
+
+        function chime(freq = 587.33, vol = 0.045, dur = 0.42) {
+          const ac = ensure();
+          if (!ac) return;
+          const now = ac.currentTime;
+          const osc = ac.createOscillator();
+          const osc2 = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = "sine";
+          osc2.type = "sine";
+          osc.frequency.setValueAtTime(freq, now);
+          osc2.frequency.setValueAtTime(freq * 2.002, now);
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.linearRampToValueAtTime(vol, now + 0.008);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+          osc.connect(gain);
+          const g2 = ac.createGain();
+          g2.gain.value = 0.22;
+          osc2.connect(g2);
+          g2.connect(gain);
+          gain.connect(ac.destination);
+          osc.start(now);
+          osc2.start(now);
+          osc.stop(now + dur + 0.02);
+          osc2.stop(now + dur + 0.02);
+        }
+
+        /* Two-stage metallic "ka-da" (咔哒) deadbolt lock sound! */
+        function lockSnap() {
+          const ac = ensure();
+          if (!ac) return;
+          // Stage 1: Shackle lift click (ka)
+          tick(1420, 0.055, 0.035);
+          // Stage 2: Heavy deadbolt slam shut (da) 165ms later
+          setTimeout(() => {
+            const c = ensure();
+            if (!c) return;
+            const now = c.currentTime;
+            // Metallic snap transient
+            const o1 = c.createOscillator();
+            const g1 = c.createGain();
+            o1.type = "triangle";
+            o1.frequency.setValueAtTime(2200, now);
+            o1.frequency.exponentialRampToValueAtTime(420, now + 0.055);
+            g1.gain.setValueAtTime(0.095, now);
+            g1.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+            o1.connect(g1); g1.connect(c.destination);
+            o1.start(now); o1.stop(now + 0.07);
+
+            // Solid mechanical bolt body thud
+            const o2 = c.createOscillator();
+            const g2 = c.createGain();
+            o2.type = "sine";
+            o2.frequency.setValueAtTime(175, now);
+            o2.frequency.exponentialRampToValueAtTime(58, now + 0.11);
+            g2.gain.setValueAtTime(0.14, now);
+            g2.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+            o2.connect(g2); g2.connect(c.destination);
+            o2.start(now); o2.stop(now + 0.13);
+          }, 165);
+        }
+
+        function pluckString(idx) {
+          const nowMs = performance.now();
+          if (nowMs - lastPluck < 160) return;
+          lastPluck = nowMs;
+          // D major pentatonic Canon intervals
+          const notes = [293.66, 369.99, 440.0, 587.33, 659.25];
+          chime(notes[idx % notes.length], 0.022, 0.55);
+        }
+
+        return {
+          tick, chime, lockSnap, pluckString,
+          toggle() { enabled = !enabled; return enabled; },
+          isEnabled: () => enabled,
+        };
+      })();
+
+      const soundToggle = document.getElementById("soundToggle");
+      soundToggle.addEventListener("click", () => {
+        const on = KanonAudio.toggle();
+        soundToggle.style.opacity = on ? "1" : "0.42";
+        if (on) KanonAudio.chime(587.33, 0.04, 0.30);
+        notify(on ? "交互音效已开启" : "交互音效已静音");
+      });
+
+      /* =====================================================================
+         1. LIQUID ARCHITECTURAL LIGHT FLOW (ZERO WAVY RIBBONS OR POLKA-DOTS!)
+            James Turrell × Apple Natural Titanium volumetric caustic caress
+         ===================================================================== */
+      const canvas = document.getElementById("silkCanvas");
+      const ctx = canvas.getContext("2d");
+      let w = 0, h = 0;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const ptr = { x: 0.62, y: 0.44, tx: 0.62, ty: 0.44 };
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      function resize() {
+        w = canvas.clientWidth;
+        h = canvas.clientHeight;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        syncTabBar();
+      }
+      window.addEventListener("resize", resize, { passive: true });
+      window.addEventListener("pointermove", (e) => {
+        ptr.tx = e.clientX / Math.max(1, window.innerWidth);
+        ptr.ty = e.clientY / Math.max(1, window.innerHeight);
+      }, { passive: true });
+
+      const t0 = performance.now();
+      function drawSilk(now) {
+        const t = (now - t0) * 0.00042;
+        ptr.x += (ptr.tx - ptr.x) * 0.032;
+        ptr.y += (ptr.ty - ptr.y) * 0.032;
+        ctx.clearRect(0, 0, w, h);
+        const light = document.documentElement.getAttribute("data-theme") === "light";
+
+        ctx.save();
+        ctx.globalCompositeOperation = light ? "multiply" : "screen";
+
+        // 1. Primary living liquid light caustic responding organically to cursor
+        const lx1 = w * (0.28 + ptr.x * 0.46) + Math.sin(t * 0.9) * w * 0.06;
+        const ly1 = h * (0.24 + ptr.y * 0.42) + Math.cos(t * 0.7) * h * 0.05;
+        const r1 = Math.max(w, h) * 0.46;
+        const g1 = ctx.createRadialGradient(lx1, ly1, 0, lx1, ly1, r1);
+        if (light) {
+          // Warm alabaster sunlit terracotta caustic bloom on paper
+          g1.addColorStop(0, "rgba(234, 107, 74, 0.115)");
+          g1.addColorStop(0.42, "rgba(218, 198, 174, 0.075)");
+          g1.addColorStop(1, "rgba(246, 245, 241, 0)");
+        } else {
+          g1.addColorStop(0, "rgba(234, 107, 74, 0.14)");
+          g1.addColorStop(0.45, "rgba(229, 227, 221, 0.045)");
+          g1.addColorStop(1, "rgba(7, 8, 10, 0)");
+        }
+        ctx.fillStyle = g1;
+        ctx.fillRect(0, 0, w, h);
+
+        // 2. Secondary counter-drifting titanium pearl halo
+        const lx2 = w * (0.76 - ptr.x * 0.22) + Math.cos(t * 0.65) * w * 0.08;
+        const ly2 = h * (0.62 - ptr.y * 0.18) + Math.sin(t * 0.82) * h * 0.06;
+        const r2 = Math.max(w, h) * 0.42;
+        const g2 = ctx.createRadialGradient(lx2, ly2, 0, lx2, ly2, r2);
+        if (light) {
+          g2.addColorStop(0, "rgba(196, 189, 176, 0.14)");
+          g2.addColorStop(0.5, "rgba(215, 210, 200, 0.05)");
+          g2.addColorStop(1, "rgba(246, 245, 241, 0)");
+        } else {
+          g2.addColorStop(0, "rgba(229, 227, 221, 0.09)");
+          g2.addColorStop(0.5, "rgba(229, 227, 221, 0.025)");
+          g2.addColorStop(1, "rgba(7, 8, 10, 0)");
+        }
+        ctx.fillStyle = g2;
+        ctx.fillRect(0, 0, w, h);
+
+        // 3. Twin slow-gliding architectural skylight shafts (soft refracted light planes)
+        ctx.globalCompositeOperation = light ? "source-over" : "screen";
+        for (let i = 0; i < 2; i++) {
+          const sx = w * (0.36 + i * 0.30 + Math.sin(t * (0.45 + i * 0.18) + i * 2.1) * 0.09 + (ptr.x - 0.5) * (0.08 - i * 0.03));
+          ctx.save();
+          ctx.translate(sx, h * 0.48);
+          ctx.rotate(-0.34 + i * 0.08);
+          const sw = 180 + i * 95;
+          const sg = ctx.createLinearGradient(-sw, 0, sw, 0);
+          if (light) {
+            sg.addColorStop(0, "rgba(255, 255, 255, 0)");
+            sg.addColorStop(0.5, i === 0 ? "rgba(255, 252, 246, 0.42)" : "rgba(234, 107, 74, 0.055)");
+            sg.addColorStop(1, "rgba(255, 255, 255, 0)");
+          } else {
+            sg.addColorStop(0, "rgba(243, 241, 235, 0)");
+            sg.addColorStop(0.5, i === 0 ? "rgba(243, 241, 235, 0.052)" : "rgba(234, 107, 74, 0.048)");
+            sg.addColorStop(1, "rgba(243, 241, 235, 0)");
+          }
+          ctx.fillStyle = sg;
+          ctx.fillRect(-sw, -h, sw * 2, h * 2);
+          ctx.restore();
+        }
+
+        ctx.restore();
+        if (!reduced) requestAnimationFrame(drawSilk);
+      }
+
+      /* 2. Multi-Dimensional Scroll Choreography (Architectural Shutter Slit + Prism Optical Sweep) */
+      const sanctuaryEl = document.querySelector(".fullbleed-photo");
+      const prismHero = document.getElementById("prismHero");
+      const heroContent = document.querySelector(".hero-content");
+      function onScroll() {
+        const y = window.scrollY;
+        const vh = window.innerHeight;
+        const max = Math.max(1, document.documentElement.scrollHeight - vh);
+        progressLine.style.width = `${(y / max) * 100}%`;
+        header.classList.toggle("scrolled", y > 40);
+
+        if (heroImg && y < vh * 1.3) {
+          heroImg.style.transform = `scale(${(1.04 + y * 0.00006).toFixed(4)}) translateY(${(y * 0.11).toFixed(1)}px)`;
+          if (heroContent) {
+            const hp = Math.max(0, Math.min(1, y / (vh * 0.72)));
+            heroContent.style.transform = `translateY(${(-hp * 32).toFixed(1)}px)`;
+            heroContent.style.opacity = `${(1 - hp * 0.72).toFixed(3)}`;
+          }
+        }
+        // Sanctuary: Architectural vertical shutter slit parts outward + counter-moving caption
+        if (sanctuaryEl && sanctuaryImg) {
+          const r = sanctuaryEl.getBoundingClientRect();
+          const p = Math.max(-1, Math.min(1, (r.top + r.height * 0.5 - vh * 0.5) / (vh * 0.85)));
+          const open = Math.max(0, 1 - Math.abs(p));
+          const ease = open * (2 - open);
+          sanctuaryEl.style.setProperty("--shutter-x", `${((1 - ease) * 7.5).toFixed(2)}%`);
+          sanctuaryEl.style.setProperty("--shutter-r", `${((1 - ease) * 16).toFixed(1)}px`);
+          sanctuaryEl.style.setProperty("--img-py", `${(-6 + p * 7).toFixed(2)}%`);
+          sanctuaryEl.style.setProperty("--cap-py", `${(p * -18).toFixed(1)}px`);
+        }
+        // Optical Prism: Diagonal refractive beam sweeps + split-parallax display title
+        if (prismHero) {
+          const r = prismHero.getBoundingClientRect();
+          const p = Math.max(-1, Math.min(1, (r.top + r.height * 0.5 - vh * 0.5) / (vh * 0.9)));
+          prismHero.style.setProperty("--prism-py", `${(-4 + p * 6).toFixed(2)}%`);
+          prismHero.style.setProperty("--prism-beam", `${(-p * 55).toFixed(1)}%`);
+          prismHero.style.setProperty("--split-l", `${(-p * 24).toFixed(1)}px`);
+          prismHero.style.setProperty("--split-r", `${(p * 24).toFixed(1)}px`);
+        }
+        if (statementWrap) {
+          const r = statementWrap.getBoundingClientRect();
+          const prog = Math.max(0, Math.min(1, (vh * 0.78 - r.top) / (r.height + vh * 0.16)));
+          const lit = Math.ceil(prog * stLines.length);
+          stLines.forEach((line, idx) => line.classList.toggle("lit", idx < lit));
+        }
+      }
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+        });
+      }, { threshold: 0.12 });
+      document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+      /* 3. Workbench Tabs with Smooth Sliding Coral Indicator */
+      const tabs = Array.from(document.querySelectorAll(".inst-tab"));
+      const panels = Array.from(document.querySelectorAll(".inst-panel"));
+      const tabInkBar = document.getElementById("tabInkBar");
+
+      function syncTabBar() {
+        const active = document.querySelector(".inst-tab.active");
+        if (!active || !tabInkBar) return;
+        tabInkBar.style.width = `${active.offsetWidth}px`;
+        tabInkBar.style.transform = `translateX(${active.offsetLeft}px)`;
+      }
+      tabs.forEach((tb) => tb.addEventListener("click", () => {
+        KanonAudio.tick(1880, 0.04, 0.026);
+        tabs.forEach((t) => t.classList.toggle("active", t === tb));
+        panels.forEach((p) => p.classList.toggle("active", p.dataset.panel === tb.dataset.tab));
+        syncTabBar();
+      }));
+
+      /* 4. Live Valuation Matrix with 3D Specular Tilt + Rolling Spring Interpolation */
+      const PRESETS = {
+        NVDA: {
+          price: 138, bear: 102, eps: 6.8, pe: 31,
+          cons: "市场将算力开支视作一次性周期见顶，给予远期倍数折价。",
+          ours: "推理算力正把 AI 转化为按 Token 计费的持续水电煤。"
+        },
+        MU: {
+          price: 106, bear: 74, eps: 9.4, pe: 16,
+          cons: "市场仍按重资产存储周期股给予 10× 峰值盈利估值。",
+          ours: "HBM 消耗 3× 晶圆面积形成结构性供给挤出，盈利中枢永久抬升。"
+        },
+        TSM: {
+          price: 192, bear: 145, eps: 10.6, pe: 25,
+          cons: "地缘折价长期压制先进制程垄断者的估值倍数。",
+          ours: "无论 GPU 或自研 ASIC 谁胜出，最终皆向唯一先进代工付费。"
+        }
+      };
+      let activeTk = "NVDA";
+      const sEps = document.getElementById("sEps");
+      const sPe = document.getElementById("sPe");
+      const lightMatrix = document.getElementById("lightMatrix");
+      let dispPrice = 211, dispOdds = 2.02, animId = 0;
+
+      function animateNumbers(targetP, targetO, cagrVal) {
+        cancelAnimationFrame(animId);
+        const startP = dispPrice, startO = dispOdds, tStart = performance.now(), dur = 320;
+        function step(now) {
+          const u = Math.min(1, (now - tStart) / dur);
+          const e = 1 - Math.pow(1 - u, 3);
+          dispPrice = startP + (targetP - startP) * e;
+          dispOdds = startO + (targetO - startO) * e;
+          document.getElementById("gPrice").textContent = `$${Math.round(dispPrice)}`;
+          document.getElementById("gOdds").textContent = `${dispOdds.toFixed(2)}×`;
+          if (u < 1) animId = requestAnimationFrame(step);
+        }
+        document.getElementById("gCagr").textContent = `年化复合 ${cagrVal >= 0 ? "+" : ""}${cagrVal.toFixed(1)}%`;
+        animId = requestAnimationFrame(step);
+      }
+
+      function renderVal(instant = false) {
+        const cur = PRESETS[activeTk];
+        const eps = parseFloat(sEps.value);
+        const pe = parseFloat(sPe.value);
+        document.getElementById("vEpsLbl").textContent = `$${eps.toFixed(2)}`;
+        document.getElementById("vPeLbl").textContent = `${pe.toFixed(0)}×`;
+
+        const target = eps * pe;
+        const upside = (target - cur.price) / cur.price;
+        const downside = Math.max(0.05, (cur.price - cur.bear) / cur.price);
+        const odds = Math.max(0, upside / downside);
+        const cagr = (Math.pow(Math.max(0.1, target / cur.price), 1 / 3) - 1) * 100;
+
+        if (instant) {
+          dispPrice = target;
+          dispOdds = odds;
+          document.getElementById("gPrice").textContent = `$${Math.round(target)}`;
+          document.getElementById("gOdds").textContent = `${odds.toFixed(2)}×`;
+          document.getElementById("gCagr").textContent = `年化复合 ${cagr >= 0 ? "+" : ""}${cagr.toFixed(1)}%`;
+        } else {
+          animateNumbers(target, odds, cagr);
+        }
+
+        const eList = [-0.2, -0.1, 0, 0.1, 0.2].map((d) => eps * (1 + d));
+        const pList = [-6, -3, 0, 3, 6].map((d) => Math.max(8, pe + d));
+        let html = "";
+        eList.forEach((ev, r) => {
+          pList.forEach((pv, c) => {
+            const val = ev * pv;
+            const isCenter = r === 2 && c === 2;
+            const ret = (val - cur.price) / cur.price;
+            const opacity = Math.max(0.36, Math.min(0.95, 0.52 + ret * 0.42));
+            const tint = ret > 0.22 ? `rgba(229, 227, 221, ${(0.04 + Math.min(0.09, ret * 0.08)).toFixed(3)})` : "transparent";
+            html += `<div class="lm-cell ${isCenter ? "center" : ""}" style="${isCenter ? "" : `background:${tint}; opacity:${opacity.toFixed(2)};`}">$${Math.round(val)}</div>`;
+          });
+        });
+        lightMatrix.innerHTML = html;
+      }
+
+      // Live 3D specular tilt on 5x5 Light-Matrix
+      lightMatrix.addEventListener("pointermove", (e) => {
+        const r = lightMatrix.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width;
+        const y = (e.clientY - r.top) / r.height;
+        lightMatrix.style.setProperty("--mx", `${(x * 100).toFixed(1)}%`);
+        lightMatrix.style.setProperty("--my", `${(y * 100).toFixed(1)}%`);
+        const rx = (0.5 - y) * 9;
+        const ry = (x - 0.5) * 11;
+        lightMatrix.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
+      });
+      lightMatrix.addEventListener("pointerleave", () => {
+        lightMatrix.style.transform = "rotateX(0deg) rotateY(0deg)";
+      });
+
+      let lastSliderTick = 0;
+      function sliderDetent() {
+        const now = performance.now();
+        if (now - lastSliderTick > 42) {
+          lastSliderTick = now;
+          KanonAudio.tick(2400, 0.022, 0.016);
+        }
+      }
+      sEps.addEventListener("input", () => { sliderDetent(); renderVal(true); });
+      sPe.addEventListener("input", () => { sliderDetent(); renderVal(true); });
+      const TK_NOTES = { NVDA: 587.33, MU: 739.99, TSM: 880.0 };
+      document.querySelectorAll(".ticker-opt").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          activeTk = btn.dataset.tk;
+          KanonAudio.chime(TK_NOTES[activeTk] || 587.33, 0.036, 0.34);
+          document.querySelectorAll(".ticker-opt").forEach((b) => b.classList.toggle("active", b === btn));
+          sEps.value = PRESETS[activeTk].eps;
+          sPe.value = PRESETS[activeTk].pe;
+          document.getElementById("vpCons").textContent = PRESETS[activeTk].cons;
+          document.getElementById("vpOurs").textContent = PRESETS[activeTk].ours;
+          const curve = document.getElementById("vpCurvePath");
+          if (curve) { curve.classList.remove("vp-curve-draw"); void curve.offsetWidth; curve.classList.add("vp-curve-draw"); }
+          renderVal(false);
+        });
+      });
+      renderVal(true);
+
+      /* Red team shuffle */
+      const BEAR_SETS = [
+        [
+          "若四大云厂明年资本开支增速转负，估值倍数将回撤多少？",
+          "前四大客户贡献超 44% 营收，定制 ASIC 是否正削弱定价权？",
+          "连续两季毛利率跌破 69% 时，你是否能无条件执行认错离场？"
+        ],
+        [
+          "如果下游软件变现慢于折旧曲线，这一轮算力投资会重演光纤过剩吗？",
+          "当库存周转天数悄然突破 115 天，你的仓位纪律如何响应？",
+          "把所有市场叙事剥离后，剔除股票激励的真实自由现金流值多少钱？"
+        ]
+      ];
+      let bearIdx = 0;
+      document.getElementById("shuffleBearBtn").addEventListener("click", () => {
+        KanonAudio.tick(1620, 0.04, 0.03);
+        bearIdx = (bearIdx + 1) % BEAR_SETS.length;
+        const rows = document.querySelectorAll("#redList .red-row p");
+        BEAR_SETS[bearIdx].forEach((txt, i) => { if (rows[i]) rows[i].textContent = txt; });
+      });
+
+      /* Hardware Zero-Leverage Switch: Mechanical Shackle Lift -> Slam Shut ("ka-da!") */
+      const mechSwitch = document.getElementById("mechSwitch");
+      const mechPulse = document.getElementById("mechPulse");
+      const vaultRingsSvg = document.getElementById("vaultRingsSvg");
+      const lockCaption = document.getElementById("lockCaption");
+      mechSwitch.addEventListener("click", () => {
+        KanonAudio.lockSnap();
+        mechSwitch.classList.remove("snapped");
+        mechSwitch.classList.add("resist");
+        if (vaultRingsSvg) vaultRingsSvg.classList.add("recoil");
+        lockCaption.style.color = "var(--coral)";
+        lockCaption.textContent = "已硬性拦截 — 底层契约永久锁定 0.00×，严禁一切杠杆。";
+        setTimeout(() => {
+          mechSwitch.classList.remove("resist");
+          mechSwitch.classList.add("snapped");
+          if (vaultRingsSvg) vaultRingsSvg.classList.remove("recoil");
+          mechPulse.classList.remove("fire");
+          void mechPulse.offsetWidth;
+          mechPulse.classList.add("fire");
+        }, 165);
+      });
+
+      /* 5. Independent Stay-Open Accordions (Never Auto-Collapse Other Cards!) */
+      document.querySelectorAll(".acc-list").forEach((list) => {
+        const items = Array.from(list.querySelectorAll(".acc-item"));
+        items.forEach((item) => {
+          item.addEventListener("pointermove", (e) => {
+            const r = item.getBoundingClientRect();
+            item.style.setProperty("--mx", `${e.clientX - r.left}px`);
+            item.style.setProperty("--my", `${e.clientY - r.top}px`);
+          });
+          const trigger = item.querySelector(".acc-trigger");
+          trigger.addEventListener("click", () => {
+            const willOpen = !item.classList.contains("open");
+            item.classList.toggle("open", willOpen);
+            trigger.setAttribute("aria-expanded", String(willOpen));
+            if (willOpen) KanonAudio.chime(659.25, 0.032, 0.28);
+            else KanonAudio.tick(1120, 0.032, 0.025);
+          });
+        });
+      });
+
+      /* Tactile sound on primary buttons & theme toggle (ZERO jittery transform fighting!) */
+      document.querySelectorAll(".btn-hero-primary, .btn-hero-secondary, .nav-cta").forEach((btn) => {
+        btn.addEventListener("click", () => KanonAudio.tick(1720, 0.038, 0.026));
+      });
+
+      /* 6. Brand Film Player */
+      const film = document.getElementById("launchFilm");
+      const cinemaBox = document.getElementById("cinemaBox");
+      const cinemaVeil = document.getElementById("cinemaVeil");
+      const filmClock = document.getElementById("filmClock");
+      const muteBtn = document.getElementById("muteBtn");
+
+      function togglePlay() {
+        if (film.paused) film.play().catch(() => {});
+        else film.pause();
+      }
+      cinemaBox.addEventListener("click", togglePlay);
+      document.getElementById("heroPlayJump").addEventListener("click", () => {
+        setTimeout(() => { if (film.paused) film.play().catch(() => {}); }, 550);
+      });
+      film.addEventListener("play", () => cinemaVeil.classList.add("hidden"));
+      film.addEventListener("pause", () => cinemaVeil.classList.remove("hidden"));
+      film.addEventListener("ended", () => cinemaVeil.classList.remove("hidden"));
+      film.addEventListener("timeupdate", () => {
+        const s = Math.floor(film.currentTime || 0);
+        const d = isFinite(film.duration) && film.duration > 0 ? Math.round(film.duration) : 24;
+        filmClock.textContent = `00:${String(s).padStart(2, "0")} / 00:${String(d).padStart(2, "0")}`;
+      });
+      muteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        film.muted = !film.muted;
+        muteBtn.textContent = film.muted ? "已静音" : "声音已开启";
+      });
+
+      /* 7. Theme Toggle, Copy Email & Private Access Modal */
+      document.getElementById("themeToggle").addEventListener("click", () => {
+        KanonAudio.tick(1520, 0.04, 0.03);
+        const cur = document.documentElement.getAttribute("data-theme") || "dark";
+        document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+      });
+
+      const toast = document.getElementById("toast");
+      let tmr;
+      function notify(msg) {
+        toast.textContent = msg;
+        toast.classList.add("show");
+        clearTimeout(tmr);
+        tmr = setTimeout(() => toast.classList.remove("show"), 2600);
+      }
+      document.getElementById("copyMailBtn").addEventListener("click", () => {
+        KanonAudio.chime(880, 0.032, 0.24);
+        if (navigator.clipboard) navigator.clipboard.writeText("jensencuda@gmail.com").catch(() => {});
+        notify("已复制 jensencuda@gmail.com");
+      });
+
+      const modal = document.getElementById("accessModal");
+      const openM = () => modal.classList.add("open");
+      const closeM = () => modal.classList.remove("open");
+      document.getElementById("openAccess").addEventListener("click", openM);
+      document.getElementById("closingAccess").addEventListener("click", openM);
+      document.getElementById("closeModal").addEventListener("click", closeM);
+      modal.addEventListener("click", (e) => { if (e.target === modal) closeM(); });
+      window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeM(); });
+
+      document.getElementById("accessForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = document.getElementById("fName").value.trim();
+        const email = document.getElementById("fEmail").value.trim();
+        const href = `mailto:jensencuda@gmail.com?subject=${encodeURIComponent("[KANON Private Access] " + name)}&body=${encodeURIComponent("Name: " + name + "\nEmail: " + email)}`;
+        document.getElementById("accessBody").innerHTML = `
+          <h3 class="serif">Received.</h3>
+          <p>感谢您，${name.replace(/</g, "&lt;")}。可直接致信创始人 Caius Lu 开启私密体验。</p>
+          <a class="btn-hero-primary" href="${href}">联系 Caius Lu →</a>`;
+      });
+
+      resize();
+      requestAnimationFrame(drawSilk);
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(syncTabBar);
+      }
+    })();
+  </script>
+</body>
+</html>

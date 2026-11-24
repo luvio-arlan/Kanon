@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="6 0 88 100" fill="none">
+  <style>
+    .k-ink { fill: #111113; }
+    .k-accent { fill: #EA6B4A; }
+    @media (prefers-color-scheme: dark) {
+      .k-ink { fill: #F3F1EB; }
+    }
+  </style>
+  <path class="k-ink" d="M16.3 0H24.8L27.4 48.1L12 66.3L16.3 0Z" />
+  <path class="k-ink" d="M73.8 0H89.4C88.2 21.5 76.2 38.2 49.6 50C35.2 63.4 27.6 79.4 26.7 100H10.6C11.4 77.2 19.6 60.8 36 50C59.8 34.4 72.1 19.8 73.8 0Z" />
+  <path class="k-accent" d="M54.5 54.8C64.2 63.6 74.8 77.5 88.9 100H72.1C64.5 84.8 56.6 70.6 46.8 60.4L54.5 54.8Z" />
+</svg>
