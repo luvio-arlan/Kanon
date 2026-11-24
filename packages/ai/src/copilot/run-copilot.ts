@@ -43,7 +43,7 @@ export interface CopilotRunResult<TAction extends CopilotAction> {
   data: CopilotPayloadMap[TAction];
 }
 
-function resolveByokModel(byok?: ByokCredentials): LanguageModel | null {
+export function resolveByokModel(byok?: ByokCredentials): LanguageModel | null {
   if (byok?.apiKey.trim()) {
     const apiKey = byok.apiKey.trim();
     if (byok.provider === "gemini") return createGoogleGenerativeAI({ apiKey })("gemini-2.5-flash");

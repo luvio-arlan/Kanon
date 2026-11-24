@@ -32,10 +32,12 @@ function StepThreeView({
   ctrl,
   glossary,
   onDirtyChange,
+  onPromoteRule,
 }: {
   ctrl: CanvasController;
   glossary: readonly GlossaryTerm[];
   onDirtyChange: DirtyCallback;
+  onPromoteRule: (rule: string) => void;
 }) {
   return (
     <StepFirstPrinciples
@@ -52,6 +54,7 @@ function StepThreeView({
       onSaveCrossChecks={(crossChecks) =>
         ctrl.patchStep({ step: "cross_checks", crossChecks }, "交叉验证记录已保存")
       }
+      onPromoteExitRule={onPromoteRule}
     />
   );
 }
@@ -92,7 +95,14 @@ function EarlySteps({ step, ctrl, glossary, onDirtyChange, onPromoteRule }: Earl
       />
     );
   }
-  return <StepThreeView ctrl={ctrl} glossary={glossary} onDirtyChange={onDirtyChange} />;
+  return (
+    <StepThreeView
+      ctrl={ctrl}
+      glossary={glossary}
+      onDirtyChange={onDirtyChange}
+      onPromoteRule={onPromoteRule}
+    />
+  );
 }
 
 function LateSteps({
@@ -126,6 +136,7 @@ function LateSteps({
     <DisciplineJournal
       thesis={ctrl.thesis}
       revisions={ctrl.revisions}
+      reviews={ctrl.reviews}
       submitting={ctrl.saving}
       memoLoading={ctrl.copilot.busy === "investment_memo"}
       investmentMemo={ctrl.copilot.investmentMemo}
@@ -133,6 +144,7 @@ function LateSteps({
       promotedExitRule={promotedRule}
       onClearPromotedRule={onClearPromoted}
       onSubmitDiscipline={ctrl.submitDiscipline}
+      onSubmitReview={ctrl.submitQuarterlyReview}
       onGenerateMemo={() => ctrl.runCopilot("investment_memo")}
     />
   );

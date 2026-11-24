@@ -1,6 +1,6 @@
 "use client";
 
-import type { SecFilingItem, SecFinancialFact, SecSnapshot } from "@kanon/core";
+import type { EarningsDigest, SecFilingItem, SecFinancialFact, SecSnapshot } from "@kanon/core";
 import { Badge, Button, Card } from "@kanon/ui";
 import { IconExternalLink, IconRefresh } from "@tabler/icons-react";
 
@@ -74,6 +74,50 @@ export function SecFactsPanel({ ticker, snapshot, syncing, onSync }: SecFactsPan
       </div>
       {snapshot ? <FactsGrid facts={snapshot.facts} /> : null}
       {snapshot ? <FilingsRow filings={snapshot.filings} /> : null}
+    </Card>
+  );
+}
+
+export function EarningsDigestPanel({ digest }: { digest: EarningsDigest }) {
+  return (
+    <Card className="space-y-4 border-accent-coral/30 p-6">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-ink-primary">电话会核心提炼（已持久化）</h3>
+        <Badge variant="coral">{digest.quarterLabel}</Badge>
+      </div>
+      <p className="text-sm leading-relaxed text-ink-primary">{digest.guidanceSummary}</p>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {[
+          { title: "资本开支与供给信号", items: digest.capexSignals },
+          { title: "管理层措辞与关注点", items: digest.toneShifts },
+        ].map((group) => (
+          <div key={group.title} className="rounded-control bg-muted/60 p-4">
+            <div className="text-xs font-semibold text-ink-primary">{group.title}</div>
+            <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-ink-secondary">
+              {group.items.map((sig) => (
+                <li key={sig}>{sig}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {digest.quotesWithAnchors.length > 0 ? (
+        <div className="space-y-2 border-t border-hairline pt-4">
+          <div className="text-xs font-semibold text-ink-muted">一阶原文锚点摘录</div>
+          {digest.quotesWithAnchors.map((q) => (
+            <div
+              key={`${q.topic}-${q.sourceAnchor}`}
+              className="border-l-2 border-accent-coral/60 py-0.5 pl-3.5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-medium text-ink-primary">{q.topic}</span>
+                <span className="font-mono text-ink-muted">{q.sourceAnchor}</span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-ink-secondary">{q.summary}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </Card>
   );
 }

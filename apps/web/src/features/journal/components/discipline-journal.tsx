@@ -1,7 +1,13 @@
 "use client";
 
-import type { InvestmentMemo } from "@kanon/ai";
-import type { CreateDisciplineEntryInput, ThesisDetail, ThesisRevision } from "@kanon/core";
+import type {
+  CreateDisciplineEntryInput,
+  CreateQuarterlyReviewInput,
+  InvestmentMemo,
+  QuarterlyReview,
+  ThesisDetail,
+  ThesisRevision,
+} from "@kanon/core";
 import { Button, KANON_TRANSITION_FAST, SegmentedTabs } from "@kanon/ui";
 import { IconPlus } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -9,11 +15,13 @@ import { useState } from "react";
 import { DecisionComposerCard } from "./discipline-composer";
 import { DisciplineTimeline } from "./discipline-timeline";
 import { InvestmentMemoCard } from "./investment-memo-card";
+import { QuarterlyReviewPanel } from "./quarterly-review-panel";
 import { RevisionTimeline } from "./revision-timeline";
 
 export interface DisciplineJournalProps {
   thesis: ThesisDetail;
   revisions: readonly ThesisRevision[];
+  reviews: readonly QuarterlyReview[];
   submitting: boolean;
   memoLoading: boolean;
   investmentMemo: InvestmentMemo | null;
@@ -21,10 +29,11 @@ export interface DisciplineJournalProps {
   promotedExitRule?: string | null;
   onClearPromotedRule?: () => void;
   onSubmitDiscipline: (entry: CreateDisciplineEntryInput) => Promise<void>;
+  onSubmitReview: (input: CreateQuarterlyReviewInput) => Promise<void>;
   onGenerateMemo: () => Promise<void>;
 }
 
-type Step5Tab = "ledger" | "memo" | "revisions";
+type Step5Tab = "ledger" | "reviews" | "memo" | "revisions";
 
 function Step5Header() {
   return (
@@ -74,6 +83,39 @@ function LedgerPanel(
   );
 }
 
+function Step5TabContent(
+  props: DisciplineJournalProps & {
+    tab: Step5Tab;
+    composerOpen: boolean;
+    onCloseComposer: () => void;
+  },
+) {
+  if (props.tab === "reviews") {
+    return (
+      <QuarterlyReviewPanel
+        thesis={props.thesis}
+        reviews={props.reviews}
+        submitting={props.submitting}
+        onSubmitReview={props.onSubmitReview}
+      />
+    );
+  }
+  if (props.tab === "memo") {
+    return (
+      <InvestmentMemoCard
+        thesisId={props.thesis.id}
+        memo={props.investmentMemo}
+        loading={props.memoLoading}
+        onGenerate={props.onGenerateMemo}
+      />
+    );
+  }
+  if (props.tab === "revisions") {
+    return <RevisionTimeline revisions={props.revisions} />;
+  }
+  return <LedgerPanel {...props} />;
+}
+
 export function DisciplineJournal(props: DisciplineJournalProps) {
   const [tab, setTab] = useState<Step5Tab>("ledger");
   const [composerOpen, setComposerOpen] = useState(
@@ -94,6 +136,7 @@ export function DisciplineJournal(props: DisciplineJournalProps) {
           onChange={setTab}
           items={[
             { id: "ledger", label: "交易纪律台账", count: props.thesis.disciplineEntries.length },
+            { id: "reviews", label: "季度复盘", count: props.reviews.length },
             { id: "memo", label: "投研备忘录" },
             { id: "revisions", label: "演进日志", count: props.revisions.length },
           ]}
@@ -105,18 +148,12 @@ export function DisciplineJournal(props: DisciplineJournalProps) {
           </Button>
         ) : null}
       </div>
-      {tab === "memo" ? (
-        <InvestmentMemoCard
-          thesisId={props.thesis.id}
-          memo={props.investmentMemo}
-          loading={props.memoLoading}
-          onGenerate={props.onGenerateMemo}
-        />
-      ) : tab === "revisions" ? (
-        <RevisionTimeline revisions={props.revisions} />
-      ) : (
-        <LedgerPanel {...props} composerOpen={composerOpen} onCloseComposer={closeComposer} />
-      )}
+      <Step5TabContent
+        {...props}
+        tab={tab}
+        composerOpen={composerOpen}
+        onCloseComposer={closeComposer}
+      />
     </div>
   );
 }

@@ -7,6 +7,13 @@ import { createMemoryKanonDb, getDbHealthStats, type KanonDb } from "./client";
 import { KANON_MIGRATIONS } from "./migrations";
 import { listCopilotOutputs, upsertCopilotOutput } from "./repositories/copilot-store";
 import { addDisciplineEntry, deleteThesis } from "./repositories/discipline-mutations";
+import {
+  createQuarterlyReview,
+  getLatestAgentRun,
+  listQuarterlyReviews,
+  markAgentProposalApplied,
+  saveAgentRun,
+} from "./repositories/review-and-agent-store";
 import { listThesisRevisions } from "./repositories/revision-queries";
 import { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
 import {
@@ -175,5 +182,49 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     expect(matrix.peSteps).toHaveLength(5);
     expect(matrix.rows[2]?.[2]?.targetPrice).toBe(175);
     expect(matrix.rows[2]?.[2]?.zone).toBe("margin");
+  });
+
+  it("persists multi-role agent runs, HITL applied IDs, and quarterly reviews with cognitive snapshots", async () => {
+    const savedRun = await saveAgentRun(db, {
+      thesisId: "thesis-nvda",
+      engine: "grounded-local",
+      briefing: {
+        ticker: "NVDA",
+        engine: "grounded-local",
+        verdict: "建议核心跟踪 · 赔率具备安全边际",
+        convictionScore: 78,
+        bullSynthesis: "数据中心 CUDA 生态与算力护城河持续加固",
+        bearCritique: "云巨头自研 ASIC 分流推理侧高毛利份额",
+        accountingCheck: "Owner FCF 转化率优异且净现金充裕",
+        traces: [],
+        proposals: [],
+      },
+    });
+    const applied = await markAgentProposalApplied(db, savedRun.id, "prop-variant");
+    expect(applied).toEqual(["prop-variant"]);
+    const latestRun = await getLatestAgentRun(db, "thesis-nvda");
+    expect(latestRun?.appliedProposalIds).toEqual(["prop-variant"]);
+
+    const nvda = await getThesisById(db, "thesis-nvda");
+    expect(nvda).not.toBeNull();
+    if (!nvda) return;
+    const h0 = nvda.hypotheses[0];
+    expect(h0).toBeDefined();
+    if (!h0) return;
+
+    const qResult = await createQuarterlyReview(db, "thesis-nvda", {
+      quarterLabel: "FY26 Q4",
+      summary: "数据中心增速超预期且毛利率维持高位",
+      hypothesisVerdicts: [
+        { hypothesisId: h0.id, title: h0.title, verdict: "strengthened", evidence: "毛利率 75%" },
+      ],
+      applyStatusUpdates: true,
+    });
+    expect(qResult?.review.quarterLabel).toBe("FY26 Q4");
+    const reviews = await listQuarterlyReviews(db, "thesis-nvda");
+    expect(reviews[0]?.quarterLabel).toBe("FY26 Q4");
+    const revs = await listThesisRevisions(db, "thesis-nvda");
+    expect(revs[0]?.step).toBe("quarterly_review");
+    expect(revs[0]?.snapshot?.hypotheses.length).toBeGreaterThanOrEqual(3);
   });
 });

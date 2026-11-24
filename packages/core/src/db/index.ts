@@ -19,6 +19,13 @@ export {
   deleteThesis,
   upsertSecSnapshot,
 } from "./repositories/discipline-mutations";
+export {
+  createQuarterlyReview,
+  getLatestAgentRun,
+  listQuarterlyReviews,
+  markAgentProposalApplied,
+  saveAgentRun,
+} from "./repositories/review-and-agent-store";
 export { listThesisRevisions, recordThesisRevision } from "./repositories/revision-queries";
 export { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
 export {

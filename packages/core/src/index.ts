@@ -33,6 +33,8 @@ export {
   RedTeamReportSchema,
 } from "./contracts/ai-contracts";
 export {
+  AgentApplyRequestSchema,
+  AgentApplyResponseSchema,
   type ApiErrorResponse,
   ApiErrorResponseSchema,
   type CopilotApiResponse,
@@ -41,8 +43,11 @@ export {
   DeleteOkResponseSchema,
   type MarketBootstrapResponse,
   MarketBootstrapResponseSchema,
+  QuarterlyReviewCreateResponseSchema,
   type RefreshPricesResponse,
   RefreshPricesResponseSchema,
+  type SavedAgentRun,
+  SavedAgentRunSchema,
   SecSyncResponseSchema,
   ThesisMutationResponseSchema,
 } from "./contracts/api-contracts";

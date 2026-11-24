@@ -1,8 +1,60 @@
-import { AgentRequestSchema, streamResearchAgent } from "@kanon/ai";
-import { getKanonDb, getSecSnapshot, getThesisById } from "@kanon/core/db";
+import {
+  AgentRequestSchema,
+  type ByokCredentials,
+  ByokProviderSchema,
+  streamResearchAgent,
+} from "@kanon/ai";
+import { getKanonDb, getSecSnapshot, getThesisById, saveAgentRun } from "@kanon/core/db";
 import { formatZodError, jsonError, readJsonBody } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
+
+function parseByokHeaders(request: Request): ByokCredentials | undefined {
+  const rawProvider = request.headers.get("x-kanon-ai-provider");
+  const apiKey = request.headers.get("x-kanon-ai-key")?.trim();
+  if (!rawProvider || !apiKey) return undefined;
+  const parsed = ByokProviderSchema.safeParse(rawProvider);
+  if (!parsed.success) return undefined;
+  return { provider: parsed.data, apiKey };
+}
+
+function createAgentSseStream(params: {
+  db: Awaited<ReturnType<typeof getKanonDb>>;
+  thesis: NonNullable<Awaited<ReturnType<typeof getThesisById>>>;
+  secSnapshot: Awaited<ReturnType<typeof getSecSnapshot>>;
+  byok: ByokCredentials | undefined;
+}) {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of streamResearchAgent(params)) {
+          const payload =
+            event.type === "briefing_ready"
+              ? {
+                  ...event,
+                  runId: (
+                    await saveAgentRun(params.db, {
+                      thesisId: params.thesis.id,
+                      engine: event.briefing.engine,
+                      fallbackReason: event.briefing.fallbackReason ?? null,
+                      briefing: event.briefing,
+                    })
+                  ).id,
+                }
+              : event;
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        }
+      } catch (err) {
+        const reason = err instanceof Error ? err.message.slice(0, 80) : "未知异常";
+        const errEvt = { type: "error", message: `投研 Agent 执行异常（${reason}），请重试。` };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(errEvt)}\n\n`));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+}
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
@@ -20,22 +72,7 @@ export async function POST(request: Request) {
     return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   }
   const secSnapshot = await getSecSnapshot(db, thesis.ticker);
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const event of streamResearchAgent({ thesis, secSnapshot })) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-        }
-      } catch {
-        const errEvt = { type: "error", message: "投研 Agent 执行异常，请重试。" };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(errEvt)}\n\n`));
-      } finally {
-        controller.close();
-      }
-    },
-  });
+  const stream = createAgentSseStream({ db, thesis, secSnapshot, byok: parseByokHeaders(request) });
 
   return new Response(stream, {
     headers: {

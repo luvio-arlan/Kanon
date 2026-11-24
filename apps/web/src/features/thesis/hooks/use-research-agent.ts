@@ -6,15 +6,15 @@ import {
   type AgentStreamEvent,
   AgentStreamEventSchema,
   type AgentTraceStep,
+  type CrossCheck,
+  type SavedAgentRun,
 } from "@kanon/core";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { buildByokHeaders } from "@/features/ai-settings";
 import { parseValidatedSseLine } from "@/shared/lib/kanon-fetch";
+import { apiMarkAgentApplied } from "./canvas-api";
 import type { useResearchCanvas } from "./use-research-canvas";
-
-function parseSseLine(line: string): AgentStreamEvent | null {
-  return parseValidatedSseLine(line, AgentStreamEventSchema);
-}
 
 function upsertTrace(list: AgentTraceStep[], next: AgentTraceStep): AgentTraceStep[] {
   const idx = list.findIndex((item) => item.stepIndex === next.stepIndex);
@@ -37,7 +37,7 @@ async function readEventStream(
     const parts = buffer.split("\n\n");
     buffer = parts.pop() ?? "";
     for (const chunk of parts) {
-      const evt = parseSseLine(chunk.trim());
+      const evt = parseValidatedSseLine(chunk.trim(), AgentStreamEventSchema);
       if (evt) onEvent(evt);
     }
   }
@@ -46,20 +46,22 @@ async function readEventStream(
 interface EventSetters {
   setTraces: React.Dispatch<React.SetStateAction<AgentTraceStep[]>>;
   setBriefing: React.Dispatch<React.SetStateAction<AgentBriefing | null>>;
+  setRunId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 function dispatchAgentEvent(evt: AgentStreamEvent, setters: EventSetters) {
   if (evt.type === "trace_start") {
-    const runningStep: AgentTraceStep = {
-      stepIndex: evt.stepIndex,
-      toolName: evt.toolName,
-      label: evt.label,
-      status: "running",
-      durationMs: 0,
-      finding: "",
-      citation: "",
-    };
-    setters.setTraces((prev) => upsertTrace(prev, runningStep));
+    setters.setTraces((prev) =>
+      upsertTrace(prev, {
+        stepIndex: evt.stepIndex,
+        toolName: evt.toolName,
+        label: evt.label,
+        status: "running",
+        durationMs: 0,
+        finding: "",
+        citation: "",
+      }),
+    );
     return;
   }
   if (evt.type === "trace_done") {
@@ -68,25 +70,28 @@ function dispatchAgentEvent(evt: AgentStreamEvent, setters: EventSetters) {
   }
   if (evt.type === "briefing_ready") {
     setters.setBriefing(evt.briefing);
+    if (evt.runId) setters.setRunId(evt.runId);
     return;
   }
   if (evt.type === "error") toast.error(evt.message);
 }
 
-export function useResearchAgent(thesisId: string) {
+export function useResearchAgent(thesisId: string, initialRun: SavedAgentRun | null) {
   const [running, setRunning] = useState(false);
-  const [traces, setTraces] = useState<AgentTraceStep[]>([]);
-  const [briefing, setBriefing] = useState<AgentBriefing | null>(null);
-  const [appliedIds, setAppliedIds] = useState<string[]>([]);
+  const [runId, setRunId] = useState<string | null>(initialRun?.id ?? null);
+  const [traces, setTraces] = useState<AgentTraceStep[]>(initialRun?.briefing.traces ?? []);
+  const [briefing, setBriefing] = useState<AgentBriefing | null>(initialRun?.briefing ?? null);
+  const [appliedIds, setAppliedIds] = useState<string[]>(initialRun?.appliedProposalIds ?? []);
 
   const runAgent = useCallback(async () => {
     setRunning(true);
     setTraces([]);
     setBriefing(null);
+    setAppliedIds([]);
     try {
       const res = await fetch("/api/ai/agent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...buildByokHeaders() },
         body: JSON.stringify({ thesisId }),
       });
       if (!res.ok || !res.body) {
@@ -94,7 +99,7 @@ export function useResearchAgent(thesisId: string) {
         return;
       }
       await readEventStream(res.body.getReader(), (evt) =>
-        dispatchAgentEvent(evt, { setTraces, setBriefing }),
+        dispatchAgentEvent(evt, { setTraces, setBriefing, setRunId }),
       );
     } finally {
       setRunning(false);
@@ -102,26 +107,35 @@ export function useResearchAgent(thesisId: string) {
   }, [thesisId]);
 
   const markApplied = useCallback(
-    (proposalId: string) =>
-      setAppliedIds((prev) => (prev.includes(proposalId) ? prev : [...prev, proposalId])),
-    [],
+    async (proposalId: string) => {
+      setAppliedIds((prev) => (prev.includes(proposalId) ? prev : [...prev, proposalId]));
+      if (runId) {
+        await apiMarkAgentApplied(runId, proposalId);
+      }
+    },
+    [runId],
   );
 
   return { running, traces, briefing, appliedIds, runAgent, markApplied };
 }
 
-export async function applyAgentProposal(params: {
-  proposal: AgentProposal;
-  ctrl: ReturnType<typeof useResearchCanvas>;
-  onPromoteExitRule: (rule: string) => void;
-  onApplied: (id: string) => void;
-}) {
-  const { proposal, ctrl, onPromoteExitRule, onApplied } = params;
-  if (proposal.target === "exit_rule") {
-    onPromoteExitRule(proposal.content);
-    onApplied(proposal.id);
-    return;
-  }
+function buildCrossCheckFromProposal(proposal: AgentProposal): CrossCheck {
+  return {
+    id: `cc-agent-${Date.now().toString(36).slice(-5)}`,
+    peerCompany: proposal.meta?.peerCompany ?? "产业链上下游伙伴",
+    peerRole: proposal.meta?.peerRole ?? "upstream",
+    topic: proposal.meta?.topic ?? proposal.title,
+    sourceAnchor: proposal.citation,
+    statement: proposal.content,
+    alignment: "pending",
+    takeaway: proposal.rationale,
+  };
+}
+
+async function applyBusinessFilterProposal(
+  proposal: AgentProposal,
+  ctrl: ReturnType<typeof useResearchCanvas>,
+) {
   const fieldKey =
     proposal.target === "variant_perception"
       ? "variantPerception"
@@ -137,5 +151,36 @@ export async function applyAgentProposal(params: {
     },
     `已人机共审采纳并写入：${proposal.title}`,
   );
-  onApplied(proposal.id);
+}
+
+export async function applyAgentProposal(params: {
+  proposal: AgentProposal;
+  ctrl: ReturnType<typeof useResearchCanvas>;
+  onPromoteExitRule: (rule: string) => void;
+  onApplied: (id: string) => Promise<void>;
+}) {
+  const { proposal, ctrl, onPromoteExitRule, onApplied } = params;
+  if (proposal.target === "exit_rule") {
+    onPromoteExitRule(proposal.content);
+  } else if (proposal.target === "hypothesis_update") {
+    const idx = proposal.meta?.hypothesisIndex ?? 0;
+    const nextHyps = ctrl.thesis.hypotheses.map((h, i) =>
+      i === idx
+        ? { ...h, status: proposal.meta?.hypothesisStatus ?? h.status, note: proposal.content }
+        : h,
+    );
+    await ctrl.patchStep(
+      { step: "hypotheses", hypotheses: nextHyps },
+      `已采纳并更新假设：${proposal.title}`,
+    );
+  } else if (proposal.target === "cross_check_draft") {
+    const nextChecks = [...ctrl.thesis.crossChecks, buildCrossCheckFromProposal(proposal)];
+    await ctrl.patchStep(
+      { step: "cross_checks", crossChecks: nextChecks },
+      "已增补产业链交叉验证条目",
+    );
+  } else {
+    await applyBusinessFilterProposal(proposal, ctrl);
+  }
+  await onApplied(proposal.id);
 }

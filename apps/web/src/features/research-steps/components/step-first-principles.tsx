@@ -7,14 +7,16 @@ import type {
   SecSnapshot,
   ThesisDetail,
 } from "@kanon/core";
-import { Badge, Button, Card, Textarea } from "@kanon/ui";
-import { IconCheck, IconDeviceFloppy, IconSparkles } from "@tabler/icons-react";
+import { Button, Card, Textarea } from "@kanon/ui";
+import { IconCheck, IconDeviceFloppy, IconScissors, IconSparkles } from "@tabler/icons-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { DraftStatusBar } from "@/shared/components/draft-status-bar";
 import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { AddCrossCheckForm, CrossCheckItemCard, nextAlignment } from "./cross-check-editor";
 import { SecAnnualsTable } from "./sec-annuals-table";
-import { SecFactsPanel } from "./sec-facts-panel";
+import { EarningsDigestPanel, SecFactsPanel } from "./sec-facts-panel";
+import { SourceClipperSheet } from "./source-clipper-sheet";
 
 export interface StepFirstPrinciplesProps {
   thesis: ThesisDetail;
@@ -28,53 +30,7 @@ export interface StepFirstPrinciplesProps {
   onSyncSec: () => Promise<void>;
   onRunDigest: (sourceText?: string) => Promise<void>;
   onSaveCrossChecks: (items: CrossCheck[]) => Promise<void>;
-}
-
-function EarningsDigestPanel({ digest }: { digest: EarningsDigest }) {
-  return (
-    <Card className="space-y-4 border-accent-coral/30 p-6">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-ink-primary">电话会核心提炼（已持久化）</h3>
-        <Badge variant="coral">{digest.quarterLabel}</Badge>
-      </div>
-      <p className="text-sm leading-relaxed text-ink-primary">{digest.guidanceSummary}</p>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="rounded-control bg-muted/60 p-4">
-          <div className="text-xs font-semibold text-ink-primary">资本开支与供给信号</div>
-          <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-ink-secondary">
-            {digest.capexSignals.map((sig) => (
-              <li key={sig}>{sig}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-control bg-muted/60 p-4">
-          <div className="text-xs font-semibold text-ink-primary">管理层措辞与关注点</div>
-          <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-ink-secondary">
-            {digest.toneShifts.map((shift) => (
-              <li key={shift}>{shift}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-      {digest.quotesWithAnchors.length > 0 ? (
-        <div className="space-y-2 border-t border-hairline pt-4">
-          <div className="text-xs font-semibold text-ink-muted">一阶原文锚点摘录</div>
-          {digest.quotesWithAnchors.map((q) => (
-            <div
-              key={`${q.topic}-${q.sourceAnchor}`}
-              className="border-l-2 border-accent-coral/60 pl-3.5 py-0.5"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="font-medium text-ink-primary">{q.topic}</span>
-                <span className="font-mono text-ink-muted">{q.sourceAnchor}</span>
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-ink-secondary">{q.summary}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </Card>
-  );
+  onPromoteExitRule?: (rule: string) => void;
 }
 
 function TranscriptInputCard({
@@ -82,11 +38,13 @@ function TranscriptInputCard({
   loading,
   onChange,
   onRun,
+  onOpenClipper,
 }: {
   sourceText: string;
   loading: boolean;
   onChange: (next: string) => void;
   onRun: () => Promise<void>;
+  onOpenClipper: () => void;
 }) {
   return (
     <Card className="space-y-3 p-5">
@@ -96,13 +54,19 @@ function TranscriptInputCard({
             电话会纪要 / 10-K 原文精读提炼
           </div>
           <div className="mt-0.5 text-xs text-ink-muted">
-            可粘贴最新 Earnings Call 原文片段或直接基于当前档案提炼指引与 CapEx 信号
+            粘贴 Earnings Call 原文后，可用 AI 提炼或打开精读器划词摘录至互证与离场红线
           </div>
         </div>
-        <Button variant="titanium" size="sm" disabled={loading} onClick={onRun}>
-          <IconSparkles size={14} stroke={1.5} />
-          <span>{loading ? "提炼中..." : "提炼电话会"}</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onOpenClipper}>
+            <IconScissors size={14} stroke={1.5} />
+            <span>精读与划词摘录</span>
+          </Button>
+          <Button variant="titanium" size="sm" disabled={loading} onClick={onRun}>
+            <IconSparkles size={14} stroke={1.5} />
+            <span>{loading ? "提炼中..." : "提炼电话会"}</span>
+          </Button>
+        </div>
       </div>
       <Textarea
         value={sourceText}
@@ -178,20 +142,32 @@ function useStepThreeDraft(props: StepFirstPrinciplesProps) {
   });
 }
 
-export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
-  const d = useStepThreeDraft(props);
-  const [transcript, setTranscript] = useState("");
-  const cycleCheck = (id: string) =>
-    d.setDraft((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, alignment: nextAlignment(item.alignment) } : item,
-      ),
-    );
+function buildClippedCrossCheck(companyName: string, excerpt: string, anchor: string): CrossCheck {
+  return {
+    id: `cc-clip-${Date.now().toString(36).slice(-5)}`,
+    peerCompany: companyName,
+    peerRole: "primary",
+    topic: "一阶原文精读摘录",
+    sourceAnchor: anchor,
+    statement: excerpt,
+    alignment: "aligned",
+    takeaway: "来自原文精读器划词摘录，待与产业链上下游口径互证。",
+  };
+}
 
+function StepThreeEvidenceBody({
+  props,
+  transcript,
+  onTranscript,
+  onOpenClipper,
+}: {
+  props: StepFirstPrinciplesProps;
+  transcript: string;
+  onTranscript: (v: string) => void;
+  onOpenClipper: () => void;
+}) {
   return (
-    <div className="space-y-6">
-      <DraftStatusBar draft={d} saving={props.saving} />
-      <StepThreeHeading />
+    <>
       <SecFactsPanel
         ticker={props.thesis.ticker}
         snapshot={props.secSnapshot}
@@ -207,10 +183,43 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
       <TranscriptInputCard
         sourceText={transcript}
         loading={props.digestLoading}
-        onChange={setTranscript}
+        onChange={onTranscript}
         onRun={() => props.onRunDigest(transcript)}
+        onOpenClipper={onOpenClipper}
       />
       {props.digest ? <EarningsDigestPanel digest={props.digest} /> : null}
+    </>
+  );
+}
+
+export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
+  const d = useStepThreeDraft(props);
+  const [transcript, setTranscript] = useState("");
+  const [clipperOpen, setClipperOpen] = useState(false);
+  const cycleCheck = (id: string) =>
+    d.setDraft((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, alignment: nextAlignment(item.alignment) } : item,
+      ),
+    );
+  const clipCrossCheck = (excerpt: string, anchor: string) => {
+    d.setDraft((prev) => [
+      ...prev,
+      buildClippedCrossCheck(props.thesis.companyName, excerpt, anchor),
+    ]);
+    toast.success("已摘录至 Step 3 交叉验证草稿，记得点击保存");
+  };
+
+  return (
+    <div className="space-y-6">
+      <DraftStatusBar draft={d} saving={props.saving} />
+      <StepThreeHeading />
+      <StepThreeEvidenceBody
+        props={props}
+        transcript={transcript}
+        onTranscript={setTranscript}
+        onOpenClipper={() => setClipperOpen(true)}
+      />
       <CrossCheckListSection
         checks={d.draft}
         glossary={props.glossary}
@@ -219,6 +228,16 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
         onDelete={(id) => d.setDraft((prev) => prev.filter((item) => item.id !== id))}
         onAdd={(next) => d.setDraft((prev) => [...prev, next])}
         onSave={d.save}
+      />
+      <SourceClipperSheet
+        open={clipperOpen}
+        ticker={props.thesis.ticker}
+        sourceText={transcript}
+        digest={props.digest}
+        onChangeSource={setTranscript}
+        onOpenChange={setClipperOpen}
+        onClipCrossCheck={clipCrossCheck}
+        onClipExitRule={props.onPromoteExitRule}
       />
     </div>
   );

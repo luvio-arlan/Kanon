@@ -1,9 +1,13 @@
 import {
+  AgentApplyResponseSchema,
   CopilotApiResponseSchema,
   type CreateDisciplineEntryInput,
+  type CreateQuarterlyReviewInput,
   DeleteOkResponseSchema,
   type EarningsDigest,
   type InvestmentMemo,
+  type QuarterlyReview,
+  QuarterlyReviewCreateResponseSchema,
   type RedTeamReport,
   type SecSnapshot,
   SecSyncResponseSchema,
@@ -117,4 +121,32 @@ export async function apiDeleteThesis(thesisId: string): Promise<boolean> {
   }
   toast.success("已从投研档案中删除该标的");
   return true;
+}
+
+export async function apiCreateQuarterlyReview(
+  thesisId: string,
+  input: CreateQuarterlyReviewInput,
+): Promise<{ thesis: ThesisDetail; review: QuarterlyReview; revisions: ThesisRevision[] } | null> {
+  const res = await kanonFetch(
+    `/api/theses/${thesisId}/reviews`,
+    QuarterlyReviewCreateResponseSchema,
+    { method: "POST", body: input, fallbackError: "保存季度复盘失败" },
+  );
+  if (!res.ok) {
+    toast.error(res.error);
+    return null;
+  }
+  toast.success(`${input.quarterLabel} 季度复盘已沉淀归档`);
+  return res.data;
+}
+
+export async function apiMarkAgentApplied(
+  runId: string,
+  proposalId: string,
+): Promise<string[] | null> {
+  const res = await kanonFetch("/api/ai/agent/apply", AgentApplyResponseSchema, {
+    method: "POST",
+    body: { runId, proposalId },
+  });
+  return res.ok ? res.data.appliedProposalIds : null;
 }

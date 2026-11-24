@@ -9,10 +9,12 @@ import {
 import type { SavedCopilotOutput } from "@kanon/core";
 import {
   getKanonDb,
+  getLatestAgentRun,
   getSecSnapshot,
   getThesisById,
   listCopilotOutputs,
   listGlossaryTerms,
+  listQuarterlyReviews,
   listThesisRevisions,
   listThesisSummaries,
 } from "@kanon/core/db";
@@ -47,13 +49,16 @@ function hydrateCopilotOutputs(rows: readonly SavedCopilotOutput[]) {
 export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
   const { id } = await params;
   const db = await getKanonDb();
-  const [thesis, glossary, allTheses, savedOutputs, revisions] = await Promise.all([
-    getThesisById(db, id),
-    listGlossaryTerms(db),
-    listThesisSummaries(db),
-    listCopilotOutputs(db, id),
-    listThesisRevisions(db, id),
-  ]);
+  const [thesis, glossary, allTheses, savedOutputs, revisions, reviews, latestAgentRun] =
+    await Promise.all([
+      getThesisById(db, id),
+      listGlossaryTerms(db),
+      listThesisSummaries(db),
+      listCopilotOutputs(db, id),
+      listThesisRevisions(db, id),
+      listQuarterlyReviews(db, id),
+      getLatestAgentRun(db, id),
+    ]);
 
   if (!thesis) {
     notFound();
@@ -68,6 +73,8 @@ export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
       initialSecSnapshot={secSnapshot}
       initialCopilot={hydrateCopilotOutputs(savedOutputs)}
       initialRevisions={revisions}
+      initialReviews={reviews}
+      initialAgentRun={latestAgentRun}
     />
   );
 }

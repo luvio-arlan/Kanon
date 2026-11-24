@@ -1,6 +1,6 @@
 "use client";
 
-import type { AgentBriefing, AgentProposal, AgentTraceStep } from "@kanon/ai";
+import type { AgentBriefing, AgentProposal, AgentTraceStep } from "@kanon/core";
 import { Badge, Button, ReadinessRing, Sheet } from "@kanon/ui";
 import { IconCheck, IconLoader2, IconPlayerPlay, IconSparkles } from "@tabler/icons-react";
 
@@ -59,7 +59,12 @@ function IcBriefingSummary({ briefing }: { briefing: AgentBriefing }) {
     <div className="space-y-3 rounded-card border border-hairline bg-titanium-subtle p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-xs font-medium text-ink-muted">多角色投委会综合判定</div>
+          <div className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <span>多角色投委会综合判定</span>
+            <Badge variant={briefing.engine === "vercel-ai-sdk" ? "pass" : "default"}>
+              {briefing.engine === "vercel-ai-sdk" ? "BYOK 模型综合" : "确定性引擎"}
+            </Badge>
+          </div>
           <div className="mt-1 text-sm font-semibold text-ink-primary">{briefing.verdict}</div>
         </div>
         <ReadinessRing
@@ -68,13 +73,18 @@ function IcBriefingSummary({ briefing }: { briefing: AgentBriefing }) {
           label={`${briefing.convictionScore}`}
         />
       </div>
+      {briefing.fallbackReason ? (
+        <div className="rounded-control bg-status-warn-soft px-3 py-1.5 text-xs text-status-warn">
+          {briefing.fallbackReason}
+        </div>
+      ) : null}
       <div className="space-y-2 border-t border-hairline pt-3 text-xs leading-relaxed">
         <div>
           <span className="font-semibold text-ink-primary">多头预期差：</span>
           <span className="text-ink-secondary">{briefing.bullSynthesis}</span>
         </div>
         <div>
-          <span className="font-semibold text-ink-primary">空头反演批评：</span>
+          <span className="font-semibold text-ink-primary">法证空头反演：</span>
           <span className="text-ink-secondary">{briefing.bearCritique}</span>
         </div>
         <div>
@@ -101,8 +111,16 @@ function ProposalCard({
         <span className="text-sm font-semibold text-ink-primary">{proposal.title}</span>
         <Badge variant="titanium">{TARGET_LABELS[proposal.target]}</Badge>
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-ink-primary">{proposal.content}</p>
-      <p className="mt-1.5 text-xs text-ink-secondary">依据：{proposal.rationale}</p>
+      {proposal.beforePreview ? (
+        <div className="mt-2.5 rounded-control bg-muted/60 px-3 py-2 text-xs text-ink-muted">
+          <span className="font-mono text-xs">原记录：</span>
+          <span className="line-through opacity-80">{proposal.beforePreview}</span>
+        </div>
+      ) : null}
+      <p className="mt-2 border-l-2 border-accent-coral/60 pl-3 text-xs leading-relaxed text-ink-primary">
+        {proposal.content}
+      </p>
+      <p className="mt-2 text-xs text-ink-secondary">依据：{proposal.rationale}</p>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-2.5">
         <span className="font-mono text-xs text-ink-muted">{proposal.citation}</span>
         <Button
@@ -126,11 +144,11 @@ function AgentEmptyState({ onRun }: { onRun: () => Promise<void> }) {
         <IconSparkles size={18} stroke={1.5} />
       </div>
       <h3 className="mt-3 text-sm font-semibold text-ink-primary">
-        启动 MCP 架构多步投研审计 Agent
+        启动多角色投委会深度审计 Agent
       </h3>
       <p className="mt-1.5 text-xs leading-relaxed text-ink-secondary">
-        Agent 将按序调用 SEC
-        基本面排雷、反向估值压力测试与假设盲区审计工具，实时呈现每步证据溯源，并生成需你审批的「人机共审提案」。
+        依次调用 SEC 14 项法证排雷、Reverse-DCF 压力测试、假设盲区、产业链分歧与仓位纪律 5
+        大工具，持久化留痕并生成可对比 Diff 的人机共审提案。
       </p>
       <div className="mt-4">
         <Button variant="primary" size="md" onClick={() => void onRun()}>
@@ -146,7 +164,6 @@ function SheetBody(props: AgentResearchSheetProps) {
   if (props.traces.length === 0 && !props.running) {
     return <AgentEmptyState onRun={props.onRun} />;
   }
-
   return (
     <div className="space-y-5">
       <div className="space-y-2.5">
@@ -161,7 +178,7 @@ function SheetBody(props: AgentResearchSheetProps) {
       {props.briefing && props.briefing.proposals.length > 0 ? (
         <div className="space-y-2.5">
           <div className="text-xs font-semibold text-ink-muted">
-            人机共审提案（HITL · 点击采纳后写入档案）
+            人机共审 Diff 提案（HITL · 采纳后实时回写并持久记录）
           </div>
           {props.briefing.proposals.map((prop) => (
             <ProposalCard
@@ -182,8 +199,8 @@ export function AgentResearchSheet(props: AgentResearchSheetProps) {
     <Sheet
       open={props.open}
       onOpenChange={props.onOpenChange}
-      title={`投研 Agent · ${props.companyName} (${props.ticker})`}
-      subtitle="证据优先 · 多步工具调用 · 人机共审写入（绝不替你盲目下单）"
+      title={`投委会 Agent · ${props.companyName} (${props.ticker})`}
+      subtitle="证据优先 · 5 工具轨迹 · 多角色辩论 · 人机共审 Diff 写入"
       footer={
         <div className="flex items-center justify-between gap-2">
           <Button

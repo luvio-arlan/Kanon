@@ -1,8 +1,10 @@
 "use client";
 
-import type { AgentProposal } from "@kanon/ai";
 import type {
+  AgentProposal,
   GlossaryTerm,
+  QuarterlyReview,
+  SavedAgentRun,
   SecSnapshot,
   ThesisDetail,
   ThesisRevision,
@@ -28,6 +30,8 @@ export interface ResearchCanvasShellProps {
   initialSecSnapshot: SecSnapshot | null;
   initialCopilot: InitialCopilotState;
   initialRevisions: readonly ThesisRevision[];
+  initialReviews: readonly QuarterlyReview[];
+  initialAgentRun: SavedAgentRun | null;
 }
 
 function FocusExitPill({ onExit }: { onExit: () => void }) {
@@ -159,8 +163,9 @@ function useCanvasBindings(props: ResearchCanvasShellProps) {
     props.initialSecSnapshot,
     props.initialCopilot,
     props.initialRevisions,
+    props.initialReviews,
   );
-  const agent = useResearchAgent(ctrl.thesis.id);
+  const agent = useResearchAgent(ctrl.thesis.id, props.initialAgentRun);
   const actions = useCanvasShellActions({
     ctrl,
     allTheses: props.allTheses,
