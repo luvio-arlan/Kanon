@@ -1,8 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
 import ts from "typescript";
 
-const MAX_DIR_COMPONENT_FILES = 12;
 const MAX_USE_EFFECT_PER_FILE = 1;
 const POPOVER_TAGS = new Set(["GlossaryText", "GlossaryPopoverCard"]);
 
@@ -12,28 +9,6 @@ function getLine(sf, pos) {
 
 function addError(errors, relPath, line, rule, message) {
   errors.push(`${relPath}:${line} [${rule}] ${message}`);
-}
-
-export function checkFeatureDirDensity(rootDir, errors) {
-  const featuresRoot = path.join(rootDir, "apps/web/src/features");
-  if (!fs.existsSync(featuresRoot)) return;
-  for (const slice of fs.readdirSync(featuresRoot, { withFileTypes: true })) {
-    if (!slice.isDirectory()) continue;
-    const compDir = path.join(featuresRoot, slice.name, "components");
-    if (!fs.existsSync(compDir)) continue;
-    const count = fs
-      .readdirSync(compDir, { withFileTypes: true })
-      .filter((e) => e.isFile() && /\.(ts|tsx)$/.test(e.name)).length;
-    if (count > MAX_DIR_COMPONENT_FILES) {
-      addError(
-        errors,
-        `apps/web/src/features/${slice.name}/components`,
-        1,
-        "max-directory-files",
-        `Directory has ${count} files (limit: ${MAX_DIR_COMPONENT_FILES}). Split into focused bounded feature slices.`,
-      );
-    }
-  }
 }
 
 function checkJsxGuard(relPath, sf, node, ctx, errors) {

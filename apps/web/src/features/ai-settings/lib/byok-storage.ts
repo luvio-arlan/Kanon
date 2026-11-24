@@ -1,9 +1,7 @@
-import type { ByokProvider } from "@kanon/ai";
+import { type LocalByokConfig, LocalByokConfigSchema } from "@kanon/core";
+import { parseValidatedJson } from "@/shared/lib/kanon-fetch";
 
-export interface LocalByokConfig {
-  provider: ByokProvider;
-  apiKey: string;
-}
+export type { LocalByokConfig };
 
 const STORAGE_KEY = "kanon-byok-config";
 
@@ -12,35 +10,29 @@ export function readByokConfig(): LocalByokConfig | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<LocalByokConfig>;
-    if (
-      (parsed.provider === "gemini" ||
-        parsed.provider === "anthropic" ||
-        parsed.provider === "openai") &&
-      typeof parsed.apiKey === "string" &&
-      parsed.apiKey.trim().length > 0
-    ) {
-      return { provider: parsed.provider, apiKey: parsed.apiKey.trim() };
-    }
-    return null;
-  } catch {
+    const parsed = parseValidatedJson(raw, LocalByokConfigSchema);
+    return parsed.ok ? parsed.data : null;
+  } catch (err) {
+    void err;
     return null;
   }
 }
 
-export function writeByokConfig(config: LocalByokConfig | null): void {
-  if (typeof window === "undefined") return;
+export function writeByokConfig(config: LocalByokConfig | null): boolean {
+  if (typeof window === "undefined") return false;
   try {
     if (!config?.apiKey.trim()) {
       window.localStorage.removeItem(STORAGE_KEY);
-      return;
+      return true;
     }
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ provider: config.provider, apiKey: config.apiKey.trim() }),
     );
-  } catch {
-    // Ignore restricted storage errors
+    return true;
+  } catch (err) {
+    void err;
+    return false;
   }
 }
 

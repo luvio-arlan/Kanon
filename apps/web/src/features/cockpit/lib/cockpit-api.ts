@@ -1,5 +1,10 @@
-import type { ThesisDetail } from "@kanon/core";
+import {
+  CreateThesisResponseSchema,
+  type ThesisDetail,
+  ThesisMutationResponseSchema,
+} from "@kanon/core";
 import { toast } from "sonner";
+import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
 export interface NewThesisDraft {
   ticker: string;
@@ -63,24 +68,23 @@ export async function apiCreateThesis(draft: NewThesisDraft): Promise<ThesisDeta
     toast.error("请完整填写美股代码、公司名称、赛道与参考价");
     return null;
   }
-  const res = await fetch("/api/theses", {
+  const res = await kanonFetch("/api/theses", CreateThesisResponseSchema, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    body: {
       ticker: draft.ticker.trim().toUpperCase(),
       companyName: draft.companyName.trim(),
       sectorTag: draft.sectorTag.trim(),
       currentPrice: priceNum,
       convictionSummary: draft.convictionSummary.trim() || undefined,
-    }),
+    },
+    fallbackError: "创建标的失败",
   });
-  const json = (await res.json()) as { thesis?: ThesisDetail; error?: string };
-  if (!res.ok || !json.thesis) {
-    toast.error(json.error ?? "创建标的失败");
+  if (!res.ok) {
+    toast.error(res.error);
     return null;
   }
-  toast.success(`已新建 ${json.thesis.companyName} (${json.thesis.ticker}) 研究档案`);
-  return json.thesis;
+  toast.success(`已新建 ${res.data.thesis.companyName} (${res.data.thesis.ticker}) 研究档案`);
+  return res.data.thesis;
 }
 
 export async function apiCalibratePriceAnchor(
@@ -91,16 +95,17 @@ export async function apiCalibratePriceAnchor(
     toast.error("请输入有效的正数参考价");
     return null;
   }
-  const res = await fetch(`/api/theses/${thesisId}`, {
+  const res = await kanonFetch(`/api/theses/${thesisId}`, ThesisMutationResponseSchema, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ step: "price_anchor", currentPrice }),
+    body: { step: "price_anchor", currentPrice },
+    fallbackError: "校准参考价失败",
   });
-  const json = (await res.json()) as { thesis?: ThesisDetail; error?: string };
-  if (!res.ok || !json.thesis) {
-    toast.error(json.error ?? "校准参考价失败");
+  if (!res.ok) {
+    toast.error(res.error);
     return null;
   }
-  toast.success(`已将 ${json.thesis.ticker} 参考价校准至 $${json.thesis.currentPrice.toFixed(2)}`);
-  return json.thesis;
+  toast.success(
+    `已将 ${res.data.thesis.ticker} 参考价校准至 $${res.data.thesis.currentPrice.toFixed(2)}`,
+  );
+  return res.data.thesis;
 }

@@ -5,13 +5,13 @@ import { eq } from "drizzle-orm";
 import { drizzle as drizzlePglite, PgliteDatabase } from "drizzle-orm/pglite";
 import { drizzle as drizzlePostgres, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { KANON_POSTGRES_DDL } from "./ddl";
+import { runKanonMigrations } from "./migrations";
 import * as schema from "./schema";
-import { SEED_GLOSSARY_TERMS } from "./seed-glossary";
-import { SEED_REVISIONS } from "./seed-revisions";
-import { SEED_SEC_SNAPSHOTS } from "./seed-sec";
-import { PRESET_SEC_SNAPSHOTS } from "./seed-sec-presets";
-import { SEED_THESIS_RECORDS } from "./seed-theses";
+import { SEED_GLOSSARY_TERMS } from "./seeds/seed-glossary";
+import { SEED_REVISIONS } from "./seeds/seed-revisions";
+import { SEED_SEC_SNAPSHOTS } from "./seeds/seed-sec";
+import { PRESET_SEC_SNAPSHOTS } from "./seeds/seed-sec-presets";
+import { SEED_THESIS_RECORDS } from "./seeds/seed-theses";
 
 export type KanonDb = PgliteDatabase<typeof schema> | PostgresJsDatabase<typeof schema>;
 export type KanonDbEngine = "pglite-embedded" | "postgres-external";
@@ -143,6 +143,11 @@ async function insertSeedTheses(db: KanonDb): Promise<void> {
 }
 
 function resolveDataDir(): string {
+  const override = process.env.KANON_DATA_DIR?.trim();
+  if (override) {
+    fs.mkdirSync(override, { recursive: true });
+    return override;
+  }
   const cwd = process.cwd();
   const root = cwd.endsWith(path.join("apps", "web")) ? path.resolve(cwd, "..", "..") : cwd;
   const dir = path.join(root, ".data", "kanon-pg");
@@ -156,7 +161,9 @@ function createPersistentState(): DbState {
     const sqlClient = postgres(connectionString, { prepare: false });
     const db = drizzlePostgres(sqlClient, { schema });
     const initPromise = (async () => {
-      await sqlClient.unsafe(KANON_POSTGRES_DDL);
+      await runKanonMigrations(async (stmt) => {
+        await sqlClient.unsafe(stmt);
+      });
       await seedIfEmpty(db);
     })();
     return { db, initPromise };
@@ -165,7 +172,9 @@ function createPersistentState(): DbState {
   const pglite = new PGlite(resolveDataDir());
   const db = drizzlePglite(pglite, { schema });
   const initPromise = (async () => {
-    await pglite.exec(KANON_POSTGRES_DDL);
+    await runKanonMigrations(async (stmt) => {
+      await pglite.exec(stmt);
+    });
     await seedIfEmpty(db);
   })();
   return { db, initPromise };
@@ -212,7 +221,9 @@ export async function getDbHealthStats(db: KanonDb): Promise<DbHealthStats> {
 export async function createMemoryKanonDb(): Promise<{ db: KanonDb; close: () => Promise<void> }> {
   const pglite = new PGlite();
   const db = drizzlePglite(pglite, { schema });
-  await pglite.exec(KANON_POSTGRES_DDL);
+  await runKanonMigrations(async (stmt) => {
+    await pglite.exec(stmt);
+  });
   await seedIfEmpty(db);
   return { db, close: () => pglite.close() };
 }

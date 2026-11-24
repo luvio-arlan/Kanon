@@ -39,6 +39,7 @@ export interface ByokCredentials {
 export interface CopilotRunResult<TAction extends CopilotAction> {
   action: TAction;
   engine: CopilotEngineMode;
+  fallbackReason?: string;
   data: CopilotPayloadMap[TAction];
 }
 
@@ -145,12 +146,14 @@ export async function runThesisCopilot<TAction extends CopilotAction>(params: {
   const model = resolveByokModel(byok);
   const context = buildContextBrief(thesis, secSnapshot, sourceText);
 
+  let fallbackReason: string | undefined;
   if (model) {
     try {
       const data = await runWithModel(model, action, context);
       return { action, engine: "vercel-ai-sdk", data };
-    } catch {
-      // Safe deterministic fallback if external provider errors or rate-limits
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "上游模型调用失败";
+      fallbackReason = `BYOK 模型调用异常：${msg.slice(0, 80)}`;
     }
   }
 
@@ -161,5 +164,10 @@ export async function runThesisCopilot<TAction extends CopilotAction>(params: {
         ? buildGroundedRedTeam(thesis, secSnapshot)
         : buildGroundedInvestmentMemo(thesis, secSnapshot);
 
-  return { action, engine: "grounded-local", data: data as CopilotPayloadMap[TAction] };
+  return {
+    action,
+    engine: "grounded-local",
+    ...(fallbackReason ? { fallbackReason } : {}),
+    data: data as CopilotPayloadMap[TAction],
+  };
 }

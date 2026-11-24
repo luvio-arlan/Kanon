@@ -21,6 +21,8 @@ const TARGET_LABELS: Record<AgentProposal["target"], string> = {
   variant_perception: "写入 Step 1 · 预期差",
   key_debate: "写入 Step 1 · 核心争论",
   pre_mortem: "写入 Step 1 · 事前验尸",
+  hypothesis_update: "修订 Step 2 · 核心假设",
+  cross_check_draft: "增补 Step 3 · 产业链互证",
   exit_rule: "带入 Step 5 · 离场红线",
 };
 

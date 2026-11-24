@@ -1,13 +1,20 @@
-import type { EarningsDigest, InvestmentMemo, RedTeamReport } from "@kanon/ai";
-import type {
-  CreateDisciplineEntryInput,
-  SecSnapshot,
-  ThesisDetail,
-  ThesisRevision,
-  UpdateThesisStepInput,
+import {
+  CopilotApiResponseSchema,
+  type CreateDisciplineEntryInput,
+  DeleteOkResponseSchema,
+  type EarningsDigest,
+  type InvestmentMemo,
+  type RedTeamReport,
+  type SecSnapshot,
+  SecSyncResponseSchema,
+  type ThesisDetail,
+  ThesisMutationResponseSchema,
+  type ThesisRevision,
+  type UpdateThesisStepInput,
 } from "@kanon/core";
 import { toast } from "sonner";
 import { buildByokHeaders } from "@/features/ai-settings";
+import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
 export type CopilotKind = "earnings_digest" | "red_team" | "investment_memo";
 
@@ -15,26 +22,6 @@ export type CopilotResult =
   | { action: "red_team"; data: RedTeamReport }
   | { action: "earnings_digest"; data: EarningsDigest }
   | { action: "investment_memo"; data: InvestmentMemo };
-
-type CopilotApiResponse =
-  | { engine?: string; action: "red_team"; data: RedTeamReport; error?: string }
-  | { engine?: string; action: "earnings_digest"; data: EarningsDigest; error?: string }
-  | { engine?: string; action: "investment_memo"; data: InvestmentMemo; error?: string }
-  | { engine?: string; action?: CopilotKind; data?: undefined; error?: string };
-
-async function sendJson<T>(
-  url: string,
-  body: unknown,
-  method: "POST" | "PATCH" = "POST",
-  extraHeaders?: Record<string, string>,
-) {
-  const res = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json", ...extraHeaders },
-    body: JSON.stringify(body),
-  });
-  return { ok: res.ok, json: (await res.json()) as T };
-}
 
 export interface ThesisMutationResult {
   thesis: ThesisDetail;
@@ -46,48 +33,47 @@ export async function apiPatchStep(
   payload: UpdateThesisStepInput,
   okMessage: string,
 ): Promise<ThesisMutationResult | null> {
-  const { ok, json } = await sendJson<{
-    thesis?: ThesisDetail;
-    revisions?: ThesisRevision[];
-    error?: string;
-  }>(`/api/theses/${thesisId}`, payload, "PATCH");
-  if (!ok || !json.thesis) {
-    toast.error(json.error ?? "保存失败，请重试");
+  const res = await kanonFetch(`/api/theses/${thesisId}`, ThesisMutationResponseSchema, {
+    method: "PATCH",
+    body: payload,
+    fallbackError: "保存失败，请重试",
+  });
+  if (!res.ok) {
+    toast.error(res.error);
     return null;
   }
   toast.success(okMessage);
-  return { thesis: json.thesis, revisions: json.revisions };
+  return { thesis: res.data.thesis, revisions: res.data.revisions };
 }
 
 export async function apiPostDiscipline(
   thesisId: string,
   entry: CreateDisciplineEntryInput,
 ): Promise<ThesisMutationResult | null> {
-  const { ok, json } = await sendJson<{
-    thesis?: ThesisDetail;
-    revisions?: ThesisRevision[];
-    error?: string;
-  }>(`/api/theses/${thesisId}/discipline`, entry);
-  if (!ok || !json.thesis) {
-    toast.error(json.error ?? "纪律检查未通过");
+  const res = await kanonFetch(`/api/theses/${thesisId}/discipline`, ThesisMutationResponseSchema, {
+    method: "POST",
+    body: entry,
+    fallbackError: "纪律检查未通过",
+  });
+  if (!res.ok) {
+    toast.error(res.error);
     return null;
   }
   toast.success("交易纪律复盘卡已落库");
-  return { thesis: json.thesis, revisions: json.revisions };
+  return { thesis: res.data.thesis, revisions: res.data.revisions };
 }
 
 export async function apiSyncSec(ticker: string): Promise<SecSnapshot | null> {
-  const res = await fetch(`/api/sec/${ticker}`, { method: "POST" });
-  const json = (await res.json()) as { snapshot?: SecSnapshot | null; notice?: string };
-  toast(json.notice ?? "SEC 同步完成");
-  return json.snapshot ?? null;
-}
-
-function toCopilotResult(json: CopilotApiResponse): CopilotResult | null {
-  if (!json.data || !json.action) return null;
-  if (json.action === "red_team") return { action: "red_team", data: json.data };
-  if (json.action === "earnings_digest") return { action: "earnings_digest", data: json.data };
-  return { action: "investment_memo", data: json.data };
+  const res = await kanonFetch(`/api/sec/${ticker}`, SecSyncResponseSchema, {
+    method: "POST",
+    fallbackError: "SEC 同步失败，保留本地缓存",
+  });
+  if (!res.ok) {
+    toast.error(res.error);
+    return null;
+  }
+  toast(res.data.notice ?? "SEC 同步完成");
+  return res.data.snapshot;
 }
 
 export async function apiRunCopilot(
@@ -97,30 +83,36 @@ export async function apiRunCopilot(
 ): Promise<CopilotResult | null> {
   const trimmed = sourceText?.trim();
   const payload = trimmed ? { thesisId, action, sourceText: trimmed } : { thesisId, action };
-  const { ok, json } = await sendJson<CopilotApiResponse>(
-    "/api/ai/copilot",
-    payload,
-    "POST",
-    buildByokHeaders(),
-  );
-  const parsed = ok ? toCopilotResult(json) : null;
-  if (!parsed) {
-    toast.error(json.error ?? "投研副驾驶运行失败");
+  const res = await kanonFetch("/api/ai/copilot", CopilotApiResponseSchema, {
+    method: "POST",
+    body: payload,
+    headers: buildByokHeaders(),
+    fallbackError: "投研副驾驶运行失败",
+  });
+  if (!res.ok) {
+    toast.error(res.error);
     return null;
   }
-  toast.success(
-    json.engine === "vercel-ai-sdk"
-      ? "已完成 BYOK 模型结构化分析并落库"
-      : "已基于一阶档案生成分析并落库",
-  );
-  return parsed;
+  const { data } = res;
+  if (data.engine === "vercel-ai-sdk") {
+    toast.success("已完成 BYOK 模型结构化分析并落库");
+  } else if (data.fallbackReason) {
+    toast.warning(`已降级为本地一阶分析（${data.fallbackReason}）`);
+  } else {
+    toast.success("已基于一阶档案生成分析并落库");
+  }
+  if (data.action === "red_team") return { action: "red_team", data: data.data };
+  if (data.action === "earnings_digest") return { action: "earnings_digest", data: data.data };
+  return { action: "investment_memo", data: data.data };
 }
 
 export async function apiDeleteThesis(thesisId: string): Promise<boolean> {
-  const res = await fetch(`/api/theses/${thesisId}`, { method: "DELETE" });
+  const res = await kanonFetch(`/api/theses/${thesisId}`, DeleteOkResponseSchema, {
+    method: "DELETE",
+    fallbackError: "删除标的失败，请重试",
+  });
   if (!res.ok) {
-    const json = (await res.json().catch(() => ({}))) as { error?: string };
-    toast.error(json.error ?? "删除标的失败，请重试");
+    toast.error(res.error);
     return false;
   }
   toast.success("已从投研档案中删除该标的");

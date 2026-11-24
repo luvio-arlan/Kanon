@@ -1,7 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import { checkExtendedAstGuards, checkFeatureDirDensity } from "./ast-guard-rules.mjs";
+import { checkExtendedAstGuards } from "./ast-guard-rules.mjs";
+import {
+  checkDocsEntryParity,
+  checkExpandOnlyMigrations,
+  checkGardenAstRules,
+  checkUniversalDirDensity,
+} from "./garden-guards.mjs";
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ["apps", "packages"];
@@ -194,6 +200,7 @@ function checkAstRules(relPath, content, errors) {
 
   walk(sf, 0);
   checkExtendedAstGuards(relPath, sf, isTestFile, errors);
+  checkGardenAstRules(relPath, sf, isTestFile, errors);
 }
 
 function checkFunctionLength(relPath, sf, node, errors) {
@@ -245,7 +252,9 @@ function main() {
     collectFiles(path.join(ROOT, dir), files);
   }
   const errors = [];
-  checkFeatureDirDensity(ROOT, errors);
+  checkUniversalDirDensity(ROOT, errors);
+  checkExpandOnlyMigrations(ROOT, errors);
+  checkDocsEntryParity(ROOT, errors);
   for (const filePath of files) {
     const relPath = path.relative(ROOT, filePath).split(path.sep).join("/");
     const content = fs.readFileSync(filePath, "utf8");

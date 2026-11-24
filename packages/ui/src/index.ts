@@ -8,46 +8,55 @@ export {
   type ValuationSparklinePoint,
   type ValuationSparklineProps,
 } from "./charts/valuation-sparkline";
+export { ReadinessRing, type ReadinessRingProps } from "./components/data-display/readiness-ring";
+export { RollingNumber, type RollingNumberProps } from "./components/data-display/rolling-number";
+export {
+  DisciplineSwitch,
+  type DisciplineSwitchProps,
+} from "./components/forms/discipline-switch";
+export { Input, type InputProps } from "./components/forms/input";
+export { PrecisionSlider, type PrecisionSliderProps } from "./components/forms/precision-slider";
+export {
+  type SegmentedTabItem,
+  SegmentedTabs,
+  type SegmentedTabsProps,
+} from "./components/forms/segmented-tabs";
+export { Textarea, type TextareaProps } from "./components/forms/textarea";
 export {
   ActionMenu,
   type ActionMenuItem,
   type ActionMenuProps,
-} from "./components/action-menu";
-export { Badge, type BadgeProps, badgeVariants } from "./components/badge";
-export { Button, type ButtonProps, buttonVariants } from "./components/button";
-export { Card, CardContent, CardFooter, CardHeader, type CardProps } from "./components/card";
+} from "./components/overlays/action-menu";
 export {
   type CommandActionGroup,
   type CommandActionItem,
   CommandMenu,
   type CommandMenuProps,
-} from "./components/command-menu";
-export { DialogModal, type DialogModalProps } from "./components/dialog-modal";
-export { DisciplineSwitch, type DisciplineSwitchProps } from "./components/discipline-switch";
+} from "./components/overlays/command-menu";
+export { DialogModal, type DialogModalProps } from "./components/overlays/dialog-modal";
 export {
   GlossaryPopoverCard,
   type GlossaryPopoverCardProps,
-} from "./components/glossary-popover-card";
-export { Input, type InputProps } from "./components/input";
-export { KanonMark, type KanonMarkProps } from "./components/kanon-mark";
-export { PrecisionSlider, type PrecisionSliderProps } from "./components/precision-slider";
-export { ReadinessRing, type ReadinessRingProps } from "./components/readiness-ring";
-export { RollingNumber, type RollingNumberProps } from "./components/rolling-number";
+} from "./components/overlays/glossary-popover-card";
+export { Sheet, type SheetProps } from "./components/overlays/sheet";
+export { Toaster } from "./components/overlays/toaster";
+export { Tooltip, type TooltipProps } from "./components/overlays/tooltip";
+export { Badge, type BadgeProps, badgeVariants } from "./components/primitives/badge";
+export { Button, type ButtonProps, buttonVariants } from "./components/primitives/button";
 export {
-  type SegmentedTabItem,
-  SegmentedTabs,
-  type SegmentedTabsProps,
-} from "./components/segmented-tabs";
-export { Sheet, type SheetProps } from "./components/sheet";
-export { Textarea, type TextareaProps } from "./components/textarea";
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  type CardProps,
+} from "./components/primitives/card";
+export { KanonMark, type KanonMarkProps } from "./components/primitives/kanon-mark";
 export {
   THEME_INIT_SCRIPT,
   type ThemeMode,
   ThemeProvider,
   useTheme,
-} from "./components/theme-provider";
-export { Toaster } from "./components/toaster";
-export { Tooltip, type TooltipProps } from "./components/tooltip";
+} from "./components/primitives/theme-provider";
 export { cn } from "./lib/cn";
 export {
   KANON_CARD_HOVER,

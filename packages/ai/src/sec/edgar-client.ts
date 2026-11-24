@@ -1,4 +1,5 @@
 import { type SecFilingItem, type SecSnapshot, SecSnapshotSchema } from "@kanon/core";
+import { z } from "zod";
 import {
   extractAnnualHistory,
   formatUsdCompact,
@@ -27,23 +28,60 @@ const KNOWN_CIK_MAP: Record<string, string> = {
   COST: "0000909832",
 };
 
-interface SecSubmissionsResponse {
-  name?: string;
-  filings?: {
-    recent?: {
-      form?: string[];
-      filingDate?: string[];
-      reportDate?: string[];
-      accessionNumber?: string[];
-      primaryDocument?: string[];
-      primaryDocDescription?: string[];
-    };
-  };
-}
+const SecTickerRowSchema = z.object({
+  ticker: z.string().optional(),
+  cik_str: z.union([z.number(), z.string()]).optional(),
+});
+const SecTickerTableSchema = z.record(z.string(), SecTickerRowSchema);
 
-interface SecCompanyFactsResponse {
-  facts?: SecFactsPayload;
-}
+const SecSubmissionsSchema = z.object({
+  name: z.string().optional(),
+  filings: z
+    .object({
+      recent: z
+        .object({
+          form: z.array(z.string()).optional(),
+          filingDate: z.array(z.string()).optional(),
+          reportDate: z.array(z.string()).optional(),
+          accessionNumber: z.array(z.string()).optional(),
+          primaryDocument: z.array(z.string()).optional(),
+          primaryDocDescription: z.array(z.string()).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+type SecSubmissionsResponse = z.infer<typeof SecSubmissionsSchema>;
+
+const SecFactUnitSchema = z.object({
+  val: z.number().optional(),
+  form: z.string().optional(),
+  fy: z.number().optional(),
+  fp: z.string().optional(),
+  start: z.string().optional(),
+  end: z.string().optional(),
+  frame: z.string().optional(),
+});
+const SecNamespaceSchema = z.record(
+  z.string(),
+  z.object({
+    units: z
+      .object({
+        USD: z.array(SecFactUnitSchema).optional(),
+        "USD/shares": z.array(SecFactUnitSchema).optional(),
+        shares: z.array(SecFactUnitSchema).optional(),
+      })
+      .optional(),
+  }),
+);
+const SecCompanyFactsSchema = z.object({
+  facts: z
+    .object({
+      "us-gaap": SecNamespaceSchema.optional(),
+      "ifrs-full": SecNamespaceSchema.optional(),
+    })
+    .optional(),
+});
 
 const CIK_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 let dynamicCikCache: { expiresAt: number; map: Map<string, string> } | null = null;
@@ -60,10 +98,12 @@ async function resolveCik(ticker: string, fetchImpl: typeof fetch): Promise<stri
     signal: AbortSignal.timeout(6000),
   });
   if (!res.ok) return null;
-  const table = (await res.json()) as Record<string, { ticker?: string; cik_str?: number }>;
+  const rawTable: unknown = await res.json();
+  const parsedTable = SecTickerTableSchema.safeParse(rawTable);
+  if (!parsedTable.success) return null;
   const map = new Map<string, string>();
-  for (const row of Object.values(table)) {
-    if (row.ticker && row.cik_str) {
+  for (const row of Object.values(parsedTable.data)) {
+    if (row.ticker && row.cik_str !== undefined) {
       map.set(row.ticker.toUpperCase(), String(row.cik_str).padStart(10, "0"));
     }
   }
@@ -129,9 +169,16 @@ export async function fetchSecEdgarSnapshot(
     if (!subRes.ok) {
       return { ok: false, error: `SEC EDGAR 接口返回状态 ${subRes.status}，已保留本地缓存。` };
     }
-    const subJson = (await subRes.json()) as SecSubmissionsResponse;
-    const factsJson = factsRes.ok ? ((await factsRes.json()) as SecCompanyFactsResponse) : {};
-    const annuals = extractAnnualHistory(factsJson.facts);
+    const subParsed = SecSubmissionsSchema.safeParse(await subRes.json());
+    if (!subParsed.success) {
+      return { ok: false, error: "SEC EDGAR 披露索引格式异常，已保留本地缓存。" };
+    }
+    const subJson = subParsed.data;
+    const factsParsed = factsRes.ok ? SecCompanyFactsSchema.safeParse(await factsRes.json()) : null;
+    const factsPayload: SecFactsPayload | undefined = factsParsed?.success
+      ? factsParsed.data.facts
+      : undefined;
+    const annuals = extractAnnualHistory(factsPayload);
     const snapshot = SecSnapshotSchema.parse({
       ticker: upper,
       cik,
@@ -143,7 +190,8 @@ export async function fetchSecEdgarSnapshot(
       annuals,
     });
     return { ok: true, data: snapshot };
-  } catch {
-    return { ok: false, error: "SEC EDGAR 网络超时或受限，当前继续使用本地数据库缓存。" };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message.slice(0, 60) : "网络异常";
+    return { ok: false, error: `SEC EDGAR 同步失败（${reason}），当前继续使用本地数据库缓存。` };
   }
 }

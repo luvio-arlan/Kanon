@@ -1,17 +1,19 @@
 "use client";
 
-import type { AgentBriefing, AgentProposal, AgentStreamEvent, AgentTraceStep } from "@kanon/ai";
+import {
+  type AgentBriefing,
+  type AgentProposal,
+  type AgentStreamEvent,
+  AgentStreamEventSchema,
+  type AgentTraceStep,
+} from "@kanon/core";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { parseValidatedSseLine } from "@/shared/lib/kanon-fetch";
 import type { useResearchCanvas } from "./use-research-canvas";
 
 function parseSseLine(line: string): AgentStreamEvent | null {
-  if (!line.startsWith("data: ")) return null;
-  try {
-    return JSON.parse(line.slice(6)) as AgentStreamEvent;
-  } catch {
-    return null;
-  }
+  return parseValidatedSseLine(line, AgentStreamEventSchema);
 }
 
 function upsertTrace(list: AgentTraceStep[], next: AgentTraceStep): AgentTraceStep[] {

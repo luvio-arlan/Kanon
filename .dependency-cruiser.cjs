@@ -99,12 +99,24 @@ module.exports = {
       name: "no-db-imports-in-web-features",
       severity: "error",
       comment:
-        "AGENTS.md §2: Client/feature UI slices MUST NOT import @kanon/core/db directly. Access Postgres only from Server Components or apps/web/src/app/api/** route handlers.",
+        "AGENTS.md §2: Client/feature/shared UI layers MUST NOT import @kanon/core/db directly. Access Postgres only from Server Components or apps/web/src/app/api/** route handlers.",
       from: {
-        path: "^apps/web/src/features/",
+        path: "^apps/web/src/(features|shared)/",
       },
       to: {
         path: "(^packages/core/src/db|^@kanon/core/db)",
+      },
+    },
+    {
+      name: "shared-must-not-import-features-or-app",
+      severity: "error",
+      comment:
+        "AGENTS.md §2: apps/web/src/shared/ is a foundational client utility layer and MUST NOT depend on apps/web/src/features/ or apps/web/src/app/.",
+      from: {
+        path: "^apps/web/src/shared/",
+      },
+      to: {
+        path: "^apps/web/src/(features|app)/",
       },
     },
   ],

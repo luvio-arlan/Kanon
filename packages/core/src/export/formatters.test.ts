@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createMemoryKanonDb, type KanonDb } from "../db/client";
-import { listTheses } from "../db/thesis-queries";
+import { listTheses } from "../db/repositories/thesis-queries";
 import {
   formatGoogleDocHtml,
   formatPortfolioCsv,

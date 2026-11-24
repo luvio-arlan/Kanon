@@ -1,31 +1,22 @@
-import { sql } from "drizzle-orm";
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { is, sql } from "drizzle-orm";
+import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { calculateResearchReadiness } from "../math/research-readiness";
 import { calculateSensitivityMatrix } from "../math/sensitivity-matrix";
 import { createMemoryKanonDb, getDbHealthStats, type KanonDb } from "./client";
-import { listCopilotOutputs, upsertCopilotOutput } from "./copilot-store";
-import { addDisciplineEntry, deleteThesis } from "./discipline-mutations";
-import { listThesisRevisions } from "./revision-queries";
-import {
-  copilotOutputsTable,
-  crossChecksTable,
-  disciplineEntriesTable,
-  glossaryTermsTable,
-  hypothesesTable,
-  secFilingsCacheTable,
-  thesesTable,
-  thesisRevisionsTable,
-  valuationScenariosTable,
-} from "./schema";
-import { createThesis, updateThesisStep } from "./thesis-mutations";
+import { KANON_MIGRATIONS } from "./migrations";
+import { listCopilotOutputs, upsertCopilotOutput } from "./repositories/copilot-store";
+import { addDisciplineEntry, deleteThesis } from "./repositories/discipline-mutations";
+import { listThesisRevisions } from "./repositories/revision-queries";
+import { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
 import {
   getSecSnapshot,
   getThesisById,
   listGlossaryTerms,
   listTheses,
   listThesisSummaries,
-} from "./thesis-queries";
+} from "./repositories/thesis-queries";
+import * as schema from "./schema";
 
 describe("KANON PostgreSQL Repository & DDL Parity", () => {
   let db: KanonDb;
@@ -41,18 +32,10 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     await close();
   });
 
-  it("maintains 1:1 DDL column parity with every Drizzle pgTable schema", async () => {
-    const tables = [
-      thesesTable,
-      hypothesesTable,
-      crossChecksTable,
-      valuationScenariosTable,
-      disciplineEntriesTable,
-      glossaryTermsTable,
-      secFilingsCacheTable,
-      copilotOutputsTable,
-      thesisRevisionsTable,
-    ];
+  it("dynamically discovers every Drizzle pgTable and enforces 1:1 DDL column parity + migrations", async () => {
+    const entries: readonly unknown[] = Object.values(schema);
+    const tables = entries.filter((entry): entry is PgTable => is(entry, PgTable));
+    expect(tables.length).toBeGreaterThanOrEqual(9);
 
     for (const table of tables) {
       const cfg = getTableConfig(table);
@@ -66,6 +49,12 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
         .sort();
       expect(actualCols, `Table "${cfg.name}" DDL drifted from schema.ts`).toEqual(expectedCols);
     }
+
+    const migRes = await db.execute(sql`SELECT id FROM schema_migrations ORDER BY id ASC`);
+    const migRows = Array.isArray(migRes) ? migRes : migRes.rows;
+    expect(migRows.map((r: Record<string, unknown>) => String(r.id))).toEqual(
+      KANON_MIGRATIONS.map((m) => m.id),
+    );
   });
 
   it("seeds MU, NVDA, glossary terms, and baseline SEC snapshots cleanly", async () => {

@@ -7,10 +7,27 @@ export {
   type KanonDbEngine,
   runInTransaction,
 } from "./client";
-export { listCopilotOutputs, upsertCopilotOutput } from "./copilot-store";
-export { KANON_POSTGRES_DDL } from "./ddl";
-export { addDisciplineEntry, deleteThesis, upsertSecSnapshot } from "./discipline-mutations";
-export { listThesisRevisions, recordThesisRevision } from "./revision-queries";
+export {
+  KANON_MIGRATIONS,
+  KANON_POSTGRES_DDL,
+  type KanonMigration,
+  runKanonMigrations,
+} from "./migrations";
+export { listCopilotOutputs, upsertCopilotOutput } from "./repositories/copilot-store";
+export {
+  addDisciplineEntry,
+  deleteThesis,
+  upsertSecSnapshot,
+} from "./repositories/discipline-mutations";
+export { listThesisRevisions, recordThesisRevision } from "./repositories/revision-queries";
+export { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
+export {
+  getSecSnapshot,
+  getThesisById,
+  listGlossaryTerms,
+  listTheses,
+  listThesisSummaries,
+} from "./repositories/thesis-queries";
 export {
   copilotOutputsTable,
   crossChecksTable,
@@ -25,11 +42,3 @@ export {
   thesisRevisionsTable,
   valuationScenariosTable,
 } from "./schema";
-export { createThesis, updateThesisStep } from "./thesis-mutations";
-export {
-  getSecSnapshot,
-  getThesisById,
-  listGlossaryTerms,
-  listTheses,
-  listThesisSummaries,
-} from "./thesis-queries";
