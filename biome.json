@@ -14,7 +14,9 @@
       "!**/dist",
       "!**/coverage",
       "!**/pnpm-lock.yaml",
-      "!**/.agents/skills"
+      "!**/.agents/skills",
+      "!**/marketing",
+      "!**/promo-video"
     ]
   },
   "formatter": {

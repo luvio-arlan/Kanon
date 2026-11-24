@@ -6,6 +6,7 @@ import {
   type SecFactsPayload,
   summarizeLatestFacts,
 } from "./edgar-annuals";
+import { extractQuarterlyHistory } from "./edgar-quarterlies";
 
 export { formatUsdCompact };
 
@@ -179,6 +180,7 @@ export async function fetchSecEdgarSnapshot(
       ? factsParsed.data.facts
       : undefined;
     const annuals = extractAnnualHistory(factsPayload);
+    const quarterlies = extractQuarterlyHistory(factsPayload);
     const snapshot = SecSnapshotSchema.parse({
       ticker: upper,
       cik,
@@ -188,6 +190,7 @@ export async function fetchSecEdgarSnapshot(
       filings: extractRecentFilings(cik, subJson),
       facts: summarizeLatestFacts(annuals),
       annuals,
+      quarterlies,
     });
     return { ok: true, data: snapshot };
   } catch (err) {

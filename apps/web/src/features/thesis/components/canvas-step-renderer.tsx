@@ -63,6 +63,7 @@ function EarlySteps({ step, ctrl, glossary, onDirtyChange, onPromoteRule }: Earl
         thesis={ctrl.thesis}
         glossary={glossary}
         annuals={ctrl.secSnapshot?.annuals}
+        quarterlies={ctrl.secSnapshot?.quarterlies}
         saving={ctrl.saving}
         onDirtyChange={onDirtyChange}
         onSave={(p) =>
@@ -111,6 +112,7 @@ function LateSteps({
     return (
       <ValuationWorkbench
         thesis={ctrl.thesis}
+        secAnnuals={ctrl.secSnapshot?.annuals}
         latestSecEps={findLatestSecEps(ctrl.secSnapshot?.annuals)}
         saving={ctrl.saving}
         onDirtyChange={onDirtyChange}

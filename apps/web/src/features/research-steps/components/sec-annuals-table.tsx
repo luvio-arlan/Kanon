@@ -1,10 +1,17 @@
 "use client";
 
-import { analyzeSecQuality, type SecAnnualFinancial, type SecQualitySummary } from "@kanon/core";
+import {
+  analyzeSecForensics,
+  analyzeSecQuality,
+  type SecAnnualFinancial,
+  type SecQualitySummary,
+  type SecQuarterlyFinancial,
+} from "@kanon/core";
 import { Badge, Card, type SecChartDatum, SecFinancialChart, SegmentedTabs } from "@kanon/ui";
 import { useMemo, useState } from "react";
+import { SecForensicsView, SecQuarterliesTable } from "./sec-forensics-views";
 
-type DisplayMode = "table" | "chart";
+type DisplayMode = "table" | "quarters" | "chart" | "forensics";
 
 function formatCompactMoney(value: number | null): string {
   if (value === null) return "—";
@@ -115,43 +122,103 @@ function SecTableGrid({ annuals }: { annuals: readonly SecAnnualFinancial[] }) {
   );
 }
 
+function SecTabContent({
+  mode,
+  annuals,
+  quarterlies,
+  chartData,
+  forensics,
+}: {
+  mode: DisplayMode;
+  annuals: readonly SecAnnualFinancial[];
+  quarterlies: readonly SecQuarterlyFinancial[];
+  chartData: SecChartDatum[];
+  forensics: ReturnType<typeof analyzeSecForensics>;
+}) {
+  if (mode === "chart") return <SecFinancialChart data={chartData} />;
+  if (mode === "quarters") return <SecQuarterliesTable quarterlies={quarterlies} />;
+  if (mode === "forensics" && forensics) return <SecForensicsView report={forensics} />;
+  return <SecTableGrid annuals={annuals} />;
+}
+
+function SecTableHeader(props: {
+  title: string;
+  mode: DisplayMode;
+  quality: SecQualitySummary | null;
+  flagCount: number;
+  quarterCount: number;
+  onMode: (m: DisplayMode) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-5 py-3.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold text-ink-primary">{props.title}</h3>
+        {props.quality ? (
+          <Badge variant={gradeBadgeVariant(props.quality.qualityGrade)}>
+            {props.quality.qualityLabel}
+          </Badge>
+        ) : null}
+        {props.flagCount > 0 ? (
+          <button
+            type="button"
+            onClick={() => props.onMode("forensics")}
+            className="cursor-pointer"
+          >
+            <Badge variant="warn">{props.flagCount} 项法证提示</Badge>
+          </button>
+        ) : null}
+      </div>
+      <SegmentedTabs
+        layoutId={`sec-view-${props.title}`}
+        value={props.mode}
+        onChange={props.onMode}
+        items={[
+          { id: "table", label: "年度" },
+          { id: "quarters", label: "季度拐点", count: props.quarterCount || undefined },
+          { id: "chart", label: "趋势图" },
+          { id: "forensics", label: "法证体检" },
+        ]}
+      />
+    </div>
+  );
+}
+
 export function SecAnnualsTable({
   annuals,
+  quarterlies = [],
   title = "SEC 多年度基本面质量轨迹",
 }: {
   annuals: readonly SecAnnualFinancial[];
+  quarterlies?: readonly SecQuarterlyFinancial[];
   title?: string;
 }) {
   const [mode, setMode] = useState<DisplayMode>("table");
   const quality = useMemo(() => analyzeSecQuality(annuals), [annuals]);
+  const forensics = useMemo(
+    () => analyzeSecForensics(annuals, quarterlies),
+    [annuals, quarterlies],
+  );
   const chartData = useMemo(() => toChartData(annuals), [annuals]);
   if (annuals.length === 0) return null;
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-5 py-3.5">
-        <div className="flex items-center gap-2.5">
-          <h3 className="text-sm font-semibold text-ink-primary">{title}</h3>
-          {quality ? (
-            <Badge variant={gradeBadgeVariant(quality.qualityGrade)}>{quality.qualityLabel}</Badge>
-          ) : null}
-        </div>
-        <SegmentedTabs
-          layoutId={`sec-view-${title}`}
-          value={mode}
-          onChange={setMode}
-          items={[
-            { id: "table", label: "财务表" },
-            { id: "chart", label: "趋势图" },
-          ]}
-        />
-      </div>
+      <SecTableHeader
+        title={title}
+        mode={mode}
+        quality={quality}
+        flagCount={forensics?.redFlags.length ?? 0}
+        quarterCount={quarterlies.length}
+        onMode={setMode}
+      />
       {quality ? <SecQualityStrip quality={quality} /> : null}
-      {mode === "chart" ? (
-        <SecFinancialChart data={chartData} />
-      ) : (
-        <SecTableGrid annuals={annuals} />
-      )}
+      <SecTabContent
+        mode={mode}
+        annuals={annuals}
+        quarterlies={quarterlies}
+        chartData={chartData}
+        forensics={forensics}
+      />
     </Card>
   );
 }

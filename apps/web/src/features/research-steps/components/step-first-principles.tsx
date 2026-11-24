@@ -166,8 +166,8 @@ function StepThreeHeading() {
   );
 }
 
-export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
-  const d = useThesisStepDraft({
+function useStepThreeDraft(props: StepFirstPrinciplesProps) {
+  return useThesisStepDraft({
     storageKey: `kanon-draft:${props.thesis.id}:step3`,
     serverValue: props.thesis.crossChecks,
     serverVersion: props.thesis.updatedAt,
@@ -176,6 +176,10 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
     validateStored: isCrossCheckArray,
     onSave: props.onSaveCrossChecks,
   });
+}
+
+export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
+  const d = useStepThreeDraft(props);
   const [transcript, setTranscript] = useState("");
   const cycleCheck = (id: string) =>
     d.setDraft((prev) =>
@@ -195,7 +199,10 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
         onSync={props.onSyncSec}
       />
       {props.secSnapshot?.annuals.length ? (
-        <SecAnnualsTable annuals={props.secSnapshot.annuals} />
+        <SecAnnualsTable
+          annuals={props.secSnapshot.annuals}
+          quarterlies={props.secSnapshot.quarterlies}
+        />
       ) : null}
       <TranscriptInputCard
         sourceText={transcript}

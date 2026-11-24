@@ -1,9 +1,32 @@
 import crypto from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import { calculateResearchReadiness } from "../../math/research-readiness";
-import type { RevisionStep, ThesisDetail, ThesisRevision } from "../../schemas/research";
+import type {
+  RevisionSnapshot,
+  RevisionStep,
+  ThesisDetail,
+  ThesisRevision,
+} from "../../schemas/research";
 import type { KanonDb } from "../client";
 import { thesisRevisionsTable } from "../schema";
+
+function buildRevisionSnapshot(thesis: ThesisDetail, readinessScore: number): RevisionSnapshot {
+  return {
+    currentPrice: thesis.currentPrice,
+    bearTarget: thesis.valuation.bear.targetPrice,
+    baseTarget: thesis.valuation.base.targetPrice,
+    bullTarget: thesis.valuation.bull.targetPrice,
+    baseEps: thesis.valuation.base.eps,
+    basePe: thesis.valuation.base.peMultiple,
+    riskRewardRatio: thesis.valuation.riskRewardRatio,
+    readinessScore,
+    hypotheses: thesis.hypotheses.map((h) => ({
+      title: h.title,
+      status: h.status,
+      threshold: h.threshold,
+    })),
+  };
+}
 
 export async function recordThesisRevision(
   db: KanonDb,
@@ -14,6 +37,7 @@ export async function recordThesisRevision(
   const now = new Date();
   const id = `rev-${crypto.randomUUID().slice(0, 10)}`;
   const readiness = calculateResearchReadiness(thesis);
+  const snapshot = buildRevisionSnapshot(thesis, readiness.scorePct);
 
   await db.insert(thesisRevisionsTable).values({
     id,
@@ -24,6 +48,7 @@ export async function recordThesisRevision(
     baseTargetPrice: thesis.valuation.base.targetPrice,
     riskRewardRatio: thesis.valuation.riskRewardRatio,
     readinessScore: readiness.scorePct,
+    snapshotJson: snapshot,
     createdAt: now,
   });
 
@@ -36,6 +61,7 @@ export async function recordThesisRevision(
     baseTargetPrice: thesis.valuation.base.targetPrice,
     riskRewardRatio: thesis.valuation.riskRewardRatio,
     readinessScore: readiness.scorePct,
+    snapshot,
     createdAt: now.toISOString(),
   };
 }
@@ -61,6 +87,7 @@ export async function listThesisRevisions(
     baseTargetPrice: row.baseTargetPrice,
     riskRewardRatio: row.riskRewardRatio ?? null,
     readinessScore: row.readinessScore,
+    snapshot: row.snapshotJson ?? null,
     createdAt: row.createdAt.toISOString(),
   }));
 }

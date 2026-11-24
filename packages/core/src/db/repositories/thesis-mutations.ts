@@ -15,6 +15,7 @@ import {
   writeBusinessFilterStep,
   writeCrossChecksStep,
   writeHypothesesStep,
+  writePortfolioStep,
   writePriceAnchorStep,
   writeValuationStep,
 } from "./thesis-step-writers";
@@ -153,6 +154,7 @@ async function dispatchStepWrite(
   if (parsed.step === "hypotheses") return writeHypothesesStep(tx, thesisId, parsed, now);
   if (parsed.step === "cross_checks") return writeCrossChecksStep(tx, thesisId, parsed, now);
   if (parsed.step === "price_anchor") return writePriceAnchorStep(tx, thesisId, parsed, now);
+  if (parsed.step === "portfolio") return writePortfolioStep(tx, thesisId, parsed, now);
   return writeValuationStep(tx, thesisId, parsed, now);
 }
 

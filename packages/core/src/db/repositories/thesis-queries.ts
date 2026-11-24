@@ -111,12 +111,18 @@ function hydrateThesis(params: {
     lastReviewedAt: row.lastReviewedLabel,
     horizonLabel: `${row.horizonYears} 年周期`,
     horizonYears: row.horizonYears,
+    portfolioRole: row.portfolioRole ?? "watchlist",
+    currentWeightPct: row.currentWeightPct ?? 0,
+    targetMaxWeightPct: row.targetMaxWeightPct ?? 15,
+    avgCostBasis: row.avgCostBasis ?? null,
     convictionSummary: row.convictionSummary,
     status: row.status,
     businessFilter: normalizeFilter(row.businessFilter),
     hypotheses: normalizeHypotheses(hypotheses),
     crossChecks: formattedChecks,
     valuationInput: valInput,
+    valuationModelMode: valuationRow?.modelMode ?? "pe",
+    valuationDriverInputs: valuationRow?.driverInputs ?? null,
     valuation: calculateValuationScenarios(valInput),
     priceHistory: valuationRow?.priceHistory ?? [
       { label: "起点", price: row.currentPrice * 0.92 },
@@ -219,5 +225,6 @@ export async function getSecSnapshot(db: KanonDb, ticker: string): Promise<SecSn
     filings: row.filings,
     facts: row.facts,
     annuals: row.annuals ?? [],
+    quarterlies: row.quarterlies ?? [],
   };
 }

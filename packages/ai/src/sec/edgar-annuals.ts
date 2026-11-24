@@ -1,117 +1,150 @@
 import { roundTo, type SecAnnualFinancial, type SecFinancialFact } from "@kanon/core";
+import {
+  collectAnnualMap,
+  diffDays,
+  formatUsdCompact,
+  type SecFactsPayload,
+  type SecFactUnit,
+  type XbrlFactsNamespace,
+} from "./xbrl-helpers";
 
-interface SecFactUnit {
-  val?: number;
-  form?: string;
-  fy?: number;
-  end?: string;
+export {
+  diffDays,
+  formatUsdCompact,
+  type SecFactsPayload,
+  type SecFactUnit,
+  type XbrlFactsNamespace,
+};
+
+function extractBalanceSheetMaps(facts: SecFactsPayload | undefined) {
+  return {
+    cash: collectAnnualMap(
+      facts,
+      ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsAndShortTermInvestments"],
+      ["CashAndCashEquivalents"],
+      "USD",
+      "instant",
+    ),
+    debt: collectAnnualMap(
+      facts,
+      ["LongTermDebtAndCapitalLeaseObligations", "LongTermDebt", "DebtCurrent"],
+      ["NoncurrentLiabilities", "Borrowings"],
+      "USD",
+      "instant",
+    ),
+    equity: collectAnnualMap(
+      facts,
+      [
+        "StockholdersEquity",
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+      ],
+      ["Equity"],
+      "USD",
+      "instant",
+    ),
+    inventory: collectAnnualMap(
+      facts,
+      ["InventoryNet", "InventoryFinishedGoods"],
+      ["Inventories"],
+      "USD",
+      "instant",
+    ),
+    receivables: collectAnnualMap(
+      facts,
+      ["AccountsReceivableNetCurrent", "ReceivablesNetCurrent"],
+      ["TradeAndOtherCurrentReceivables"],
+      "USD",
+      "instant",
+    ),
+    shares: collectAnnualMap(
+      facts,
+      ["WeightedAverageNumberOfDilutedSharesOutstanding", "CommonStockSharesOutstanding"],
+      ["AdjustedWeightedAverageShares"],
+      "shares",
+      "flow",
+    ),
+  };
 }
 
-export type XbrlFactsNamespace = Record<
-  string,
-  { units?: { USD?: SecFactUnit[]; "USD/shares"?: SecFactUnit[] } }
->;
-
-export interface SecFactsPayload {
-  "us-gaap"?: XbrlFactsNamespace;
-  "ifrs-full"?: XbrlFactsNamespace;
+function extractIncomeCashMaps(facts: SecFactsPayload | undefined) {
+  return {
+    rev: collectAnnualMap(
+      facts,
+      ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
+      ["Revenue"],
+    ),
+    gp: collectAnnualMap(facts, ["GrossProfit"], ["GrossProfit"]),
+    ebit: collectAnnualMap(facts, ["OperatingIncomeLoss"], ["ProfitLossFromOperatingActivities"]),
+    rd: collectAnnualMap(
+      facts,
+      ["ResearchAndDevelopmentExpense"],
+      ["ResearchAndDevelopmentExpense"],
+    ),
+    ni: collectAnnualMap(facts, ["NetIncomeLoss"], ["ProfitLoss"]),
+    ocf: collectAnnualMap(
+      facts,
+      ["NetCashProvidedByUsedInOperatingActivities"],
+      ["CashFlowsFromUsedInOperatingActivities"],
+    ),
+    capex: collectAnnualMap(
+      facts,
+      ["PaymentsToAcquirePropertyPlantAndEquipment"],
+      ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
+    ),
+    sbc: collectAnnualMap(
+      facts,
+      ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
+      ["ExpenseFromSharebasedPaymentTransactionsWithEmployees"],
+    ),
+    eps: collectAnnualMap(
+      facts,
+      ["EarningsPerShareDiluted"],
+      ["DilutedEarningsLossPerShare"],
+      "USD/shares",
+    ),
+  };
 }
 
-export function formatUsdCompact(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
-  return `${sign}$${abs.toFixed(0)}`;
+function readYearVal(map: Map<number, number>, fy: number): number | null {
+  return map.get(fy) ?? null;
 }
 
-function isAnnualRow(row: SecFactUnit): row is { val: number; fy: number; end?: string } {
-  const annualForm = row.form === "10-K" || row.form === "20-F";
-  return annualForm && typeof row.val === "number" && typeof row.fy === "number";
-}
-
-function indexUnitRows(list: readonly SecFactUnit[]): Map<number, number> {
-  const byYear = new Map<number, { end: string; val: number }>();
-  for (const row of list) {
-    if (!isAnnualRow(row)) continue;
-    const prev = byYear.get(row.fy);
-    const end = row.end ?? "";
-    if (!prev || end > prev.end) {
-      byYear.set(row.fy, { end, val: row.val });
-    }
-  }
-  return new Map([...byYear.entries()].map(([fy, v]) => [fy, v.val]));
-}
-
-function collectFromNamespace(
-  ns: XbrlFactsNamespace | undefined,
-  tags: readonly string[],
-  unitKey: "USD" | "USD/shares",
-): Map<number, number> {
-  if (!ns) return new Map();
-  for (const tag of tags) {
-    const list = ns[tag]?.units?.[unitKey];
-    if (!list) continue;
-    const map = indexUnitRows(list);
-    if (map.size > 0) return map;
-  }
-  return new Map();
-}
-
-function collectAnnualMap(
-  facts: SecFactsPayload | undefined,
-  usTags: readonly string[],
-  ifrsTags: readonly string[] = [],
-  unitKey: "USD" | "USD/shares" = "USD",
-): Map<number, number> {
-  const usMap = collectFromNamespace(facts?.["us-gaap"], usTags, unitKey);
-  if (usMap.size > 0) return usMap;
-  return collectFromNamespace(facts?.["ifrs-full"], ifrsTags, unitKey);
+function buildAnnualRow(
+  fy: number,
+  ic: ReturnType<typeof extractIncomeCashMaps>,
+  bs: ReturnType<typeof extractBalanceSheetMaps>,
+): SecAnnualFinancial {
+  const r = readYearVal(ic.rev, fy);
+  const g = readYearVal(ic.gp, fy);
+  const o = readYearVal(ic.ocf, fy);
+  const c = readYearVal(ic.capex, fy);
+  return {
+    fiscalYear: `FY${fy}`,
+    revenue: r,
+    grossProfit: g,
+    grossMarginPct: r && r > 0 && g !== null ? roundTo((g / r) * 100, 1) : null,
+    operatingIncome: readYearVal(ic.ebit, fy),
+    rdExpense: readYearVal(ic.rd, fy),
+    netIncome: readYearVal(ic.ni, fy),
+    operatingCashFlow: o,
+    capex: c,
+    sbc: readYearVal(ic.sbc, fy),
+    freeCashFlow: o !== null && c !== null ? o - Math.abs(c) : null,
+    dilutedEps: readYearVal(ic.eps, fy),
+    dilutedShares: readYearVal(bs.shares, fy),
+    cashAndEquiv: readYearVal(bs.cash, fy),
+    totalDebt: readYearVal(bs.debt, fy),
+    stockholdersEquity: readYearVal(bs.equity, fy),
+    inventory: readYearVal(bs.inventory, fy),
+    accountsReceivable: readYearVal(bs.receivables, fy),
+  };
 }
 
 export function extractAnnualHistory(facts: SecFactsPayload | undefined): SecAnnualFinancial[] {
-  const rev = collectAnnualMap(
-    facts,
-    ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
-    ["Revenue"],
-  );
-  const gp = collectAnnualMap(facts, ["GrossProfit"], ["GrossProfit"]);
-  const ni = collectAnnualMap(facts, ["NetIncomeLoss"], ["ProfitLoss"]);
-  const ocf = collectAnnualMap(
-    facts,
-    ["NetCashProvidedByUsedInOperatingActivities"],
-    ["CashFlowsFromUsedInOperatingActivities"],
-  );
-  const capex = collectAnnualMap(
-    facts,
-    ["PaymentsToAcquirePropertyPlantAndEquipment"],
-    ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
-  );
-  const eps = collectAnnualMap(
-    facts,
-    ["EarningsPerShareDiluted"],
-    ["DilutedEarningsLossPerShare"],
-    "USD/shares",
-  );
-
-  const years = [...new Set([...rev.keys(), ...ni.keys()])].sort((a, b) => a - b).slice(-5);
-  return years.map((fy) => {
-    const r = rev.get(fy) ?? null;
-    const g = gp.get(fy) ?? null;
-    const o = ocf.get(fy) ?? null;
-    const c = capex.get(fy) ?? null;
-    return {
-      fiscalYear: `FY${fy}`,
-      revenue: r,
-      grossProfit: g,
-      grossMarginPct: r && r > 0 && g !== null ? roundTo((g / r) * 100, 1) : null,
-      netIncome: ni.get(fy) ?? null,
-      operatingCashFlow: o,
-      capex: c,
-      freeCashFlow: o !== null && c !== null ? o - Math.abs(c) : null,
-      dilutedEps: eps.get(fy) ?? null,
-    };
-  });
+  const ic = extractIncomeCashMaps(facts);
+  const bs = extractBalanceSheetMaps(facts);
+  const years = [...new Set([...ic.rev.keys(), ...ic.ni.keys()])].sort((a, b) => a - b).slice(-5);
+  return years.map((fy) => buildAnnualRow(fy, ic, bs));
 }
 
 function makeFact(

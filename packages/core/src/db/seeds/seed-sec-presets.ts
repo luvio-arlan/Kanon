@@ -76,6 +76,7 @@ export const PRESET_SEC_SNAPSHOTS: readonly SecSnapshot[] = [
         dilutedEps: 7.04,
       },
     ],
+    quarterlies: [],
   },
   {
     ticker: "MSFT",
@@ -152,5 +153,6 @@ export const PRESET_SEC_SNAPSHOTS: readonly SecSnapshot[] = [
         dilutedEps: 13.64,
       },
     ],
+    quarterlies: [],
   },
 ];

@@ -12,6 +12,8 @@ const STEP_LABELS: Record<RevisionStep, string> = {
   valuation: "三情景估值",
   price_anchor: "现价校准",
   discipline: "交易纪律",
+  portfolio: "组合仓位",
+  quarterly_review: "季度复盘",
 };
 
 function RevisionRow({ item }: { item: ThesisRevision }) {

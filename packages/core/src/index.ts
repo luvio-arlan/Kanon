@@ -76,14 +76,33 @@ export {
   type SecQualitySummary,
 } from "./math/sec-analytics";
 export {
+  analyzeSecForensics,
+  type ForensicRedFlag,
+  type SecForensicReport,
+} from "./math/sec-forensics";
+export {
   calculateSensitivityMatrix,
   type SensitivityCell,
   type SensitivityMatrix,
 } from "./math/sensitivity-matrix";
 export {
+  calculateEvOwnerFcfValuation,
+  calculateTopDownEps,
+  calculateTrueReverseDcf,
+  calculateTsrDecomposition,
+  type EvOwnerFcfInput,
+  type EvOwnerFcfResult,
+  type ReverseDcfInput,
+  type ReverseDcfResult,
+  type TopDownEpsInput,
+  type TopDownEpsResult,
+  type TsrDecompositionResult,
+} from "./math/valuation-advanced";
+export {
   calculateAverageRiskReward,
   calculatePriceMarkerPosition,
   calculateValuationScenarios,
+  checkScenarioMonotonicity,
   roundTo,
 } from "./math/valuation-scenarios";
 export {
@@ -93,6 +112,8 @@ export {
   BusinessFilterSchema,
   type CreateDisciplineEntryInput,
   CreateDisciplineEntrySchema,
+  type CreateQuarterlyReviewInput,
+  CreateQuarterlyReviewSchema,
   type CreateThesisInput,
   CreateThesisInputSchema,
   type CrossCheck,
@@ -105,8 +126,16 @@ export {
   FilterVerdictSchema,
   type GlossaryTerm,
   GlossaryTermSchema,
+  type HypothesisVerdictItem,
+  HypothesisVerdictItemSchema,
   type PeerRole,
   PeerRoleSchema,
+  type PortfolioRole,
+  PortfolioRoleSchema,
+  type QuarterlyReview,
+  QuarterlyReviewSchema,
+  type RevisionSnapshot,
+  RevisionSnapshotSchema,
   type RevisionStep,
   RevisionStepSchema,
   type SavedCopilotOutput,
@@ -117,6 +146,8 @@ export {
   SecFilingItemSchema,
   type SecFinancialFact,
   SecFinancialFactSchema,
+  type SecQuarterlyFinancial,
+  SecQuarterlyFinancialSchema,
   type SecSnapshot,
   SecSnapshotSchema,
   type ThesisDetail,
@@ -131,6 +162,10 @@ export {
   TradeActionSchema,
   type UpdateThesisStepInput,
   UpdateThesisStepSchema,
+  type ValuationDriverInputs,
+  ValuationDriverInputsSchema,
+  type ValuationModelMode,
+  ValuationModelModeSchema,
 } from "./schemas/research";
 export {
   type ConvictionZone,

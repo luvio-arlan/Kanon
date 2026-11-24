@@ -12,13 +12,19 @@ import type {
   Alignment,
   BusinessFilter,
   EmotionState,
+  HypothesisVerdictItem,
   PeerRole,
+  PortfolioRole,
+  RevisionSnapshot,
   RevisionStep,
   SecAnnualFinancial,
   SecFilingItem,
   SecFinancialFact,
+  SecQuarterlyFinancial,
   ThesisStatus,
   TradeAction,
+  ValuationDriverInputs,
+  ValuationModelMode,
 } from "../schemas/research";
 import type { HypothesisStatus, SparklinePoint } from "../schemas/thesis";
 
@@ -32,6 +38,10 @@ export const thesesTable = pgTable("theses", {
   horizonYears: integer("horizon_years").notNull().default(3),
   convictionSummary: text("conviction_summary").notNull(),
   status: text("status").$type<ThesisStatus>().notNull().default("active"),
+  portfolioRole: text("portfolio_role").$type<PortfolioRole>().notNull().default("watchlist"),
+  currentWeightPct: doublePrecision("current_weight_pct").notNull().default(0),
+  targetMaxWeightPct: doublePrecision("target_max_weight_pct").notNull().default(15),
+  avgCostBasis: doublePrecision("avg_cost_basis"),
   businessFilter: jsonb("business_filter").$type<BusinessFilter>().notNull(),
   lastReviewedLabel: text("last_reviewed_label").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -63,6 +73,7 @@ export const crossChecksTable = pgTable("cross_checks", {
   statement: text("statement").notNull(),
   alignment: text("alignment").$type<Alignment>().notNull().default("pending"),
   takeaway: text("takeaway").notNull(),
+  linkedThesisId: text("linked_thesis_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -79,6 +90,8 @@ export const valuationScenariosTable = pgTable("valuation_scenarios", {
   bullEps: doublePrecision("bull_eps").notNull(),
   bullPe: doublePrecision("bull_pe").notNull(),
   bullProb: doublePrecision("bull_prob").notNull().default(0.25),
+  modelMode: text("model_mode").$type<ValuationModelMode>().notNull().default("pe"),
+  driverInputs: jsonb("driver_inputs").$type<ValuationDriverInputs | null>(),
   priceHistory: jsonb("price_history").$type<SparklinePoint[]>().notNull(),
 });
 
@@ -114,6 +127,7 @@ export const secFilingsCacheTable = pgTable("sec_filings_cache", {
   filings: jsonb("filings").$type<SecFilingItem[]>().notNull(),
   facts: jsonb("facts").$type<SecFinancialFact[]>().notNull(),
   annuals: jsonb("annuals").$type<SecAnnualFinancial[]>().notNull().default([]),
+  quarterlies: jsonb("quarterlies").$type<SecQuarterlyFinancial[]>().notNull().default([]),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -139,6 +153,32 @@ export const thesisRevisionsTable = pgTable("thesis_revisions", {
   baseTargetPrice: doublePrecision("base_target_price").notNull(),
   riskRewardRatio: doublePrecision("risk_reward_ratio"),
   readinessScore: integer("readiness_score").notNull().default(0),
+  snapshotJson: jsonb("snapshot_json").$type<RevisionSnapshot | null>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const quarterlyReviewsTable = pgTable("quarterly_reviews", {
+  id: text("id").primaryKey(),
+  thesisId: text("thesis_id")
+    .notNull()
+    .references(() => thesesTable.id, { onDelete: "cascade" }),
+  quarterLabel: text("quarter_label").notNull(),
+  summary: text("summary").notNull(),
+  hypothesisVerdicts: jsonb("hypothesis_verdicts").$type<HypothesisVerdictItem[]>().notNull(),
+  priceAtReview: doublePrecision("price_at_review").notNull(),
+  baseTargetAtReview: doublePrecision("base_target_at_review").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const agentRunsTable = pgTable("agent_runs", {
+  id: text("id").primaryKey(),
+  thesisId: text("thesis_id")
+    .notNull()
+    .references(() => thesesTable.id, { onDelete: "cascade" }),
+  engine: text("engine").$type<"vercel-ai-sdk" | "grounded-local">().notNull(),
+  fallbackReason: text("fallback_reason"),
+  briefingJson: jsonb("briefing_json").$type<unknown>().notNull(),
+  appliedProposalIds: jsonb("applied_proposal_ids").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

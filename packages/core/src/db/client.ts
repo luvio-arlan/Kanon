@@ -41,11 +41,12 @@ async function seedSecAndRevisions(db: KanonDb): Promise<void> {
         filings: snap.filings,
         facts: snap.facts,
         annuals: snap.annuals,
+        quarterlies: snap.quarterlies ?? [],
         fetchedAt: new Date(snap.fetchedAt),
       })
       .onConflictDoUpdate({
         target: schema.secFilingsCacheTable.ticker,
-        set: { annuals: snap.annuals },
+        set: { annuals: snap.annuals, quarterlies: snap.quarterlies ?? [] },
       });
   }
   const existingRevs = await db

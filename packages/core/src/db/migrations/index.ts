@@ -1,4 +1,5 @@
 import { KANON_POSTGRES_DDL as BASELINE_SQL } from "./0001-baseline";
+import { KANON_V4_MIGRATION_SQL } from "./0002-v4-institutional";
 
 export interface KanonMigration {
   id: string;
@@ -19,6 +20,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     id: "0001_baseline",
     description: "Initial 9-table KANON Postgres baseline schema",
     sql: BASELINE_SQL,
+  },
+  {
+    id: "0002_v4_institutional",
+    description:
+      "Expand-only v4 columns (portfolio, valuation drivers, quarterlies, snapshots) & review/agent tables",
+    sql: KANON_V4_MIGRATION_SQL,
   },
 ];
 

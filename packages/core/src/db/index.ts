@@ -29,12 +29,14 @@ export {
   listThesisSummaries,
 } from "./repositories/thesis-queries";
 export {
+  agentRunsTable,
   copilotOutputsTable,
   crossChecksTable,
   disciplineEntriesTable,
   glossaryTermsTable,
   hypothesesTable,
   insertThesisRowSchema,
+  quarterlyReviewsTable,
   secFilingsCacheTable,
   selectGlossaryRowSchema,
   selectThesisRowSchema,

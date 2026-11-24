@@ -62,6 +62,23 @@ export async function writeCrossChecksStep(
   return `更新产业链一阶交叉验证（共 ${parsed.crossChecks.length} 条记录）`;
 }
 
+function resolveValuationHistory(
+  provided: Extract<UpdateThesisStepInput, { step: "valuation" }>["priceHistory"],
+  existing: Array<{ label: string; price: number }> | undefined,
+  currentPrice: number,
+) {
+  if (provided) return provided;
+  if (existing) {
+    return existing.map((pt, idx, arr) =>
+      idx === arr.length - 1 ? { ...pt, price: currentPrice } : pt,
+    );
+  }
+  return [
+    { label: "起点", price: roundTo(currentPrice * 0.92, 2) },
+    { label: "现价", price: currentPrice },
+  ];
+}
+
 export async function writeValuationStep(
   tx: KanonDb,
   thesisId: string,
@@ -79,20 +96,10 @@ export async function writeValuationStep(
       updatedAt: now,
     })
     .where(eq(thesesTable.id, thesisId));
-
   const [existing] = await tx
     .select()
     .from(valuationScenariosTable)
     .where(eq(valuationScenariosTable.thesisId, thesisId));
-
-  const nextHistory = parsed.priceHistory ??
-    existing?.priceHistory.map((pt, idx, arr) =>
-      idx === arr.length - 1 ? { ...pt, price: input.currentPrice } : pt,
-    ) ?? [
-      { label: "起点", price: roundTo(input.currentPrice * 0.92, 2) },
-      { label: "现价", price: input.currentPrice },
-    ];
-
   const payload = {
     bearEps: input.bear.eps,
     bearPe: input.bear.peMultiple,
@@ -103,9 +110,15 @@ export async function writeValuationStep(
     bullEps: input.bull.eps,
     bullPe: input.bull.peMultiple,
     bullProb: input.bull.probability ?? 0.25,
-    priceHistory: nextHistory,
+    modelMode: parsed.modelMode ?? existing?.modelMode ?? "pe",
+    driverInputs:
+      parsed.driverInputs !== undefined ? parsed.driverInputs : (existing?.driverInputs ?? null),
+    priceHistory: resolveValuationHistory(
+      parsed.priceHistory,
+      existing?.priceHistory,
+      input.currentPrice,
+    ),
   };
-
   await tx
     .insert(valuationScenariosTable)
     .values({ thesisId, ...payload })
@@ -141,4 +154,24 @@ export async function writePriceAnchorStep(
       .where(eq(valuationScenariosTable.thesisId, thesisId));
   }
   return `快速校准当前参考价至 $${price.toFixed(2)}`;
+}
+
+export async function writePortfolioStep(
+  tx: KanonDb,
+  thesisId: string,
+  parsed: Extract<UpdateThesisStepInput, { step: "portfolio" }>,
+  now: Date,
+): Promise<string> {
+  await tx
+    .update(thesesTable)
+    .set({
+      portfolioRole: parsed.portfolioRole,
+      currentWeightPct: parsed.currentWeightPct,
+      targetMaxWeightPct: parsed.targetMaxWeightPct,
+      avgCostBasis: parsed.avgCostBasis,
+      lastReviewedLabel: "刚刚更新 · 组合仓位",
+      updatedAt: now,
+    })
+    .where(eq(thesesTable.id, thesisId));
+  return `更新仓位角色为 ${parsed.portfolioRole}（当前 ${parsed.currentWeightPct}% / 上限 ${parsed.targetMaxWeightPct}%）`;
 }

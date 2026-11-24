@@ -97,6 +97,20 @@ export function calculateAverageRiskReward(ratios: readonly (number | null)[]): 
   return roundTo(total / finite.length, 2);
 }
 
+export function checkScenarioMonotonicity(p: {
+  bearTarget: number;
+  baseTarget: number;
+  bullTarget: number;
+}) {
+  if (p.bearTarget >= p.baseTarget) {
+    return { isMonotonic: false, warning: "悲观目标价不低于中性基准，建议核对情景假设单调性。" };
+  }
+  if (p.baseTarget >= p.bullTarget) {
+    return { isMonotonic: false, warning: "中性目标价不低于乐观情景，建议拉大三情景区分度。" };
+  }
+  return { isMonotonic: true, warning: null };
+}
+
 export function calculateValuationScenarios(
   rawInput: ValuationScenarioInput,
 ): ValuationScenarioSummary {

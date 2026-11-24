@@ -5,6 +5,7 @@ import type {
   FilterVerdict,
   GlossaryTerm,
   SecAnnualFinancial,
+  SecQuarterlyFinancial,
   ThesisDetail,
   ThesisStatus,
 } from "@kanon/core";
@@ -21,6 +22,7 @@ export interface StepBusinessFilterProps {
   thesis: ThesisDetail;
   glossary: readonly GlossaryTerm[];
   annuals?: readonly SecAnnualFinancial[];
+  quarterlies?: readonly SecQuarterlyFinancial[];
   saving: boolean;
   onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
   onSave: (payload: {
@@ -182,7 +184,7 @@ function useStep1Draft(props: StepBusinessFilterProps) {
 }
 
 export function StepBusinessFilter(props: StepBusinessFilterProps) {
-  const { thesis, glossary, annuals = [], saving, onSave } = props;
+  const { thesis, glossary, annuals = [], quarterlies = [], saving, onSave } = props;
   const d = useStep1Draft(props);
   const nextStatus: ThesisStatus = thesis.status === "archived_veto" ? "active" : "archived_veto";
   const vetoReason = nextStatus === "archived_veto" ? d.draft.filter.notes || "商业模式未通过" : "";
@@ -200,7 +202,11 @@ export function StepBusinessFilter(props: StepBusinessFilterProps) {
       />
       <VariantPerceptionCard filter={d.draft.filter} onPatch={patchFilter} />
       {annuals.length > 0 ? (
-        <SecAnnualsTable annuals={annuals} title="历史财务基本盘佐证（SEC 10-K）" />
+        <SecAnnualsTable
+          annuals={annuals}
+          quarterlies={quarterlies}
+          title="历史财务基本盘佐证（SEC 10-K/Q）"
+        />
       ) : null}
       <BusinessFilterNotesCard
         status={thesis.status}

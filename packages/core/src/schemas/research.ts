@@ -5,6 +5,16 @@ import {
   ThesisCardSchema,
   ValuationScenarioInputSchema,
 } from "./thesis";
+import {
+  PortfolioRoleSchema,
+  RevisionSnapshotSchema,
+  SecAnnualFinancialSchema,
+  SecQuarterlyFinancialSchema,
+  ValuationDriverInputsSchema,
+  ValuationModelModeSchema,
+} from "./v4-extensions";
+
+export * from "./v4-extensions";
 
 export const FilterVerdictSchema = z.enum(["pass", "watch", "veto"]);
 export type FilterVerdict = z.infer<typeof FilterVerdictSchema>;
@@ -53,6 +63,7 @@ export const CrossCheckSchema = z.object({
   statement: z.string().min(1),
   alignment: AlignmentSchema,
   takeaway: z.string().min(1),
+  linkedThesisId: z.string().min(1).nullable().optional(),
 });
 export type CrossCheck = z.infer<typeof CrossCheckSchema>;
 
@@ -113,19 +124,6 @@ export const SecFinancialFactSchema = z.object({
 });
 export type SecFinancialFact = z.infer<typeof SecFinancialFactSchema>;
 
-export const SecAnnualFinancialSchema = z.object({
-  fiscalYear: z.string().min(1),
-  revenue: z.number().nullable(),
-  grossProfit: z.number().nullable(),
-  grossMarginPct: z.number().nullable(),
-  netIncome: z.number().nullable(),
-  operatingCashFlow: z.number().nullable(),
-  capex: z.number().nullable(),
-  freeCashFlow: z.number().nullable(),
-  dilutedEps: z.number().nullable(),
-});
-export type SecAnnualFinancial = z.infer<typeof SecAnnualFinancialSchema>;
-
 export const SecSnapshotSchema = z.object({
   ticker: z.string().min(1),
   cik: z.string().min(1),
@@ -135,6 +133,7 @@ export const SecSnapshotSchema = z.object({
   filings: z.array(SecFilingItemSchema),
   facts: z.array(SecFinancialFactSchema),
   annuals: z.array(SecAnnualFinancialSchema).default([]),
+  quarterlies: z.array(SecQuarterlyFinancialSchema).default([]),
 });
 export type SecSnapshot = z.infer<typeof SecSnapshotSchema>;
 
@@ -152,7 +151,7 @@ export const CreateThesisInputSchema = z.object({
     .trim()
     .min(1)
     .max(10)
-    .transform((value) => value.toUpperCase()),
+    .transform((v) => v.toUpperCase()),
   companyName: z.string().trim().min(1).max(60),
   sectorTag: z.string().trim().min(1).max(40),
   currentPrice: z.number().finite().positive(),
@@ -169,6 +168,8 @@ export const RevisionStepSchema = z.enum([
   "valuation",
   "price_anchor",
   "discipline",
+  "portfolio",
+  "quarterly_review",
 ]);
 export type RevisionStep = z.infer<typeof RevisionStepSchema>;
 
@@ -181,6 +182,7 @@ export const ThesisRevisionSchema = z.object({
   baseTargetPrice: z.number().finite().positive(),
   riskRewardRatio: z.number().nullable(),
   readinessScore: z.number().int().min(0).max(100),
+  snapshot: RevisionSnapshotSchema.nullable().optional(),
   createdAt: z.string().min(1),
 });
 export type ThesisRevision = z.infer<typeof ThesisRevisionSchema>;
@@ -192,17 +194,13 @@ export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
     convictionSummary: z.string().trim().min(1),
     businessFilter: BusinessFilterSchema,
   }),
-  z.object({
-    step: z.literal("hypotheses"),
-    hypotheses: z.array(HypothesisSchema).min(3).max(5),
-  }),
-  z.object({
-    step: z.literal("cross_checks"),
-    crossChecks: z.array(CrossCheckSchema).max(12),
-  }),
+  z.object({ step: z.literal("hypotheses"), hypotheses: z.array(HypothesisSchema).min(3).max(5) }),
+  z.object({ step: z.literal("cross_checks"), crossChecks: z.array(CrossCheckSchema).max(12) }),
   z.object({
     step: z.literal("valuation"),
     valuationInput: ValuationScenarioInputSchema,
+    modelMode: ValuationModelModeSchema.optional(),
+    driverInputs: ValuationDriverInputsSchema.nullable().optional(),
     priceHistory: z.array(SparklinePointSchema).min(2).optional(),
   }),
   z.object({
@@ -210,15 +208,28 @@ export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
     currentPrice: z.number().finite().positive(),
     label: z.string().trim().min(1).max(20).optional(),
   }),
+  z.object({
+    step: z.literal("portfolio"),
+    portfolioRole: PortfolioRoleSchema,
+    currentWeightPct: z.number().finite().min(0).max(100),
+    targetMaxWeightPct: z.number().finite().min(1).max(100),
+    avgCostBasis: z.number().finite().positive().nullable(),
+  }),
 ]);
 export type UpdateThesisStepInput = z.infer<typeof UpdateThesisStepSchema>;
 
 export const ThesisDetailSchema = ThesisCardSchema.extend({
   status: ThesisStatusSchema,
   horizonYears: z.number().int().positive(),
+  portfolioRole: PortfolioRoleSchema.default("watchlist"),
+  currentWeightPct: z.number().min(0).max(100).default(0),
+  targetMaxWeightPct: z.number().min(1).max(100).default(15),
+  avgCostBasis: z.number().positive().nullable().default(null),
   businessFilter: BusinessFilterSchema,
   crossChecks: z.array(CrossCheckSchema),
   valuationInput: ValuationScenarioInputSchema,
+  valuationModelMode: ValuationModelModeSchema.default("pe"),
+  valuationDriverInputs: ValuationDriverInputsSchema.nullable().default(null),
   disciplineEntries: z.array(DisciplineEntrySchema),
   updatedAt: z.string().min(1),
 });
