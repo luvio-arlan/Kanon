@@ -17,7 +17,6 @@ export { importThesisArchive } from "./repositories/archive-importer";
 export {
   authenticateUser,
   createUserSession,
-  getDemoUser,
   getSessionUser,
   registerUser,
   revokeSession,

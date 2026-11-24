@@ -1,7 +1,6 @@
 "use client";
 
 import { evaluatePasswordStrength, normalizeChinaPhone } from "@kanon/core";
-import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { registerAccount } from "./auth-api";
@@ -11,17 +10,14 @@ export interface RegisterFormDraft {
   displayName: string;
   password: string;
   confirmPassword: string;
-  seedStarter: boolean;
 }
 
 export function useRegisterState() {
-  const router = useRouter();
   const [draft, setDraft] = useState<RegisterFormDraft>({
     phoneDigits: "",
     displayName: "",
     password: "",
     confirmPassword: "",
-    seedStarter: true,
   });
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -50,16 +46,15 @@ export function useRegisterState() {
       displayName: draft.displayName.trim() || undefined,
       password: draft.password,
       confirmPassword: draft.confirmPassword,
-      seedStarterWorkspace: draft.seedStarter,
+      seedStarterWorkspace: false,
     });
-    setSubmitting(false);
     if (!res.ok) {
+      setSubmitting(false);
       setServerError(res.error);
       return;
     }
     toast.success(`欢迎加入 KANON，${res.data.user.displayName}`);
-    router.push(res.data.redirectTo);
-    router.refresh();
+    window.location.assign(res.data.redirectTo);
   }
 
   return { draft, updateField, submitting, serverError, canSubmit, onSubmit };

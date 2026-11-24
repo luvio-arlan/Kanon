@@ -15,7 +15,8 @@
   <meta property="og:type" content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" /></noscript>
   <!-- Featherlight transparent adaptive architectural monogram favicon (zero heavy black box!) -->
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
 
@@ -177,6 +178,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 12px;
     }
     .brand {
       display: inline-flex;
@@ -185,6 +187,8 @@
       font-size: 13px;
       font-weight: 500;
       letter-spacing: 0.24em;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     nav {
       display: flex;
@@ -193,12 +197,13 @@
       font-size: 13.5px;
       color: var(--ink-2);
     }
-    nav a { transition: color 200ms ease; }
+    nav a { transition: color 200ms ease; white-space: nowrap; }
     nav a:hover { color: var(--ink); }
     .nav-right {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
+      flex-shrink: 0;
     }
     .theme-btn {
       width: 32px;
@@ -207,6 +212,7 @@
       border: 1px solid var(--hairline-2);
       display: grid;
       place-items: center;
+      flex-shrink: 0;
       color: var(--ink-2);
       transition: border-color 200ms ease, color 200ms ease, transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
     }
@@ -219,6 +225,9 @@
       border: 1px solid var(--hairline-2);
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      white-space: nowrap;
       transition: all 220ms cubic-bezier(0.22, 1, 0.36, 1);
     }
     .nav-cta:hover {
@@ -236,7 +245,11 @@
       border: 1px solid var(--ink);
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      line-height: 1;
       font-weight: 500;
       transition: opacity 200ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
     }
@@ -245,12 +258,14 @@
       font-size: 13px;
       color: var(--ink-2);
       padding: 0 6px;
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      white-space: nowrap;
+      line-height: 1;
       transition: color 200ms ease;
     }
     .nav-login:hover { color: var(--ink); }
-    @media (max-width: 760px) {
-      .nav-login { display: none; }
-    }
 
     /* Mobile menu trigger (hidden on desktop) + Full-Screen Swiss Drawer */
     .menu-btn {
@@ -260,6 +275,7 @@
       border-radius: 50%;
       border: 1px solid var(--hairline-2);
       place-items: center;
+      flex-shrink: 0;
       color: var(--ink);
       transition: border-color 200ms ease, color 200ms ease;
     }
@@ -269,10 +285,13 @@
       inset: 0;
       z-index: 150;
       background: var(--bg);
-      padding: calc(92px + env(safe-area-inset-top, 0px)) 28px calc(36px + env(safe-area-inset-bottom, 0px));
+      padding: calc(88px + env(safe-area-inset-top, 0px)) 24px calc(32px + env(safe-area-inset-bottom, 0px));
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      gap: 28px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       opacity: 0;
       pointer-events: none;
       transform: translateY(-10px);
@@ -306,7 +325,17 @@
     .mobile-drawer-foot {
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 14px;
+    }
+    .mobile-drawer-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .mobile-drawer-actions .btn-hero-primary,
+    .mobile-drawer-actions .btn-hero-secondary {
+      width: 100%;
+      justify-content: center;
     }
 
     /* ========================================================================
@@ -395,7 +424,7 @@
     }
 
     .hero-cn {
-      margin-top: 40px;
+      margin-top: 36px;
       font-size: clamp(1.25rem, 2.1vw, 1.7rem);
       font-weight: 300;
       letter-spacing: 0.06em;
@@ -403,24 +432,15 @@
       opacity: 0;
       animation: fadeUp 900ms 360ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
-    .hero-sub {
-      margin-top: 12px;
-      font-size: 15px;
-      color: var(--ink-2);
-      font-weight: 300;
-      max-width: 480px;
-      opacity: 0;
-      animation: fadeUp 900ms 440ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    }
 
     .hero-actions {
-      margin-top: 38px;
+      margin-top: 36px;
       display: flex;
       align-items: center;
       gap: 16px;
       flex-wrap: wrap;
       opacity: 0;
-      animation: fadeUp 900ms 540ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      animation: fadeUp 900ms 480ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }
@@ -438,7 +458,10 @@
       font-weight: 500;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 10px;
+      white-space: nowrap;
+      line-height: 1;
       transition: background-color 260ms ease, color 260ms ease, box-shadow 260ms ease;
     }
     .btn-hero-primary::after,
@@ -476,7 +499,10 @@
       font-weight: 400;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 10px;
+      white-space: nowrap;
+      line-height: 1;
       transition: border-color 240ms ease, color 240ms ease, background-color 240ms ease;
     }
     .btn-hero-secondary:hover {
@@ -576,12 +602,6 @@
       font-weight: 400;
     }
     .display-h2 em { font-style: italic; color: var(--titanium); }
-    .head-note {
-      font-size: 15.5px;
-      color: var(--ink-2);
-      font-weight: 300;
-      text-align: right;
-    }
 
     /* Tab bar with precision sliding coral indicator (zero orphaned borders) */
     .inst-bar {
@@ -821,19 +841,51 @@
       padding-top: 26px;
       border-top: 1px solid var(--hairline);
     }
+    .vp-chart-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+    .vp-area-reveal {
+      transform-box: fill-box;
+      transform-origin: left center;
+      transform: scaleX(0);
+      opacity: 0;
+      animation: vpAreaReveal 1.25s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes vpAreaReveal {
+      0% { transform: scaleX(0); opacity: 0; }
+      20% { opacity: 1; }
+      100% { transform: scaleX(1); opacity: 1; }
+    }
     .vp-curve-draw {
-      stroke-dasharray: 980;
-      stroke-dashoffset: 980;
-      animation: drawCurve 1.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      stroke-dasharray: 100;
+      stroke-dashoffset: 100;
+      animation: drawCurve 1.25s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
     @keyframes drawCurve { to { stroke-dashoffset: 0; } }
-    .vp-beacon {
-      animation: beaconPulse 2.4s ease-in-out infinite;
+    .vp-dot {
+      transform-box: fill-box;
       transform-origin: center;
+      opacity: 0;
+      transform: scale(0.4);
+      animation: vpDotArrive 420ms cubic-bezier(0.22, 1, 0.36, 1) 0.96s forwards;
+    }
+    @keyframes vpDotArrive {
+      to { opacity: 1; transform: scale(1); }
+    }
+    .vp-beacon {
+      transform-box: fill-box;
+      transform-origin: center;
+      opacity: 0;
+      transform: scale(0.8);
+      animation: beaconPulse 2.6s cubic-bezier(0.22, 1, 0.36, 1) 1.12s infinite;
     }
     @keyframes beaconPulse {
-      0%, 100% { opacity: 0.25; transform: scale(1); }
-      50% { opacity: 0.72; transform: scale(1.55); }
+      0% { opacity: 0.55; transform: scale(0.85); }
+      75% { opacity: 0; transform: scale(2.65); }
+      100% { opacity: 0; transform: scale(2.65); }
     }
 
     /* Tab 02: Red Team */
@@ -1026,7 +1078,7 @@
     .split-r { display: inline-block; transform: translateX(var(--split-r, 0px)); will-change: transform; }
 
     .accordion-section {
-      padding: clamp(68px, 9vh, 112px) 0 clamp(104px, 14vh, 160px);
+      padding: clamp(56px, 8vh, 96px) 0 clamp(104px, 14vh, 160px);
     }
     .horizon-section {
       padding: clamp(104px, 14vh, 168px) 0;
@@ -1361,30 +1413,82 @@
       .acc-plus { grid-column: 3; grid-row: 1; }
       .acc-summary { grid-column: 2 / 4; grid-row: 2; margin-top: 2px; }
       .acc-content { grid-template-columns: 1fr; margin: 0 18px 28px 80px; gap: 20px; }
-      .head-note { text-align: left; text-wrap: balance; }
       .lock-caption { white-space: normal; max-width: 310px; line-height: 1.65; text-wrap: balance; }
     }
     @media (max-width: 640px) {
-      header { padding: 16px 0; }
-      header.scrolled { padding: 12px 0; }
+      header { padding: calc(14px + env(safe-area-inset-top, 0px)) 0 14px; }
+      header.scrolled { padding: calc(10px + env(safe-area-inset-top, 0px)) 0 10px; }
       .wrap { padding: 0 20px; }
+      #soundToggle { display: none; }
       .nav-cta { display: none; }
+      .brand {
+        gap: 8px;
+        font-size: 12.5px;
+        letter-spacing: 0.2em;
+      }
+      .brand svg {
+        width: 16px;
+        height: 19px;
+      }
+      .nav-right { gap: 8px; }
+      .nav-login {
+        height: 32px;
+        padding: 0 6px;
+        font-size: 12.5px;
+        color: var(--ink);
+      }
+      .nav-cta-solid {
+        height: 32px;
+        padding: 0 13px;
+        font-size: 12.5px;
+      }
+      .theme-btn,
+      .menu-btn {
+        width: 32px;
+        height: 32px;
+      }
+      .mobile-nav-link {
+        padding: 16px 0;
+        font-size: 21px;
+      }
       .hero {
         min-height: 92svh;
-        padding: 112px 0 60px;
+        padding: calc(104px + env(safe-area-inset-top, 0px)) 0 calc(44px + env(safe-area-inset-bottom, 0px));
       }
-      .hero-bg img { object-position: 74% center; }
-      .hero-title { font-size: clamp(3.15rem, 13.8vw, 4.8rem); }
-      .hero-cn { margin-top: 26px; font-size: 1.2rem; }
-      .hero-sub { font-size: 14px; line-height: 1.7; }
-      .hero-actions { margin-top: 30px; gap: 12px; }
+      .hero-bg img { object-position: 66% center; }
+      .hero-title { font-size: clamp(3.1rem, 13.4vw, 4.4rem); line-height: 0.94; }
+      .hero-cn {
+        margin-top: 22px;
+        font-size: clamp(1.08rem, 4.7vw, 1.28rem);
+        letter-spacing: 0.04em;
+        line-height: 1.45;
+      }
+      .hero-actions {
+        margin-top: 28px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+      }
+      .hero-actions .btn-hero-primary,
+      .hero-actions .btn-hero-secondary {
+        width: 100%;
+        height: 46px;
+        padding: 0 12px;
+        font-size: 13.5px;
+        gap: 7px;
+      }
       .btn-hero-primary, .btn-hero-secondary {
         height: 46px;
-        padding: 0 20px;
+        padding: 0 18px;
         font-size: 13.5px;
       }
-      .statement-section { padding: 84px 0 64px; }
-      .statement-lines { font-size: clamp(1.62rem, 6.8vw, 2.2rem); line-height: 1.46; }
+      .statement-section { padding: 80px 0 60px; }
+      .statement-lines {
+        font-size: clamp(1.56rem, 6.4vw, 2.15rem);
+        line-height: 1.48;
+        text-wrap: balance;
+      }
       .fullbleed-photo {
         height: 52svh;
         min-height: 310px;
@@ -1392,10 +1496,9 @@
       }
       .photo-caption-bar { padding-bottom: 20px; }
       .photo-caption-inner { font-size: 12px; gap: 6px; }
-      .instrument-section { padding: 80px 0; }
-      .section-head { margin-bottom: 34px; gap: 12px; }
+      .instrument-section { padding: 76px 0; }
+      .section-head { margin-bottom: 28px; gap: 12px; }
       .display-h2 { font-size: clamp(2.35rem, 10.5vw, 3.2rem); }
-      .head-note { font-size: 14px; }
       .inst-bar { gap: 14px; }
       .inst-tabs { width: 100%; justify-content: space-between; gap: 10px; }
       .inst-tab { font-size: 13.5px; padding-bottom: 14px; gap: 0; }
@@ -1407,16 +1510,16 @@
       .odds-num { font-size: 26px; }
       .dial-sliders { margin-top: 30px; gap: 22px; }
       .light-matrix { padding: 10px; gap: 6px; border-radius: 16px; }
-      .lm-cell { font-size: 13px; border-radius: 9px; aspect-ratio: 1; }
-      .vp-col p { font-size: 1.32rem; }
+      .lm-cell { font-size: 12.5px; border-radius: 9px; aspect-ratio: 1; }
+      .vp-col p { font-size: 1.28rem; }
       .red-row { grid-template-columns: 34px 1fr; padding: 18px 0; gap: 10px; }
       .red-row p { font-size: 1.05rem; }
       .vault-rings-svg { width: 280px; height: 280px; }
       .lock-val { font-size: 3.4rem; }
       .lock-caption { font-size: 13.5px; }
       .prism-hero { height: 46svh; min-height: 290px; padding: 28px 0; }
-      .accordion-section { padding: 52px 0 80px; }
-      .horizon-section { padding: 80px 0; }
+      .accordion-section { padding: 44px 0 76px; }
+      .horizon-section { padding: 76px 0; }
       .acc-trigger {
         grid-template-columns: 40px 1fr 28px;
         gap: 6px 12px;
@@ -1439,7 +1542,25 @@
       .cinema-play { width: 64px; height: 64px; }
       .closing { padding-top: 84px; }
       .closing h2 { font-size: clamp(2.5rem, 11vw, 3.6rem); }
-      .closing-cta-wrap { margin-top: 30px; gap: 12px; }
+      .closing-cta-wrap {
+        margin-top: 30px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .closing-cta-wrap .btn-hero-primary {
+        grid-column: 1 / -1;
+        width: 100%;
+      }
+      .closing-cta-wrap .btn-hero-secondary {
+        width: 100%;
+        padding: 0 12px;
+        font-size: 13.5px;
+      }
       .colophon {
         margin-top: 56px;
         justify-content: center;
@@ -1450,6 +1571,15 @@
       .bleed-kanon { font-size: 23vw; }
       .modal-box { padding: 26px 22px; }
       .toast { right: 16px; left: 16px; bottom: 20px; text-align: center; }
+    }
+    @media (max-width: 375px) {
+      .wrap { padding: 0 16px; }
+      .nav-right { gap: 6px; }
+      .nav-login { padding: 0 4px; font-size: 12px; }
+      .nav-cta-solid { padding: 0 11px; font-size: 12px; }
+    }
+    @media (max-width: 345px) {
+      .hero-actions { grid-template-columns: 1fr; }
     }
     @media (pointer: coarse) {
       input[type="range"].hair-slider { height: 3px; }
@@ -1480,7 +1610,7 @@
         <a href="#statement">理念</a>
         <a href="#instrument">工作台</a>
         <a href="#polyphony">投委会</a>
-        <a href="#horizon">演进蓝图</a>
+        <a href="#horizon">蓝图</a>
         <a href="#film">宣传片</a>
       </nav>
 
@@ -1514,16 +1644,15 @@
       <a class="mobile-nav-link" href="#statement"><span>理念</span><span class="m-idx num">01</span></a>
       <a class="mobile-nav-link" href="#instrument"><span>核心工作台</span><span class="m-idx num">02</span></a>
       <a class="mobile-nav-link" href="#polyphony"><span>AI 投委会</span><span class="m-idx num">03</span></a>
-      <a class="mobile-nav-link" href="#horizon"><span>演进蓝图</span><span class="m-idx num">04</span></a>
+      <a class="mobile-nav-link" href="#horizon"><span>产品蓝图</span><span class="m-idx num">04</span></a>
       <a class="mobile-nav-link" href="#film"><span>品牌宣传片</span><span class="m-idx num">05</span></a>
     </nav>
     <div class="mobile-drawer-foot">
-      <a class="btn-hero-primary" href="https://app.kanon.hk/register" style="width:100%; justify-content:center;">+86 手机号免费注册</a>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
-        <a class="btn-hero-secondary" href="https://app.kanon.hk/login" style="justify-content:center;">账号登录</a>
-        <a class="btn-hero-secondary" href="https://app.kanon.hk/demo" style="justify-content:center;">免登体验</a>
+      <div class="mobile-drawer-actions">
+        <a class="btn-hero-primary" href="https://app.kanon.hk/register">免费注册个人空间</a>
+        <a class="btn-hero-secondary" href="https://app.kanon.hk/login">已有账号登录</a>
       </div>
-      <div class="num" style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-3); margin-top:14px;">
+      <div class="num" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; font-size:12px; color:var(--ink-3);">
         <span>kanon.hk · app.kanon.hk</span>
         <span>jensencuda@gmail.com</span>
       </div>
@@ -1546,16 +1675,12 @@
           <span class="clip"><span class="slide"><em>composed</em><span class="dot">.</span></span></span>
         </h1>
         <p class="hero-cn">在噪音里，谱出自己的确定性。</p>
-        <p class="hero-sub">面向深度个人价值投资者与买方投研机构的投资逻辑操作系统。</p>
         <div class="hero-actions">
           <a href="https://app.kanon.hk/register" class="btn-hero-primary">
             <span>立即进入工作台</span>
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M3.2 8h9.6M9.2 4.2 13 8l-3.8 3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-          </a>
-          <a href="https://app.kanon.hk/demo" class="btn-hero-secondary">
-            <span>在线免登体验</span>
           </a>
           <a href="#film" class="btn-hero-secondary" id="heroPlayJump">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -1601,10 +1726,6 @@
     <div class="wrap">
       <div class="section-head reveal">
         <h2 class="display-h2 serif">Pure <em>Precision</em>.</h2>
-        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-          <p class="head-note">为严谨基本面研究打造的核心工作台。</p>
-          <a href="https://app.kanon.hk/demo" class="nav-cta" style="font-size:12.5px; height:32px; padding:0 14px;">在完整工作台中亲自推演 →</a>
-        </div>
       </div>
 
       <div class="inst-bar">
@@ -1636,20 +1757,20 @@
             </div>
           </div>
           <div class="vp-chart-wrap">
-            <svg viewBox="0 0 1100 130" width="100%" height="118" fill="none" preserveAspectRatio="none" aria-hidden="true">
+            <svg class="vp-chart-svg" viewBox="0 0 1100 152" fill="none" aria-hidden="true">
               <defs>
                 <linearGradient id="vpArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#ea6b4a" stop-opacity="0.22" />
+                  <stop offset="0%" stop-color="#ea6b4a" stop-opacity="0.2" />
                   <stop offset="100%" stop-color="#ea6b4a" stop-opacity="0" />
                 </linearGradient>
               </defs>
-              <path d="M 10 102 C 260 98, 560 95, 1080 86" stroke="currentColor" stroke-opacity="0.24" stroke-width="1.4" stroke-dasharray="5 7" />
-              <path d="M 10 104 C 240 102, 520 82, 780 48 C 910 31, 1005 18, 1080 12 L 1080 126 L 10 126 Z" fill="url(#vpArea)" />
-              <path id="vpCurvePath" class="vp-curve-draw" d="M 10 104 C 240 102, 520 82, 780 48 C 910 31, 1005 18, 1080 12" stroke="#ea6b4a" stroke-width="2" stroke-linecap="round" />
-              <circle cx="1080" cy="12" r="10" fill="#ea6b4a" class="vp-beacon" />
-              <circle cx="1080" cy="12" r="3.5" fill="#ea6b4a" />
+              <path d="M 10 118 C 260 114, 560 111, 1072 102" stroke="currentColor" stroke-opacity="0.24" stroke-width="1.4" stroke-dasharray="5 7" />
+              <path id="vpAreaPath" class="vp-area-reveal" d="M 10 120 C 240 118, 520 96, 780 62 C 910 45, 1002 32, 1072 26 L 1072 142 L 10 142 Z" fill="url(#vpArea)" />
+              <path id="vpCurvePath" class="vp-curve-draw" pathLength="100" d="M 10 120 C 240 118, 520 96, 780 62 C 910 45, 1002 32, 1072 26" stroke="#ea6b4a" stroke-width="2" stroke-linecap="round" />
+              <circle id="vpBeaconRing" cx="1072" cy="26" r="6" fill="none" stroke="#ea6b4a" stroke-width="1.5" class="vp-beacon" />
+              <circle id="vpEndpointDot" cx="1072" cy="26" r="4" fill="#ea6b4a" stroke="var(--canvas)" stroke-width="1.5" class="vp-dot" />
             </svg>
-            <div style="display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink-3); margin-top:4px;">
+            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; color:var(--ink-3); margin-top:6px;">
               <span>虚线：市场共识定价轨迹</span>
               <span style="color:var(--coral);">实线：KANON 复利预期差曲线</span>
             </div>
@@ -1747,11 +1868,6 @@
 
     <div class="accordion-section">
       <div class="wrap">
-        <div class="section-head reveal" style="margin-bottom: 36px;">
-          <div style="font-size: 16px; color: var(--ink-2); font-weight: 300;">四声部 AI 投委会 — 不做单一回声室聊天框</div>
-          <div style="font-size: 13px; color: var(--ink-3);">点击任意角色展开深度机制</div>
-        </div>
-
         <div class="acc-list" data-accordion="polyphony">
           <article class="acc-item reveal">
             <button class="acc-trigger" aria-expanded="false">
@@ -1850,19 +1966,18 @@
   </section>
 
   <!-- ======================================================================
-       ACT 04: THE HORIZON (v4 -> v6 EXPANDABLE EXHIBITION MONOGRAPH)
+       ACT 04: THE HORIZON (EXPANDABLE PRODUCT MONOGRAPH)
        ====================================================================== -->
   <section class="horizon-section" id="horizon">
     <div class="wrap">
       <div class="section-head reveal">
         <h2 class="display-h2 serif">The <em>Horizon</em>.</h2>
-        <p class="head-note">面向未来十年的机构级演进蓝图 · 点击展开</p>
       </div>
 
       <div class="acc-list" data-accordion="horizon">
         <article class="acc-item reveal">
           <button class="acc-trigger" aria-expanded="false">
-            <span class="acc-idx num">v4.0</span>
+            <span class="acc-idx num">01</span>
             <span class="acc-title">十年 SEC 语义金库</span>
             <span class="acc-summary">任意论点一键高亮跳转至 10-K 原始页码</span>
             <span class="acc-plus" aria-hidden="true">
@@ -1884,7 +1999,7 @@
 
         <article class="acc-item reveal">
           <button class="acc-trigger" aria-expanded="false">
-            <span class="acc-idx num">v4.0</span>
+            <span class="acc-idx num">02</span>
             <span class="acc-title">跨季度假设漂移雷达</span>
             <span class="acc-summary">财报落地即刻捕捉管理层措辞与逻辑裂缝</span>
             <span class="acc-plus" aria-hidden="true">
@@ -1906,7 +2021,7 @@
 
         <article class="acc-item reveal">
           <button class="acc-trigger" aria-expanded="false">
-            <span class="acc-idx num">v4.0</span>
+            <span class="acc-idx num">03</span>
             <span class="acc-title">多角色投委会对抗室</span>
             <span class="acc-summary">四声部复调辩论，直出一页纸投研备忘录</span>
             <span class="acc-plus" aria-hidden="true">
@@ -1928,7 +2043,7 @@
 
         <article class="acc-item reveal">
           <button class="acc-trigger" aria-expanded="false">
-            <span class="acc-idx num">v5.0</span>
+            <span class="acc-idx num">04</span>
             <span class="acc-title">亚 50ms 本地优先引擎</span>
             <span class="acc-summary">断网亦享端云加密同步，守护私密阿尔法</span>
             <span class="acc-plus" aria-hidden="true">
@@ -1950,7 +2065,7 @@
 
         <article class="acc-item reveal">
           <button class="acc-trigger" aria-expanded="false">
-            <span class="acc-idx num">v5.0</span>
+            <span class="acc-idx num">05</span>
             <span class="acc-title">全市场 MCP 神经总线</span>
             <span class="acc-summary">无缝直连 Form 4、13F 与机构协作工作流</span>
             <span class="acc-plus" aria-hidden="true">
@@ -1972,7 +2087,7 @@
 
         <article class="acc-item reveal">
           <button class="acc-trigger" aria-expanded="false">
-            <span class="acc-idx num">v6.0</span>
+            <span class="acc-idx num">06</span>
             <span class="acc-title">十年个人认知图谱</span>
             <span class="acc-summary">量化追踪预测校准度，让判断力自身复利</span>
             <span class="acc-plus" aria-hidden="true">
@@ -2002,7 +2117,6 @@
     <div class="wrap">
       <div class="section-head reveal" style="margin-bottom: 32px;">
         <h2 class="display-h2 serif">Brand <em>Film</em>.</h2>
-        <p class="head-note">二十四秒，看见 KANON 的克制与秩序。</p>
       </div>
 
       <div class="cinema-box reveal" id="cinemaBox">
@@ -2201,9 +2315,17 @@
       const canvas = document.getElementById("silkCanvas");
       const ctx = canvas.getContext("2d");
       let w = 0, h = 0;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const ptr = { x: 0.62, y: 0.44, tx: 0.62, ty: 0.44 };
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let silkActive = false;
+      let silkRaf = 0;
+
+      function scheduleSilk() {
+        if (reduced || silkActive || document.hidden || window.scrollY > window.innerHeight * 1.15) return;
+        silkActive = true;
+        silkRaf = requestAnimationFrame(drawSilk);
+      }
 
       function resize() {
         w = canvas.clientWidth;
@@ -2289,16 +2411,26 @@
         }
 
         ctx.restore();
-        if (!reduced) requestAnimationFrame(drawSilk);
+        if (!reduced && !document.hidden && window.scrollY <= window.innerHeight * 1.15) {
+          silkRaf = requestAnimationFrame(drawSilk);
+        } else {
+          silkActive = false;
+        }
       }
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) scheduleSilk();
+      });
 
       /* 2. Multi-Dimensional Scroll Choreography (Architectural Shutter Slit + Prism Optical Sweep) */
       const sanctuaryEl = document.querySelector(".fullbleed-photo");
       const prismHero = document.getElementById("prismHero");
       const heroContent = document.querySelector(".hero-content");
+      let scrollTicking = false;
       function onScroll() {
+        scrollTicking = false;
         const y = window.scrollY;
         const vh = window.innerHeight;
+        if (y <= vh * 1.15) scheduleSilk();
         const max = Math.max(1, document.documentElement.scrollHeight - vh);
         progressLine.style.width = `${(y / max) * 100}%`;
         header.classList.toggle("scrolled", y > 40);
@@ -2338,7 +2470,12 @@
           stLines.forEach((line, idx) => line.classList.toggle("lit", idx < lit));
         }
       }
-      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("scroll", () => {
+        if (!scrollTicking) {
+          scrollTicking = true;
+          requestAnimationFrame(onScroll);
+        }
+      }, { passive: true });
       onScroll();
 
       const io = new IntersectionObserver((entries) => {
@@ -2359,11 +2496,29 @@
         tabInkBar.style.width = `${active.offsetWidth}px`;
         tabInkBar.style.transform = `translateX(${active.offsetLeft}px)`;
       }
+      function replayVpChart() {
+        const pairs = [
+          ["vpAreaPath", "vp-area-reveal"],
+          ["vpCurvePath", "vp-curve-draw"],
+          ["vpEndpointDot", "vp-dot"],
+          ["vpBeaconRing", "vp-beacon"],
+        ];
+        pairs.forEach(([id, cls]) => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove(cls);
+        });
+        void document.getElementById("vpCurvePath")?.getBoundingClientRect();
+        pairs.forEach(([id, cls]) => {
+          const el = document.getElementById(id);
+          if (el) el.classList.add(cls);
+        });
+      }
       tabs.forEach((tb) => tb.addEventListener("click", () => {
         KanonAudio.tick(1880, 0.04, 0.026);
         tabs.forEach((t) => t.classList.toggle("active", t === tb));
         panels.forEach((p) => p.classList.toggle("active", p.dataset.panel === tb.dataset.tab));
         syncTabBar();
+        if (tb.dataset.tab === "vp") replayVpChart();
       }));
 
       /* 4. Live Valuation Matrix with 3D Specular Tilt + Rolling Spring Interpolation */
@@ -2528,11 +2683,12 @@
           document.getElementById("vpCons").textContent = PRESETS[activeTk].cons;
           document.getElementById("vpOurs").textContent = PRESETS[activeTk].ours;
           renderRedTeam();
-          const curve = document.getElementById("vpCurvePath");
-          if (curve) { curve.classList.remove("vp-curve-draw"); void curve.offsetWidth; curve.classList.add("vp-curve-draw"); }
+          replayVpChart();
           renderVal(false);
         });
       });
+      document.getElementById("vpCons").textContent = PRESETS[activeTk].cons;
+      document.getElementById("vpOurs").textContent = PRESETS[activeTk].ours;
       renderVal(true);
       renderRedTeam();
 
@@ -2681,12 +2837,16 @@
         const href = `mailto:jensencuda@gmail.com?subject=${encodeURIComponent("[KANON Private Access] " + name)}&body=${encodeURIComponent("Name: " + name + "\nEmail: " + email)}`;
         document.getElementById("accessBody").innerHTML = `
           <h3 class="serif">Received.</h3>
-          <p>感谢您，${name.replace(/</g, "&lt;")}。可直接致信创始人 Caius Lu 开启私密体验。</p>
+          <p>感谢您，${name.replace(/</g, "&lt;")}。可直接致信创始人 Caius Lu 开启专属沟通。</p>
           <a class="btn-hero-primary" href="${href}">联系 Caius Lu →</a>`;
       });
 
       resize();
-      requestAnimationFrame(drawSilk);
+      if (reduced) {
+        drawSilk(performance.now());
+      } else {
+        scheduleSilk();
+      }
       if (document.fonts && document.fonts.ready) {
         document.fonts.ready.then(syncTabBar);
       }

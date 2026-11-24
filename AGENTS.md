@@ -7,7 +7,7 @@
 - **KANON（卡农）** — `Conviction, composed.` / `在噪音里，谱出自己的确定性。`
 - Desktop-first fundamental value-investing OS for serious individual investors & buy-side teams: 5-step guided research canvas, forensic SEC XBRL verification, multi-role IC Agent & red-teaming, dual-engine valuation + Reverse-DCF + 5×5 sensitivity workbench, zero-leverage discipline & quarterly cognitive review, and portfolio risk controls.
 - **Hard Non-Goals**: No live candlestick trading terminal or broker execution, no buy/sell fortune-telling chat, no gamified streaks, no social feed.
-- **Docs**: [docs/PRD.md](docs/PRD.md) · [docs/PRODUCT_ARCHITECTURE_V3.md](docs/PRODUCT_ARCHITECTURE_V3.md) · [.rules/postmortems.md](.rules/postmortems.md) · [deploy/README.md](deploy/README.md)
+- **Docs**: [docs/PRD.md](docs/PRD.md) · [docs/PRODUCT_ARCHITECTURE_V3.md](docs/PRODUCT_ARCHITECTURE_V3.md) · [.rules/editorial-craft.md](.rules/editorial-craft.md) · [.rules/postmortems.md](.rules/postmortems.md) · [deploy/README.md](deploy/README.md)
 
 ## 2. Architecture Map (Enforced by `.dependency-cruiser.cjs`)
 
@@ -27,7 +27,7 @@ packages/
 - **Contracts & Math**: Shared API/SSE/AI Zod contracts live in `packages/core/src/contracts/`; all financial formulas live strictly as pure functions in `packages/core/src/math/`.
 - **Migrations**: Database changes are strictly **expand-only** inside `packages/core/src/db/migrations/` and automatically checked 1:1 against every Drizzle `pgTable` via dynamic reflection in `repository.test.ts`.
 - **Client I/O & Drafts**: All client JSON/SSE calls go through `apps/web/src/shared/lib/kanon-fetch.ts` with Zod validation; all editable canvas steps use the shared draft engine with dirty-guard protection and `⌘S`.
-- **Aesthetic Craft**: Preserve Swiss Editorial minimalism (95% monochrome Light/Dark canvas + Natural Titanium + coral focal accent, progressive disclosure for deep analytics, zero Bloomberg/SaaS clutter).
+- **Aesthetic Craft & Copy Restraint**: Follow [.rules/editorial-craft.md](.rules/editorial-craft.md) strictly — Swiss Editorial minimalism (95% monochrome Light/Dark canvas + Natural Titanium + coral focal accent), **zero ornamental microcopy or UI complexity** (no decorative footers, feature/tech taglines, explanatory subtitles, version labels, or redundant slogans). Every visible word must serve an immediate user action; prefer whitespace, typographic hierarchy, and optically accurate motion.
 - **Production Topology**: `https://kanon.hk` (GitHub Pages auto-deployed from `marketing/`) + `https://app.kanon.hk` (Vercel monorepo `apps/web` + Neon Postgres `sin1`). See [deploy/README.md](deploy/README.md) before any deployment or infra change.
 
 ## 4. Verification Gates (Single Source of Truth)

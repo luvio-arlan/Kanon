@@ -1,8 +1,6 @@
 import crypto from "node:crypto";
 import { eq, lt } from "drizzle-orm";
 import {
-  DEFAULT_WORKSPACE_USER_ID,
-  DEMO_ACCOUNT_PHONE_E164,
   type LoginRequest,
   LoginRequestSchema,
   maskChinaPhone,
@@ -39,23 +37,6 @@ function toPublicUser(row: UserRow): PublicUser {
 function buildDefaultDisplayName(phoneE164: string): string {
   const tail = phoneE164.slice(-4);
   return `研究员 ${tail}`;
-}
-
-export async function getDemoUser(db: KanonDb): Promise<PublicUser> {
-  const [row] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, DEFAULT_WORKSPACE_USER_ID))
-    .limit(1);
-  if (row) return toPublicUser(row);
-  return {
-    id: DEFAULT_WORKSPACE_USER_ID,
-    phoneE164: DEMO_ACCOUNT_PHONE_E164,
-    maskedPhone: maskChinaPhone(DEMO_ACCOUNT_PHONE_E164),
-    displayName: "KANON 演示空间",
-    role: "demo",
-    createdAt: new Date().toISOString(),
-  };
 }
 
 export async function createUserSession(

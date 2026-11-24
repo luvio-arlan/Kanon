@@ -30,7 +30,6 @@ export interface CockpitShellProps {
   initialTheses: ThesisDetail[];
   glossary: readonly GlossaryTerm[];
   currentUser: PublicUser;
-  isDemo: boolean;
 }
 
 function CardsGrid({
@@ -194,7 +193,7 @@ function CockpitMainBody({
   );
 }
 
-export function CockpitShell({ initialTheses, glossary, currentUser, isDemo }: CockpitShellProps) {
+export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitShellProps) {
   const ui = useCockpitState(initialTheses, glossary);
   const ext = usePortfolioOverlayState(ui);
   const analytics = useMemo(() => calculatePortfolioAnalytics(ui.theses), [ui.theses]);
@@ -203,7 +202,6 @@ export function CockpitShell({ initialTheses, glossary, currentUser, isDemo }: C
     <div className="kanon-ambient-canvas min-h-dvh">
       <CockpitTopbar
         currentUser={currentUser}
-        isDemo={isDemo}
         hasByok={ui.hasByok}
         refreshingPrices={ext.refreshingPrices}
         onRefreshPrices={() => void ext.refreshPrices()}

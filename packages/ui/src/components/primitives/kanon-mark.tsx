@@ -3,9 +3,10 @@ import { cn } from "../../lib/cn";
 
 export interface KanonMarkProps extends SVGProps<SVGSVGElement> {
   size?: number;
+  accent?: boolean;
 }
 
-export function KanonMark({ size = 22, className, ...props }: KanonMarkProps) {
+export function KanonMark({ size = 22, accent = false, className, ...props }: KanonMarkProps) {
   return (
     <svg
       width={size}
@@ -27,7 +28,7 @@ export function KanonMark({ size = 22, className, ...props }: KanonMarkProps) {
       {/* Detached Lower-Right Leg: asymmetric conviction */}
       <path
         d="M54.5 54.8C64.2 63.6 74.8 77.5 88.9 100H72.1C64.5 84.8 56.6 70.6 46.8 60.4L54.5 54.8Z"
-        fill="currentColor"
+        fill={accent ? "var(--accent-coral)" : "currentColor"}
       />
     </svg>
   );

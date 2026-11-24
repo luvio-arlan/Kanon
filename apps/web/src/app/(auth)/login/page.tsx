@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getServerAuthContext } from "@/app/api/_lib/auth-session";
 import { LoginForm } from "@/features/auth";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +13,6 @@ interface LoginPageProps {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const auth = await getServerAuthContext();
-  if (auth.user && !auth.isDemo) {
-    redirect("/");
-  }
   const { next } = await searchParams;
   return <LoginForm nextPath={next} />;
 }

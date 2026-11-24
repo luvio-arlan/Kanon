@@ -119,6 +119,8 @@
   --font-sans:
     var(--font-kanon-sans), "Geist", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     -apple-system, sans-serif;
+  --font-serif:
+    var(--font-kanon-serif), "Instrument Serif", "Songti SC", "Noto Serif SC", Georgia, serif;
   --font-mono: var(--font-kanon-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --radius-card: var(--radius-card);
   --radius-control: var(--radius-control);

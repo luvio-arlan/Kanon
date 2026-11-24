@@ -16,7 +16,6 @@ import { AccountMenu } from "@/features/auth";
 
 export interface CockpitTopbarProps {
   currentUser: PublicUser;
-  isDemo: boolean;
   hasByok: boolean;
   refreshingPrices: boolean;
   onRefreshPrices: () => void;
@@ -162,7 +161,7 @@ function TopbarActions(props: CockpitTopbarProps) {
         <IconUpload size={15} stroke={1.5} />
       </Button>
       <ThemeToggleButton />
-      <AccountMenu currentUser={props.currentUser} isDemo={props.isDemo} />
+      <AccountMenu currentUser={props.currentUser} />
     </div>
   );
 }

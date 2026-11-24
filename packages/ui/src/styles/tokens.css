@@ -1,33 +1,61 @@
 @import "@heroui/styles";
 @import "./theme-bridge.css";
+@import "./editorial.css";
 
 @layer base {
   :root,
   .light,
   [data-theme="light"] {
-    --bg-canvas: #f7f7f5;
+    --bg-canvas: #f6f5f1;
     --bg-surface: #ffffff;
     --bg-surface-elevated: #fdfdfc;
-    --bg-muted: #f2f2ef;
+    --bg-muted: #efede7;
     --bg-titanium: #e5e3dd;
-    --bg-titanium-subtle: #efece6;
+    --bg-titanium-subtle: #edeae3;
     --border-hairline: rgba(17, 17, 19, 0.08);
-    --border-strong: rgba(17, 17, 19, 0.15);
+    --border-strong: rgba(17, 17, 19, 0.16);
     --ink-primary: #111113;
-    --ink-secondary: #5c606b;
-    --ink-muted: #767880;
-    --ink-inverse: #ffffff;
-    --accent-coral: #ea6b4a;
-    --accent-coral-soft: rgba(234, 107, 74, 0.1);
+    --ink-secondary: #575a64;
+    --ink-muted: #767984;
+    --ink-inverse: #f6f5f1;
+    --accent-coral: #d95a38;
+    --accent-coral-soft: rgba(217, 90, 56, 0.11);
     --status-pass: #16a34a;
     --status-pass-soft: rgba(22, 163, 74, 0.1);
     --status-warn: #d97706;
     --status-warn-soft: rgba(217, 119, 6, 0.11);
     --status-fail: #dc2626;
     --status-fail-soft: rgba(220, 38, 38, 0.1);
-    --glass-topbar: rgba(247, 247, 245, 0.96);
+    --glass-topbar: rgba(246, 245, 241, 0.94);
     --backdrop-scrim: rgba(17, 17, 19, 0.46);
     --ambient-glow: rgba(229, 227, 221, 0.68);
+    --editorial-split-scrim: linear-gradient(
+      180deg,
+      rgba(246, 245, 241, 0.52) 0%,
+      rgba(246, 245, 241, 0.34) 44%,
+      rgba(246, 245, 241, 0.92) 100%
+    );
+    --editorial-photo-opacity: 0.22;
+    --editorial-photo-filter: contrast(1.04) brightness(1.1) saturate(0.88);
+    --editorial-caustic-coral: radial-gradient(
+      circle,
+      rgba(217, 90, 56, 0.12) 0%,
+      rgba(218, 198, 174, 0.08) 44%,
+      transparent 72%
+    );
+    --editorial-caustic-titanium: radial-gradient(
+      circle,
+      rgba(196, 189, 176, 0.2) 0%,
+      rgba(215, 210, 200, 0.06) 48%,
+      transparent 74%
+    );
+    --editorial-serif-gradient: linear-gradient(124deg, #111113 18%, #47443e 60%, #d95a38 128%);
+    --editorial-sheen: linear-gradient(
+      115deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.28) 50%,
+      transparent 80%
+    );
     --shadow-card: 0 1px 2px rgba(17, 17, 19, 0.03), 0 10px 26px -18px rgba(17, 17, 19, 0.09);
     --shadow-card-hover:
       0 18px 42px -20px rgba(17, 17, 19, 0.16), 0 2px 8px -2px rgba(17, 17, 19, 0.05);
@@ -84,29 +112,56 @@
 
   .dark,
   [data-theme="dark"] {
-    --bg-canvas: #0b0c0e;
-    --bg-surface: #141518;
-    --bg-surface-elevated: #1a1b1f;
-    --bg-muted: #1c1d21;
-    --bg-titanium: #272622;
-    --bg-titanium-subtle: #1d1d1b;
-    --border-hairline: rgba(255, 255, 255, 0.09);
-    --border-strong: rgba(255, 255, 255, 0.18);
-    --ink-primary: #f4f4f2;
-    --ink-secondary: #a9acb5;
-    --ink-muted: #9397a1;
-    --ink-inverse: #0b0c0e;
+    --bg-canvas: #07080a;
+    --bg-surface: #111318;
+    --bg-surface-elevated: #171920;
+    --bg-muted: #181a21;
+    --bg-titanium: #262522;
+    --bg-titanium-subtle: #14151a;
+    --border-hairline: rgba(229, 227, 221, 0.1);
+    --border-strong: rgba(229, 227, 221, 0.2);
+    --ink-primary: #f3f1eb;
+    --ink-secondary: #a1a4ae;
+    --ink-muted: #7e828e;
+    --ink-inverse: #07080a;
     --accent-coral: #ea6b4a;
-    --accent-coral-soft: rgba(234, 107, 74, 0.16);
+    --accent-coral-soft: rgba(234, 107, 74, 0.15);
     --status-pass: #22c55e;
     --status-pass-soft: rgba(34, 197, 94, 0.14);
     --status-warn: #f59e0b;
     --status-warn-soft: rgba(245, 158, 11, 0.15);
     --status-fail: #ef4444;
     --status-fail-soft: rgba(239, 68, 68, 0.15);
-    --glass-topbar: rgba(11, 12, 14, 0.96);
+    --glass-topbar: rgba(7, 8, 10, 0.92);
     --backdrop-scrim: rgba(0, 0, 0, 0.72);
     --ambient-glow: rgba(229, 227, 221, 0.06);
+    --editorial-split-scrim: linear-gradient(
+      180deg,
+      rgba(7, 8, 10, 0.34) 0%,
+      rgba(7, 8, 10, 0.18) 44%,
+      rgba(7, 8, 10, 0.86) 100%
+    );
+    --editorial-photo-opacity: 0.74;
+    --editorial-photo-filter: none;
+    --editorial-caustic-coral: radial-gradient(
+      circle,
+      rgba(234, 107, 74, 0.17) 0%,
+      rgba(229, 227, 221, 0.04) 44%,
+      transparent 72%
+    );
+    --editorial-caustic-titanium: radial-gradient(
+      circle,
+      rgba(229, 227, 221, 0.1) 0%,
+      rgba(229, 227, 221, 0.03) 48%,
+      transparent 74%
+    );
+    --editorial-serif-gradient: linear-gradient(124deg, #f3f1eb 18%, #e5e3dd 58%, #ea6b4a 128%);
+    --editorial-sheen: linear-gradient(
+      115deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.22) 50%,
+      transparent 80%
+    );
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
     --shadow-card-hover:
       0 20px 48px -18px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.07);

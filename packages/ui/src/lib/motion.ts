@@ -7,10 +7,29 @@ export const KANON_SPRING = {
   mass: 0.72,
 } as const satisfies Transition;
 
+const KANON_EASE_EDITORIAL = [0.16, 1, 0.3, 1] as const;
+
 export const KANON_TRANSITION_FAST = {
   duration: 0.15,
   ease: [0.22, 1, 0.36, 1],
 } as const satisfies Transition;
+
+export const KANON_MASK_RISE: Variants = {
+  hidden: { y: "108%" },
+  visible: {
+    y: "0%",
+    transition: { duration: 0.88, ease: KANON_EASE_EDITORIAL },
+  },
+};
+
+export const KANON_EDITORIAL_FADE: Variants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.68, ease: KANON_EASE_EDITORIAL },
+  },
+};
 
 export const KANON_STAGGER_CONTAINER: Variants = {
   hidden: { opacity: 0 },

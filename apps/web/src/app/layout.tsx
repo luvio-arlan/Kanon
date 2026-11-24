@@ -1,13 +1,20 @@
 import { THEME_INIT_SCRIPT, ThemeProvider, Toaster } from "@kanon/ui";
 import type { Metadata } from "next";
-import { Geist, JetBrains_Mono } from "next/font/google";
+import { Geist, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
-import { RouteProgressBar } from "@/shared/components/route-progress-bar";
 import "./globals.css";
 
 const geistSans = Geist({
   subsets: ["latin"],
   variable: "--font-kanon-sans",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-kanon-serif",
   display: "swap",
 });
 
@@ -27,7 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="zh-CN"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${jetbrainsMono.variable}`}
+      className={`${geistSans.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable}`}
     >
       <head>
         <script
@@ -37,7 +44,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-dvh bg-canvas text-ink-primary antialiased">
         <ThemeProvider>
-          <RouteProgressBar />
           {children}
           <Toaster />
         </ThemeProvider>

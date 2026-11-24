@@ -163,6 +163,5 @@ export type AuthSuccessResponse = z.infer<typeof AuthSuccessResponseSchema>;
 
 export const AuthSessionResponseSchema = z.object({
   user: PublicUserSchema.nullable(),
-  isDemo: z.boolean(),
 });
 export type AuthSessionResponse = z.infer<typeof AuthSessionResponseSchema>;

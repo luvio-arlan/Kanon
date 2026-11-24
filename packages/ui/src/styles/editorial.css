@@ -1,0 +1,61 @@
+/* Editorial Monograph surface helpers — zero raw colors, 100% token-driven */
+
+.kanon-editorial-photo {
+  opacity: var(--editorial-photo-opacity);
+  filter: var(--editorial-photo-filter);
+  transition:
+    opacity 420ms var(--ease-kanon),
+    filter 420ms var(--ease-kanon);
+}
+
+.kanon-editorial-split-scrim {
+  background: var(--editorial-split-scrim);
+}
+
+.kanon-caustic-coral {
+  background: var(--editorial-caustic-coral);
+}
+
+.kanon-caustic-titanium {
+  background: var(--editorial-caustic-titanium);
+}
+
+.kanon-serif-italic {
+  font-family: var(--font-serif);
+  font-style: italic;
+  background: var(--editorial-serif-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.kanon-cta-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.kanon-cta-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--editorial-sheen);
+  transform: translateX(-125%);
+  transition: transform 640ms var(--ease-kanon);
+  pointer-events: none;
+}
+
+.kanon-cta-sheen:hover::after {
+  transform: translateX(125%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kanon-cta-sheen::after {
+    display: none;
+  }
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 1.5px solid var(--accent-coral);
+  outline-offset: 3px;
+}

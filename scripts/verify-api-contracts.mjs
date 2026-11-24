@@ -13,7 +13,6 @@ const KNOWN_ROUTES = [
   "ai/agent/apply/route.ts",
   "ai/agent/route.ts",
   "ai/copilot/route.ts",
-  "auth/demo/route.ts",
   "auth/login/route.ts",
   "auth/logout/route.ts",
   "auth/me/route.ts",
@@ -132,7 +131,6 @@ async function verifyAuthAndIsolation() {
   const meA = await fetchJson("/api/auth/me", {}, cookieA);
   assert.equal(meA.status, 200);
   assert.equal(meA.data.user.id, regA.data.user.id);
-  assert.equal(meA.data.isDemo, false);
 
   const regB = await fetchJson("/api/auth/register", {
     method: "POST",
@@ -328,13 +326,6 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
   assert.equal(logout.status, 200);
   const afterLogout = await fetchJson("/api/theses", {}, cookieA);
   assert.equal(afterLogout.status, 401);
-
-  const demo = await fetchJson("/api/auth/demo", { method: "POST" });
-  assert.equal(demo.status, 200);
-  assert.ok(demo.cookie.includes("kanon_demo=1"));
-  const demoList = await fetchJson("/api/theses", {}, demo.cookie);
-  assert.equal(demoList.status, 200);
-  assert.ok(demoList.data.theses.length >= 2);
 }
 
 async function main() {
@@ -355,17 +346,21 @@ async function main() {
   try {
     await waitForServer();
     const [homeRes, loginRes, registerRes, welcomeRes] = await Promise.all([
-      fetch(`${BASE}/`),
+      fetch(`${BASE}/`, { redirect: "manual" }),
       fetch(`${BASE}/login`),
       fetch(`${BASE}/register`),
-      fetch(`${BASE}/welcome`),
+      fetch(`${BASE}/welcome`, { redirect: "manual" }),
     ]);
-    assert.equal(homeRes.status, 200);
+    assert.equal(homeRes.status, 307);
+    assert.ok(homeRes.headers.get("location")?.endsWith("/login"));
     assert.equal(loginRes.status, 200);
     assert.equal(registerRes.status, 200);
-    assert.equal(welcomeRes.status, 200);
+    assert.equal(welcomeRes.status, 307);
+    assert.ok(welcomeRes.headers.get("location")?.endsWith("/login"));
 
     const { cookieA, cookieB } = await verifyAuthAndIsolation();
+    const authedHomeRes = await fetch(`${BASE}/`, { headers: { Cookie: cookieA } });
+    assert.equal(authedHomeRes.status, 200);
     const { createdId, nvdaId } = await verifyCoreCrudAndDiscipline(cookieA, cookieB);
     const canvasRes = await fetch(`${BASE}/thesis/${nvdaId}`, { headers: { Cookie: cookieA } });
     assert.equal(canvasRes.status, 200);
