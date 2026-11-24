@@ -15,7 +15,7 @@ import struct
 import wave
 
 SAMPLE_RATE = 48000
-DURATION = 24.0
+DURATION = 26.0
 NUM_SAMPLES = int(SAMPLE_RATE * DURATION)
 
 
@@ -206,101 +206,112 @@ def build_soundtrack(out_path: str) -> None:
     buf_r = [0.0] * NUM_SAMPLES
 
     # =====================================================================
-    # ACT I (0.00 - 3.60s): MONASTIC SILENCE & FIRST LIGHT (ZERO NOISE!)
-    # Single warm D2 cello breath + solitary echoing felt-piano fifth (D4 -> A4)
+    # ACT I (0.00 - 2.60s): MONASTIC SILENCE & FIRST LIGHT
     # =====================================================================
-    add_cello_pad(buf_l, buf_r, 0.15, 4.40, 38, 0.24, pan=-0.06, attack_s=1.25, release_s=1.20)
-    add_felt_piano(buf_l, buf_r, 0.45, 62, 3.2, 0.22, pan=-0.18)   # Pure solitary D4
-    add_felt_piano(buf_l, buf_r, 1.85, 69, 2.8, 0.19, pan=0.18)    # Luminous A4 fifth
-    add_felt_piano(buf_l, buf_r, 2.85, 66, 2.6, 0.17, pan=-0.08)   # Warm F#4 glow
+    add_cello_pad(buf_l, buf_r, 0.10, 3.20, 38, 0.24, pan=-0.06, attack_s=0.95, release_s=0.90)
+    add_felt_piano(buf_l, buf_r, 0.30, 62, 2.4, 0.22, pan=-0.18)
+    add_felt_piano(buf_l, buf_r, 1.35, 69, 2.2, 0.19, pan=0.18)
+    add_felt_piano(buf_l, buf_r, 2.05, 66, 2.0, 0.17, pan=-0.08)
 
-    # Act II Arrival Bloom (3.60s)
-    add_warm_bloom(buf_l, buf_r, 3.60, amp=0.30, shimmer_amp=0.11)
+    # Act II Arrival Bloom (2.60s)
+    add_warm_bloom(buf_l, buf_r, 2.60, amp=0.30, shimmer_amp=0.12)
 
-    # Cello Cathedral Progression (D2 -> A1 -> B1 -> F#2 -> G2 -> D2 -> A2 -> Dmaj9)
+    # Cello Cathedral Progression across 7 Acts
     chords = [
-        (3.55, 7.60, 38, 0.27, -0.10),
-        (7.10, 9.80, 33, 0.24, 0.12),
-        (9.30, 12.10, 35, 0.25, -0.12),
-        (11.60, 14.30, 42, 0.23, 0.10),
-        (13.80, 16.30, 43, 0.26, -0.10),
-        (15.80, 18.20, 38, 0.25, 0.08),
-        (17.50, 19.80, 45, 0.25, -0.08),
-        # Final Dmaj9 Cathedral Resolution
-        (19.35, 23.85, 38, 0.35, -0.06),
-        (19.55, 23.85, 45, 0.22, 0.08),
-        (19.95, 23.80, 54, 0.15, 0.0),
+        (2.55, 6.20, 38, 0.27, -0.10),
+        (5.90, 8.60, 33, 0.25, 0.12),
+        (8.30, 11.10, 35, 0.26, -0.12),
+        (10.85, 13.40, 42, 0.24, 0.10),
+        (13.10, 15.40, 43, 0.26, -0.10),
+        (15.10, 17.50, 38, 0.27, 0.08),
+        (17.15, 19.40, 45, 0.26, -0.08),
+        (19.15, 22.30, 38, 0.28, 0.06),
+        # Final Dmaj9 Cathedral Resolution (22.25 - 25.85s)
+        (22.25, 25.85, 38, 0.36, -0.06),
+        (22.45, 25.85, 45, 0.23, 0.08),
+        (22.80, 25.80, 54, 0.16, 0.0),
     ]
     for st, en, note, amp, pan in chords:
         add_cello_pad(buf_l, buf_r, st, en, note, amp, pan=pan)
 
     # Polyphonic Canon Voice 1 (Poised Felt Piano)
     voice1 = [
-        (3.85, 62, 2.5, 0.24),
-        (4.75, 57, 2.3, 0.20),
-        (5.65, 59, 2.4, 0.22),
-        (6.55, 66, 2.5, 0.23),
-        # Act III Prism
-        (7.55, 67, 2.4, 0.22),
-        (8.45, 62, 2.2, 0.20),
-        (9.35, 67, 2.4, 0.22),
-        (10.25, 69, 2.5, 0.23),
-        # Act IV Valuation
-        (11.85, 74, 2.4, 0.24),
-        (12.65, 73, 2.2, 0.21),
-        (13.45, 71, 2.3, 0.22),
-        (13.95, 74, 2.6, 0.25),   # Focal $211 elevation
-        (14.85, 76, 2.4, 0.23),
-        # Act V Vault
-        (16.15, 62, 2.3, 0.21),
-        (17.25, 69, 2.6, 0.24),   # Mechanical 0.00x lock
-        (18.25, 73, 2.4, 0.22),
+        (2.75, 62, 2.2, 0.24),
+        (3.55, 57, 2.1, 0.20),
+        (4.35, 59, 2.2, 0.22),
+        (5.15, 66, 2.3, 0.23),
+        # Act III Institutional Workbench Showcase
+        (6.10, 67, 2.1, 0.22),
+        (6.95, 62, 2.0, 0.21),
+        (7.55, 67, 2.0, 0.22),
+        (8.15, 69, 2.1, 0.23),
+        (8.75, 74, 2.2, 0.24),
+        (9.35, 73, 2.1, 0.22),
+        # Act IV Prism Four Voices
+        (11.35, 71, 2.2, 0.22),
+        (12.05, 69, 2.1, 0.21),
+        (12.75, 74, 2.3, 0.24),
+        (13.45, 76, 2.2, 0.23),
+        # Act V 3D Matrix
+        (15.25, 74, 2.3, 0.25),
+        (16.05, 73, 2.1, 0.22),
+        (16.75, 71, 2.2, 0.23),
+        (17.18, 74, 2.5, 0.26),
+        (18.05, 76, 2.3, 0.23),
+        # Act VI Vault
+        (19.35, 62, 2.2, 0.21),
+        (20.34, 69, 2.6, 0.25),
+        (21.25, 73, 2.2, 0.22),
     ]
     for st, n, d, a in voice1:
         add_felt_piano(buf_l, buf_r, st, n, d, a, pan=-0.26)
 
     # Polyphonic Canon Voice 2 (Graceful Octave Counterpoint)
     voice2 = [
-        (5.65, 74, 2.3, 0.14),
-        (6.55, 69, 2.2, 0.13),
-        (7.55, 71, 2.3, 0.15),
-        (8.45, 78, 2.4, 0.17),
-        (9.35, 79, 2.3, 0.16),
-        (10.25, 74, 2.3, 0.15),
-        (11.85, 81, 2.4, 0.18),
-        (12.65, 86, 2.5, 0.17),
-        (13.95, 86, 2.7, 0.19),
-        (14.85, 83, 2.4, 0.17),
-        (17.25, 81, 2.6, 0.18),
-        (18.25, 86, 2.5, 0.17),
+        (4.35, 74, 2.1, 0.14),
+        (5.15, 69, 2.1, 0.13),
+        (6.95, 78, 2.2, 0.16),
+        (8.15, 79, 2.1, 0.16),
+        (9.35, 81, 2.2, 0.17),
+        (11.35, 83, 2.2, 0.17),
+        (12.75, 86, 2.4, 0.18),
+        (15.25, 81, 2.3, 0.18),
+        (17.18, 86, 2.6, 0.20),
+        (18.05, 83, 2.3, 0.17),
+        (20.34, 81, 2.5, 0.19),
     ]
     for st, n, d, a in voice2:
         add_felt_piano(buf_l, buf_r, st, n, d, a, pan=0.28)
 
-    # Restrained Horological Foley (Only on purposeful visual anchors)
-    add_silk_breath(buf_l, buf_r, 7.35, width_s=0.60, amp=0.07)
-    for idx, bt in enumerate([7.85, 8.60, 9.35, 10.10]):
-        add_titanium_click(buf_l, buf_r, bt, freq=1740.0 + idx * 210.0, amp=0.08, pan=-0.30 + idx * 0.20)
+    # Tactile Horological Foley locked to visual beats
+    add_silk_breath(buf_l, buf_r, 5.95, width_s=0.55, amp=0.075)
+    for idx, bt in enumerate([6.95, 7.55, 8.15, 8.75]):
+        add_titanium_click(buf_l, buf_r, bt, freq=1860.0 + idx * 180.0, amp=0.075, pan=-0.22 + idx * 0.15)
+    add_warm_bloom(buf_l, buf_r, 9.20, amp=0.18, shimmer_amp=0.08)
 
-    add_silk_breath(buf_l, buf_r, 11.75, width_s=0.58, amp=0.08)
-    add_titanium_click(buf_l, buf_r, 13.95, freq=2480.0, amp=0.12, pan=0.14, decay=28.0)
+    add_silk_breath(buf_l, buf_r, 10.85, width_s=0.58, amp=0.07)
+    for idx, bt in enumerate([11.35, 12.05, 12.75, 13.45]):
+        add_titanium_click(buf_l, buf_r, bt, freq=1740.0 + idx * 210.0, amp=0.085, pan=-0.30 + idx * 0.20)
 
-    # Act V Mechanical Deadbolt "ka-da" Lock (16.90s lift -> 17.25s crisp snap shut!)
-    add_silk_breath(buf_l, buf_r, 15.95, width_s=0.55, amp=0.07)
-    add_titanium_click(buf_l, buf_r, 16.92, freq=1320.0, amp=0.10, pan=0.0, decay=55.0)
-    add_warm_bloom(buf_l, buf_r, 17.25, amp=0.28, shimmer_amp=0.08)
-    add_titanium_click(buf_l, buf_r, 17.25, freq=980.0, amp=0.20, pan=0.0, decay=30.0)
+    add_silk_breath(buf_l, buf_r, 15.10, width_s=0.58, amp=0.08)
+    add_titanium_click(buf_l, buf_r, 17.18, freq=2480.0, amp=0.13, pan=0.14, decay=28.0)
 
-    # Act VI Sculptural 3-Piece KanonMark Resolution (19.40 - 24.00s)
-    add_silk_breath(buf_l, buf_r, 19.35, width_s=0.65, amp=0.08)
-    add_felt_piano(buf_l, buf_r, 19.65, 50, 4.2, 0.29, pan=-0.24)
-    add_titanium_click(buf_l, buf_r, 19.65, freq=1180.0, amp=0.10, pan=-0.24)
-    add_felt_piano(buf_l, buf_r, 20.15, 62, 3.8, 0.27, pan=0.0)
-    add_felt_piano(buf_l, buf_r, 20.18, 69, 3.8, 0.23, pan=0.15)
-    add_warm_bloom(buf_l, buf_r, 20.65, amp=0.30, shimmer_amp=0.13)
-    add_felt_piano(buf_l, buf_r, 20.65, 78, 3.3, 0.26, pan=0.24)
-    add_felt_piano(buf_l, buf_r, 20.70, 76, 3.25, 0.20, pan=-0.18)
-    add_felt_piano(buf_l, buf_r, 20.76, 86, 3.2, 0.16, pan=0.20)
+    # Act VI Mechanical Deadbolt "ka-da" Lock (19.95s lift -> 20.34s crisp snap!)
+    add_silk_breath(buf_l, buf_r, 19.15, width_s=0.55, amp=0.07)
+    add_titanium_click(buf_l, buf_r, 19.95, freq=1320.0, amp=0.10, pan=0.0, decay=55.0)
+    add_warm_bloom(buf_l, buf_r, 20.34, amp=0.28, shimmer_amp=0.09)
+    add_titanium_click(buf_l, buf_r, 20.34, freq=980.0, amp=0.22, pan=0.0, decay=30.0)
+
+    # Act VII Sculptural 3-Piece KanonMark Resolution (22.25 - 26.00s)
+    add_silk_breath(buf_l, buf_r, 22.20, width_s=0.65, amp=0.08)
+    add_felt_piano(buf_l, buf_r, 22.52, 50, 3.4, 0.30, pan=-0.24)
+    add_titanium_click(buf_l, buf_r, 22.52, freq=1180.0, amp=0.10, pan=-0.24)
+    add_felt_piano(buf_l, buf_r, 22.95, 62, 3.0, 0.28, pan=0.0)
+    add_felt_piano(buf_l, buf_r, 22.98, 69, 3.0, 0.24, pan=0.15)
+    add_warm_bloom(buf_l, buf_r, 23.38, amp=0.32, shimmer_amp=0.14)
+    add_felt_piano(buf_l, buf_r, 23.38, 78, 2.6, 0.27, pan=0.24)
+    add_felt_piano(buf_l, buf_r, 23.42, 76, 2.55, 0.21, pan=-0.18)
+    add_felt_piano(buf_l, buf_r, 23.48, 86, 2.5, 0.17, pan=0.20)
 
     apply_cathedral_reverb(buf_l, buf_r, wet=0.36)
 

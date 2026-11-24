@@ -29,20 +29,20 @@ import time
 import urllib.request
 
 FPS = 60
-DURATION_SEC = 24
-TOTAL_FRAMES = FPS * DURATION_SEC  # 1440 frames exact
+DURATION_SEC = 26
+TOTAL_FRAMES = FPS * DURATION_SEC  # 1560 frames exact
 WIDTH = 1920
 HEIGHT = 1080
 
-# Keyframe stills for visual QA across all 6 cinematic acts
+# Keyframe stills for visual QA across all 7 cinematic acts
 PREVIEW_FRAMES = {
-    120: "01_first_light_2.0s.png",
-    240: "02_horizon_glide_4.0s.png",
-    360: "03_conviction_composed_6.0s.png",
-    615: "04_prism_refraction_10.25s.png",
-    864: "05_matrix_3d_14.4s.png",
-    1068: "06_vault_lock_17.8s.png",
-    1335: "07_kanon_mark_22.25s.png",
+    90: "01_first_light_1.5s.png",
+    270: "02_conviction_composed_4.5s.png",
+    585: "03_workbench_showcase_9.75s.png",
+    840: "04_prism_refraction_14.0s.png",
+    1080: "05_matrix_3d_18.0s.png",
+    1260: "06_vault_lock_21.0s.png",
+    1490: "07_kanon_mark_24.8s.png",
 }
 
 

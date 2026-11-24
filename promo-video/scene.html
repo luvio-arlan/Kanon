@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <title>KANON — 24s V5 Cathedral of Light Brand Film (1920x1080 @ 60fps)</title>
+  <title>KANON — 26s V6 Institutional Flagship Brand Film (1920x1080 @ 60fps)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
@@ -18,285 +18,168 @@
       -webkit-font-smoothing: antialiased;
     }
     .serif { font-family: "Instrument Serif", Georgia, serif; }
-    .num {
-      font-family: "Inter", -apple-system, sans-serif;
-      font-variant-numeric: tabular-nums;
-      font-feature-settings: "tnum" 1, "zero" 0;
-    }
+    .mono { font-family: "JetBrains Mono", "Inter", monospace; font-variant-numeric: tabular-nums; }
+    .num { font-family: "Inter", -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
 
-    #stage {
-      position: relative;
-      width: 1920px;
-      height: 1080px;
-      overflow: hidden;
-      background: #050608;
-    }
-    #fxCanvas {
-      position: absolute;
-      inset: 0;
-      width: 1920px;
-      height: 1080px;
-    }
-    /* Fine dithered film grain eliminates 8-bit OLED radial banding */
+    #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #050608; }
+    #fxCanvas { position: absolute; inset: 0; width: 1920px; height: 1080px; }
     #grain {
-      position: absolute;
-      inset: 0;
-      opacity: 0.042;
-      pointer-events: none;
-      z-index: 45;
+      position: absolute; inset: 0; opacity: 0.04; pointer-events: none; z-index: 45;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       background-size: 220px 220px;
     }
-    .layer {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 12;
-    }
+    .layer { position: absolute; inset: 0; pointer-events: none; z-index: 12; }
+    .dot { color: #ea6b4a; -webkit-text-fill-color: #ea6b4a; }
 
-    /* ACT I: MONASTIC FIRST LIGHT ("Quiet precision." — ZERO frantic noise!) */
-    #act1 {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      opacity: 0;
-    }
-    #a1En {
-      font-size: 98px;
-      font-style: italic;
-      letter-spacing: -0.02em;
-      font-weight: 400;
-      color: #f3f1eb;
-    }
-    #a1Cn {
-      margin-top: 22px;
-      font-size: 28px;
-      font-weight: 300;
-      letter-spacing: 0.42em;
-      padding-left: 0.42em;
-      color: rgba(229, 227, 221, 0.72);
-    }
+    /* ACT I */
+    #act1 { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; }
+    #a1En { font-size: 104px; font-style: italic; letter-spacing: -0.025em; font-weight: 400; color: #f3f1eb; }
+    #a1Cn { margin-top: 20px; font-size: 28px; font-weight: 300; letter-spacing: 0.44em; padding-left: 0.44em; color: rgba(229, 227, 221, 0.74); }
 
-    /* ACT II: MONUMENTAL TYPOGRAPHY */
-    #act2 {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      opacity: 0;
-    }
+    /* ACT II */
+    #act2 { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; }
     .clip { overflow: hidden; padding: 6px 26px 26px; margin-bottom: -20px; }
-    .hero-w {
-      display: inline-block;
-      font-size: 196px;
-      line-height: 0.90;
-      letter-spacing: -0.045em;
-      font-weight: 400;
-    }
+    .hero-w { display: inline-block; font-size: 202px; line-height: 0.9; letter-spacing: -0.045em; font-weight: 400; }
     .hero-w.it {
       font-style: italic;
       background: linear-gradient(122deg, #f3f1eb 20%, #e5e3dd 62%, #ea6b4a 130%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+      -webkit-background-clip: text; background-clip: text; color: transparent;
     }
-    .dot { color: #ea6b4a; -webkit-text-fill-color: #ea6b4a; }
-    #act2Cn {
-      margin-top: 46px;
-      font-size: 38px;
-      letter-spacing: 0.24em;
-      padding-left: 0.24em;
-      font-weight: 300;
-      color: rgba(243, 241, 235, 0.92);
+    #act2Cn { margin-top: 44px; font-size: 38px; letter-spacing: 0.24em; padding-left: 0.24em; font-weight: 300; color: rgba(243, 241, 235, 0.92); }
+
+    /* ACT III: 3D SCULPTURAL INSTITUTIONAL WORKBENCH SHOWCASE */
+    #act3wb {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      perspective: 2200px; opacity: 0;
+    }
+    #wbCaption {
+      margin-bottom: 28px; display: flex; align-items: center; gap: 18px;
+      font-size: 22px; letter-spacing: 0.16em; color: rgba(229, 227, 221, 0.78);
+    }
+    .wb-kicker { color: #ea6b4a; font-size: 16px; letter-spacing: 0.22em; }
+    #wbFrame {
+      width: 1520px; border-radius: 24px;
+      border: 1px solid rgba(229, 227, 221, 0.2);
+      background: linear-gradient(160deg, rgba(22, 24, 31, 0.95), rgba(11, 13, 18, 0.97));
+      box-shadow: 0 56px 140px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      overflow: hidden; transform-style: preserve-3d;
+    }
+    .wb-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 30px; border-bottom: 1px solid rgba(229, 227, 221, 0.1);
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .wb-brand { display: flex; align-items: center; gap: 14px; font-size: 16px; letter-spacing: 0.28em; font-weight: 600; color: #f3f1eb; }
+    .wb-live-pill {
+      display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 8px;
+      border: 1px solid rgba(245, 158, 11, 0.34); background: rgba(245, 158, 11, 0.12);
+      font-size: 15px; color: #fbbf24;
+    }
+    .wb-live-dot { width: 8px; height: 8px; border-radius: 999px; background: #f59e0b; box-shadow: 0 0 12px #f59e0b; }
+    .wb-ticker-bar { display: flex; align-items: center; gap: 16px; font-size: 15px; color: rgba(243, 241, 235, 0.86); }
+    .wb-chip { padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(229, 227, 221, 0.14); background: rgba(255, 255, 255, 0.04); }
+    .wb-chip.pass { border-color: rgba(34, 197, 94, 0.32); background: rgba(34, 197, 94, 0.12); color: #4ade80; }
+    .wb-steps {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+      padding: 18px 30px; border-bottom: 1px solid rgba(229, 227, 221, 0.08);
+      background: rgba(255, 255, 255, 0.012);
+    }
+    .wb-step {
+      display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-radius: 10px;
+      border: 1px solid rgba(229, 227, 221, 0.1); background: rgba(255, 255, 255, 0.02);
+      font-size: 15px; color: rgba(229, 227, 221, 0.56); transition: none;
+    }
+    .wb-step.lit {
+      border-color: rgba(234, 107, 74, 0.52); background: rgba(234, 107, 74, 0.12);
+      color: #f3f1eb; box-shadow: 0 8px 24px rgba(234, 107, 74, 0.16);
+    }
+    .wb-step .snum { color: #ea6b4a; font-size: 13px; }
+    .wb-body { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 26px; padding: 28px 30px 32px; }
+    .wb-card {
+      border-radius: 18px; border: 1px solid rgba(229, 227, 221, 0.12);
+      background: rgba(17, 19, 24, 0.92); padding: 26px;
+    }
+    .wb-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .wb-co { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; }
+    .wb-sub { font-size: 14px; color: #8c909c; margin-top: 4px; }
+    .wb-price-big { font-size: 62px; font-weight: 300; letter-spacing: -0.04em; line-height: 1; color: #f3f1eb; }
+    .wb-odds-pill {
+      display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 8px;
+      background: rgba(34, 197, 94, 0.14); border: 1px solid rgba(34, 197, 94, 0.28);
+      color: #4ade80; font-size: 16px; font-weight: 500;
+    }
+    .wb-rail { position: relative; height: 8px; border-radius: 999px; background: rgba(229, 227, 221, 0.12); margin: 28px 0 14px; }
+    .wb-rail-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: linear-gradient(90deg, rgba(34, 197, 94, 0.35), rgba(234, 107, 74, 0.85)); }
+    .wb-rail-dot { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 999px; background: #ea6b4a; transform: translate(-50%, -50%); box-shadow: 0 0 22px rgba(234, 107, 74, 0.9); border: 2px solid #f3f1eb; }
+    .wb-rail-labels { display: flex; justify-content: space-between; font-size: 14px; color: #9a9da8; }
+    .wb-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 22px; }
+    .wb-metric { padding: 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(229, 227, 221, 0.08); }
+    .wb-metric-k { font-size: 12px; color: #8c909c; }
+    .wb-metric-v { font-size: 22px; font-weight: 500; margin-top: 6px; color: #f3f1eb; }
+    .wb-traces { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+    .wb-trace {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 13px 16px; border-radius: 12px; border: 1px solid rgba(229, 227, 221, 0.1);
+      background: rgba(255, 255, 255, 0.025); font-size: 15px; opacity: 0;
+    }
+    .wb-trace-left { display: flex; align-items: center; gap: 12px; }
+    .wb-check { width: 20px; height: 20px; border-radius: 999px; background: rgba(34, 197, 94, 0.18); color: #4ade80; display: grid; place-items: center; font-size: 12px; }
+    .wb-trace-tag { font-size: 13px; color: #9a9da8; }
+    .wb-verdict {
+      margin-top: 16px; padding: 14px 18px; border-radius: 12px;
+      border-left: 3px solid #ea6b4a; background: rgba(234, 107, 74, 0.1);
+      font-size: 15px; color: #f3f1eb; opacity: 0;
     }
 
-    /* ACT III: VOLUMETRIC PRISM — FOUR VOICES */
-    #act3 {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding-right: 136px;
-      opacity: 0;
-    }
-    .prism-voices {
-      width: 780px;
-      display: flex;
-      flex-direction: column;
-      gap: 34px;
-    }
-    .pv-row {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      padding-bottom: 24px;
-      border-bottom: 1px solid rgba(229, 227, 221, 0.14);
-    }
-    .pv-left { display: flex; align-items: baseline; gap: 30px; }
+    /* ACT IV: VOLUMETRIC PRISM FOUR VOICES */
+    #act4p { display: flex; align-items: center; justify-content: flex-end; padding-right: 136px; opacity: 0; }
+    .prism-voices { width: 820px; display: flex; flex-direction: column; gap: 32px; }
+    .pv-row { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 22px; border-bottom: 1px solid rgba(229, 227, 221, 0.14); }
+    .pv-left { display: flex; align-items: baseline; gap: 28px; }
     .pv-idx { font-size: 20px; color: #ea6b4a; letter-spacing: 0.14em; }
-    .pv-zh { font-size: 50px; font-weight: 300; letter-spacing: 0.05em; color: #f3f1eb; }
+    .pv-zh { font-size: 48px; font-weight: 300; letter-spacing: 0.04em; color: #f3f1eb; }
     .pv-en { font-size: 28px; font-style: italic; color: rgba(229, 227, 221, 0.64); }
 
-    /* ACT IV: 3D SCULPTURAL 5x5 MATRIX */
-    #act4 {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      perspective: 2000px;
-    }
-    #valWrap {
-      width: 1540px;
-      display: grid;
-      grid-template-columns: 0.88fr 1.12fr;
-      gap: 96px;
-      align-items: center;
-    }
-    .val-giant {
-      font-size: 204px;
-      line-height: 0.90;
-      letter-spacing: -0.05em;
-      font-weight: 300;
-      color: #f3f1eb;
-    }
+    /* ACT V: 3D SCULPTURAL 5x5 MATRIX */
+    #act5m { display: flex; align-items: center; justify-content: center; opacity: 0; perspective: 2000px; }
+    #valWrap { width: 1540px; display: grid; grid-template-columns: 0.88fr 1.12fr; gap: 96px; align-items: center; }
+    .val-giant { font-size: 204px; line-height: 0.9; letter-spacing: -0.05em; font-weight: 300; color: #f3f1eb; }
     .val-giant span { color: #ea6b4a; }
-    .val-cn {
-      margin-top: 28px;
-      font-size: 38px;
-      font-weight: 300;
-      letter-spacing: 0.14em;
-      color: rgba(243, 241, 235, 0.88);
-    }
-    .val-sub {
-      margin-top: 14px;
-      font-size: 19px;
-      letter-spacing: 0.20em;
-      color: rgba(229, 227, 221, 0.56);
-    }
+    .val-cn { margin-top: 26px; font-size: 38px; font-weight: 300; letter-spacing: 0.14em; color: rgba(243, 241, 235, 0.88); }
+    .val-sub { margin-top: 14px; font-size: 18px; letter-spacing: 0.18em; color: rgba(229, 227, 221, 0.58); }
     #matrix3dStage { transform-style: preserve-3d; position: relative; }
-    .mat3d-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 16px;
-      transform-style: preserve-3d;
-    }
+    .mat3d-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; transform-style: preserve-3d; }
     .m3d-tile {
-      aspect-ratio: 1.08;
-      border-radius: 16px;
-      border: 1px solid rgba(229, 227, 221, 0.14);
+      aspect-ratio: 1.08; border-radius: 16px; border: 1px solid rgba(229, 227, 221, 0.14);
       background: linear-gradient(155deg, rgba(255, 255, 255, 0.08), rgba(16, 18, 24, 0.88));
-      display: grid;
-      place-items: center;
-      font-size: 26px;
-      font-weight: 400;
-      color: rgba(243, 241, 235, 0.68);
+      display: grid; place-items: center; font-size: 26px; font-weight: 400; color: rgba(243, 241, 235, 0.68);
       box-shadow: 0 24px 52px rgba(0, 0, 0, 0.68);
     }
     .m3d-tile.focal {
-      background: linear-gradient(145deg, #f38567, #ea6b4a);
-      border-color: #ffb8a3;
-      color: #ffffff;
-      font-weight: 500;
-      box-shadow: 0 36px 96px rgba(234, 107, 74, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.50);
+      background: linear-gradient(145deg, #f38567, #ea6b4a); border-color: #ffb8a3; color: #ffffff;
+      font-weight: 500; box-shadow: 0 36px 96px rgba(234, 107, 74, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
-    /* ACT V: ZERO-LEVERAGE VAULT */
-    #act5 {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      opacity: 0;
-    }
+    /* ACT VI: ZERO-LEVERAGE VAULT */
+    #act6v { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; }
     #vaultLockSvg { margin-bottom: 18px; overflow: visible; }
-    #vaultNum {
-      font-size: 164px;
-      line-height: 0.92;
-      letter-spacing: -0.05em;
-      font-weight: 300;
-      color: #f3f1eb;
-    }
+    #vaultNum { font-size: 168px; line-height: 0.92; letter-spacing: -0.05em; font-weight: 300; color: #f3f1eb; }
     #vaultNum span { color: #ea6b4a; }
-    #vaultLabel {
-      margin-top: 24px;
-      font-size: 32px;
-      letter-spacing: 0.16em;
-      font-weight: 300;
-      color: rgba(243, 241, 235, 0.88);
-    }
+    #vaultLabel { margin-top: 24px; font-size: 32px; letter-spacing: 0.16em; font-weight: 300; color: rgba(243, 241, 235, 0.88); }
 
-    /* ACT VI: LUXURY STACKED END LOCKUP (WIDE FEATHER, ZERO OVAL BANDING!) */
-    #act6 {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      opacity: 0;
-    }
-    #markBox {
-      position: relative;
-      width: 184px;
-      height: 218px;
-      margin-bottom: 36px;
-    }
-    #finalTitle {
-      font-size: 112px;
-      line-height: 0.96;
-      letter-spacing: 0.30em;
-      padding-left: 0.30em;
-      font-weight: 400;
-      color: #f3f1eb;
-    }
-    #finalCnRow {
-      margin-top: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 24px;
-    }
-    .cn-hairline {
-      width: 38px;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(234, 107, 74, 0.72), transparent);
-    }
-    .cn-brand-text {
-      font-family: "Noto Sans SC", "PingFang SC", sans-serif;
-      font-size: 26px;
-      font-weight: 400;
-      letter-spacing: 0.62em;
-      padding-left: 0.62em;
-      color: #e5e3dd;
-    }
-    #finalSub {
-      margin-top: 30px;
-      font-size: 40px;
-      font-style: italic;
-      color: rgba(243, 241, 235, 0.78);
-    }
+    /* ACT VII: LUXURY STACKED END LOCKUP */
+    #act7end { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; }
+    #markBox { position: relative; width: 184px; height: 218px; margin-bottom: 34px; }
+    #finalTitle { font-size: 112px; line-height: 0.96; letter-spacing: 0.30em; padding-left: 0.30em; font-weight: 400; color: #f3f1eb; }
+    #finalCnRow { margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 24px; }
+    .cn-hairline { width: 42px; height: 1px; background: linear-gradient(90deg, transparent, rgba(234, 107, 74, 0.78), transparent); }
+    .cn-brand-text { font-size: 26px; font-weight: 400; letter-spacing: 0.62em; padding-left: 0.62em; color: #e5e3dd; }
+    #finalSub { margin-top: 28px; font-size: 40px; font-style: italic; color: rgba(243, 241, 235, 0.8); }
     #finalSig {
-      position: absolute;
-      bottom: 56px;
-      left: 0;
-      right: 0;
-      display: flex;
-      justify-content: center;
-      gap: 22px;
-      font-size: 16px;
-      letter-spacing: 0.24em;
-      color: rgba(243, 241, 235, 0.62);
+      position: absolute; bottom: 54px; left: 0; right: 0; display: flex; justify-content: center;
+      gap: 22px; font-size: 16px; letter-spacing: 0.24em; color: rgba(243, 241, 235, 0.66);
     }
-
-    #fadeVeil {
-      position: absolute;
-      inset: 0;
-      background: #050608;
-      opacity: 0;
-      z-index: 60;
-    }
+    #fadeVeil { position: absolute; inset: 0; background: #050608; opacity: 0; z-index: 60; }
   </style>
 </head>
 <body>
@@ -304,57 +187,119 @@
     <canvas id="fxCanvas" width="1920" height="1080"></canvas>
     <div id="grain"></div>
 
-    <!-- ACT I: MONASTIC FIRST LIGHT (POISED, ZERO NOISE) -->
+    <!-- ACT I -->
     <div id="act1" class="layer">
       <div id="a1En" class="serif">Quiet precision<span class="dot">.</span></div>
       <div id="a1Cn">静谧，而精密</div>
     </div>
 
-    <!-- ACT II: CONVICTION, COMPOSED. -->
+    <!-- ACT II -->
     <div id="act2" class="layer">
       <div class="clip"><span class="hero-w serif" id="w1">Conviction,</span></div>
       <div class="clip"><span class="hero-w serif it" id="w2">composed<span class="dot">.</span></span></div>
       <div id="act2Cn">在噪音里，谱出自己的确定性。</div>
     </div>
 
-    <!-- ACT III: VOLUMETRIC PRISM FOUR VOICES -->
-    <div id="act3" class="layer">
-      <div class="prism-voices">
-        <div class="pv-row" id="pv1">
-          <div class="pv-left"><span class="pv-idx num">01</span><span class="pv-zh">商业本质</span></div>
-          <span class="pv-en serif">First Principles</span>
+    <!-- ACT III: INSTITUTIONAL WORKBENCH SHOWCASE -->
+    <div id="act3wb" class="layer">
+      <div id="wbCaption">
+        <span class="wb-kicker mono">INSTITUTIONAL EQUITY OS</span>
+        <span>·</span>
+        <span>实时盘前盘后 · 五步买方研究 · 8 工具投委会 Agent</span>
+      </div>
+      <div id="wbFrame">
+        <div class="wb-top">
+          <div class="wb-brand">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ea6b4a;"></span>
+            <span>KANON · 卡农</span>
+          </div>
+          <div class="wb-ticker-bar mono">
+            <span class="wb-live-pill"><span class="wb-live-dot"></span>盘前交易 PRE</span>
+            <span class="wb-chip">NVDA $165.05 · 盘前 $156.69 (-5.1%)</span>
+            <span class="wb-chip pass">落入 15% 安全买点带</span>
+            <span class="wb-chip" style="color:#9a9da8;">YAHOO / POLYGON / FMP</span>
+          </div>
         </div>
-        <div class="pv-row" id="pv2">
-          <div class="pv-left"><span class="pv-idx num">02</span><span class="pv-zh">SEC 原件溯源</span></div>
-          <span class="pv-en serif">Zero Hallucination</span>
+        <div class="wb-steps">
+          <div class="wb-step" id="wbs1"><span class="snum mono">01</span><span>商业模式与预期差</span></div>
+          <div class="wb-step" id="wbs2"><span class="snum mono">02</span><span>核心假设与催化剂</span></div>
+          <div class="wb-step" id="wbs3"><span class="snum mono">03</span><span>SEC XBRL 法证印证</span></div>
+          <div class="wb-step" id="wbs4"><span class="snum mono">04</span><span>双引擎估值与横评</span></div>
+          <div class="wb-step" id="wbs5"><span class="snum mono">05</span><span>零杠杆纪律与校准</span></div>
         </div>
-        <div class="pv-row" id="pv3">
-          <div class="pv-left"><span class="pv-idx num">03</span><span class="pv-zh">苛刻空头红队</span></div>
-          <span class="pv-en serif">Devil's Advocate</span>
-        </div>
-        <div class="pv-row" id="pv4">
-          <div class="pv-left"><span class="pv-idx num">04</span><span class="pv-zh">人类终审主权</span></div>
-          <span class="pv-en serif">Human Sovereignty</span>
+        <div class="wb-body">
+          <div class="wb-card">
+            <div class="wb-card-head">
+              <div>
+                <div class="wb-co">英伟达 <span class="mono" style="font-size:18px;color:#ea6b4a;margin-left:8px;">NVDA</span></div>
+                <div class="wb-sub">AI 算力 · 全栈平台 · 核心持仓 14% / 半凯利建议 16%</div>
+              </div>
+              <span class="wb-odds-pill mono">+71.0% · 赔率 3.42×</span>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:18px;">
+              <div class="wb-price-big num" id="wbTargetPrice">$268.0</div>
+              <div class="mono" style="font-size:15px;color:#9a9da8;">3年中性目标 · CAGR 19.6%</div>
+            </div>
+            <div class="wb-rail">
+              <div class="wb-rail-fill" id="wbRailFill" style="width:17.5%;"></div>
+              <div style="position:absolute;left:28%;top:-4px;bottom:-4px;width:2px;border-radius:99px;background:#4ade80;"></div>
+              <div class="wb-rail-dot" id="wbRailDot" style="left:17.5%;"></div>
+            </div>
+            <div class="wb-rail-labels mono">
+              <span>悲观 $124.2</span>
+              <span style="color:#4ade80;">15%买点 $176.2</span>
+              <span style="color:#ea6b4a;">实时盘前 $156.7</span>
+              <span>乐观 $310.0</span>
+            </div>
+            <div class="wb-metrics mono">
+              <div class="wb-metric"><div class="wb-metric-k">SEC 法证评分</div><div class="wb-metric-v" style="color:#4ade80;">92 / A+</div></div>
+              <div class="wb-metric"><div class="wb-metric-k">Reverse-DCF 隐含</div><div class="wb-metric-v">17.8%</div></div>
+              <div class="wb-metric"><div class="wb-metric-k">待验证催化剂</div><div class="wb-metric-v" style="color:#ea6b4a;">3 项高影响</div></div>
+            </div>
+          </div>
+          <div class="wb-card">
+            <div class="wb-card-head" style="margin-bottom:10px;">
+              <div style="font-size:20px;font-weight:600;">投委会多角色审计 Agent</div>
+              <span class="wb-chip mono" style="font-size:13px;color:#ea6b4a;">8 TOOLS · SSE</span>
+            </div>
+            <div class="wb-traces">
+              <div class="wb-trace" id="wbt1"><div class="wb-trace-left"><span class="wb-check">✓</span><span>SEC 法证排雷 · ROIC 84% / Sloan 应计健康</span></div><span class="wb-trace-tag mono">10-K XBRL</span></div>
+              <div class="wb-trace" id="wbt2"><div class="wb-trace-left"><span class="wb-check">✓</span><span>真·反向 DCF · 市场隐含 17.8% 复合增速</span></div><span class="wb-trace-tag mono">REVERSE-DCF</span></div>
+              <div class="wb-trace" id="wbt3"><div class="wb-trace-left"><span class="wb-check">✓</span><span>实时盘前报价校准 · 52W 区间 64% 分位</span></div><span class="wb-trace-tag mono">LIVE EXTENDED</span></div>
+              <div class="wb-trace" id="wbt4"><div class="wb-trace-left"><span class="wb-check">✓</span><span>催化剂与价值陷阱审计 · Blackwell 爬坡排期确认</span></div><span class="wb-trace-tag mono">CATALYST</span></div>
+            </div>
+            <div class="wb-verdict" id="wbVerdict">
+              <strong style="color:#ea6b4a;">IC 终审建议（88/100）：</strong>具备显著赔率不对称，建议围绕云厂 CapEx 红线严守 0.00× 零杠杆分批跟踪。
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ACT IV: 3D VALUATION MATRIX -->
-    <div id="act4" class="layer">
+    <!-- ACT IV: VOLUMETRIC PRISM FOUR VOICES -->
+    <div id="act4p" class="layer">
+      <div class="prism-voices">
+        <div class="pv-row" id="pv1"><div class="pv-left"><span class="pv-idx num">01</span><span class="pv-zh">预期差与事前验尸</span></div><span class="pv-en serif">Variant Perception</span></div>
+        <div class="pv-row" id="pv2"><div class="pv-left"><span class="pv-idx num">02</span><span class="pv-zh">SEC 原件零幻觉</span></div><span class="pv-en serif">XBRL Forensics</span></div>
+        <div class="pv-row" id="pv3"><div class="pv-left"><span class="pv-idx num">03</span><span class="pv-zh">8 工具投委会红队</span></div><span class="pv-en serif">IC Red-Teaming</span></div>
+        <div class="pv-row" id="pv4"><div class="pv-left"><span class="pv-idx num">04</span><span class="pv-zh">人类终审主权</span></div><span class="pv-en serif">Human Sovereignty</span></div>
+      </div>
+    </div>
+
+    <!-- ACT V: 3D VALUATION MATRIX -->
+    <div id="act5m" class="layer">
       <div id="valWrap">
         <div>
           <div class="val-giant num" id="bigOdds">3.42<span>×</span></div>
           <div class="val-cn">赔率，自己算清。</div>
-          <div class="val-sub num">5×5 SENSITIVITY · REVERSE-DCF</div>
+          <div class="val-sub mono">5×5 SENSITIVITY · REVERSE-DCF · PEER COMPS</div>
         </div>
-        <div id="matrix3dStage">
-          <div class="mat3d-grid num" id="mat3dGrid"></div>
-        </div>
+        <div id="matrix3dStage"><div class="mat3d-grid num" id="mat3dGrid"></div></div>
       </div>
     </div>
 
-    <!-- ACT V: ZERO-LEVERAGE VAULT -->
-    <div id="act5" class="layer">
+    <!-- ACT VI: ZERO-LEVERAGE VAULT -->
+    <div id="act6v" class="layer">
       <svg id="vaultLockSvg" width="66" height="72" viewBox="0 0 66 72" fill="none">
         <path id="vShackle" d="M20 32V21C20 13.82 25.82 8 33 8C40.18 8 46 13.82 46 21V32" stroke="#E5E3DD" stroke-width="3.2" stroke-linecap="round"/>
         <rect x="12" y="31" width="42" height="33" rx="8" fill="rgba(20,22,28,0.92)" stroke="#E5E3DD" stroke-width="2.4"/>
@@ -365,25 +310,14 @@
       <div id="vaultLabel">零杠杆铁律 · 写入底层契约</div>
     </div>
 
-    <!-- ACT VI: STACKED LUXURY END LOCKUP -->
-    <div id="act6" class="layer">
+    <!-- ACT VII: LUXURY STACKED END LOCKUP -->
+    <div id="act7end" class="layer">
       <div id="markBox">
         <svg width="184" height="218" viewBox="8 0 84 100" fill="none" style="position:relative; z-index:2; overflow:visible;">
           <defs>
-            <linearGradient id="ti" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#FFFFFF"/>
-              <stop offset="52%" stop-color="#E5E3DD"/>
-              <stop offset="100%" stop-color="#9A978F"/>
-            </linearGradient>
-            <linearGradient id="co" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#F79779"/>
-              <stop offset="100%" stop-color="#EA6B4A"/>
-            </linearGradient>
-            <linearGradient id="sheenGrad" x1="0" y1="0" x2="1" y2="0.4">
-              <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/>
-              <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.92"/>
-              <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
-            </linearGradient>
+            <linearGradient id="ti" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="52%" stop-color="#E5E3DD"/><stop offset="100%" stop-color="#9A978F"/></linearGradient>
+            <linearGradient id="co" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F79779"/><stop offset="100%" stop-color="#EA6B4A"/></linearGradient>
+            <linearGradient id="sheenGrad" x1="0" y1="0" x2="1" y2="0.4"><stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.92"/><stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
             <clipPath id="kClip">
               <path d="M16.3 0H24.8L27.4 48.1L12 66.3L16.3 0Z"/>
               <path d="M73.8 0H89.4C88.2 21.5 76.2 38.2 49.6 50C35.2 63.4 27.6 79.4 26.7 100H10.6C11.4 77.2 19.6 60.8 36 50C59.8 34.4 72.1 19.8 73.8 0Z"/>
@@ -397,19 +331,12 @@
         </svg>
       </div>
       <div id="finalTitle" class="serif">KANON</div>
-      <div id="finalCnRow">
-        <span class="cn-hairline"></span>
-        <span class="cn-brand-text">卡农</span>
-        <span class="cn-hairline"></span>
-      </div>
+      <div id="finalCnRow"><span class="cn-hairline"></span><span class="cn-brand-text">卡农</span><span class="cn-hairline"></span></div>
       <div id="finalSub" class="serif">Conviction, composed<span class="dot">.</span></div>
-      <div id="finalSig" class="num">
-        <span>CAIUS LU</span>
-        <span style="color:#ea6b4a;">·</span>
-        <span>JENSENCUDA@GMAIL.COM</span>
+      <div id="finalSig" class="mono">
+        <span>KANON.HK</span><span style="color:#ea6b4a;">·</span><span>APP.KANON.HK</span><span style="color:#ea6b4a;">·</span><span>CAIUS LU</span>
       </div>
     </div>
-
     <div id="fadeVeil"></div>
   </div>
 
@@ -417,14 +344,12 @@
     (() => {
       const canvas = document.getElementById("fxCanvas");
       const ctx = canvas.getContext("2d");
-
       const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
       const invLerp = (a, b, v) => clamp((v - a) / (b - a));
       const easeOutExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
       const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
       const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
-      // Build 3D Isometric 5x5 Matrix
       const mat3dGrid = document.getElementById("mat3dGrid");
       const eps = [5.44, 6.12, 6.80, 7.48, 8.16];
       const pes = [25, 28, 31, 34, 37];
@@ -439,90 +364,80 @@
         });
       });
 
-      function project3D(x, y, z, cx, cy, fov = 860) {
+      const project3D = (x, y, z, cx, cy, fov = 860) => {
         const sc = fov / (fov + z);
         return { x: cx + x * sc, y: cy + y * sc, sc };
-      }
+      };
 
-      /* =====================================================================
-         LIQUID VOLUMETRIC ARCHITECTURAL LIGHT FLOW (ZERO UGLY WAVY RIBBONS!)
-         Inspired by James Turrell × Tadao Ando × Apple Natural Titanium
-         ===================================================================== */
       function drawLiquidLight(t) {
         ctx.fillStyle = "#050608";
         ctx.fillRect(0, 0, 1920, 1080);
-
         ctx.save();
         ctx.globalCompositeOperation = "screen";
 
-        // 1. Slow breathing warm-titanium volumetric cloud drifting across the dark cathedral
-        const c1x = 960 + Math.sin(t * 0.28) * 340;
-        const c1y = 460 + Math.cos(t * 0.22) * 140;
-        const g1 = ctx.createRadialGradient(c1x, c1y, 20, c1x, c1y, 820);
-        g1.addColorStop(0, "rgba(229, 227, 221, 0.085)");
-        g1.addColorStop(0.45, "rgba(229, 227, 221, 0.030)");
+        const c1x = 960 + Math.sin(t * 0.30) * 350;
+        const c1y = 460 + Math.cos(t * 0.24) * 140;
+        const g1 = ctx.createRadialGradient(c1x, c1y, 20, c1x, c1y, 840);
+        g1.addColorStop(0, "rgba(229, 227, 221, 0.088)");
+        g1.addColorStop(0.46, "rgba(229, 227, 221, 0.030)");
         g1.addColorStop(1, "rgba(5, 6, 8, 0)");
         ctx.fillStyle = g1;
         ctx.fillRect(0, 0, 1920, 1080);
 
-        // 2. Flowing warm terracotta-coral optical caustic pool
-        const c2x = 960 + Math.cos(t * 0.34 + 1.1) * 420;
-        const c2y = 580 + Math.sin(t * 0.26) * 160;
-        const coralInt = t > 19.2 ? 0.14 : 0.095;
-        const g2 = ctx.createRadialGradient(c2x, c2y, 10, c2x, c2y, 680);
+        const c2x = 960 + Math.cos(t * 0.36 + 1.1) * 430;
+        const c2y = 580 + Math.sin(t * 0.28) * 160;
+        const coralInt = t > 22.0 ? 0.145 : 0.095;
+        const g2 = ctx.createRadialGradient(c2x, c2y, 10, c2x, c2y, 690);
         g2.addColorStop(0, `rgba(234, 107, 74, ${coralInt.toFixed(4)})`);
         g2.addColorStop(0.48, `rgba(234, 107, 74, ${(coralInt * 0.28).toFixed(4)})`);
         g2.addColorStop(1, "rgba(5, 6, 8, 0)");
         ctx.fillStyle = g2;
         ctx.fillRect(0, 0, 1920, 1080);
 
-        // 3. Sweeping architectural skylight shafts (three soft diagonal planes gliding cleanly)
         for (let i = 0; i < 3; i++) {
-          const drift = ((t * (0.055 + i * 0.018) + i * 0.37) % 1.6) - 0.3;
-          const sx = drift * 1920;
+          const drift = ((t * (0.062 + i * 0.02) + i * 0.37) % 1.6) - 0.3;
           ctx.save();
-          ctx.translate(sx, 540);
+          ctx.translate(drift * 1920, 540);
           ctx.rotate(-0.34 + i * 0.06);
           const w = 260 + i * 110;
           const sg = ctx.createLinearGradient(-w, 0, w, 0);
-          const alpha = i === 1 ? 0.052 : 0.034;
           const col = i === 1 ? "234, 107, 74" : "243, 241, 235";
           sg.addColorStop(0, `rgba(${col}, 0)`);
-          sg.addColorStop(0.5, `rgba(${col}, ${alpha})`);
+          sg.addColorStop(0.5, `rgba(${col}, ${i === 1 ? 0.055 : 0.036})`);
           sg.addColorStop(1, `rgba(${col}, 0)`);
           ctx.fillStyle = sg;
           ctx.fillRect(-w, -1200, w * 2, 2400);
           ctx.restore();
         }
 
-        // 4. ACT I: Tadao Ando Vertical Skylight Slit opening calmly in silence (0.00s -> 3.85s)
-        if (t < 4.10) {
-          const openP = easeOutExpo(invLerp(0.18, 2.20, t));
-          const fadeOut = 1 - easeInOutCubic(invLerp(3.15, 4.00, t));
-          const slitW = 2 + openP * 24;
-          const slitH = 1080 * easeOutCubic(invLerp(0.10, 1.35, t));
+        // Act I vertical architectural skylight slit
+        if (t < 3.0) {
+          const openP = easeOutExpo(invLerp(0.12, 1.55, t));
+          const fadeOut = 1 - easeInOutCubic(invLerp(2.25, 2.95, t));
+          const slitW = 2 + openP * 26;
+          const slitH = 1080 * easeOutCubic(invLerp(0.06, 1.05, t));
           const slitG = ctx.createLinearGradient(960 - slitW * 4, 0, 960 + slitW * 4, 0);
           slitG.addColorStop(0, "rgba(243, 241, 235, 0)");
-          slitG.addColorStop(0.45, `rgba(234, 107, 74, ${(0.12 * fadeOut).toFixed(4)})`);
-          slitG.addColorStop(0.5, `rgba(255, 248, 240, ${(0.24 * fadeOut).toFixed(4)})`);
-          slitG.addColorStop(0.55, `rgba(234, 107, 74, ${(0.12 * fadeOut).toFixed(4)})`);
+          slitG.addColorStop(0.45, `rgba(234, 107, 74, ${(0.14 * fadeOut).toFixed(4)})`);
+          slitG.addColorStop(0.5, `rgba(255, 248, 240, ${(0.28 * fadeOut).toFixed(4)})`);
+          slitG.addColorStop(0.55, `rgba(234, 107, 74, ${(0.14 * fadeOut).toFixed(4)})`);
           slitG.addColorStop(1, "rgba(243, 241, 235, 0)");
           ctx.fillStyle = slitG;
           ctx.fillRect(960 - slitW * 4, 540 - slitH * 0.5, slitW * 8, slitH);
         }
 
-        // 5. ACT II Arrival: Soft horizontal anamorphic lens-light glide at 3.55s
-        if (t >= 3.45 && t <= 4.90) {
-          const sw = easeOutExpo(invLerp(3.50, 4.05, t));
-          const fd = 1 - easeInOutCubic(invLerp(4.00, 4.85, t));
+        // Act II horizontal anamorphic lens-light glide
+        if (t >= 2.45 && t <= 3.75) {
+          const sw = easeOutExpo(invLerp(2.50, 3.02, t));
+          const fd = 1 - easeInOutCubic(invLerp(3.00, 3.72, t));
           const len = 1920 * sw;
           const hg = ctx.createLinearGradient(0, 540, Math.max(20, len), 540);
           hg.addColorStop(0, "rgba(234, 107, 74, 0)");
-          hg.addColorStop(0.4, `rgba(234, 107, 74, ${(0.62 * fd).toFixed(3)})`);
-          hg.addColorStop(0.95, `rgba(255, 246, 238, ${(0.85 * fd).toFixed(3)})`);
+          hg.addColorStop(0.4, `rgba(234, 107, 74, ${(0.64 * fd).toFixed(3)})`);
+          hg.addColorStop(0.95, `rgba(255, 246, 238, ${(0.88 * fd).toFixed(3)})`);
           hg.addColorStop(1, "rgba(234, 107, 74, 0)");
           ctx.strokeStyle = hg;
-          ctx.lineWidth = 2.0;
+          ctx.lineWidth = 2.2;
           ctx.shadowColor = "#ea6b4a";
           ctx.shadowBlur = 32 * fd;
           ctx.beginPath();
@@ -531,40 +446,36 @@
           ctx.stroke();
         }
 
-        // 6. ACT VI Centerwide Seamless Feathered Studio Glow (ZERO oval banding!)
-        if (t >= 19.20) {
-          const p = easeOutCubic(invLerp(19.25, 21.40, t));
+        // Act VII Studio End Glow
+        if (t >= 22.1) {
+          const p = easeOutCubic(invLerp(22.15, 24.1, t));
           const fg = ctx.createRadialGradient(960, 490, 10, 960, 490, 980);
-          fg.addColorStop(0, `rgba(234, 107, 74, ${(0.14 * p).toFixed(4)})`);
-          fg.addColorStop(0.28, `rgba(229, 227, 221, ${(0.055 * p).toFixed(4)})`);
+          fg.addColorStop(0, `rgba(234, 107, 74, ${(0.15 * p).toFixed(4)})`);
+          fg.addColorStop(0.28, `rgba(229, 227, 221, ${(0.058 * p).toFixed(4)})`);
           fg.addColorStop(0.68, `rgba(229, 227, 221, ${(0.012 * p).toFixed(4)})`);
           fg.addColorStop(1, "rgba(5, 6, 8, 0)");
           ctx.fillStyle = fg;
           ctx.fillRect(0, 0, 1920, 1080);
         }
-
         ctx.restore();
       }
 
       function draw3DPrism(t) {
-        const pIn = easeOutExpo(invLerp(7.30, 8.20, t));
-        const pOut = easeInOutCubic(invLerp(11.30, 11.80, t));
+        const pIn = easeOutExpo(invLerp(10.85, 11.65, t));
+        const pOut = easeInOutCubic(invLerp(14.65, 15.15, t));
         const alpha = pIn * (1 - pOut);
         if (alpha <= 0.005) return;
 
-        const cx = 480 + (1 - pIn) * -130;
+        const cx = 470 + (1 - pIn) * -130;
         const cy = 540;
-        const angY = (t - 7.3) * 0.42 - 0.35;
-        const angX = 0.24 + Math.sin(t * 0.65) * 0.05;
-
-        const R = 180 * (0.88 + 0.12 * pIn);
+        const angY = (t - 10.85) * 0.46 - 0.35;
+        const angX = 0.24 + Math.sin(t * 0.7) * 0.05;
+        const R = 182 * (0.88 + 0.12 * pIn);
         const H = 190;
-        const baseAngles = [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3];
         const verts = [];
         [-H, H].forEach((yy) => {
-          baseAngles.forEach((a) => {
-            const x0 = Math.cos(a) * R;
-            const z0 = Math.sin(a) * R;
+          [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3].forEach((a) => {
+            const x0 = Math.cos(a) * R, z0 = Math.sin(a) * R;
             const x1 = x0 * Math.cos(angY) - z0 * Math.sin(angY);
             const z1 = x0 * Math.sin(angY) + z0 * Math.cos(angY);
             const y2 = yy * Math.cos(angX) - z1 * Math.sin(angX);
@@ -573,327 +484,252 @@
           });
         });
 
-        const pGlow = ctx.createRadialGradient(cx, cy, 10, cx, cy, 310);
-        pGlow.addColorStop(0, `rgba(234, 107, 74, ${(0.18 * alpha).toFixed(4)})`);
-        pGlow.addColorStop(0.5, `rgba(229, 227, 221, ${(0.07 * alpha).toFixed(4)})`);
+        const pGlow = ctx.createRadialGradient(cx, cy, 10, cx, cy, 320);
+        pGlow.addColorStop(0, `rgba(234, 107, 74, ${(0.20 * alpha).toFixed(4)})`);
+        pGlow.addColorStop(0.5, `rgba(229, 227, 221, ${(0.075 * alpha).toFixed(4)})`);
         pGlow.addColorStop(1, "rgba(5, 6, 8, 0)");
         ctx.fillStyle = pGlow;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 310, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, 320, 0, Math.PI * 2); ctx.fill();
 
-        const beamIn = easeOutExpo(invLerp(7.42, 7.95, t));
+        const beamIn = easeOutExpo(invLerp(10.95, 11.45, t));
         ctx.save();
-        ctx.strokeStyle = `rgba(243, 241, 235, ${(0.92 * alpha).toFixed(3)})`;
-        ctx.lineWidth = 2.8;
-        ctx.shadowColor = "#f3f1eb";
-        ctx.shadowBlur = 26;
-        ctx.beginPath();
-        ctx.moveTo(0, cy + 36);
-        ctx.lineTo(cx * beamIn, cy + 36 * (1 - beamIn));
-        ctx.stroke();
+        ctx.strokeStyle = `rgba(243, 241, 235, ${(0.94 * alpha).toFixed(3)})`;
+        ctx.lineWidth = 2.8; ctx.shadowColor = "#f3f1eb"; ctx.shadowBlur = 26;
+        ctx.beginPath(); ctx.moveTo(0, cy + 36); ctx.lineTo(cx * beamIn, cy + 36 * (1 - beamIn)); ctx.stroke();
 
-        const rayTargetsY = [342, 474, 606, 738];
-        const rayStarts = [7.80, 8.55, 9.30, 10.05];
-        const rayColors = [
-          "rgba(229, 227, 221, ",
-          "rgba(205, 226, 215, ",
-          "rgba(234, 107, 74, ",
-          "rgba(243, 241, 235, ",
-        ];
-        rayTargetsY.forEach((ty, idx) => {
-          const rp = easeOutExpo(invLerp(rayStarts[idx], rayStarts[idx] + 0.55, t));
+        const rayY = [346, 476, 606, 736];
+        const rayT = [11.30, 12.00, 12.70, 13.40];
+        const rayC = ["rgba(229, 227, 221, ", "rgba(205, 226, 215, ", "rgba(234, 107, 74, ", "rgba(243, 241, 235, "];
+        rayY.forEach((ty, idx) => {
+          const rp = easeOutExpo(invLerp(rayT[idx], rayT[idx] + 0.50, t));
           if (rp <= 0.01) return;
-          const endX = cx + 60 + (940 - cx) * rp;
+          const endX = cx + 60 + (920 - cx) * rp;
           const endY = cy + (ty - cy) * rp;
           const g = ctx.createLinearGradient(cx + 30, cy, endX, endY);
-          g.addColorStop(0, `${rayColors[idx]}${(0.92 * alpha).toFixed(3)})`);
-          g.addColorStop(0.75, `${rayColors[idx]}${(0.44 * alpha).toFixed(3)})`);
-          g.addColorStop(1, `${rayColors[idx]}0)`);
-          ctx.strokeStyle = g;
-          ctx.lineWidth = idx === 2 ? 2.6 : 1.8;
-          ctx.shadowColor = idx === 2 ? "#ea6b4a" : "#e5e3dd";
-          ctx.shadowBlur = idx === 2 ? 26 : 14;
-          ctx.beginPath();
-          ctx.moveTo(cx + 28, cy);
-          ctx.lineTo(endX, endY);
-          ctx.stroke();
+          g.addColorStop(0, `${rayC[idx]}${(0.92 * alpha).toFixed(3)})`);
+          g.addColorStop(0.75, `${rayC[idx]}${(0.44 * alpha).toFixed(3)})`);
+          g.addColorStop(1, `${rayC[idx]}0)`);
+          ctx.strokeStyle = g; ctx.lineWidth = idx === 2 ? 2.6 : 1.8;
+          ctx.shadowColor = idx === 2 ? "#ea6b4a" : "#e5e3dd"; ctx.shadowBlur = idx === 2 ? 26 : 14;
+          ctx.beginPath(); ctx.moveTo(cx + 28, cy); ctx.lineTo(endX, endY); ctx.stroke();
         });
         ctx.restore();
 
-        const faces = [[0, 1, 2], [3, 4, 5], [0, 1, 4, 3], [1, 2, 5, 4], [2, 0, 3, 5]];
-        faces.forEach((f, idx) => {
+        [[0, 1, 2], [3, 4, 5], [0, 1, 4, 3], [1, 2, 5, 4], [2, 0, 3, 5]].forEach((f, idx) => {
           ctx.beginPath();
-          f.forEach((vi, k) => {
-            if (k === 0) ctx.moveTo(verts[vi].x, verts[vi].y);
-            else ctx.lineTo(verts[vi].x, verts[vi].y);
-          });
+          f.forEach((vi, k) => (k === 0 ? ctx.moveTo(verts[vi].x, verts[vi].y) : ctx.lineTo(verts[vi].x, verts[vi].y)));
           ctx.closePath();
           const fg = ctx.createLinearGradient(verts[f[0]].x, verts[f[0]].y, verts[f[f.length - 1]].x, verts[f[f.length - 1]].y);
-          fg.addColorStop(0, idx === 2 ? `rgba(234, 107, 74, ${(0.14 * alpha).toFixed(4)})` : `rgba(255, 255, 255, ${(0.11 * alpha).toFixed(4)})`);
+          fg.addColorStop(0, idx === 2 ? `rgba(234, 107, 74, ${(0.15 * alpha).toFixed(4)})` : `rgba(255, 255, 255, ${(0.12 * alpha).toFixed(4)})`);
           fg.addColorStop(1, `rgba(12, 14, 18, ${(0.18 * alpha).toFixed(4)})`);
-          ctx.fillStyle = fg;
-          ctx.fill();
-          ctx.strokeStyle = idx === 2
-            ? `rgba(234, 107, 74, ${(0.72 * alpha).toFixed(3)})`
-            : `rgba(229, 227, 221, ${(0.40 * alpha).toFixed(3)})`;
-          ctx.lineWidth = idx === 2 ? 2.0 : 1.15;
-          ctx.stroke();
+          ctx.fillStyle = fg; ctx.fill();
+          ctx.strokeStyle = idx === 2 ? `rgba(234, 107, 74, ${(0.76 * alpha).toFixed(3)})` : `rgba(229, 227, 221, ${(0.42 * alpha).toFixed(3)})`;
+          ctx.lineWidth = idx === 2 ? 2.0 : 1.15; ctx.stroke();
         });
       }
 
       function drawVaultGyroscope(t) {
-        const pIn = easeOutExpo(invLerp(15.90, 16.65, t));
-        const pOut = easeInOutCubic(invLerp(18.90, 19.40, t));
+        const pIn = easeOutExpo(invLerp(19.15, 19.85, t));
+        const pOut = easeInOutCubic(invLerp(21.85, 22.30, t));
         const alpha = pIn * (1 - pOut);
         if (alpha <= 0.005) return;
 
-        const cx = 960;
-        const cy = 540;
-        const surge = invLerp(16.75, 17.20, t) * (1 - easeOutExpo(invLerp(17.22, 17.65, t)));
-        const recoilShake = t >= 17.22 ? Math.sin((t - 17.22) * 48) * Math.exp(-(t - 17.22) * 10) * 10 : 0;
-        const lockFlash = t >= 17.24 ? Math.exp(-(t - 17.24) * 3.5) : 0;
+        const cx = 960, cy = 540;
+        const surge = invLerp(19.90, 20.32, t) * (1 - easeOutExpo(invLerp(20.34, 20.75, t)));
+        const recoil = t >= 20.34 ? Math.sin((t - 20.34) * 48) * Math.exp(-(t - 20.34) * 10) * 10 : 0;
+        const lockFlash = t >= 20.35 ? Math.exp(-(t - 20.35) * 3.6) : 0;
 
-        const rings = [
-          { r: 328, rot: t * 0.40 + surge * 0.68, ticks: 72, w: 1.5 },
-          { r: 396, rot: -t * 0.28 - surge * 0.84, ticks: 48, w: 1.15 },
-          { r: 466, rot: t * 0.16 + surge * 0.44, ticks: 96, w: 0.9 },
-        ];
-        rings.forEach((rg, idx) => {
+        [{ r: 328, rot: t * 0.42 + surge * 0.7, ticks: 72, w: 1.5 }, { r: 396, rot: -t * 0.30 - surge * 0.85, ticks: 48, w: 1.15 }, { r: 466, rot: t * 0.18 + surge * 0.45, ticks: 96, w: 0.9 }].forEach((rg, idx) => {
           const rad = rg.r * (0.84 + 0.16 * pIn);
           ctx.save();
-          ctx.translate(cx + recoilShake * (idx === 0 ? 1 : -0.5), cy);
+          ctx.translate(cx + recoil * (idx === 0 ? 1 : -0.5), cy);
           ctx.rotate(rg.rot);
-          ctx.strokeStyle = surge > 0.15 && idx === 0
-            ? `rgba(234, 107, 74, ${(0.68 * alpha).toFixed(3)})`
-            : `rgba(229, 227, 221, ${((0.30 - idx * 0.06) * alpha).toFixed(3)})`;
+          ctx.strokeStyle = surge > 0.15 && idx === 0 ? `rgba(234, 107, 74, ${(0.72 * alpha).toFixed(3)})` : `rgba(229, 227, 221, ${((0.30 - idx * 0.06) * alpha).toFixed(3)})`;
           ctx.lineWidth = rg.w;
-          ctx.beginPath();
-          ctx.arc(0, 0, rad, 0, Math.PI * 2);
-          ctx.stroke();
-
+          ctx.beginPath(); ctx.arc(0, 0, rad, 0, Math.PI * 2); ctx.stroke();
           for (let k = 0; k < rg.ticks; k++) {
             const a = (k / rg.ticks) * Math.PI * 2;
             const len = k % 6 === 0 ? 16 : 7;
-            ctx.beginPath();
-            ctx.moveTo(Math.cos(a) * (rad - len), Math.sin(a) * (rad - len));
-            ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(Math.cos(a) * (rad - len), Math.sin(a) * (rad - len)); ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); ctx.stroke();
           }
-
-          ctx.strokeStyle = `rgba(234, 107, 74, ${(0.76 * alpha).toFixed(3)})`;
-          ctx.lineWidth = 2.6;
-          ctx.beginPath();
-          ctx.arc(0, 0, rad, -0.35, 0.35);
-          ctx.stroke();
+          ctx.strokeStyle = `rgba(234, 107, 74, ${(0.78 * alpha).toFixed(3)})`; ctx.lineWidth = 2.6;
+          ctx.beginPath(); ctx.arc(0, 0, rad, -0.35, 0.35); ctx.stroke();
           ctx.restore();
         });
 
         if (lockFlash > 0.01) {
-          const shockR = 328 + (1 - lockFlash) * 400;
           ctx.save();
-          ctx.strokeStyle = `rgba(234, 107, 74, ${(0.84 * lockFlash * alpha).toFixed(3)})`;
-          ctx.lineWidth = 3.0;
-          ctx.shadowColor = "#ea6b4a";
-          ctx.shadowBlur = 28;
-          ctx.beginPath();
-          ctx.arc(cx, cy, shockR, 0, Math.PI * 2);
-          ctx.stroke();
+          ctx.strokeStyle = `rgba(234, 107, 74, ${(0.86 * lockFlash * alpha).toFixed(3)})`;
+          ctx.lineWidth = 3.0; ctx.shadowColor = "#ea6b4a"; ctx.shadowBlur = 28;
+          ctx.beginPath(); ctx.arc(cx, cy, 328 + (1 - lockFlash) * 420, 0, Math.PI * 2); ctx.stroke();
           ctx.restore();
         }
       }
 
-      const act1 = document.getElementById("act1");
-      const a1En = document.getElementById("a1En");
-      const a1Cn = document.getElementById("a1Cn");
-      const act2 = document.getElementById("act2");
-      const w1 = document.getElementById("w1");
-      const w2 = document.getElementById("w2");
-      const act2Cn = document.getElementById("act2Cn");
-      const act3 = document.getElementById("act3");
-      const pvRows = [document.getElementById("pv1"), document.getElementById("pv2"), document.getElementById("pv3"), document.getElementById("pv4")];
-      const act4 = document.getElementById("act4");
-      const valWrap = document.getElementById("valWrap");
-      const matrix3dStage = document.getElementById("matrix3dStage");
-      const bigOdds = document.getElementById("bigOdds");
-      const act5 = document.getElementById("act5");
-      const vShackle = document.getElementById("vShackle");
-      const vaultLockSvg = document.getElementById("vaultLockSvg");
-      const vaultNum = document.getElementById("vaultNum");
-      const vaultLabel = document.getElementById("vaultLabel");
-      const act6 = document.getElementById("act6");
-      const mP1 = document.getElementById("mP1");
-      const mP2 = document.getElementById("mP2");
-      const mP3 = document.getElementById("mP3");
-      const sheenRect = document.getElementById("sheenRect");
-      const finalTitle = document.getElementById("finalTitle");
-      const finalCnRow = document.getElementById("finalCnRow");
-      const finalSub = document.getElementById("finalSub");
-      const finalSig = document.getElementById("finalSig");
-      const fadeVeil = document.getElementById("fadeVeil");
+      const $ = (id) => document.getElementById(id);
+      const wbSteps = [1, 2, 3, 4, 5].map((i) => $(`wbs${i}`));
+      const wbTraces = [1, 2, 3, 4].map((i) => $(`wbt${i}`));
+      const pvRows = [1, 2, 3, 4].map((i) => $(`pv${i}`));
 
-      window.renderFrame = function renderFrame(frameIndex, totalFrames = 1440) {
+      window.renderFrame = function renderFrame(frameIndex, totalFrames = 1560) {
         const t = frameIndex / 60.0;
         drawLiquidLight(t);
         draw3DPrism(t);
         drawVaultGyroscope(t);
 
-        // ACT I (0.00s -> 3.60s): POISED MONASTIC OPENING ("Quiet precision.")
-        if (t < 3.68) {
-          const pIn = easeOutCubic(invLerp(0.45, 1.45, t));
-          const pCn = easeOutCubic(invLerp(1.15, 2.05, t));
-          const pOut = easeInOutCubic(invLerp(3.05, 3.62, t));
-          act1.style.opacity = (1 - pOut).toFixed(4);
-          act1.style.transform = `scale(${(0.97 + pIn * 0.03 + pOut * 0.05).toFixed(4)})`;
-          a1En.style.opacity = pIn.toFixed(4);
-          a1En.style.filter = `blur(${((1 - pIn) * 8 + pOut * 5).toFixed(1)}px)`;
-          a1Cn.style.opacity = pCn.toFixed(4);
-          a1Cn.style.transform = `translateY(${((1 - pCn) * 14).toFixed(1)}px)`;
-        } else {
-          act1.style.opacity = "0";
-        }
+        // ACT I (0.00 -> 2.65s)
+        if (t < 2.70) {
+          const pIn = easeOutCubic(invLerp(0.30, 1.12, t));
+          const pCn = easeOutCubic(invLerp(0.82, 1.55, t));
+          const pOut = easeInOutCubic(invLerp(2.18, 2.66, t));
+          $("act1").style.opacity = (1 - pOut).toFixed(4);
+          $("act1").style.transform = `scale(${(0.97 + pIn * 0.03 + pOut * 0.05).toFixed(4)})`;
+          $("a1En").style.opacity = pIn.toFixed(4);
+          $("a1En").style.filter = `blur(${((1 - pIn) * 8 + pOut * 5).toFixed(1)}px)`;
+          $("a1Cn").style.opacity = pCn.toFixed(4);
+          $("a1Cn").style.transform = `translateY(${((1 - pCn) * 14).toFixed(1)}px)`;
+        } else { $("act1").style.opacity = "0"; }
 
-        // ACT II (3.60s -> 7.45s): "Conviction, composed."
-        if (t >= 3.55 && t <= 7.50) {
-          const outP = easeInOutCubic(invLerp(6.88, 7.42, t));
-          act2.style.opacity = (1 - outP).toFixed(4);
-          act2.style.transform = `scale(${(1 + outP * 0.08).toFixed(4)})`;
+        // ACT II (2.60 -> 6.00s)
+        if (t >= 2.55 && t <= 6.08) {
+          const outP = easeInOutCubic(invLerp(5.48, 6.00, t));
+          $("act2").style.opacity = (1 - outP).toFixed(4);
+          $("act2").style.transform = `scale(${(1 + outP * 0.08).toFixed(4)})`;
+          const pW1 = easeOutExpo(invLerp(2.70, 3.45, t));
+          const pW2 = easeOutExpo(invLerp(3.20, 4.02, t));
+          const pCn = easeOutCubic(invLerp(3.85, 4.58, t));
+          $("w1").style.transform = `translateY(${((1 - pW1) * 115).toFixed(2)}%)`;
+          $("w1").style.opacity = pW1.toFixed(4);
+          $("w1").style.filter = `blur(${((1 - pW1) * 7).toFixed(1)}px)`;
+          $("w2").style.transform = `translateY(${((1 - pW2) * 115).toFixed(2)}%)`;
+          $("w2").style.opacity = pW2.toFixed(4);
+          $("w2").style.filter = `blur(${((1 - pW2) * 7).toFixed(1)}px)`;
+          $("act2Cn").style.opacity = pCn.toFixed(4);
+          $("act2Cn").style.transform = `translateY(${((1 - pCn) * 18).toFixed(2)}px)`;
+        } else { $("act2").style.opacity = "0"; }
 
-          const pW1 = easeOutExpo(invLerp(3.72, 4.55, t));
-          const pW2 = easeOutExpo(invLerp(4.28, 5.15, t));
-          const pCn = easeOutCubic(invLerp(4.95, 5.75, t));
+        // ACT III (5.95 -> 10.95s): 3D INSTITUTIONAL WORKBENCH SHOWCASE
+        if (t >= 5.90 && t <= 11.00) {
+          const inP = easeOutExpo(invLerp(5.95, 6.80, t));
+          const outP = easeInOutCubic(invLerp(10.42, 10.95, t));
+          const glide = invLerp(6.00, 10.60, t);
+          $("act3wb").style.opacity = (inP * (1 - outP)).toFixed(4);
+          const rx = 12 * (1 - glide * 0.85);
+          const ry = -8 * (1 - glide * 0.85);
+          $("wbFrame").style.transform = `translateY(${((1 - inP) * 65 - outP * 30).toFixed(1)}px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) scale(${(0.94 + inP * 0.06 - outP * 0.04).toFixed(4)})`;
 
-          w1.style.transform = `translateY(${((1 - pW1) * 115).toFixed(2)}%)`;
-          w1.style.opacity = pW1.toFixed(4);
-          w1.style.filter = `blur(${((1 - pW1) * 8).toFixed(1)}px)`;
+          const activeStepIdx = Math.min(4, Math.floor(invLerp(6.40, 9.10, t) * 5));
+          wbSteps.forEach((el, i) => el.classList.toggle("lit", i <= activeStepIdx));
 
-          w2.style.transform = `translateY(${((1 - pW2) * 115).toFixed(2)}%)`;
-          w2.style.opacity = pW2.toFixed(4);
-          w2.style.filter = `blur(${((1 - pW2) * 8).toFixed(1)}px)`;
+          const railP = easeOutExpo(invLerp(6.50, 8.40, t));
+          const railPct = 4 + railP * 13.5;
+          $("wbRailFill").style.width = `${railPct.toFixed(1)}%`;
+          $("wbRailDot").style.left = `${railPct.toFixed(1)}%`;
+          const priceVal = 156.7 + (268.0 - 156.7) * easeOutExpo(invLerp(6.40, 8.10, t));
+          $("wbTargetPrice").textContent = `$${priceVal.toFixed(1)}`;
 
-          act2Cn.style.opacity = pCn.toFixed(4);
-          act2Cn.style.transform = `translateY(${((1 - pCn) * 20).toFixed(2)}px)`;
-        } else {
-          act2.style.opacity = "0";
-        }
+          const trTimes = [6.95, 7.55, 8.15, 8.75];
+          wbTraces.forEach((el, i) => {
+            const p = easeOutExpo(invLerp(trTimes[i], trTimes[i] + 0.48, t));
+            el.style.opacity = p.toFixed(4);
+            el.style.transform = `translateX(${((1 - p) * 28).toFixed(1)}px)`;
+          });
+          const vP = easeOutCubic(invLerp(9.20, 9.75, t));
+          $("wbVerdict").style.opacity = vP.toFixed(4);
+          $("wbVerdict").style.transform = `translateY(${((1 - vP) * 10).toFixed(1)}px)`;
+        } else { $("act3wb").style.opacity = "0"; }
 
-        // ACT III (7.35s -> 11.80s): VOLUMETRIC PRISM FOUR VOICES
-        if (t >= 7.30 && t <= 11.85) {
-          const outP = easeInOutCubic(invLerp(11.25, 11.78, t));
-          act3.style.opacity = (1 - outP).toFixed(4);
-          act3.style.transform = `translateX(${(-outP * 130).toFixed(1)}px)`;
-
-          const times = [7.85, 8.60, 9.35, 10.10];
+        // ACT IV (10.85 -> 15.15s): PRISM FOUR VOICES
+        if (t >= 10.80 && t <= 15.20) {
+          const outP = easeInOutCubic(invLerp(14.62, 15.15, t));
+          $("act4p").style.opacity = (1 - outP).toFixed(4);
+          $("act4p").style.transform = `translateX(${(-outP * 130).toFixed(1)}px)`;
+          const times = [11.35, 12.05, 12.75, 13.45];
           pvRows.forEach((row, i) => {
-            const p = easeOutExpo(invLerp(times[i], times[i] + 0.62, t));
+            const p = easeOutExpo(invLerp(times[i], times[i] + 0.56, t));
             row.style.opacity = p.toFixed(4);
             row.style.transform = `translateX(${((1 - p) * 52).toFixed(1)}px)`;
           });
-        } else {
-          act3.style.opacity = "0";
-        }
+        } else { $("act4p").style.opacity = "0"; }
 
-        // ACT IV (11.75s -> 16.00s): 3D SCULPTURAL 5x5 MATRIX
-        if (t >= 11.70 && t <= 16.05) {
-          const inP = easeOutExpo(invLerp(11.75, 12.60, t));
-          const outP = easeInOutCubic(invLerp(15.50, 15.98, t));
-          const orbit = invLerp(11.75, 15.95, t);
-          act4.style.opacity = (inP * (1 - outP)).toFixed(4);
-          valWrap.style.transform = `translateX(${((1 - inP) * 140).toFixed(1)}px) scale(${(1 - outP * 0.07).toFixed(4)})`;
+        // ACT V (15.10 -> 19.20s): 3D SCULPTURAL 5x5 MATRIX
+        if (t >= 15.05 && t <= 19.25) {
+          const inP = easeOutExpo(invLerp(15.10, 15.90, t));
+          const outP = easeInOutCubic(invLerp(18.70, 19.18, t));
+          const orbit = invLerp(15.10, 19.15, t);
+          $("act5m").style.opacity = (inP * (1 - outP)).toFixed(4);
+          $("valWrap").style.transform = `translateX(${((1 - inP) * 140).toFixed(1)}px) scale(${(1 - outP * 0.07).toFixed(4)})`;
+          $("matrix3dStage").style.transform = `rotateX(${(25 * (1 - orbit * 0.72)).toFixed(2)}deg) rotateY(${(-23 * (1 - orbit * 0.74)).toFixed(2)}deg)`;
 
-          const rx = 25 * (1 - orbit * 0.72);
-          const ry = -23 * (1 - orbit * 0.74);
-          matrix3dStage.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
-
-          const pNum = easeOutExpo(invLerp(11.85, 13.95, t));
-          bigOdds.innerHTML = `${(1.0 + (3.42 - 1.0) * pNum).toFixed(2)}<span>×</span>`;
-
+          const pNum = easeOutExpo(invLerp(15.20, 17.10, t));
+          $("bigOdds").innerHTML = `${(1.0 + 2.42 * pNum).toFixed(2)}<span>×</span>`;
           mTiles.forEach(({ el, r, c, isCenter }) => {
-            const d = (r + c) * 0.075;
-            const p = easeOutExpo(invLerp(11.90 + d, 12.55 + d, t));
-            const focus = isCenter && t >= 13.92;
-            const liftZ = focus ? 58 * easeOutExpo(invLerp(13.92, 14.55, t)) : 0;
-            const waveZ = Math.sin(t * 2.2 + r * 0.6 + c * 0.5) * 6;
+            const d = (r + c) * 0.07;
+            const p = easeOutExpo(invLerp(15.25 + d, 15.85 + d, t));
+            const focus = isCenter && t >= 17.15;
+            const liftZ = focus ? 60 * easeOutExpo(invLerp(17.15, 17.75, t)) : 0;
+            const waveZ = Math.sin(t * 2.4 + r * 0.6 + c * 0.5) * 6;
             el.style.opacity = p.toFixed(4);
             el.style.transform = `translateZ(${(liftZ + waveZ).toFixed(1)}px) scale(${(0.84 + 0.16 * p + (focus ? 0.06 : 0)).toFixed(4)})`;
             el.classList.toggle("focal", focus);
           });
-        } else {
-          act4.style.opacity = "0";
-        }
+        } else { $("act5m").style.opacity = "0"; }
 
-        // ACT V (15.95s -> 19.35s): HOROLOGICAL VAULT + SHACKLE SNAP
-        if (t >= 15.90 && t <= 19.40) {
-          const inP = easeOutExpo(invLerp(15.95, 16.65, t));
-          const outP = easeInOutCubic(invLerp(18.92, 19.35, t));
-          act5.style.opacity = (inP * (1 - outP)).toFixed(4);
-
-          let lev = 0.0;
-          let shackleLift = 0.0;
-          if (t >= 16.75 && t < 17.24) {
-            const u = easeOutCubic(invLerp(16.75, 17.20, t));
-            lev = 1.40 * u;
-            shackleLift = -10.0 * u;
-          } else if (t >= 17.24) {
-            const snap = easeOutExpo(invLerp(17.24, 17.42, t));
-            lev = 1.40 * (1 - snap);
-            shackleLift = -10.0 * (1 - snap);
+        // ACT VI (19.15 -> 22.35s): HOROLOGICAL ZERO-LEVERAGE VAULT
+        if (t >= 19.10 && t <= 22.40) {
+          const inP = easeOutExpo(invLerp(19.15, 19.82, t));
+          const outP = easeInOutCubic(invLerp(21.88, 22.32, t));
+          $("act6v").style.opacity = (inP * (1 - outP)).toFixed(4);
+          let lev = 0.0, shackleLift = 0.0;
+          if (t >= 19.88 && t < 20.34) {
+            const u = easeOutCubic(invLerp(19.88, 20.30, t));
+            lev = 1.40 * u; shackleLift = -10.0 * u;
+          } else if (t >= 20.34) {
+            const snap = easeOutExpo(invLerp(20.34, 20.52, t));
+            lev = 1.40 * (1 - snap); shackleLift = -10.0 * (1 - snap);
           }
-          vShackle.setAttribute("transform", `translate(0, ${shackleLift.toFixed(2)})`);
-          const lockRecoil = t >= 17.24 ? Math.sin((t - 17.24) * 52) * Math.exp(-(t - 17.24) * 14) * 4 : 0;
-          vaultLockSvg.style.transform = `translateY(${lockRecoil.toFixed(2)}px)`;
+          $("vShackle").setAttribute("transform", `translate(0, ${shackleLift.toFixed(2)})`);
+          const lockRecoil = t >= 20.34 ? Math.sin((t - 20.34) * 52) * Math.exp(-(t - 20.34) * 14) * 4 : 0;
+          $("vaultLockSvg").style.transform = `translateY(${lockRecoil.toFixed(2)}px)`;
+          $("vaultNum").innerHTML = `${Math.max(0, lev).toFixed(2)}<span>×</span>`;
+          const lockScale = t >= 20.34 ? 1 + 0.075 * Math.exp(-(t - 20.34) * 6.5) : 1;
+          $("vaultNum").style.transform = `scale(${lockScale.toFixed(4)})`;
+          const lblP = easeOutCubic(invLerp(20.40, 20.92, t));
+          $("vaultLabel").style.opacity = (0.42 + 0.58 * lblP).toFixed(4);
+          $("vaultLabel").style.color = t >= 20.34 ? "#f3f1eb" : "rgba(234, 107, 74, 0.85)";
+        } else { $("act6v").style.opacity = "0"; }
 
-          vaultNum.innerHTML = `${Math.max(0, lev).toFixed(2)}<span>×</span>`;
-          const lockScale = t >= 17.24 ? 1 + 0.07 * Math.exp(-(t - 17.24) * 6.5) : 1;
-          vaultNum.style.transform = `scale(${lockScale.toFixed(4)})`;
+        // ACT VII (22.25 -> 26.00s): STACKED LUXURY END LOCKUP
+        if (t >= 22.20) {
+          $("act7end").style.opacity = easeOutCubic(invLerp(22.25, 22.65, t)).toFixed(4);
+          const p1 = easeOutExpo(invLerp(22.52, 23.08, t));
+          const p2 = easeOutExpo(invLerp(22.95, 23.52, t));
+          const p3 = easeOutExpo(invLerp(23.38, 23.95, t));
+          $("mP1").style.opacity = p1.toFixed(4);
+          $("mP1").style.transform = `translateY(${((1 - p1) * -40).toFixed(2)}px)`;
+          $("mP2").style.opacity = p2.toFixed(4);
+          $("mP2").style.transform = `translate(${((1 - p2) * 30).toFixed(2)}px, ${((1 - p2) * 14).toFixed(2)}px)`;
+          $("mP3").style.opacity = p3.toFixed(4);
+          $("mP3").style.transform = `translate(${((1 - p3) * 26).toFixed(2)}px, ${((1 - p3) * 26).toFixed(2)}px)`;
+          const shP = easeInOutCubic(invLerp(23.85, 24.95, t));
+          $("sheenRect").setAttribute("x", (-70 + shP * 210).toFixed(1));
+          $("sheenRect").setAttribute("opacity", (shP > 0.01 && shP < 0.99 ? 0.94 : 0).toFixed(2));
+          const pT = easeOutExpo(invLerp(23.62, 24.30, t));
+          $("finalTitle").style.opacity = pT.toFixed(4);
+          $("finalTitle").style.transform = `translateY(${((1 - pT) * 22).toFixed(2)}px)`;
+          const pCn = easeOutCubic(invLerp(23.88, 24.48, t));
+          $("finalCnRow").style.opacity = pCn.toFixed(4);
+          $("finalCnRow").style.transform = `translateY(${((1 - pCn) * 14).toFixed(2)}px)`;
+          const pS = easeOutCubic(invLerp(24.12, 24.72, t));
+          $("finalSub").style.opacity = pS.toFixed(4);
+          $("finalSub").style.transform = `translateY(${((1 - pS) * 12).toFixed(2)}px)`;
+          $("finalSig").style.opacity = easeOutCubic(invLerp(24.38, 24.95, t)).toFixed(4);
+        } else { $("act7end").style.opacity = "0"; }
 
-          const lblP = easeOutCubic(invLerp(17.30, 17.85, t));
-          vaultLabel.style.opacity = (0.42 + 0.58 * lblP).toFixed(4);
-          vaultLabel.style.color = t >= 17.24 ? "#f3f1eb" : "rgba(234, 107, 74, 0.85)";
-        } else {
-          act5.style.opacity = "0";
-        }
-
-        // ACT VI (19.30s -> 24.00s): STACKED LUXURY END LOCKUP
-        if (t >= 19.25) {
-          act6.style.opacity = easeOutCubic(invLerp(19.30, 19.70, t)).toFixed(4);
-          const p1 = easeOutExpo(invLerp(19.62, 20.22, t));
-          const p2 = easeOutExpo(invLerp(20.12, 20.75, t));
-          const p3 = easeOutExpo(invLerp(20.62, 21.22, t));
-
-          mP1.style.opacity = p1.toFixed(4);
-          mP1.style.transform = `translateY(${((1 - p1) * -40).toFixed(2)}px)`;
-          mP2.style.opacity = p2.toFixed(4);
-          mP2.style.transform = `translate(${((1 - p2) * 30).toFixed(2)}px, ${((1 - p2) * 14).toFixed(2)}px)`;
-          mP3.style.opacity = p3.toFixed(4);
-          mP3.style.transform = `translate(${((1 - p3) * 26).toFixed(2)}px, ${((1 - p3) * 26).toFixed(2)}px)`;
-
-          const shP = easeInOutCubic(invLerp(21.15, 22.35, t));
-          sheenRect.setAttribute("x", (-70 + shP * 210).toFixed(1));
-          sheenRect.setAttribute("opacity", (shP > 0.01 && shP < 0.99 ? 0.92 : 0).toFixed(2));
-
-          const pT = easeOutExpo(invLerp(20.90, 21.65, t));
-          finalTitle.style.opacity = pT.toFixed(4);
-          finalTitle.style.transform = `translateY(${((1 - pT) * 22).toFixed(2)}px)`;
-
-          const pCn = easeOutCubic(invLerp(21.18, 21.85, t));
-          finalCnRow.style.opacity = pCn.toFixed(4);
-          finalCnRow.style.transform = `translateY(${((1 - pCn) * 14).toFixed(2)}px)`;
-
-          const pS = easeOutCubic(invLerp(21.48, 22.15, t));
-          finalSub.style.opacity = pS.toFixed(4);
-          finalSub.style.transform = `translateY(${((1 - pS) * 12).toFixed(2)}px)`;
-
-          const pSig = easeOutCubic(invLerp(21.85, 22.45, t));
-          finalSig.style.opacity = pSig.toFixed(4);
-        } else {
-          act6.style.opacity = "0";
-        }
-
-        fadeVeil.style.opacity = easeInOutCubic(invLerp(23.40, 23.98, t)).toFixed(4);
+        $("fadeVeil").style.opacity = easeInOutCubic(invLerp(25.42, 25.98, t)).toFixed(4);
       };
 
-      window.renderFrame(120, 1440);
+      window.renderFrame(540, 1560);
     })();
   </script>
 </body>
