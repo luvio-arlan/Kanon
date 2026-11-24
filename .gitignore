@@ -12,6 +12,7 @@ coverage/
 
 # Local embedded Postgres data
 .data/
+.vercel/
 
 # Environment
 .env
@@ -27,3 +28,5 @@ Thumbs.db
 promo-video/preview_stills/
 promo-video/soundtrack.wav
 promo-video/*.mp4
+.vercel
+.env*
