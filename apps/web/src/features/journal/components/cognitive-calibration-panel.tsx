@@ -6,8 +6,16 @@ import {
   type QuarterlyReview,
   type ThesisDetail,
 } from "@kanon/core";
-import { Badge, Card, RollingNumber, StatCard } from "@kanon/ui";
+import {
+  Badge,
+  Card,
+  KANON_FADE_UP_ITEM,
+  KANON_STAGGER_CONTAINER,
+  RollingNumber,
+  StatCard,
+} from "@kanon/ui";
 import { IconBrain, IconChartDots3, IconMoodSmile, IconShieldCheck } from "@tabler/icons-react";
+import { motion } from "framer-motion";
 import { useMemo } from "react";
 
 const ACTION_LABEL: Record<DisciplineAlphaRow["action"], string> = {
@@ -36,7 +44,7 @@ function AlphaAuditTable({ rows }: { rows: readonly DisciplineAlphaRow[] }) {
         {rows.map((row) => (
           <div
             key={row.id}
-            className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm transition-colors hover:bg-muted/35"
           >
             <div className="flex items-center gap-2.5">
               <Badge variant="titanium">{ACTION_LABEL[row.action]}</Badge>
@@ -117,11 +125,18 @@ function CalibrationStatsGrid({
 }) {
   const items = buildCalibrationCards(report);
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <motion.div
+      variants={KANON_STAGGER_CONTAINER}
+      initial="hidden"
+      animate="visible"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+    >
       {items.map((item) => (
-        <StatCard key={item.label} {...item} />
+        <motion.div key={item.label} variants={KANON_FADE_UP_ITEM}>
+          <StatCard {...item} className="h-full" />
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }
 

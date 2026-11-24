@@ -60,7 +60,7 @@ function ThemeModeOption({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "relative flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[7px] text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-coral",
+        "relative flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-badge text-xs font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-coral",
         selected ? "text-ink-primary" : "text-ink-muted hover:text-ink-primary",
       )}
     >
@@ -68,7 +68,8 @@ function ThemeModeOption({
         <motion.span
           layoutId="sidebar-theme-pill"
           transition={KANON_TAB_TRANSITION}
-          className="pointer-events-none absolute inset-0 rounded-[7px] border border-strong/75 bg-surface-elevated shadow-pill-active"
+          style={{ borderRadius: 6 }}
+          className="pointer-events-none absolute inset-0 rounded-badge border border-strong/75 bg-surface-elevated shadow-pill-active"
         />
       ) : null}
       <span className="relative z-10 inline-flex items-center gap-1.5">

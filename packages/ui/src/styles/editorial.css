@@ -94,3 +94,128 @@ select:autofill {
 .kanon-input-canvas {
   --autofill-bg: var(--bg-canvas);
 }
+
+/* Architectural Titanium specular materiality & cursor-reactive spotlight */
+.kanon-surface-specular {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 1px 0 var(--surface-specular);
+}
+
+.kanon-glass-ribbon {
+  background-color: var(--glass-ribbon);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  box-shadow:
+    var(--shadow-card),
+    inset 0 1px 0 var(--surface-specular);
+}
+
+.kanon-spotlight-surface {
+  position: relative;
+}
+
+.kanon-spotlight-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 0%),
+    var(--spotlight-core),
+    transparent 70%
+  );
+  transition: opacity 280ms var(--ease-kanon);
+}
+
+.kanon-spotlight-surface:hover::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .kanon-spotlight-surface::before {
+    display: none;
+  }
+}
+
+@layer components {
+  .slider [data-slot="thumb"] {
+    transition:
+      transform 140ms var(--ease-kanon),
+      box-shadow 160ms var(--ease-kanon),
+      border-color 140ms ease;
+  }
+
+  .slider [data-slot="thumb"][data-dragging="true"],
+  .slider [data-slot="thumb"]:focus-visible {
+    box-shadow: 0 0 0 5px var(--accent-coral-soft);
+  }
+}
+
+@keyframes kanon-dialog-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.965) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes kanon-dialog-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.975) translateY(4px);
+  }
+}
+
+@keyframes kanon-popover-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes kanon-popover-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+}
+
+@keyframes kanon-sheet-slide-in {
+  from {
+    transform: translateX(32px);
+    opacity: 0.72;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes kanon-sheet-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}

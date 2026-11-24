@@ -2,8 +2,11 @@
 
 import { Modal } from "@heroui/react";
 import { IconX } from "@tabler/icons-react";
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { cn } from "../../lib/cn";
+import { KANON_LENS_VARIANTS, KANON_TAB_TRANSITION } from "../../lib/motion";
+import { ScrollFade, useScrollFade } from "./scroll-fade";
 
 export interface SettingsNavTab<T extends string> {
   id: T;
@@ -66,6 +69,53 @@ export function SettingsRow({
   );
 }
 
+function SettingsNavButton<T extends string>({
+  tab,
+  active,
+  onSelect,
+}: {
+  tab: SettingsNavTab<T>;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-current={active ? "page" : undefined}
+      title={tab.label}
+      onClick={onSelect}
+      className={cn(
+        "relative flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-control px-2.5 text-left text-sm transition-colors",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
+        active
+          ? "font-semibold text-ink-primary"
+          : "font-medium text-ink-secondary hover:bg-muted/75 hover:text-ink-primary",
+      )}
+    >
+      {active ? (
+        <>
+          <motion.span
+            layoutId="settings-nav-bg"
+            transition={KANON_TAB_TRANSITION}
+            className="pointer-events-none absolute inset-0 rounded-control border border-hairline bg-surface shadow-pill-active"
+          />
+          <motion.span
+            layoutId="settings-nav-bar"
+            transition={KANON_TAB_TRANSITION}
+            className="pointer-events-none absolute bottom-2 left-0.5 top-2 w-[2.5px] rounded-pill bg-accent-coral"
+          />
+        </>
+      ) : null}
+      <span
+        className={cn("relative z-10 shrink-0", active ? "text-ink-primary" : "text-ink-muted")}
+      >
+        {tab.icon}
+      </span>
+      <span className="relative z-10 hidden truncate sm:inline">{tab.label}</span>
+    </button>
+  );
+}
+
 function SettingsNavRail<T extends string>({
   tabs,
   activeTab,
@@ -83,31 +133,67 @@ function SettingsNavRail<T extends string>({
       <div className="hidden px-2.5 pb-2 pt-1.5 font-mono text-xs tracking-[0.08em] text-ink-muted sm:block">
         SETTINGS
       </div>
-      {tabs.map((tab) => {
-        const active = tab.id === activeTab;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            aria-current={active ? "page" : undefined}
-            title={tab.label}
-            onClick={() => onSelectTab(tab.id)}
-            className={cn(
-              "flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-control px-2.5 text-left text-sm transition-colors",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
-              active
-                ? "border border-hairline bg-surface font-semibold text-ink-primary shadow-pill-active"
-                : "border border-transparent font-medium text-ink-secondary hover:bg-muted/75 hover:text-ink-primary",
-            )}
-          >
-            <span className={cn("shrink-0", active ? "text-ink-primary" : "text-ink-muted")}>
-              {tab.icon}
-            </span>
-            <span className="hidden truncate sm:inline">{tab.label}</span>
-          </button>
-        );
-      })}
+      {tabs.map((tab) => (
+        <SettingsNavButton
+          key={tab.id}
+          tab={tab}
+          active={tab.id === activeTab}
+          onSelect={() => onSelectTab(tab.id)}
+        />
+      ))}
     </nav>
+  );
+}
+
+function SettingsBodyPane({
+  title,
+  activeTab,
+  fade,
+  onClose,
+  children,
+}: {
+  title: string;
+  activeTab: string;
+  fade: ReturnType<typeof useScrollFade>;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col bg-surface">
+      <SettingsPanelHeader title={title} onClose={onClose} />
+      <div className="relative min-h-0 flex-1">
+        <div
+          onScroll={fade.onScroll}
+          className="kanon-scroll-thin h-full overflow-y-auto px-7 py-6"
+        >
+          <motion.div
+            key={activeTab}
+            variants={KANON_LENS_VARIANTS}
+            initial="enter"
+            animate="center"
+          >
+            {children}
+          </motion.div>
+        </div>
+        <ScrollFade progress={fade.progress} surfaceClassName="from-surface" />
+      </div>
+    </div>
+  );
+}
+
+function SettingsPanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <header className="flex shrink-0 items-center justify-between border-b border-hairline px-7 pb-4 pt-6">
+      <h2 className="text-lg font-semibold tracking-[-0.02em] text-ink-primary">{title}</h2>
+      <button
+        type="button"
+        aria-label="关闭设置"
+        onClick={onClose}
+        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-pill bg-muted/80 text-ink-secondary transition-colors hover:bg-muted hover:text-ink-primary"
+      >
+        <IconX size={16} stroke={1.5} />
+      </button>
+    </header>
   );
 }
 
@@ -120,30 +206,37 @@ export function SettingsDialogShell<T extends string>({
   onSelectTab,
   children,
 }: SettingsDialogShellProps<T>) {
+  const fade = useScrollFade();
   return (
-    <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange} className="kanon-backdrop">
+    <Modal.Backdrop
+      isOpen={open}
+      onOpenChange={(next) => {
+        if (!next) fade.reset();
+        onOpenChange(next);
+      }}
+      className="kanon-backdrop"
+    >
       <Modal.Container placement="center" size="lg" className="kanon-dialog-container">
         <Modal.Dialog
           aria-label="工作台设置"
           className="kanon-dialog-panel flex h-[min(86vh,590px)] w-[min(94vw,840px)] max-w-[min(94vw,840px)] flex-row overflow-clip rounded-card border border-strong bg-surface p-0 shadow-overlay focus:outline-none"
         >
-          <SettingsNavRail tabs={tabs} activeTab={activeTab} onSelectTab={onSelectTab} />
-          <div className="flex min-w-0 flex-1 flex-col bg-surface">
-            <header className="flex shrink-0 items-center justify-between border-b border-hairline px-7 pb-4 pt-6">
-              <h2 className="text-lg font-semibold tracking-[-0.02em] text-ink-primary">{title}</h2>
-              <button
-                type="button"
-                aria-label="关闭设置"
-                onClick={() => onOpenChange(false)}
-                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-pill bg-muted/80 text-ink-secondary transition-colors hover:bg-muted hover:text-ink-primary"
-              >
-                <IconX size={16} stroke={1.5} />
-              </button>
-            </header>
-            <div className="kanon-scroll-thin min-h-0 flex-1 overflow-y-auto px-7 py-6">
-              {children}
-            </div>
-          </div>
+          <SettingsNavRail
+            tabs={tabs}
+            activeTab={activeTab}
+            onSelectTab={(next) => {
+              fade.reset();
+              onSelectTab(next);
+            }}
+          />
+          <SettingsBodyPane
+            title={title}
+            activeTab={activeTab}
+            fade={fade}
+            onClose={() => onOpenChange(false)}
+          >
+            {children}
+          </SettingsBodyPane>
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>

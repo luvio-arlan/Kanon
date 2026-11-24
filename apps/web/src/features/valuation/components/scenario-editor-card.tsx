@@ -53,34 +53,43 @@ function ScenarioMetricHeader({
   );
 }
 
+const ACCENT_BAR: Record<"warn" | "pass" | "titanium", string> = {
+  warn: "bg-status-warn/75",
+  titanium: "bg-strong",
+  pass: "bg-status-pass/80",
+};
+
 export function ScenarioEditorCard(props: ScenarioEditorCardProps) {
   return (
-    <Card className="flex flex-col justify-between p-6">
-      <ScenarioMetricHeader
-        label={props.label}
-        subtitle={props.subtitle}
-        tone={props.tone}
-        result={props.result}
-      />
-      <div className="mt-4 space-y-4">
-        <PrecisionSlider
-          label="远期每股收益 (EPS)"
-          value={props.eps}
-          min={props.epsRange.min}
-          max={props.epsRange.max}
-          step={props.epsRange.step}
-          displayValue={`$${props.eps.toFixed(2)}`}
-          onChange={props.onChangeEps}
+    <Card className="group flex flex-col justify-between overflow-hidden focus-within:border-strong focus-within:shadow-card-hover">
+      <div aria-hidden="true" className={`h-[2px] w-full ${ACCENT_BAR[props.tone]}`} />
+      <div className="flex flex-1 flex-col justify-between p-6">
+        <ScenarioMetricHeader
+          label={props.label}
+          subtitle={props.subtitle}
+          tone={props.tone}
+          result={props.result}
         />
-        <PrecisionSlider
-          label="合理市盈率 (PE)"
-          value={props.peMultiple}
-          min={props.peRange.min}
-          max={props.peRange.max}
-          step={props.peRange.step}
-          displayValue={`${props.peMultiple.toFixed(0)}x`}
-          onChange={props.onChangePe}
-        />
+        <div className="mt-4 space-y-4">
+          <PrecisionSlider
+            label="远期每股收益 (EPS)"
+            value={props.eps}
+            min={props.epsRange.min}
+            max={props.epsRange.max}
+            step={props.epsRange.step}
+            displayValue={`$${props.eps.toFixed(2)}`}
+            onChange={props.onChangeEps}
+          />
+          <PrecisionSlider
+            label="合理市盈率 (PE)"
+            value={props.peMultiple}
+            min={props.peRange.min}
+            max={props.peRange.max}
+            step={props.peRange.step}
+            displayValue={`${props.peMultiple.toFixed(0)}x`}
+            onChange={props.onChangePe}
+          />
+        </div>
       </div>
     </Card>
   );

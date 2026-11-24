@@ -1,9 +1,11 @@
 "use client";
 
 import { IconMenu2, IconX } from "@tabler/icons-react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { cn } from "../../lib/cn";
+import { KANON_DRAWER_SPRING, KANON_TRANSITION_FAST } from "../../lib/motion";
 import { KanonMark } from "../primitives/kanon-mark";
 
 export interface WorkbenchShellProps {
@@ -60,29 +62,42 @@ function MobileSidebarDrawer({
   onClose: () => void;
   content: ReactNode;
 }) {
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex lg:hidden">
-      <button
-        type="button"
-        aria-label="关闭侧栏"
-        onClick={onClose}
-        className="kanon-backdrop absolute inset-0 cursor-pointer"
-      />
-      <div className="relative z-10 flex h-full w-[296px] max-w-[85vw] p-3">
-        <div className="relative flex h-full w-full flex-col overflow-hidden rounded-card border border-strong bg-sidebar shadow-overlay">
-          <button
+    <AnimatePresence>
+      {open ? (
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          <motion.button
             type="button"
             aria-label="关闭侧栏"
             onClick={onClose}
-            className="absolute right-3 top-3 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-ink-muted hover:bg-muted hover:text-ink-primary"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={KANON_TRANSITION_FAST}
+            className="kanon-backdrop absolute inset-0 cursor-pointer"
+          />
+          <motion.div
+            initial={{ x: -296, opacity: 0.6 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -296, opacity: 0 }}
+            transition={KANON_DRAWER_SPRING}
+            className="relative z-10 flex h-full w-[296px] max-w-[85vw] p-3"
           >
-            <IconX size={16} stroke={1.5} />
-          </button>
-          {content}
+            <div className="kanon-surface-specular relative flex h-full w-full flex-col overflow-hidden rounded-card border border-strong bg-sidebar shadow-overlay">
+              <button
+                type="button"
+                aria-label="关闭侧栏"
+                onClick={onClose}
+                className="absolute right-3 top-3 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary"
+              >
+                <IconX size={16} stroke={1.5} />
+              </button>
+              {content}
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -90,11 +105,11 @@ function DesktopSidebarFrame({ collapsed, content }: { collapsed: boolean; conte
   return (
     <aside
       className={cn(
-        "no-print hidden h-full shrink-0 p-4 pr-0 transition-[width] duration-200 lg:flex",
+        "no-print hidden h-full shrink-0 p-4 pr-0 transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] lg:flex",
         collapsed ? "w-[84px]" : "w-[276px]",
       )}
     >
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-card border border-hairline bg-sidebar shadow-sidebar">
+      <div className="kanon-surface-specular flex h-full w-full flex-col overflow-hidden rounded-card border border-hairline bg-sidebar shadow-sidebar">
         {content}
       </div>
     </aside>

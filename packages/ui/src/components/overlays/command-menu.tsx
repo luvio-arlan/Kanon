@@ -3,9 +3,11 @@
 import { Modal } from "@heroui/react";
 import { IconCornerDownLeft, IconSearch } from "@tabler/icons-react";
 import { Command } from "cmdk";
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { cn } from "../../lib/cn";
+import { KANON_TAB_TRANSITION } from "../../lib/motion";
 import { Kbd } from "../primitives/kbd";
 
 export interface CommandActionItem {
@@ -68,7 +70,7 @@ function CommandRow({
           <IconCornerDownLeft
             size={14}
             stroke={1.5}
-            className="text-ink-muted opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
+            className="text-accent-coral opacity-0 -translate-x-1 transition-[opacity,transform] duration-150 group-data-[selected=true]:translate-x-0 group-data-[selected=true]:opacity-100"
           />
         )}
       </span>
@@ -83,23 +85,35 @@ function ScopeSwitcher({
   scope: "main" | "glossary";
   onScope: (next: "main" | "glossary") => void;
 }) {
-  const pill = (active: boolean) =>
-    cn(
-      "h-7 cursor-pointer rounded-md px-2.5 text-xs font-medium transition-colors",
-      active ? "bg-muted text-ink-primary" : "text-ink-muted hover:text-ink-primary",
-    );
+  const tabs: ReadonlyArray<{ id: "main" | "glossary"; label: string }> = [
+    { id: "main", label: "指令" },
+    { id: "glossary", label: "术语" },
+  ];
   return (
     <div className="flex shrink-0 items-center gap-0.5 rounded-control border border-hairline bg-canvas p-0.5">
-      <button type="button" onClick={() => onScope("main")} className={pill(scope === "main")}>
-        指令
-      </button>
-      <button
-        type="button"
-        onClick={() => onScope("glossary")}
-        className={pill(scope === "glossary")}
-      >
-        术语
-      </button>
+      {tabs.map((tab) => {
+        const active = scope === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onScope(tab.id)}
+            className={cn(
+              "relative h-7 cursor-pointer rounded-badge px-2.5 text-xs font-medium transition-colors",
+              active ? "text-ink-primary" : "text-ink-muted hover:text-ink-primary",
+            )}
+          >
+            {active ? (
+              <motion.span
+                layoutId="command-scope-pill"
+                transition={KANON_TAB_TRANSITION}
+                className="pointer-events-none absolute inset-0 rounded-badge bg-muted shadow-pill-active"
+              />
+            ) : null}
+            <span className="relative z-10">{tab.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -220,7 +234,7 @@ export function CommandMenu({
       <Modal.Container placement="top" size="lg" className="kanon-dialog-container pt-[12vh]">
         <Modal.Dialog
           aria-label="快捷检索"
-          className="kanon-dialog-panel w-[min(92vw,560px)] max-w-[min(92vw,560px)] overflow-clip rounded-[18px] border border-strong bg-surface p-0 shadow-overlay focus:outline-none"
+          className="kanon-dialog-panel w-[min(92vw,560px)] max-w-[min(92vw,560px)] overflow-clip rounded-card border border-strong bg-surface p-0 shadow-overlay focus:outline-none"
         >
           <CommandPaletteBody groups={groups} placeholder={placeholder} onRun={handleRun} />
         </Modal.Dialog>

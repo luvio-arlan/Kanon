@@ -1,7 +1,8 @@
 "use client";
 
 import type { SensitivityCell, SensitivityMatrix } from "@kanon/core";
-import { Card, cn, SegmentedTabs } from "@kanon/ui";
+import { Card, cn, KANON_LENS_VARIANTS, SegmentedTabs } from "@kanon/ui";
+import { motion } from "framer-motion";
 import { useState } from "react";
 
 type MatrixMetric = "price" | "cagr";
@@ -29,10 +30,11 @@ function MatrixCellButton(props: {
   metric: MatrixMetric;
   isCenter: boolean;
   isCrosshair: boolean;
+  isFlashing: boolean;
   onEnter: () => void;
   onSelect?: () => void;
 }) {
-  const { cell, metric, isCenter, isCrosshair, onEnter, onSelect } = props;
+  const { cell, metric, isCenter, isCrosshair, isFlashing, onEnter, onSelect } = props;
   const sign = cell.returnPct > 0 ? "+" : "";
   return (
     <td className="p-0">
@@ -43,19 +45,24 @@ function MatrixCellButton(props: {
         onClick={onSelect}
         title="点击将该 (EPS, PE) 组合设为中性基准"
         className={cn(
-          "block w-full rounded-control px-2.5 py-3 text-center transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
-          onSelect ? "cursor-pointer hover:scale-[1.02]" : "cursor-default",
+          "block w-full rounded-control px-2.5 py-3 text-center transition-[background-color,border-color,box-shadow,transform] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
+          onSelect
+            ? "cursor-pointer hover:-translate-y-px hover:shadow-button active:translate-y-0"
+            : "cursor-default",
           cellToneClass(cell.zone, isCenter, isCrosshair),
+          isFlashing && "kanon-cell-flash",
         )}
       >
-        <div className="text-base font-medium">
-          {metric === "price" ? `$${cell.targetPrice.toFixed(0)}` : `${cell.cagrPct.toFixed(1)}%`}
-        </div>
-        <div className="mt-0.5 text-xs opacity-80">
-          {metric === "price"
-            ? `${sign}${cell.returnPct.toFixed(0)}%`
-            : `$${cell.targetPrice.toFixed(0)}`}
-        </div>
+        <motion.div key={metric} variants={KANON_LENS_VARIANTS} initial="enter" animate="center">
+          <div className="text-base font-medium">
+            {metric === "price" ? `$${cell.targetPrice.toFixed(0)}` : `${cell.cagrPct.toFixed(1)}%`}
+          </div>
+          <div className="mt-0.5 text-xs opacity-80">
+            {metric === "price"
+              ? `${sign}${cell.returnPct.toFixed(0)}%`
+              : `$${cell.targetPrice.toFixed(0)}`}
+          </div>
+        </motion.div>
       </button>
     </td>
   );
@@ -67,6 +74,7 @@ function MatrixBodyRow(props: {
   rowIdx: number;
   metric: MatrixMetric;
   hovered: HoverCoord | null;
+  flashKey: string | null;
   onHover: (coord: HoverCoord | null) => void;
   onSelectCell?: (eps: number, pe: number) => void;
 }) {
@@ -81,20 +89,26 @@ function MatrixBodyRow(props: {
       >
         ${props.epsLabel?.toFixed(2)}
       </td>
-      {props.row.map((cell, colIdx) => (
-        <MatrixCellButton
-          key={`${cell.eps}-${cell.pe}`}
-          cell={cell}
-          metric={props.metric}
-          isCenter={props.rowIdx === 2 && colIdx === 2}
-          isCrosshair={
-            props.hovered !== null &&
-            (props.hovered.r === props.rowIdx || props.hovered.c === colIdx)
-          }
-          onEnter={() => props.onHover({ r: props.rowIdx, c: colIdx })}
-          onSelect={props.onSelectCell ? () => props.onSelectCell?.(cell.eps, cell.pe) : undefined}
-        />
-      ))}
+      {props.row.map((cell, colIdx) => {
+        const cellKey = `${cell.eps}-${cell.pe}`;
+        return (
+          <MatrixCellButton
+            key={cellKey}
+            cell={cell}
+            metric={props.metric}
+            isCenter={props.rowIdx === 2 && colIdx === 2}
+            isCrosshair={
+              props.hovered !== null &&
+              (props.hovered.r === props.rowIdx || props.hovered.c === colIdx)
+            }
+            isFlashing={props.flashKey === cellKey}
+            onEnter={() => props.onHover({ r: props.rowIdx, c: colIdx })}
+            onSelect={
+              props.onSelectCell ? () => props.onSelectCell?.(cell.eps, cell.pe) : undefined
+            }
+          />
+        );
+      })}
     </tr>
   );
 }
@@ -157,10 +171,18 @@ export function SensitivityMatrixCard({
 }) {
   const [hovered, setHovered] = useState<HoverCoord | null>(null);
   const [metric, setMetric] = useState<MatrixMetric>("price");
+  const [flashKey, setFlashKey] = useState<string | null>(null);
   const activeCell = hovered ? matrix.rows[hovered.r]?.[hovered.c] : null;
   const caption = activeCell
     ? `EPS $${activeCell.eps.toFixed(2)} × ${activeCell.pe}x → $${activeCell.targetPrice.toFixed(1)} · CAGR ${activeCell.cagrPct.toFixed(1)}%`
     : "点击任意矩阵格一键回填中性基准";
+
+  const handleSelect = onSelectBaseCell
+    ? (eps: number, pe: number) => {
+        setFlashKey(`${eps}-${pe}`);
+        onSelectBaseCell(eps, pe);
+      }
+    : undefined;
 
   return (
     <Card className="overflow-hidden p-6 sm:p-7" onMouseLeave={() => setHovered(null)}>
@@ -177,8 +199,9 @@ export function SensitivityMatrixCard({
                 rowIdx={rowIdx}
                 metric={metric}
                 hovered={hovered}
+                flashKey={flashKey}
                 onHover={setHovered}
-                onSelectCell={onSelectBaseCell}
+                onSelectCell={handleSelect}
               />
             ))}
           </tbody>

@@ -32,6 +32,9 @@
     --status-fail: #dc2626;
     --status-fail-soft: rgba(220, 38, 38, 0.1);
     --glass-topbar: rgba(246, 245, 241, 0.94);
+    --glass-ribbon: rgba(255, 255, 255, 0.84);
+    --surface-specular: rgba(255, 255, 255, 0.88);
+    --spotlight-core: rgba(217, 90, 56, 0.058);
     --backdrop-scrim: rgba(17, 17, 19, 0.46);
     --ambient-glow: rgba(229, 227, 221, 0.68);
     --editorial-split-scrim: linear-gradient(
@@ -95,7 +98,10 @@
     --type-caption: 0.75rem;
     --duration-tactile: 160ms;
     --duration-surface: 180ms;
+    --duration-overlay-in: 240ms;
+    --duration-overlay-out: 130ms;
     --ease-kanon: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-overlay: cubic-bezier(0.32, 0.72, 0, 1);
 
     --background: var(--bg-canvas);
     --foreground: var(--ink-primary);
@@ -154,6 +160,9 @@
     --status-fail: #ef4444;
     --status-fail-soft: rgba(239, 68, 68, 0.15);
     --glass-topbar: rgba(7, 8, 10, 0.92);
+    --glass-ribbon: rgba(17, 19, 24, 0.84);
+    --surface-specular: rgba(255, 255, 255, 0.085);
+    --spotlight-core: rgba(234, 107, 74, 0.088);
     --backdrop-scrim: rgba(0, 0, 0, 0.72);
     --ambient-glow: rgba(229, 227, 221, 0.06);
     --editorial-split-scrim: linear-gradient(

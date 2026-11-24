@@ -97,3 +97,36 @@ export const KANON_TAP_PRESS = {
   scale: 0.97,
   transition: KANON_TRANSITION_FAST,
 } as const;
+
+export const KANON_DRAWER_SPRING = {
+  type: "spring",
+  stiffness: 420,
+  damping: 38,
+  mass: 0.8,
+} as const satisfies Transition;
+
+export const KANON_TITLE_SWAP: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+export const KANON_ROW_STAGGER: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.028, delayChildren: 0.015 },
+  },
+};
+
+export const KANON_ROW_ITEM: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
+  },
+};

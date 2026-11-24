@@ -29,47 +29,59 @@ function formatCompactPrice(value: number): string {
   return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(1)}`;
 }
 
+function ScenarioRangeLegend({ valuation }: { valuation: ValuationScenarioSummary }) {
+  return (
+    <div className="mt-3 flex items-center justify-between font-mono text-xs tabular-nums">
+      <span className="text-ink-muted">悲观 {formatCompactPrice(valuation.bear.targetPrice)}</span>
+      <span className="inline-flex items-center gap-1.5 font-medium text-accent-coral">
+        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-pill bg-accent-coral" />
+        现价 {formatCompactPrice(valuation.currentPrice)}
+      </span>
+      <span className="text-ink-muted">乐观 {formatCompactPrice(valuation.bull.targetPrice)}</span>
+    </div>
+  );
+}
+
 function ScenarioRangeRail({
   valuation,
   hurdle15,
+  belowHurdle,
 }: {
   valuation: ValuationScenarioSummary;
   hurdle15: number;
+  belowHurdle: boolean;
 }) {
   const pct = (v: number) =>
     calculatePriceMarkerPosition(v, valuation.bear.targetPrice, valuation.bull.targetPrice);
+  const curPos = pct(valuation.currentPrice);
+  const basePos = pct(valuation.base.targetPrice);
 
   return (
     <div className="mt-5">
       <div className="relative h-1.5 w-full rounded-pill bg-muted">
         <div
-          className="absolute top-1/2 h-3 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-status-pass/75"
+          className={`absolute inset-y-0 rounded-pill transition-[left,width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+            belowHurdle ? "bg-status-pass/35" : "bg-ink-primary/18"
+          }`}
+          style={{ left: `${Math.min(curPos, basePos)}%`, width: `${Math.abs(basePos - curPos)}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-3 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-status-pass/75 transition-[left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{ left: `${pct(hurdle15)}%` }}
           title={`15% 安全买点 ${formatCompactPrice(hurdle15)}`}
         />
         <div
-          className="absolute top-1/2 h-3.5 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-ink-primary/45"
-          style={{ left: `${pct(valuation.base.targetPrice)}%` }}
+          className="absolute top-1/2 h-3.5 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-ink-primary/45 transition-[left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{ left: `${basePos}%` }}
           title={`中性目标 ${formatCompactPrice(valuation.base.targetPrice)}`}
         />
         <div
-          className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-accent-coral ring-4 ring-surface"
-          style={{ left: `${pct(valuation.currentPrice)}%` }}
+          className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-accent-coral ring-4 ring-surface transition-[left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{ left: `${curPos}%` }}
           title={`现价 ${formatCompactPrice(valuation.currentPrice)}`}
         />
       </div>
-      <div className="mt-3 flex items-center justify-between font-mono text-xs tabular-nums">
-        <span className="text-ink-muted">
-          悲观 {formatCompactPrice(valuation.bear.targetPrice)}
-        </span>
-        <span className="inline-flex items-center gap-1.5 font-medium text-accent-coral">
-          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-pill bg-accent-coral" />
-          现价 {formatCompactPrice(valuation.currentPrice)}
-        </span>
-        <span className="text-ink-muted">
-          乐观 {formatCompactPrice(valuation.bull.targetPrice)}
-        </span>
-      </div>
+      <ScenarioRangeLegend valuation={valuation} />
     </div>
   );
 }
@@ -175,7 +187,11 @@ export function ValuationAnchorPanel({
         </div>
       </div>
       <LiveExtendedMeta quote={liveQuote} />
-      <ScenarioRangeRail valuation={valuation} hurdle15={exp.hurdleEntry15} />
+      <ScenarioRangeRail
+        valuation={valuation}
+        hurdle15={exp.hurdleEntry15}
+        belowHurdle={exp.isBelowHurdle15}
+      />
     </div>
   );
 }

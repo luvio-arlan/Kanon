@@ -6,7 +6,7 @@ import {
   type ImpliedExpectations,
   type ValuationScenarioSummary,
 } from "@kanon/core";
-import { Badge, RollingNumber } from "@kanon/ui";
+import { Badge, Card, RollingNumber } from "@kanon/ui";
 
 const ZONE_META = {
   attractive: { label: "高赔率区间", variant: "pass" as const },
@@ -48,29 +48,43 @@ function OddsRangeLegend({
 function OddsRangeTrack({
   summary,
   hurdle15,
+  belowHurdle,
 }: {
   summary: ValuationScenarioSummary;
   hurdle15: number;
+  belowHurdle: boolean;
 }) {
   const { bear, base, bull, currentPrice } = summary;
   const pct = (val: number) =>
     calculatePriceMarkerPosition(val, bear.targetPrice, bull.targetPrice);
+  const curPos = pct(currentPrice);
+  const basePos = pct(base.targetPrice);
+  const bandLeft = Math.min(curPos, basePos);
+  const bandWidth = Math.abs(basePos - curPos);
 
   return (
     <div className="mt-5">
       <div className="relative h-2 w-full rounded-pill bg-muted">
         <div
-          className="absolute top-1/2 h-3 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-status-pass/75"
+          className={`absolute inset-y-0 rounded-pill transition-[left,width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+            belowHurdle ? "bg-status-pass/35" : "bg-ink-primary/18"
+          }`}
+          style={{ left: `${bandLeft}%`, width: `${bandWidth}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-3.5 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-status-pass/80 transition-[left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{ left: `${pct(hurdle15)}%` }}
           title={`15% 买点 $${hurdle15.toFixed(1)}`}
         />
         <div
-          className="absolute top-1/2 h-3.5 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-ink-primary/45"
-          style={{ left: `${pct(base.targetPrice)}%` }}
+          className="absolute top-1/2 h-4 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-ink-primary/50 transition-[left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{ left: `${basePos}%` }}
+          title={`中性目标 $${base.targetPrice.toFixed(1)}`}
         />
         <div
-          className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-accent-coral ring-4 ring-surface"
-          style={{ left: `${pct(currentPrice)}%` }}
+          className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-accent-coral ring-4 ring-surface transition-[left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{ left: `${curPos}%` }}
+          title={`现价 $${currentPrice.toFixed(2)}`}
         />
       </div>
       <OddsRangeLegend summary={summary} hurdle15={hurdle15} />
@@ -174,10 +188,14 @@ export function LiveOddsBanner({
 }) {
   const expectations = calculateImpliedExpectations({ summary, trailingEps });
   return (
-    <div className="rounded-card border border-hairline bg-surface p-6 shadow-card sm:p-8">
+    <Card spotlight className="p-6 sm:p-8">
       <BannerHeadline summary={summary} />
-      <OddsRangeTrack summary={summary} hurdle15={expectations.hurdleEntry15} />
+      <OddsRangeTrack
+        summary={summary}
+        hurdle15={expectations.hurdleEntry15}
+        belowHurdle={expectations.isBelowHurdle15}
+      />
       <ExpectationsRow exp={expectations} />
-    </div>
+    </Card>
   );
 }

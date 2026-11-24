@@ -7,7 +7,13 @@ import {
   type PublicUser,
   type ThesisDetail,
 } from "@kanon/core";
-import { Button, KANON_TRANSITION_FAST, WorkbenchShell } from "@kanon/ui";
+import {
+  Button,
+  KANON_FADE_UP_ITEM,
+  KANON_STAGGER_CONTAINER,
+  KANON_TRANSITION_FAST,
+  WorkbenchShell,
+} from "@kanon/ui";
 import { IconPlus } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useMemo } from "react";
@@ -74,19 +80,23 @@ function renderCollectionBody(p: CollectionViewProps) {
     );
   }
   return (
-    <section
+    <motion.section
       aria-label="跟踪标的列表"
+      variants={KANON_STAGGER_CONTAINER}
+      initial="hidden"
+      animate="visible"
       className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-2 2xl:grid-cols-3"
     >
       {p.theses.map((thesis) => (
-        <ThesisBentoCard
-          key={thesis.id}
-          thesis={thesis}
-          liveQuote={p.liveQuotes[thesis.ticker]}
-          onQuickInspect={p.onQuickInspect}
-        />
+        <motion.div key={thesis.id} variants={KANON_FADE_UP_ITEM} className="flex h-full">
+          <ThesisBentoCard
+            thesis={thesis}
+            liveQuote={p.liveQuotes[thesis.ticker]}
+            onQuickInspect={p.onQuickInspect}
+          />
+        </motion.div>
       ))}
-    </section>
+    </motion.section>
   );
 }
 

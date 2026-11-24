@@ -7,8 +7,18 @@ import type {
   ThesisCatalyst,
   ThesisDetail,
 } from "@kanon/core";
-import { Badge, buttonVariants, Card, SegmentedTabs } from "@kanon/ui";
+import {
+  Badge,
+  buttonVariants,
+  Card,
+  cn,
+  KANON_LENS_VARIANTS,
+  KANON_ROW_ITEM,
+  KANON_ROW_STAGGER,
+  SegmentedTabs,
+} from "@kanon/ui";
 import { IconArrowUpRight, IconCalendarEvent } from "@tabler/icons-react";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -51,7 +61,10 @@ function CatalystRow({ item }: { item: FlatCatalystItem }) {
   const st = STATUS_STYLE[catalyst.status];
 
   return (
-    <div className="flex flex-col justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/35 sm:flex-row sm:items-center">
+    <motion.div
+      variants={KANON_ROW_ITEM}
+      className="flex flex-col justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/35 sm:flex-row sm:items-center"
+    >
       <div className="min-w-0 space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="mono">{catalyst.dateLabel}</Badge>
@@ -70,13 +83,17 @@ function CatalystRow({ item }: { item: FlatCatalystItem }) {
       <div className="flex shrink-0 items-center gap-2">
         <Link
           href={`/thesis/${thesis.id}?step=2`}
-          className={buttonVariants({ variant: "outline", size: "xs" })}
+          className={cn(buttonVariants({ variant: "outline", size: "xs" }), "group/cta")}
         >
           <span>{thesis.companyName}</span>
-          <IconArrowUpRight size={13} stroke={1.5} />
+          <IconArrowUpRight
+            size={13}
+            stroke={1.5}
+            className="transition-transform duration-150 group-hover/cta:-translate-y-0.5 group-hover/cta:translate-x-0.5"
+          />
         </Link>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -99,6 +116,41 @@ function filterCatalysts(items: readonly FlatCatalystItem[], filter: CatalystFil
   if (filter === "high") return items.filter((i) => i.catalyst.impact === "high");
   if (filter === "resolved") return items.filter((i) => i.catalyst.status !== "upcoming");
   return items;
+}
+
+function CatalystListBody({
+  filter,
+  visible,
+}: {
+  filter: CatalystFilter;
+  visible: readonly FlatCatalystItem[];
+}) {
+  if (visible.length === 0) {
+    return (
+      <motion.div
+        key={`empty-${filter}`}
+        variants={KANON_LENS_VARIANTS}
+        initial="enter"
+        animate="center"
+        className="px-6 py-12 text-center text-sm text-ink-muted"
+      >
+        当前筛选条件下暂无催化剂记录，可在单标的 Step 2 增补财报与产品周期事件。
+      </motion.div>
+    );
+  }
+  return (
+    <motion.div
+      key={`list-${filter}`}
+      variants={KANON_ROW_STAGGER}
+      initial="hidden"
+      animate="visible"
+      className="divide-y divide-hairline"
+    >
+      {visible.map((item) => (
+        <CatalystRow key={`${item.thesis.id}-${item.catalyst.id}`} item={item} />
+      ))}
+    </motion.div>
+  );
 }
 
 export function CatalystCalendarBoard({ theses }: { theses: readonly ThesisDetail[] }) {
@@ -126,17 +178,7 @@ export function CatalystCalendarBoard({ theses }: { theses: readonly ThesisDetai
           ]}
         />
       </div>
-      {visible.length === 0 ? (
-        <div className="px-6 py-12 text-center text-sm text-ink-muted">
-          当前筛选条件下暂无催化剂记录，可在单标的 Step 2 增补财报与产品周期事件。
-        </div>
-      ) : (
-        <div className="divide-y divide-hairline">
-          {visible.map((item) => (
-            <CatalystRow key={`${item.thesis.id}-${item.catalyst.id}`} item={item} />
-          ))}
-        </div>
-      )}
+      <CatalystListBody filter={filter} visible={visible} />
     </Card>
   );
 }

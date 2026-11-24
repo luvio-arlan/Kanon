@@ -1,20 +1,42 @@
+"use client";
+
 import type { HTMLAttributes } from "react";
 import { cn } from "../../lib/cn";
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   interactive?: boolean;
+  spotlight?: boolean;
   tone?: "surface" | "titanium" | "muted";
 }
 
-export function Card({ className, interactive = false, tone = "surface", ...props }: CardProps) {
+function bindSpotlightRef(el: HTMLDivElement | null) {
+  if (!el) return;
+  const onMove = (event: PointerEvent) => {
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${event.clientX - rect.left}px`);
+    el.style.setProperty("--my", `${event.clientY - rect.top}px`);
+  };
+  el.addEventListener("pointermove", onMove, { passive: true });
+  return () => el.removeEventListener("pointermove", onMove);
+}
+
+export function Card({
+  className,
+  interactive = false,
+  spotlight = false,
+  tone = "surface",
+  ...props
+}: CardProps) {
   return (
     <div
+      ref={spotlight ? bindSpotlightRef : undefined}
       className={cn(
-        "rounded-card border border-hairline shadow-card transition-[border-color,box-shadow,transform] duration-200",
+        "kanon-surface-specular rounded-card border border-hairline transition-[border-color,box-shadow,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
         tone === "surface" && "bg-surface",
         tone === "titanium" && "bg-titanium-subtle",
         tone === "muted" && "bg-muted/75",
         interactive && "hover:border-strong hover:shadow-card-hover",
+        spotlight && "kanon-spotlight-surface",
         className,
       )}
       {...props}

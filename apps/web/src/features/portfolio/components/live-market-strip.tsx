@@ -1,7 +1,7 @@
 "use client";
 
 import type { MarketDataSource, MarketQuoteSnapshot, ThesisDetail } from "@kanon/core";
-import { Badge, Button, cn, MarketSessionBadge } from "@kanon/ui";
+import { Badge, Button, cn, MarketSessionBadge, RollingNumber } from "@kanon/ui";
 import { IconAdjustmentsHorizontal, IconRadar2, IconRefresh } from "@tabler/icons-react";
 
 export interface LiveMarketStripProps {
@@ -58,10 +58,15 @@ function QuotePill({
     <button
       type="button"
       onClick={onSelect}
-      className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-control border border-hairline bg-muted/45 px-2.5 py-1 font-mono text-xs tabular-nums transition-colors hover:border-strong hover:bg-surface"
+      className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-control border border-hairline bg-muted/45 px-2.5 py-1 font-mono text-xs tabular-nums transition-[background-color,border-color,box-shadow,transform] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-px hover:border-strong hover:bg-surface hover:shadow-button active:translate-y-0 active:bg-muted"
     >
       <span className="font-semibold text-ink-primary">{thesis.ticker}</span>
-      <span className="text-ink-primary">${quote.effectivePrice.toFixed(2)}</span>
+      <RollingNumber
+        value={quote.effectivePrice}
+        prefix="$"
+        decimals={2}
+        className="text-ink-primary"
+      />
       {extTag ? <span className="text-ink-muted">{extTag}</span> : null}
       {pct !== null ? (
         <span className={cn("font-medium", deltaToneClass(pct))}>{formatSignedPct(pct)}</span>
@@ -108,7 +113,7 @@ export function LiveMarketStrip(p: LiveMarketStripProps) {
   const primarySession = quotedItems[0]?.quote.sessionState ?? "CLOSED";
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-hairline bg-surface px-4 py-2.5 shadow-card">
+    <div className="kanon-surface-specular flex flex-wrap items-center justify-between gap-3 rounded-card border border-hairline bg-surface px-4 py-2.5">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">
         <MarketSessionBadge session={primarySession} />
         <Badge variant="titanium" className="font-mono">

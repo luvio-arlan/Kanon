@@ -28,16 +28,26 @@
     animation: kanon-popover-enter var(--duration-tactile) var(--ease-kanon);
   }
 
+  .popover__content[data-exiting="true"],
+  .dropdown__popover[data-exiting="true"] {
+    transform-origin: var(--trigger-anchor-point, top);
+    animation: kanon-popover-exit 100ms ease-in forwards;
+  }
+
   .kanon-sheet-container[data-entering="true"] {
-    animation: kanon-sheet-slide-in var(--duration-surface) var(--ease-kanon);
+    animation: kanon-sheet-slide-in var(--duration-overlay-in) var(--ease-kanon);
   }
 
   .kanon-sheet-container[data-exiting="true"] {
-    animation: kanon-sheet-slide-out 110ms ease-in;
+    animation: kanon-sheet-slide-out var(--duration-overlay-out) ease-in forwards;
   }
 
   .kanon-dialog-container[data-entering="true"] {
-    animation: kanon-dialog-enter 160ms var(--ease-kanon);
+    animation: kanon-dialog-enter var(--duration-overlay-in) var(--ease-overlay);
+  }
+
+  .kanon-dialog-container[data-exiting="true"] {
+    animation: kanon-dialog-exit var(--duration-overlay-out) ease-in forwards;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -48,50 +58,6 @@
     .kanon-dialog-container[data-entering="true"] {
       animation: none;
     }
-  }
-}
-
-@keyframes kanon-dialog-enter {
-  from {
-    opacity: 0.96;
-    transform: scale(0.985) translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes kanon-popover-enter {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes kanon-sheet-slide-in {
-  from {
-    transform: translateX(24px);
-    opacity: 0.92;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes kanon-sheet-slide-out {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(20px);
-    opacity: 0;
   }
 }
 

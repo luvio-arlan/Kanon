@@ -7,24 +7,25 @@ export const buttonVariants = tv({
   base: [
     "inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium leading-none",
     "rounded-control text-sm select-none cursor-pointer",
-    "transition-[background-color,border-color,box-shadow,color,opacity] duration-150 motion-reduce:transition-none",
+    "transition-[background-color,border-color,box-shadow,color,filter,transform] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+    "active:translate-y-[0.5px] motion-reduce:active:translate-y-0",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
     "disabled:pointer-events-none disabled:opacity-45",
   ].join(" "),
   variants: {
     variant: {
       primary:
-        "kanon-cta-sheen bg-ink-primary text-ink-inverse border border-ink-primary hover:opacity-90 active:opacity-80 shadow-button-primary",
+        "kanon-cta-sheen bg-ink-primary text-ink-inverse border border-ink-primary hover:brightness-[1.08] active:brightness-95 shadow-button-primary",
       titanium:
-        "bg-titanium text-ink-primary border border-strong/70 hover:bg-titanium-subtle hover:border-strong active:bg-muted shadow-button",
+        "bg-titanium text-ink-primary border border-strong/75 hover:bg-titanium-subtle hover:border-strong active:bg-muted shadow-button",
       outline:
-        "bg-surface text-ink-primary border border-strong/70 hover:border-strong hover:bg-muted/60 active:bg-muted shadow-button",
+        "bg-surface text-ink-primary border border-strong/70 hover:border-strong hover:bg-muted/65 active:bg-muted shadow-button",
       ghost:
         "bg-transparent text-ink-secondary hover:text-ink-primary hover:bg-muted/80 active:bg-muted",
       coral:
-        "bg-accent-coral text-ink-inverse border border-accent-coral hover:opacity-92 active:opacity-85 shadow-button-primary",
+        "kanon-cta-sheen bg-accent-coral text-ink-inverse border border-accent-coral hover:brightness-[1.06] active:brightness-95 shadow-button-primary",
       danger:
-        "bg-surface text-status-fail border border-status-fail/35 hover:border-status-fail/70 hover:bg-status-fail-soft shadow-button",
+        "bg-surface text-status-fail border border-status-fail/35 hover:border-status-fail/70 hover:bg-status-fail-soft active:bg-status-fail-soft/90 shadow-button",
     },
     size: {
       xs: "h-8 gap-1.5 px-2.5 text-xs",

@@ -79,9 +79,9 @@ export function StatCard({
   );
 
   const shellClass = cn(
-    "flex min-w-0 flex-col rounded-card border border-hairline bg-surface shadow-card transition-[border-color,box-shadow] duration-150",
+    "kanon-surface-specular flex min-w-0 flex-col rounded-card border border-hairline bg-surface transition-[border-color,box-shadow,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
     onClick &&
-      "cursor-pointer text-left hover:border-strong hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
+      "cursor-pointer text-left hover:-translate-y-[1.5px] hover:border-strong hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
     className,
   );
 

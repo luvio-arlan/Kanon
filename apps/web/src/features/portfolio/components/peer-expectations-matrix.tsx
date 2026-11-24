@@ -7,7 +7,7 @@ import {
   type PeerCompsMedians,
   type ThesisDetail,
 } from "@kanon/core";
-import { Badge, buttonVariants, Card, MarketSessionBadge } from "@kanon/ui";
+import { Badge, buttonVariants, Card, cn, MarketSessionBadge } from "@kanon/ui";
 import { IconArrowUpRight, IconChartHistogram } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -90,10 +90,14 @@ function PeerCompTr({ row }: { row: PeerCompRow }) {
       <td className="whitespace-nowrap px-4 py-3.5 text-right">
         <Link
           href={`/thesis/${row.thesisId}?step=4`}
-          className={buttonVariants({ variant: "outline", size: "xs" })}
+          className={cn(buttonVariants({ variant: "outline", size: "xs" }), "group/cta")}
         >
           <span>估值</span>
-          <IconArrowUpRight size={13} stroke={1.5} />
+          <IconArrowUpRight
+            size={13}
+            stroke={1.5}
+            className="transition-transform duration-150 group-hover/cta:-translate-y-0.5 group-hover/cta:translate-x-0.5"
+          />
         </Link>
       </td>
     </tr>

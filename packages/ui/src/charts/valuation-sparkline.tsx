@@ -66,14 +66,23 @@ function TerminalDot(props: {
     return null;
   }
   return (
-    <circle
-      cx={props.cx}
-      cy={props.cy}
-      r={3.5}
-      fill="var(--bg-surface)"
-      stroke={props.stroke}
-      strokeWidth={2}
-    />
+    <g>
+      <circle
+        cx={props.cx}
+        cy={props.cy}
+        r={5.5}
+        fill={props.stroke}
+        className="kanon-terminal-halo"
+      />
+      <circle
+        cx={props.cx}
+        cy={props.cy}
+        r={3.5}
+        fill="var(--bg-surface)"
+        stroke={props.stroke}
+        strokeWidth={2}
+      />
+    </g>
   );
 }
 
@@ -142,7 +151,7 @@ export function ValuationSparkline({ data, tone = "ink", targetPrice }: Valuatio
   const pad = Math.max((maxPrice - minPrice) * 0.22, maxPrice * 0.03);
 
   return (
-    <div className="h-16 w-full">
+    <div className="kanon-sparkline-reveal h-16 w-full">
       <SparklineAreaCanvas
         data={data}
         minVal={minPrice - pad}

@@ -1,8 +1,9 @@
 "use client";
 
 import type { AgentBriefing, AgentProposal, AgentTraceStep } from "@kanon/core";
-import { Badge, Button, Sheet } from "@kanon/ui";
+import { Badge, Button, cn, KANON_ROW_ITEM, KANON_ROW_STAGGER, Sheet } from "@kanon/ui";
 import { IconCheck, IconChecks, IconPlayerPlay, IconSparkles } from "@tabler/icons-react";
+import { motion } from "framer-motion";
 import { useState } from "react";
 import { AgentBriefingCard } from "./agent-briefing-card";
 import { AgentTraceLogSection } from "./agent-trace-log";
@@ -40,7 +41,13 @@ function ProposalCard({
   onApply: () => Promise<void>;
 }) {
   return (
-    <div className="rounded-control border border-hairline bg-surface p-3.5 shadow-card">
+    <motion.div
+      variants={KANON_ROW_ITEM}
+      className={cn(
+        "rounded-control border p-3.5 shadow-card transition-colors duration-200",
+        applied ? "border-status-pass/35 bg-status-pass-soft/20" : "border-hairline bg-surface",
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-semibold text-ink-primary">{proposal.title}</span>
         <Badge variant="titanium">{TARGET_LABELS[proposal.target]}</Badge>
@@ -71,7 +78,7 @@ function ProposalCard({
           <span>{applied ? "已采纳" : "采纳写入"}</span>
         </Button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -118,7 +125,12 @@ function ProposalsSection({
     }
   };
   return (
-    <div className="space-y-2.5 rounded-card border border-hairline bg-muted/50 p-3">
+    <motion.div
+      variants={KANON_ROW_STAGGER}
+      initial="hidden"
+      animate="visible"
+      className="space-y-2.5 rounded-card border border-hairline bg-muted/50 p-3"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <span className="text-xs font-medium text-ink-secondary">
           人机共审 Diff 提案（{proposals.length} 条）
@@ -138,7 +150,7 @@ function ProposalsSection({
           onApply={() => onApply(prop)}
         />
       ))}
-    </div>
+    </motion.div>
   );
 }
 

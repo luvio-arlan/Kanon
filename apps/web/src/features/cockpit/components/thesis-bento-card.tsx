@@ -173,12 +173,23 @@ function CardActionFooter({
         <Button variant="outline" size="xs" onClick={() => onQuickInspect(thesis)}>
           速览
         </Button>
-        <Link href={next.href} className={buttonVariants({ variant: "titanium", size: "xs" })}>
+        <Link
+          href={next.href}
+          className={cn(buttonVariants({ variant: "titanium", size: "xs" }), "group/cta")}
+        >
           <span>{next.label}</span>
           {next.isContinue ? (
-            <IconArrowRight size={14} stroke={1.5} className="shrink-0" />
+            <IconArrowRight
+              size={14}
+              stroke={1.5}
+              className="shrink-0 transition-transform duration-150 group-hover/cta:translate-x-0.5"
+            />
           ) : (
-            <IconArrowUpRight size={14} stroke={1.5} className="shrink-0" />
+            <IconArrowUpRight
+              size={14}
+              stroke={1.5}
+              className="shrink-0 transition-transform duration-150 group-hover/cta:-translate-y-0.5 group-hover/cta:translate-x-0.5"
+            />
           )}
         </Link>
       </div>
@@ -192,7 +203,7 @@ export function ThesisBentoCard({ thesis, liveQuote, onQuickInspect }: ThesisBen
 
   return (
     <motion.article whileHover={KANON_CARD_HOVER} className="flex h-full">
-      <Card interactive className="group relative flex w-full flex-col overflow-hidden">
+      <Card interactive spotlight className="group relative flex w-full flex-col overflow-hidden">
         <div
           aria-hidden="true"
           className="h-[2px] w-full origin-left scale-x-0 bg-accent-coral transition-transform duration-200 group-hover:scale-x-100"

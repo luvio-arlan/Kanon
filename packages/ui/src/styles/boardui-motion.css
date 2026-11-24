@@ -126,8 +126,63 @@
   animation: kanon-session-breathe 2.4s ease-in-out infinite;
 }
 
+@keyframes kanon-sparkline-clip {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.35;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+.kanon-sparkline-reveal {
+  animation: kanon-sparkline-clip 680ms var(--ease-kanon) both;
+}
+
+@keyframes kanon-terminal-pulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.1;
+    transform: scale(1.7);
+  }
+}
+
+.kanon-terminal-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kanon-terminal-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes kanon-cell-confirm {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-coral);
+  }
+  50% {
+    box-shadow: 0 0 0 6px var(--accent-coral-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.kanon-cell-flash {
+  animation: kanon-cell-confirm 380ms var(--ease-kanon);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .kanon-session-dot {
+  .kanon-session-dot,
+  .kanon-sparkline-reveal,
+  .kanon-terminal-halo,
+  .kanon-cell-flash,
+  .popover__content[data-exiting="true"],
+  .dropdown__popover[data-exiting="true"],
+  .kanon-dialog-container[data-exiting="true"] {
     animation: none;
   }
   .kanon-agent-shimmer-text {

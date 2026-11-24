@@ -6,8 +6,9 @@ import type {
   PortfolioAnalytics,
   ThesisDetail,
 } from "@kanon/core";
-import { ActionMenu, Button, SearchField } from "@kanon/ui";
+import { ActionMenu, Button, KANON_TITLE_SWAP, SearchField } from "@kanon/ui";
 import { IconCheck, IconChevronDown, IconPlus } from "@tabler/icons-react";
+import { motion } from "framer-motion";
 import type { RefObject } from "react";
 import { AttentionRadarStrip, LiveMarketStrip } from "@/features/portfolio";
 import { PortfolioTelemetryStrip } from "./portfolio-telemetry-strip";
@@ -133,13 +134,25 @@ function EditorialMasthead(props: CockpitHeaderProps) {
   return (
     <header className="flex flex-col justify-between gap-4 border-b border-hairline pb-5 pt-1 xl:flex-row xl:items-end">
       <div className="space-y-2">
-        <div className="h-[1.5px] w-8 bg-accent-coral" />
-        <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+        <motion.div
+          key={`rule-${titleKey}`}
+          initial={{ scaleX: 0.35, opacity: 0.5 }}
+          animate={{ scaleX: 1, opacity: 1 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          className="h-[1.5px] w-8 origin-left bg-accent-coral"
+        />
+        <motion.div
+          key={titleKey}
+          variants={KANON_TITLE_SWAP}
+          initial="hidden"
+          animate="visible"
+          className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1"
+        >
           <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary sm:text-[32px]">
             {meta.zh}
           </h1>
           <span className="kanon-serif-italic text-2xl sm:text-[30px]">{meta.en}</span>
-        </div>
+        </motion.div>
         <AttentionRadarStrip
           analytics={props.analytics}
           onFocusBuyZone={props.onFocusBuyZone}
