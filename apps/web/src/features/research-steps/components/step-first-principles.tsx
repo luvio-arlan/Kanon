@@ -52,24 +52,17 @@ function TranscriptInputCard({
   onOpenClipper: () => void;
 }) {
   return (
-    <Card className="space-y-3 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="text-sm font-semibold text-ink-primary">
-            电话会纪要 / 10-K 原文精读提炼
-          </div>
-          <div className="mt-0.5 text-xs text-ink-muted">
-            粘贴 Earnings Call 原文后，可用 AI 提炼或打开精读器划词摘录至互证与离场红线
-          </div>
-        </div>
+    <Card className="space-y-4 p-6 sm:p-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-semibold text-ink-primary">电话会纪要 / 10-K 原文精读</h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onOpenClipper}>
-            <IconScissors size={14} stroke={1.5} />
-            <span>精读与划词摘录</span>
+            <IconScissors size={15} stroke={1.5} />
+            <span>精读摘录</span>
           </Button>
           <Button variant="titanium" size="sm" loading={loading} onClick={onRun}>
-            {!loading ? <IconSparkles size={14} stroke={1.5} /> : null}
-            <span>{loading ? "提炼中" : "提炼电话会"}</span>
+            {!loading ? <IconSparkles size={15} stroke={1.5} /> : null}
+            <span>{loading ? "提炼中" : "AI 提炼"}</span>
           </Button>
         </div>
       </div>
@@ -77,8 +70,8 @@ function TranscriptInputCard({
       <Textarea
         value={sourceText}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="可选：粘贴季度电话会管理层问答、CapEx 指引或 10-K 风险段落..."
-        className="min-h-[80px]"
+        placeholder="粘贴季度电话会管理层问答、CapEx 指引或 10-K 风险段落..."
+        className="min-h-[104px]"
       />
     </Card>
   );
@@ -128,10 +121,18 @@ function isCrossCheckArray(val: unknown): val is CrossCheck[] {
 
 function StepThreeHeading() {
   return (
-    <div>
-      <h2 className="text-lg font-semibold text-ink-primary">Step 3 · 一阶资料印证</h2>
-      <p className="mt-0.5 text-xs text-ink-muted">用官方财报与上下游口径交叉验证核心假设</p>
-    </div>
+    <header className="space-y-2 border-b border-hairline pb-5">
+      <div className="flex items-center gap-2.5">
+        <span className="h-[1.5px] w-7 bg-accent-coral" />
+        <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 03</span>
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+        <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary">
+          一阶资料印证
+        </h1>
+        <span className="kanon-serif-italic text-2xl">Primary Sources</span>
+      </div>
+    </header>
   );
 }
 

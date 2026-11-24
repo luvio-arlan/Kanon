@@ -99,6 +99,7 @@
   --color-canvas: var(--bg-canvas);
   --color-surface: var(--bg-surface);
   --color-surface-elevated: var(--bg-surface-elevated);
+  --color-sidebar: var(--bg-sidebar);
   --color-muted: var(--bg-muted);
   --color-titanium: var(--bg-titanium);
   --color-titanium-subtle: var(--bg-titanium-subtle);
@@ -127,6 +128,9 @@
   --radius-pill: var(--radius-pill);
   --shadow-card: var(--shadow-card);
   --shadow-card-hover: var(--shadow-card-hover);
+  --shadow-sidebar: var(--shadow-sidebar);
+  --shadow-group: var(--shadow-group);
+  --shadow-coral-glow: var(--shadow-coral-glow);
   --shadow-button: var(--shadow-button);
   --shadow-button-primary: var(--shadow-button-primary);
   --shadow-pill-active: var(--shadow-pill-active);
@@ -235,7 +239,6 @@ a:focus:not(:focus-visible),
   .no-print {
     display: none;
   }
-
   body {
     background-color: var(--bg-surface);
   }

@@ -9,7 +9,7 @@ import type {
   ThesisRevision,
 } from "@kanon/core";
 import { Button, KANON_LENS_VARIANTS, KANON_TRANSITION_FAST, SegmentedTabs } from "@kanon/ui";
-import { IconPlus } from "@tabler/icons-react";
+import { IconChevronUp, IconPlus } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import { DecisionComposerCard } from "./discipline-composer";
@@ -37,10 +37,18 @@ type Step5Tab = "ledger" | "reviews" | "memo" | "revisions";
 
 function Step5Header() {
   return (
-    <div>
-      <h2 className="text-lg font-semibold text-ink-primary">Step 5 · 交易纪律与备忘录</h2>
-      <p className="mt-0.5 text-xs text-ink-muted">建仓前先定离场红线，持续沉淀复盘与一页备忘录</p>
-    </div>
+    <header className="space-y-2 border-b border-hairline pb-5">
+      <div className="flex items-center gap-2.5">
+        <span className="h-[1.5px] w-7 bg-accent-coral" />
+        <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 05</span>
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+        <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary">
+          纪律与备忘录
+        </h1>
+        <span className="kanon-serif-italic text-2xl">Discipline & Memo</span>
+      </div>
+    </header>
   );
 }
 
@@ -101,7 +109,6 @@ function Step5TabContent(
   if (props.tab === "memo") {
     return (
       <InvestmentMemoCard
-        thesisId={props.thesis.id}
         memo={props.investmentMemo}
         loading={props.memoLoading}
         onGenerate={props.onGenerateMemo}
@@ -161,7 +168,11 @@ export function DisciplineJournal(props: DisciplineJournalProps) {
         />
         {tab === "ledger" ? (
           <Button variant="primary" size="sm" onClick={() => setComposerOpen((v) => !v)}>
-            <IconPlus size={14} stroke={1.5} />
+            {composerOpen ? (
+              <IconChevronUp size={15} stroke={1.5} />
+            ) : (
+              <IconPlus size={15} stroke={1.5} />
+            )}
             <span>{composerOpen ? "收起记录单" : "记录新决策"}</span>
           </Button>
         ) : null}

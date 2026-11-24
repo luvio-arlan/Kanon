@@ -48,6 +48,21 @@ export {
 } from "./components/forms/segmented-tabs";
 export { Textarea, type TextareaProps } from "./components/forms/textarea";
 export {
+  SidebarThemeSwitch,
+  type SidebarThemeSwitchProps,
+} from "./components/layout/sidebar-theme-switch";
+export {
+  SidebarNavItem,
+  type SidebarNavItemProps,
+  SidebarSearchTrigger,
+  SidebarSection,
+  type SidebarSectionProps,
+} from "./components/layout/workbench-nav";
+export {
+  WorkbenchShell,
+  type WorkbenchShellProps,
+} from "./components/layout/workbench-shell";
+export {
   ActionMenu,
   type ActionMenuItem,
   type ActionMenuProps,
@@ -68,11 +83,26 @@ export {
   type ScrollFadeProps,
   useScrollFade,
 } from "./components/overlays/scroll-fade";
+export {
+  SettingsCard,
+  SettingsDialogShell,
+  type SettingsDialogShellProps,
+  type SettingsNavTab,
+  SettingsRow,
+  SettingsSectionLabel,
+} from "./components/overlays/settings-shell";
 export { Sheet, type SheetProps } from "./components/overlays/sheet";
 export { Toaster } from "./components/overlays/toaster";
 export { Tooltip, type TooltipProps } from "./components/overlays/tooltip";
 export { Badge, type BadgeProps, badgeVariants } from "./components/primitives/badge";
 export { Button, type ButtonProps, buttonVariants } from "./components/primitives/button";
+export {
+  ButtonGroup,
+  ButtonGroupItem,
+  type ButtonGroupItemProps,
+  type ButtonGroupProps,
+  type ButtonGroupTone,
+} from "./components/primitives/button-group";
 export {
   Card,
   CardContent,

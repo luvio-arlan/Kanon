@@ -6,7 +6,7 @@ import {
   type ValuationCaseResult,
 } from "@kanon/core";
 import { Badge, Button, buttonVariants, Input, Sheet } from "@kanon/ui";
-import { IconArrowUpRight, IconCheck, IconDownload } from "@tabler/icons-react";
+import { IconArrowUpRight, IconCheck } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PositionEditorPanel } from "@/features/portfolio";
@@ -175,28 +175,13 @@ function SheetBody({
 function SheetFooterActions({ thesis, onClose }: { thesis: ThesisDetail; onClose: () => void }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
-        <Link
-          href={`/thesis/${thesis.id}`}
-          className={buttonVariants({ variant: "primary", size: "md" })}
-        >
-          <span>进入五步画布</span>
-          <IconArrowUpRight size={15} stroke={1.5} />
-        </Link>
-        <a
-          href={`/api/export/thesis/${thesis.id}?format=gdoc`}
-          className="inline-flex h-9 items-center gap-1.5 rounded-control border border-hairline bg-surface px-3 text-xs font-medium text-ink-secondary hover:border-strong hover:text-ink-primary"
-        >
-          <IconDownload size={14} stroke={1.5} />
-          <span>研报</span>
-        </a>
-        <a
-          href={`/api/export/thesis/${thesis.id}?format=json`}
-          className="inline-flex h-9 items-center gap-1 rounded-control border border-hairline bg-surface px-2.5 font-mono text-xs text-ink-muted hover:border-strong hover:text-ink-primary"
-        >
-          JSON
-        </a>
-      </div>
+      <Link
+        href={`/thesis/${thesis.id}`}
+        className={buttonVariants({ variant: "primary", size: "md" })}
+      >
+        <span>进入五步画布</span>
+        <IconArrowUpRight size={15} stroke={1.5} />
+      </Link>
       <Button variant="outline" size="md" onClick={onClose}>
         关闭
       </Button>

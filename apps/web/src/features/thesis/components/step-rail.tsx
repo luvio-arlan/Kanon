@@ -5,9 +5,15 @@ import {
   calculateResearchReadiness,
   type ThesisDetail,
 } from "@kanon/core";
-import { cn, KANON_TAB_TRANSITION, ProgressBar, ReadinessRing, RollingNumber } from "@kanon/ui";
+import {
+  ProgressBar,
+  ReadinessRing,
+  RollingNumber,
+  SidebarNavItem,
+  SidebarSection,
+} from "@kanon/ui";
 import { IconCheck } from "@tabler/icons-react";
-import { motion } from "framer-motion";
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 
 export type StepId = 1 | 2 | 3 | 4 | 5;
@@ -20,89 +26,112 @@ const STEPS: ReadonlyArray<{ id: StepId; code: string; title: string }> = [
   { id: 5, code: "05", title: "纪律与备忘录" },
 ];
 
-function StepRailItem({
-  step,
-  active,
-  complete,
-  onSelect,
-}: {
-  step: (typeof STEPS)[number];
-  active: boolean;
-  complete: boolean;
-  onSelect: () => void;
-}) {
+function AnchorMetricRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        "relative flex w-full cursor-pointer items-center justify-between gap-2 rounded-control px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-coral/70",
-        active ? "text-ink-primary" : "text-ink-secondary hover:bg-muted/50 hover:text-ink-primary",
-      )}
-    >
-      {active ? (
-        <motion.span
-          layoutId="canvas-step-rail-bg"
-          transition={KANON_TAB_TRANSITION}
-          className="pointer-events-none absolute inset-0 rounded-control border border-hairline bg-surface shadow-pill-active"
-        />
-      ) : null}
-      {active ? (
-        <motion.span
-          layoutId="canvas-step-rail-bar"
-          transition={KANON_TAB_TRANSITION}
-          className="pointer-events-none absolute bottom-2 left-0 top-2 w-0.5 rounded-pill bg-accent-coral"
-        />
-      ) : null}
-      <span className="relative z-10 flex min-w-0 items-center gap-2.5">
-        <span className="font-mono text-xs text-ink-muted tabular-nums">{step.code}</span>
-        <span className={cn("truncate text-sm", active ? "font-semibold" : "font-medium")}>
-          {step.title}
-        </span>
-      </span>
-      {complete ? (
-        <IconCheck size={13} stroke={1.5} className="relative z-10 shrink-0 text-status-pass" />
-      ) : null}
-    </button>
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-ink-muted">{label}</span>
+      {value}
+    </div>
   );
 }
 
-function PeripheralAnchorSummary({ thesis }: { thesis: ThesisDetail }) {
+function AnchorHeadline({
+  horizonYears,
+  targetPrice,
+  ratio,
+}: {
+  horizonYears: number;
+  targetPrice: number;
+  ratio: string;
+}) {
+  return (
+    <>
+      <div className="flex items-baseline justify-between gap-2 text-xs text-ink-muted">
+        <span className="font-medium">中性目标价</span>
+        <span className="font-mono tabular-nums">{horizonYears}Y</span>
+      </div>
+      <div className="mt-1.5 flex items-baseline justify-between gap-2">
+        <RollingNumber
+          value={targetPrice}
+          prefix="$"
+          decimals={1}
+          className="text-2xl font-light tracking-[-0.035em] text-ink-primary"
+        />
+        <span className="font-mono text-xs font-semibold text-accent-coral tabular-nums">
+          {ratio}
+        </span>
+      </div>
+    </>
+  );
+}
+
+function ValuationAnchorCard({ thesis }: { thesis: ThesisDetail }) {
   const { valuation } = thesis;
   const exp = useMemo(() => calculateImpliedExpectations({ summary: valuation }), [valuation]);
+  const ratio =
+    valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞";
+  const hurdleCls = exp.isBelowHurdle15
+    ? "font-mono font-semibold text-status-pass tabular-nums"
+    : "font-mono text-ink-secondary tabular-nums";
+
   return (
-    <div className="rounded-card border border-hairline bg-muted/60 p-1.5 font-mono text-xs tabular-nums">
-      <div className="flex items-center justify-between px-2.5 py-1.5 text-ink-muted">
-        <span className="font-sans font-medium text-ink-secondary">实时估值锚点</span>
-        <span>{valuation.horizonYears}Y</span>
+    <div className="rounded-control border border-hairline bg-surface p-3.5 shadow-card">
+      <AnchorHeadline
+        horizonYears={valuation.horizonYears}
+        targetPrice={valuation.base.targetPrice}
+        ratio={ratio}
+      />
+      <div className="mt-3 space-y-2 border-t border-hairline pt-2.5 text-xs">
+        <AnchorMetricRow
+          label="当前参考"
+          value={
+            <span className="font-mono font-medium text-ink-primary tabular-nums">
+              ${thesis.currentPrice.toFixed(1)}
+            </span>
+          }
+        />
+        <AnchorMetricRow
+          label="安全边际"
+          value={
+            <span className="font-mono font-medium text-ink-primary tabular-nums">
+              {exp.marginOfSafetyPct.toFixed(0)}%
+            </span>
+          }
+        />
+        <AnchorMetricRow
+          label="15% 安全买点"
+          value={
+            <span className={hurdleCls}>
+              <RollingNumber value={exp.hurdleEntry15} prefix="$" decimals={1} />
+            </span>
+          }
+        />
       </div>
-      <div className="space-y-1.5 rounded-control border border-hairline bg-surface px-3 py-2.5 shadow-card">
-        <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-          <span className="font-sans text-ink-secondary">当前参考</span>
-          <span className="font-medium text-ink-primary">${thesis.currentPrice.toFixed(1)}</span>
-        </div>
-        <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-          <span className="font-sans text-ink-secondary">中性目标</span>
-          <span className="font-semibold text-ink-primary">
-            <RollingNumber value={valuation.base.targetPrice} prefix="$" decimals={1} />
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-          <span className="font-sans text-ink-secondary">赔率 / 边际</span>
-          <span className="text-ink-primary">
-            {valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞"}{" "}
-            · {exp.marginOfSafetyPct.toFixed(0)}%
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-2 whitespace-nowrap border-t border-hairline pt-1.5">
-          <span className="font-sans text-ink-secondary">15% 买点</span>
-          <span
-            className={exp.isBelowHurdle15 ? "font-semibold text-status-pass" : "text-ink-muted"}
-          >
-            <RollingNumber value={exp.hurdleEntry15} prefix="$" decimals={1} />
-          </span>
-        </div>
+    </div>
+  );
+}
+
+function StepProgressHeader({
+  completedCount,
+  scorePct,
+}: {
+  completedCount: number;
+  scorePct: number;
+}) {
+  return (
+    <div className="space-y-2 px-1">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs text-ink-muted tabular-nums">
+          研究进度 · {completedCount}/5 步
+        </span>
+        <ReadinessRing scorePct={scorePct} size={22} />
       </div>
+      <ProgressBar
+        value={scorePct}
+        max={100}
+        tone={scorePct >= 100 ? "pass" : "accent"}
+        size="sm"
+      />
     </div>
   );
 }
@@ -110,46 +139,43 @@ function PeripheralAnchorSummary({ thesis }: { thesis: ThesisDetail }) {
 export function StepRail({
   activeStep,
   thesis,
+  collapsed = false,
   onSelect,
 }: {
   activeStep: StepId;
   thesis: ThesisDetail;
+  collapsed?: boolean;
   onSelect: (step: StepId) => void;
 }) {
   const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
-  const activeStepMeta = readiness.steps[activeStep - 1];
 
   return (
-    <aside className="no-print space-y-5 lg:sticky lg:top-20 lg:self-start">
-      <div className="space-y-2.5 px-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs font-medium text-ink-secondary">研究进度</div>
-            <div className="mt-0.5 font-mono text-xs text-ink-muted tabular-nums">
-              {readiness.completedCount}/5 步 · {activeStepMeta?.hint}
-            </div>
-          </div>
-          <ReadinessRing scorePct={readiness.scorePct} size={28} />
-        </div>
-        <ProgressBar
-          value={readiness.scorePct}
-          max={100}
-          tone={readiness.scorePct >= 100 ? "pass" : "accent"}
-          size="sm"
+    <div className="space-y-4">
+      {!collapsed ? (
+        <StepProgressHeader
+          completedCount={readiness.completedCount}
+          scorePct={readiness.scorePct}
         />
-      </div>
-      <nav aria-label="五步研究进度" className="space-y-0.5">
+      ) : null}
+      <SidebarSection title="五步研究工作台" collapsed={collapsed}>
         {STEPS.map((step, idx) => (
-          <StepRailItem
+          <SidebarNavItem
             key={step.id}
-            step={step}
+            label={step.title}
+            code={step.code}
             active={activeStep === step.id}
-            complete={Boolean(readiness.steps[idx]?.complete)}
-            onSelect={() => onSelect(step.id)}
+            collapsed={collapsed}
+            layoutId="research-step-tab"
+            trailing={
+              readiness.steps[idx]?.complete ? (
+                <IconCheck size={14} stroke={1.5} className="text-status-pass" />
+              ) : null
+            }
+            onClick={() => onSelect(step.id)}
           />
         ))}
-      </nav>
-      <PeripheralAnchorSummary thesis={thesis} />
-    </aside>
+      </SidebarSection>
+      {!collapsed ? <ValuationAnchorCard thesis={thesis} /> : null}
+    </div>
   );
 }

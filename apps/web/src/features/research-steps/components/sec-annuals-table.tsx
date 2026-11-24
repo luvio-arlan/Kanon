@@ -98,15 +98,15 @@ function SecAnnualRow({ row }: { row: SecAnnualFinancial }) {
 function SecTableGrid({ annuals }: { annuals: readonly SecAnnualFinancial[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[540px] border-collapse font-mono text-xs tabular-nums">
+      <table className="w-full min-w-[560px] border-collapse font-mono text-sm tabular-nums">
         <thead>
-          <tr className="bg-muted/45 font-sans text-ink-muted">
-            <th className="px-5 py-2.5 text-left font-medium">财年</th>
-            <th className="px-3 py-2.5 text-right font-medium">营业收入</th>
-            <th className="px-3 py-2.5 text-right font-medium">毛利率</th>
-            <th className="px-3 py-2.5 text-right font-medium">净利润</th>
-            <th className="px-3 py-2.5 text-right font-medium">自由现金流</th>
-            <th className="px-5 py-2.5 text-right font-medium">稀释 EPS</th>
+          <tr className="bg-muted/45 font-sans text-xs text-ink-muted">
+            <th className="px-6 py-3 text-left font-medium">财年</th>
+            <th className="px-4 py-3 text-right font-medium">营业收入</th>
+            <th className="px-4 py-3 text-right font-medium">毛利率</th>
+            <th className="px-4 py-3 text-right font-medium">净利润</th>
+            <th className="px-4 py-3 text-right font-medium">自由现金流</th>
+            <th className="px-6 py-3 text-right font-medium">稀释 EPS</th>
           </tr>
         </thead>
         <tbody>

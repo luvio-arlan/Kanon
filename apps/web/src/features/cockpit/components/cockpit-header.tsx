@@ -1,8 +1,8 @@
 "use client";
 
-import type { PortfolioAnalytics } from "@kanon/core";
-import { ActionMenu, SearchField, SegmentedTabs } from "@kanon/ui";
-import { IconCheck, IconChevronDown, IconLayoutGrid, IconTable } from "@tabler/icons-react";
+import type { PortfolioAnalytics, ThesisDetail } from "@kanon/core";
+import { ActionMenu, Button, SearchField } from "@kanon/ui";
+import { IconCheck, IconChevronDown, IconPlus } from "@tabler/icons-react";
 import type { RefObject } from "react";
 import { AttentionRadarStrip } from "@/features/portfolio";
 import { PortfolioTelemetryStrip } from "./portfolio-telemetry-strip";
@@ -20,27 +20,34 @@ export interface CockpitFilterCounts {
 
 export interface CockpitHeaderProps {
   analytics: PortfolioAnalytics;
+  theses: readonly ThesisDetail[];
   filter: CockpitFilter;
-  filterCounts: CockpitFilterCounts;
   viewMode: CockpitViewMode;
   sortBy: CockpitSortBy;
   query: string;
   searchInputRef: RefObject<HTMLInputElement | null>;
-  onFilterChange: (next: CockpitFilter) => void;
-  onViewModeChange: (next: CockpitViewMode) => void;
   onSortChange: (next: CockpitSortBy) => void;
   onQueryChange: (next: string) => void;
+  onNewThesis: () => void;
   onFocusBuyZone: () => void;
   onFocusWarnings: () => void;
   onOpenStressTest: () => void;
 }
 
 const SORT_OPTIONS: ReadonlyArray<{ id: CockpitSortBy; label: string }> = [
-  { id: "index", label: "默认" },
+  { id: "index", label: "默认顺序" },
   { id: "odds", label: "赔率优先" },
   { id: "cagr", label: "年化优先" },
   { id: "margin", label: "安全边际" },
 ];
+
+const VIEW_TITLES: Record<string, { zh: string; en: string }> = {
+  matrix: { zh: "横向赔率矩阵", en: "Comparison" },
+  all: { zh: "研究总览", en: "Convictions" },
+  attractive: { zh: "高赔率机会", en: "Asymmetry" },
+  attention: { zh: "假设预警", en: "Vigilance" },
+  archived: { zh: "已否决归档", en: "Archive" },
+};
 
 function SortDropdown({
   sortBy,
@@ -49,7 +56,7 @@ function SortDropdown({
   sortBy: CockpitSortBy;
   onSortChange: (next: CockpitSortBy) => void;
 }) {
-  const activeSortLabel = SORT_OPTIONS.find((opt) => opt.id === sortBy)?.label ?? "默认";
+  const activeLabel = SORT_OPTIONS.find((opt) => opt.id === sortBy)?.label ?? "默认顺序";
   const items = SORT_OPTIONS.map((opt) => ({
     id: opt.id,
     label: opt.label,
@@ -66,64 +73,53 @@ function SortDropdown({
     <ActionMenu
       ariaLabel="标的排序方式"
       items={items}
-      triggerClassName="h-9 rounded-pill px-3"
+      triggerClassName="h-10 px-3.5"
       trigger={
         <>
-          <span>{activeSortLabel}</span>
-          <IconChevronDown size={13} stroke={1.5} className="text-ink-muted" />
+          <span>{activeLabel}</span>
+          <IconChevronDown size={14} stroke={1.5} className="text-ink-muted" />
         </>
       }
     />
   );
 }
 
-function CockpitControlBar(props: CockpitHeaderProps) {
-  const filterItems = [
-    { id: "all" as const, label: "全部", count: props.filterCounts.all },
-    { id: "attractive" as const, label: "高赔率", count: props.filterCounts.attractive },
-    { id: "attention" as const, label: "需关注", count: props.filterCounts.attention },
-    ...(props.filterCounts.archived > 0
-      ? [{ id: "archived" as const, label: "已否决", count: props.filterCounts.archived }]
-      : []),
-  ];
-
+function MastheadActions(props: CockpitHeaderProps) {
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-      <SegmentedTabs
-        layoutId="cockpit-filter-pill"
-        value={props.filter}
-        onChange={props.onFilterChange}
-        items={filterItems}
+    <div className="flex flex-wrap items-center gap-2.5">
+      <SearchField
+        value={props.query}
+        onChange={props.onQueryChange}
+        inputRef={props.searchInputRef}
+        placeholder="筛选代码或公司 ( / )"
+        ariaLabel="筛选标的"
+        className="w-full sm:w-56"
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <SearchField
-          value={props.query}
-          onChange={props.onQueryChange}
-          inputRef={props.searchInputRef}
-          placeholder="筛选代码 ( / )"
-          ariaLabel="筛选标的"
-          className="w-40 sm:w-44"
-        />
+      {props.viewMode === "cards" ? (
         <SortDropdown sortBy={props.sortBy} onSortChange={props.onSortChange} />
-        <SegmentedTabs
-          layoutId="cockpit-view-pill"
-          value={props.viewMode}
-          onChange={props.onViewModeChange}
-          items={[
-            { id: "cards", label: "卡片", icon: <IconLayoutGrid size={13} stroke={1.5} /> },
-            { id: "table", label: "矩阵", icon: <IconTable size={13} stroke={1.5} /> },
-          ]}
-        />
-      </div>
+      ) : null}
+      <Button variant="primary" size="md" onClick={props.onNewThesis}>
+        <IconPlus size={16} stroke={1.5} />
+        <span>新建标的</span>
+      </Button>
     </div>
   );
 }
 
-export function CockpitHeader(props: CockpitHeaderProps) {
+function EditorialMasthead(props: CockpitHeaderProps) {
+  const titleKey = props.viewMode === "table" ? "matrix" : props.filter;
+  const meta = VIEW_TITLES[titleKey] ?? { zh: "研究总览", en: "Convictions" };
+
   return (
-    <section className="pb-6 pt-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-ink-primary">研究工作台</h1>
+    <header className="flex flex-col justify-between gap-4 border-b border-hairline pb-5 pt-1 xl:flex-row xl:items-end">
+      <div className="space-y-2">
+        <div className="h-[1.5px] w-8 bg-accent-coral" />
+        <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary sm:text-[32px]">
+            {meta.zh}
+          </h1>
+          <span className="kanon-serif-italic text-2xl sm:text-[30px]">{meta.en}</span>
+        </div>
         <AttentionRadarStrip
           analytics={props.analytics}
           onFocusBuyZone={props.onFocusBuyZone}
@@ -131,11 +127,20 @@ export function CockpitHeader(props: CockpitHeaderProps) {
           onOpenStressTest={props.onOpenStressTest}
         />
       </div>
+      <MastheadActions {...props} />
+    </header>
+  );
+}
+
+export function CockpitHeader(props: CockpitHeaderProps) {
+  return (
+    <section className="space-y-5">
+      <EditorialMasthead {...props} />
       <PortfolioTelemetryStrip
         analytics={props.analytics}
+        theses={props.theses}
         onOpenStressTest={props.onOpenStressTest}
       />
-      <CockpitControlBar {...props} />
     </section>
   );
 }

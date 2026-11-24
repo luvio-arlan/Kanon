@@ -2,7 +2,7 @@
 
 import type { ThesisDetail } from "@kanon/core";
 import { Button, Card } from "@kanon/ui";
-import { IconChevronDown, IconColumns3, IconDownload } from "@tabler/icons-react";
+import { IconChevronDown, IconColumns3 } from "@tabler/icons-react";
 import { useState } from "react";
 import {
   COMPARISON_SORT_COLS,
@@ -20,7 +20,7 @@ function SortableTh(props: {
 }) {
   const iconCls = `transition-transform duration-150 ${props.active ? "text-accent-coral" : "opacity-45"} ${props.active && props.dir === "asc" ? "rotate-180" : ""}`;
   return (
-    <th className="whitespace-nowrap px-4 py-3.5 text-right">
+    <th className="whitespace-nowrap px-3 py-3.5 text-right">
       <button
         type="button"
         onClick={props.onClick}
@@ -41,25 +41,14 @@ function TableHeaderBar({
   onOpenCompare: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-5 py-3.5">
-      <div className="text-xs font-medium text-ink-secondary">
-        全仓横向赔率矩阵 · 勾选 2–3 只标的即可并排对比
-      </div>
-      <div className="flex items-center gap-2">
-        {selectedCount >= 2 ? (
-          <Button variant="primary" size="sm" onClick={onOpenCompare}>
-            <IconColumns3 size={13} stroke={1.5} />
-            <span>{`并排对比 (${selectedCount})`}</span>
-          </Button>
-        ) : null}
-        <a
-          href="/api/export/portfolio"
-          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-control border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
-        >
-          <IconDownload size={13} stroke={1.5} />
-          <span>导出 CSV 台账</span>
-        </a>
-      </div>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-5 py-3.5">
+      <div className="text-sm font-medium text-ink-secondary">勾选 2–3 只标的即可发起并排对比</div>
+      {selectedCount >= 2 ? (
+        <Button variant="primary" size="sm" onClick={onOpenCompare}>
+          <IconColumns3 size={15} stroke={1.5} />
+          <span>{`并排对比 (${selectedCount})`}</span>
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -76,9 +65,9 @@ function ComparisonTableHead({
   return (
     <thead>
       <tr className="bg-muted/50 text-xs font-medium text-ink-muted">
-        <th className="whitespace-nowrap px-5 py-3.5">标的与仓位</th>
-        <th className="whitespace-nowrap px-4 py-3.5 text-right">现价 / 15%买点</th>
-        <th className="whitespace-nowrap px-4 py-3.5 text-right">中性目标 / 空间</th>
+        <th className="whitespace-nowrap px-4 py-3.5">标的与仓位</th>
+        <th className="whitespace-nowrap px-3 py-3.5 text-right">现价 / 买点</th>
+        <th className="whitespace-nowrap px-3 py-3.5 text-right">中性目标</th>
         {COMPARISON_SORT_COLS.map((c) => (
           <SortableTh
             key={c.key}
@@ -88,7 +77,7 @@ function ComparisonTableHead({
             onClick={() => onSort(c.key)}
           />
         ))}
-        <th className="whitespace-nowrap px-5 py-3.5 text-right">操作</th>
+        <th className="whitespace-nowrap px-4 py-3.5 text-right">操作</th>
       </tr>
     </thead>
   );
@@ -123,7 +112,7 @@ export function PortfolioComparisonTable({
     <Card className="overflow-hidden">
       <TableHeaderBar selectedCount={selectedIds.length} onOpenCompare={onOpenCompare} />
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px] border-collapse text-left">
+        <table className="w-full min-w-[820px] border-collapse text-left">
           <ComparisonTableHead sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
           <tbody>
             {sorted.map((thesis) => (

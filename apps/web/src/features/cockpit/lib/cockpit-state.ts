@@ -142,8 +142,7 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
     theme,
     onOpenThesis: (item) => router.push(`/thesis/${item.id}`),
     onNewThesis: () => setModal("create", true),
-    onOpenAiSettings: () => setModal("ai", true),
-    onExportCsv: () => window.location.assign("/api/export/portfolio"),
+    onOpenSettings: () => setModal("ai", true),
     onToggleTheme: toggleTheme,
   });
 

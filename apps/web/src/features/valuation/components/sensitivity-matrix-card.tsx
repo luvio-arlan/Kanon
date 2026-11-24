@@ -15,11 +15,10 @@ function cellToneClass(
   isCenter: boolean,
   isCrosshair: boolean,
 ): string {
-  const ring = isCenter
-    ? "ring-1 ring-ink-primary font-semibold"
-    : isCrosshair
-      ? "ring-1 ring-strong"
-      : "";
+  if (isCenter) {
+    return "bg-accent-coral text-ink-inverse font-semibold shadow-coral-glow ring-1 ring-accent-coral";
+  }
+  const ring = isCrosshair ? "ring-1 ring-strong" : "border border-hairline";
   if (zone === "margin") return cn("bg-status-pass-soft/75 text-status-pass", ring);
   if (zone === "risk") return cn("bg-status-fail-soft/70 text-status-fail", ring);
   return cn("bg-surface text-ink-primary", ring);
@@ -44,15 +43,15 @@ function MatrixCellButton(props: {
         onClick={onSelect}
         title="点击将该 (EPS, PE) 组合设为中性基准"
         className={cn(
-          "block w-full rounded-control px-2 py-2 text-center transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
+          "block w-full rounded-control px-2.5 py-3 text-center transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
           onSelect ? "cursor-pointer hover:scale-[1.02]" : "cursor-default",
           cellToneClass(cell.zone, isCenter, isCrosshair),
         )}
       >
-        <div className="text-sm">
+        <div className="text-base font-medium">
           {metric === "price" ? `$${cell.targetPrice.toFixed(0)}` : `${cell.cagrPct.toFixed(1)}%`}
         </div>
-        <div className="opacity-80">
+        <div className="mt-0.5 text-xs opacity-80">
           {metric === "price"
             ? `${sign}${cell.returnPct.toFixed(0)}%`
             : `$${cell.targetPrice.toFixed(0)}`}
@@ -131,10 +130,10 @@ function MatrixHeader({
   onMetric: (next: MatrixMetric) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 pb-5">
       <div>
-        <h3 className="text-sm font-semibold text-ink-primary">5×5 估值敏感度矩阵（EPS × PE）</h3>
-        <p className="mt-0.5 text-xs text-ink-muted">{caption}</p>
+        <h3 className="text-base font-semibold text-ink-primary">5×5 估值敏感度矩阵（EPS × PE）</h3>
+        <p className="mt-1 font-mono text-xs text-ink-muted tabular-nums">{caption}</p>
       </div>
       <SegmentedTabs
         layoutId="sensitivity-metric-mode"
@@ -161,10 +160,10 @@ export function SensitivityMatrixCard({
   const activeCell = hovered ? matrix.rows[hovered.r]?.[hovered.c] : null;
   const caption = activeCell
     ? `EPS $${activeCell.eps.toFixed(2)} × ${activeCell.pe}x → $${activeCell.targetPrice.toFixed(1)} · CAGR ${activeCell.cagrPct.toFixed(1)}%`
-    : "绿区 ≥35% 安全边际 · 点击任意格一键回填中性基准";
+    : "点击任意矩阵格一键回填中性基准";
 
   return (
-    <Card className="overflow-hidden p-5" onMouseLeave={() => setHovered(null)}>
+    <Card className="overflow-hidden p-6 sm:p-7" onMouseLeave={() => setHovered(null)}>
       <MatrixHeader caption={caption} metric={metric} onMetric={setMetric} />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] border-separate border-spacing-1.5 font-mono text-xs tabular-nums">

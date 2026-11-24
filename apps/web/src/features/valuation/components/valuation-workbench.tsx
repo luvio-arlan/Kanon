@@ -34,10 +34,18 @@ function ValuationHeaderBar({
   onLens: (next: ValuationLens) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-ink-primary">Step 4 · 三情景估值与赔率</h2>
-        <p className="mt-0.5 text-xs text-ink-muted">锚定三年赔率区间，按需切换拆解与反向验证</p>
+    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-hairline pb-5">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2.5">
+          <span className="h-[1.5px] w-7 bg-accent-coral" />
+          <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 04</span>
+        </div>
+        <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary">
+            三情景估值与赔率
+          </h1>
+          <span className="kanon-serif-italic text-2xl">Valuation</span>
+        </div>
       </div>
       <SegmentedTabs
         layoutId="valuation-lens-tabs"
@@ -49,7 +57,7 @@ function ValuationHeaderBar({
           { id: "reverse", label: "Reverse-DCF & TSR" },
         ]}
       />
-    </div>
+    </header>
   );
 }
 

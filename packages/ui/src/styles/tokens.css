@@ -10,6 +10,7 @@
     --bg-canvas: #f6f5f1;
     --bg-surface: #ffffff;
     --bg-surface-elevated: #fdfdfc;
+    --bg-sidebar: #fbfaf7;
     --bg-muted: #efede7;
     --bg-titanium: #e5e3dd;
     --bg-titanium-subtle: #edeae3;
@@ -60,13 +61,23 @@
       rgba(255, 255, 255, 0.28) 50%,
       transparent 80%
     );
-    --shadow-card: 0 1px 2px rgba(17, 17, 19, 0.03), 0 10px 26px -18px rgba(17, 17, 19, 0.09);
+    --shadow-card:
+      0 1px 2px rgba(17, 17, 19, 0.04), 0 12px 28px -18px rgba(17, 17, 19, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
     --shadow-card-hover:
-      0 18px 42px -20px rgba(17, 17, 19, 0.16), 0 2px 8px -2px rgba(17, 17, 19, 0.05);
-    --shadow-button: 0 1px 2px rgba(17, 17, 19, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      0 22px 48px -22px rgba(17, 17, 19, 0.18), 0 4px 12px -4px rgba(17, 17, 19, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    --shadow-sidebar:
+      0 1px 2px rgba(17, 17, 19, 0.04), 0 16px 36px -22px rgba(17, 17, 19, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    --shadow-group: 0 1px 2px rgba(17, 17, 19, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    --shadow-coral-glow: 0 16px 38px -12px rgba(217, 90, 56, 0.42);
+    --shadow-button:
+      0 1px 2px rgba(17, 17, 19, 0.06), 0 1px 1px rgba(17, 17, 19, 0.03),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
     --shadow-button-primary:
-      0 2px 6px -1px rgba(17, 17, 19, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.16);
-    --shadow-pill-active: 0 1px 3px rgba(17, 17, 19, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      0 2px 8px -2px rgba(17, 17, 19, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    --shadow-pill-active: 0 1px 3px rgba(17, 17, 19, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.92);
     --shimmer-base: rgba(17, 17, 19, 0.04);
     --shimmer-highlight: rgba(17, 17, 19, 0.08);
     --shadow-overlay:
@@ -119,6 +130,7 @@
     --bg-canvas: #07080a;
     --bg-surface: #111318;
     --bg-surface-elevated: #171920;
+    --bg-sidebar: #0d0f13;
     --bg-muted: #181a21;
     --bg-titanium: #262522;
     --bg-titanium-subtle: #14151a;
@@ -169,13 +181,18 @@
       rgba(255, 255, 255, 0.22) 50%,
       transparent 80%
     );
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     --shadow-card-hover:
-      0 20px 48px -18px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-    --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      0 24px 52px -18px rgba(0, 0, 0, 0.78), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    --shadow-sidebar:
+      0 1px 2px rgba(0, 0, 0, 0.55), 0 20px 44px -20px rgba(0, 0, 0, 0.72),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --shadow-group: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --shadow-coral-glow: 0 18px 46px -10px rgba(234, 107, 74, 0.52);
+    --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     --shadow-button-primary:
-      0 2px 10px -2px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.28);
-    --shadow-pill-active: 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      0 2px 12px -2px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+    --shadow-pill-active: 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     --shimmer-base: rgba(255, 255, 255, 0.04);
     --shimmer-highlight: rgba(255, 255, 255, 0.09);
     --shadow-overlay: 0 32px 80px -14px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.07);

@@ -2,17 +2,10 @@
 
 import type { InvestmentMemo } from "@kanon/ai";
 import { AgentThinking, Button, Card, ComposerLoader } from "@kanon/ui";
-import {
-  IconCopy,
-  IconDownload,
-  IconFileText,
-  IconPrinter,
-  IconRefresh,
-} from "@tabler/icons-react";
+import { IconCopy, IconFileText, IconPrinter, IconRefresh } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 export interface InvestmentMemoCardProps {
-  thesisId: string;
   memo: InvestmentMemo | null;
   loading: boolean;
   onGenerate: () => Promise<void>;
@@ -49,15 +42,17 @@ function MemoArticleBody({ memo }: { memo: InvestmentMemo }) {
   return (
     <article className="mt-6 space-y-6 border-t border-hairline pt-6">
       <div>
-        <h4 className="text-lg font-semibold tracking-tight text-ink-primary">{memo.headline}</h4>
-        <p className="mt-3 text-sm leading-relaxed text-ink-primary">{memo.verdictSummary}</p>
-        <p className="mt-2 text-sm leading-relaxed text-ink-secondary">{memo.moatAndQuality}</p>
+        <h4 className="text-xl font-semibold tracking-tight text-ink-primary">{memo.headline}</h4>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-primary">{memo.verdictSummary}</p>
+        <p className="mt-2.5 text-[15px] leading-relaxed text-ink-secondary">
+          {memo.moatAndQuality}
+        </p>
       </div>
       <div className="grid grid-cols-1 gap-6 border-t border-hairline pt-6 md:grid-cols-2">
         <MemoBulletColumn title="一阶事实与核心证据" items={memo.keyEvidence} />
         <MemoBulletColumn title="下季财报复盘必查清单" items={memo.nextQuarterChecklist} />
       </div>
-      <div className="border-t border-hairline pt-5 text-sm leading-relaxed text-ink-primary">
+      <div className="border-t border-hairline pt-5 text-[15px] leading-relaxed text-ink-primary">
         <span className="font-medium text-ink-muted">认错离场纪律：</span>
         {memo.exitDiscipline}
       </div>
@@ -66,7 +61,6 @@ function MemoArticleBody({ memo }: { memo: InvestmentMemo }) {
 }
 
 function MemoActionButtons(props: {
-  thesisId: string;
   hasMemo: boolean;
   loading: boolean;
   onCopy: () => void;
@@ -76,34 +70,21 @@ function MemoActionButtons(props: {
     <div className="no-print flex flex-wrap items-center gap-2">
       {props.hasMemo ? (
         <>
-          <Button variant="ghost" size="sm" onClick={props.onCopy}>
-            <IconCopy size={14} stroke={1.5} />
-            <span>复制</span>
+          <Button variant="outline" size="sm" onClick={props.onCopy}>
+            <IconCopy size={15} stroke={1.5} />
+            <span>复制全文</span>
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => window.print()}>
-            <IconPrinter size={14} stroke={1.5} />
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <IconPrinter size={15} stroke={1.5} />
             <span>打印 PDF</span>
           </Button>
         </>
       ) : null}
-      <a
-        href={`/api/export/thesis/${props.thesisId}?format=gdoc`}
-        className="inline-flex h-8 items-center gap-1.5 rounded-control border border-hairline bg-surface px-3 text-xs font-medium text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
-      >
-        <IconDownload size={14} stroke={1.5} />
-        <span>Google Doc</span>
-      </a>
-      <a
-        href={`/api/export/thesis/${props.thesisId}?format=json`}
-        className="inline-flex h-8 items-center rounded-control border border-hairline bg-surface px-2.5 font-mono text-xs text-ink-muted transition-colors hover:border-strong hover:text-ink-primary"
-      >
-        JSON
-      </a>
       <Button variant="primary" size="sm" disabled={props.loading} onClick={props.onGenerate}>
         {props.hasMemo ? (
-          <IconRefresh size={14} stroke={1.5} />
+          <IconRefresh size={15} stroke={1.5} />
         ) : (
-          <IconFileText size={14} stroke={1.5} />
+          <IconFileText size={15} stroke={1.5} />
         )}
         <span>
           {props.loading ? "凝练中..." : props.hasMemo ? "刷新备忘录" : "生成一页纸备忘录"}
@@ -113,12 +94,7 @@ function MemoActionButtons(props: {
   );
 }
 
-export function InvestmentMemoCard({
-  thesisId,
-  memo,
-  loading,
-  onGenerate,
-}: InvestmentMemoCardProps) {
+export function InvestmentMemoCard({ memo, loading, onGenerate }: InvestmentMemoCardProps) {
   async function handleCopy() {
     if (!memo) return;
     await navigator.clipboard.writeText(formatMemoClipboard(memo));
@@ -126,16 +102,10 @@ export function InvestmentMemoCard({
   }
 
   return (
-    <Card className="p-6 sm:p-7">
+    <Card className="p-6 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-ink-primary">一页纸投研备忘录（IC Memo）</h3>
-          <p className="mt-0.5 text-xs text-ink-muted">
-            将五步研究凝练为可跨季度回看的投委会归档文档
-          </p>
-        </div>
+        <h3 className="text-lg font-semibold text-ink-primary">一页纸投研备忘录（IC Memo）</h3>
         <MemoActionButtons
-          thesisId={thesisId}
           hasMemo={Boolean(memo)}
           loading={loading}
           onCopy={handleCopy}

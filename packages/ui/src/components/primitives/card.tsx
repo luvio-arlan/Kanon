@@ -13,7 +13,7 @@ export function Card({ className, interactive = false, tone = "surface", ...prop
         "rounded-card border border-hairline shadow-card transition-[border-color,box-shadow,transform] duration-200",
         tone === "surface" && "bg-surface",
         tone === "titanium" && "bg-titanium-subtle",
-        tone === "muted" && "bg-muted",
+        tone === "muted" && "bg-muted/75",
         interactive && "hover:border-strong hover:shadow-card-hover",
         className,
       )}
@@ -34,7 +34,7 @@ export function CardFooter({ className, ...props }: HTMLAttributes<HTMLDivElemen
   return (
     <div
       className={cn(
-        "flex items-center justify-between border-t border-hairline px-6 py-3.5",
+        "flex items-center justify-between border-t border-hairline px-6 py-4",
         className,
       )}
       {...props}

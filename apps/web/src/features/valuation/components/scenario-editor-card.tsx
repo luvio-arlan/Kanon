@@ -43,9 +43,9 @@ function ScenarioMetricHeader({
           value={result.targetPrice}
           prefix="$"
           decimals={1}
-          className="text-3xl font-semibold tracking-tight text-ink-primary"
+          className="text-4xl font-light tracking-[-0.04em] text-ink-primary"
         />
-        <span className="text-xs text-ink-secondary">
+        <span className="font-mono text-sm text-ink-secondary tabular-nums">
           年化 <RollingNumber value={result.cagrPct} suffix="%" decimals={1} />
         </span>
       </div>
@@ -55,7 +55,7 @@ function ScenarioMetricHeader({
 
 export function ScenarioEditorCard(props: ScenarioEditorCardProps) {
   return (
-    <Card className="flex flex-col justify-between p-5">
+    <Card className="flex flex-col justify-between p-6">
       <ScenarioMetricHeader
         label={props.label}
         subtitle={props.subtitle}

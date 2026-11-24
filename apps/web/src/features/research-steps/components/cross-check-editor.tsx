@@ -1,7 +1,7 @@
 "use client";
 
 import type { CrossCheck, GlossaryTerm, ThesisSummary } from "@kanon/core";
-import { ActionMenu, Badge, Button, Card, cn, Input } from "@kanon/ui";
+import { ActionMenu, Badge, Button, ButtonGroup, ButtonGroupItem, Card, Input } from "@kanon/ui";
 import { IconArrowUpRight, IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -100,41 +100,33 @@ function RoleAndAlignPicker({
   onPatch: (p: Partial<NewCheckDraft>) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <ButtonGroup ariaLabel="上下游角色">
         {ROLE_OPTIONS.map((opt) => (
-          <button
+          <ButtonGroupItem
             key={opt.id}
-            type="button"
+            size="sm"
+            selected={draft.peerRole === opt.id}
             onClick={() => onPatch({ peerRole: opt.id })}
-            className={cn(
-              "cursor-pointer rounded-pill border px-2.5 py-1 text-xs font-medium transition-colors",
-              draft.peerRole === opt.id
-                ? "border-ink-primary bg-ink-primary text-ink-inverse"
-                : "border-hairline bg-surface text-ink-secondary hover:border-strong",
-            )}
           >
             {opt.label}
-          </button>
+          </ButtonGroupItem>
         ))}
-      </div>
-      <div className="flex gap-1.5">
+      </ButtonGroup>
+      <ButtonGroup ariaLabel="口径一致度">
         {ALIGN_CYCLE.map((align) => (
-          <button
+          <ButtonGroupItem
             key={align}
-            type="button"
+            size="sm"
+            tone={align === "aligned" ? "pass" : align === "divergent" ? "fail" : "warn"}
+            showDot
+            selected={draft.alignment === align}
             onClick={() => onPatch({ alignment: align })}
-            className={cn(
-              "cursor-pointer rounded-pill border px-2.5 py-1 text-xs font-medium transition-colors",
-              draft.alignment === align
-                ? "border-accent-coral bg-accent-coral-soft text-accent-coral"
-                : "border-hairline bg-surface text-ink-secondary hover:border-strong",
-            )}
           >
             {ALIGN_META[align].label}
-          </button>
+          </ButtonGroupItem>
         ))}
-      </div>
+      </ButtonGroup>
     </div>
   );
 }

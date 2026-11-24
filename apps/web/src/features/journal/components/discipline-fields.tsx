@@ -1,7 +1,7 @@
 "use client";
 
 import type { EmotionState, TradeAction } from "@kanon/core";
-import { Button, cn, DisciplineSwitch, Input } from "@kanon/ui";
+import { Button, ButtonGroup, ButtonGroupItem, DisciplineSwitch, Input } from "@kanon/ui";
 import { IconAlertCircle, IconShieldLock } from "@tabler/icons-react";
 
 const ACTION_OPTIONS: ReadonlyArray<{ id: TradeAction; label: string }> = [
@@ -27,22 +27,23 @@ export function TradeActionRow({
   onAction: (next: TradeAction) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {ACTION_OPTIONS.map((opt) => (
-        <button
-          key={opt.id}
-          type="button"
-          onClick={() => onAction(opt.id)}
-          className={cn(
-            "cursor-pointer rounded-pill border px-3.5 py-1.5 text-xs font-medium transition-colors",
-            action === opt.id
-              ? "border-ink-primary bg-ink-primary text-ink-inverse"
-              : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium text-ink-muted">交易动作</div>
+      <ButtonGroup ariaLabel="交易动作">
+        {ACTION_OPTIONS.map((opt) => (
+          <ButtonGroupItem
+            key={opt.id}
+            size="sm"
+            tone={
+              opt.id === "buy" || opt.id === "add" ? "pass" : opt.id === "trim" ? "warn" : "neutral"
+            }
+            selected={action === opt.id}
+            onClick={() => onAction(opt.id)}
+          >
+            {opt.label}
+          </ButtonGroupItem>
+        ))}
+      </ButtonGroup>
     </div>
   );
 }
@@ -55,25 +56,21 @@ function EmotionButtons({
   onEmotion: (next: EmotionState) => void;
 }) {
   return (
-    <div>
-      <div className="mb-1.5 text-xs text-ink-muted">情绪自检</div>
-      <div className="flex flex-wrap gap-1.5">
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium text-ink-muted">情绪自检</div>
+      <ButtonGroup ariaLabel="情绪自检">
         {EMOTION_OPTIONS.map((opt) => (
-          <button
+          <ButtonGroupItem
             key={opt.id}
-            type="button"
+            size="sm"
+            tone={opt.id === "fomo" || opt.id === "fearful" ? "warn" : "neutral"}
+            selected={emotion === opt.id}
             onClick={() => onEmotion(opt.id)}
-            className={cn(
-              "cursor-pointer rounded-control border px-3 py-1.5 text-xs font-medium transition-colors",
-              emotion === opt.id
-                ? "border-strong bg-muted text-ink-primary"
-                : "border-hairline bg-surface text-ink-secondary hover:text-ink-primary",
-            )}
           >
             {opt.label}
-          </button>
+          </ButtonGroupItem>
         ))}
-      </div>
+      </ButtonGroup>
     </div>
   );
 }

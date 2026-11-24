@@ -27,10 +27,10 @@ export function DialogModal({
 }: DialogModalProps) {
   return (
     <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange} className="kanon-backdrop">
-      <Modal.Container placement="center" className="kanon-dialog-container">
+      <Modal.Container placement="center" size="lg" className="kanon-dialog-container">
         <Modal.Dialog
           className={cn(
-            "kanon-dialog-panel w-[min(92vw,520px)] rounded-card border border-strong bg-surface-elevated p-6 shadow-overlay",
+            "kanon-dialog-panel w-[min(92vw,560px)] max-w-[min(92vw,560px)] rounded-[22px] border border-strong bg-surface-elevated p-6 shadow-overlay sm:p-7",
             className,
           )}
         >

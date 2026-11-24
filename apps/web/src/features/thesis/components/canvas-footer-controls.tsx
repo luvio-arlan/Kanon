@@ -28,22 +28,26 @@ export function StepFooterNav({
   const nextStep = activeStep < 5 ? ((activeStep + 1) as StepId) : null;
 
   return (
-    <div className="mt-8 flex items-center justify-between gap-4 border-t border-hairline pt-6">
+    <div className="mt-10 flex items-center justify-between gap-4 border-t border-hairline pt-6">
       {prevStep ? (
         <Button variant="outline" size="md" onClick={() => onSelectStep(prevStep)}>
-          <IconArrowLeft size={15} stroke={1.5} />
-          <span>上一步：{STEP_NAMES[prevStep]}</span>
+          <IconArrowLeft size={16} stroke={1.5} />
+          <span>
+            0{prevStep} · {STEP_NAMES[prevStep]}
+          </span>
         </Button>
       ) : (
-        <span className="text-xs text-ink-muted">已完成起点：请先排除烂生意，再拆解核心假设</span>
+        <span aria-hidden="true" />
       )}
       {nextStep ? (
         <Button variant="titanium" size="md" onClick={() => onSelectStep(nextStep)}>
-          <span>下一步：{STEP_NAMES[nextStep]}</span>
-          <IconArrowRight size={15} stroke={1.5} />
+          <span>
+            0{nextStep} · {STEP_NAMES[nextStep]}
+          </span>
+          <IconArrowRight size={16} stroke={1.5} />
         </Button>
       ) : (
-        <span className="text-xs text-ink-muted">已抵达五步闭环终点 · 可生成备忘录归档</span>
+        <span aria-hidden="true" />
       )}
     </div>
   );
@@ -129,10 +133,8 @@ export function useCanvasShellActions(params: {
     onRunRedTeam: () => trigger(2, "red_team"),
     onRunDigest: () => trigger(3, "earnings_digest"),
     onRunMemo: () => trigger(5, "investment_memo"),
-    onOpenAiSettings: params.onOpenAi,
+    onOpenSettings: params.onOpenAi,
     onToggleFocus: params.onToggleFocus,
-    onExportMd: () => window.location.assign(`/api/export/thesis/${ctrl.thesis.id}?format=md`),
-    onExportGdoc: () => window.location.assign(`/api/export/thesis/${ctrl.thesis.id}?format=gdoc`),
     onToggleTheme: toggleTheme,
   });
   async function handleConfirmDelete() {
@@ -184,7 +186,7 @@ function UnsavedChangesDialog(props: {
   );
 }
 
-export function CanvasOverlays(props: {
+export interface CanvasOverlaysProps {
   thesis: ThesisDetail;
   deleting: boolean;
   saving: boolean;
@@ -199,24 +201,33 @@ export function CanvasOverlays(props: {
   onResolveUnsaved: (mode: "save" | "discard" | "cancel") => Promise<void>;
   onByokChanged: () => void;
   onConfirmDelete: () => Promise<void>;
-}) {
+}
+
+export function CanvasOverlays(props: CanvasOverlaysProps) {
+  const ctx = {
+    id: props.thesis.id,
+    ticker: props.thesis.ticker,
+    companyName: props.thesis.companyName,
+  };
   return (
     <>
       <CommandMenu
         open={props.commandOpen}
         onOpenChange={props.onCommandOpen}
         groups={props.commandGroups}
-        placeholder="跳转五步画布、触发副驾驶、切换标的或速查行业术语..."
+        placeholder="搜索步骤、指令、标的或术语..."
       />
       <AiSettingsModal
         open={props.aiModalOpen}
         onOpenChange={props.onAiModalOpen}
         onChanged={props.onByokChanged}
+        thesisContext={ctx}
+        onRequestDelete={() => props.onDeleteOpen(true)}
       />
       <DeleteThesisDialog
         open={props.deleteOpen}
-        companyName={props.thesis.companyName}
-        ticker={props.thesis.ticker}
+        companyName={ctx.companyName}
+        ticker={ctx.ticker}
         deleting={props.deleting}
         onOpenChange={props.onDeleteOpen}
         onConfirm={props.onConfirmDelete}

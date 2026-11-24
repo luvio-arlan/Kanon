@@ -57,16 +57,26 @@ function StepTwoHeader({
   onRun: () => Promise<void>;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-ink-primary">Step 2 · 核心假设（{count} 条）</h2>
-        <p className="mt-0.5 text-xs text-ink-muted">聚焦 3–5 条可证伪前提，支持红队压力测试</p>
+    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-hairline pb-5">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2.5">
+          <span className="h-[1.5px] w-7 bg-accent-coral" />
+          <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">
+            STEP 02 · {count} ITEMS
+          </span>
+        </div>
+        <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary">
+            核心假设拆解
+          </h1>
+          <span className="kanon-serif-italic text-2xl">Core Hypotheses</span>
+        </div>
       </div>
       <Button variant="coral" size="md" loading={loading} onClick={onRun}>
-        {!loading ? <IconFlame size={15} stroke={1.5} /> : null}
+        {!loading ? <IconFlame size={16} stroke={1.5} /> : null}
         <span>{loading ? "推演中" : "红队挑刺"}</span>
       </Button>
-    </div>
+    </header>
   );
 }
 
@@ -77,20 +87,20 @@ function StepTwoFooter(props: {
   onSave: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
       {props.count < 5 ? (
-        <Button variant="outline" size="sm" onClick={props.onAdd}>
-          <IconPlus size={14} stroke={1.5} />
-          <span>增补第 {props.count + 1} 条假设（上限 5 条）</span>
+        <Button variant="outline" size="md" onClick={props.onAdd}>
+          <IconPlus size={15} stroke={1.5} />
+          <span>增补第 {props.count + 1} 条假设</span>
         </Button>
       ) : (
-        <span className="text-xs text-ink-muted">已达 5 条核心假设上限，保持研究聚焦</span>
+        <span className="font-mono text-xs text-ink-muted">5 / 5 核心假设</span>
       )}
-      <Button variant="primary" size="md" disabled={props.saving} onClick={props.onSave}>
+      <Button variant="primary" size="lg" disabled={props.saving} onClick={props.onSave}>
         {props.saving ? (
-          <IconCheck size={15} stroke={1.5} />
+          <IconCheck size={16} stroke={1.5} />
         ) : (
-          <IconDeviceFloppy size={15} stroke={1.5} />
+          <IconDeviceFloppy size={16} stroke={1.5} />
         )}
         <span>{props.saving ? "保存中..." : `保存 ${props.count} 条核心假设`}</span>
       </Button>

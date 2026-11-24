@@ -12,38 +12,61 @@ function FilterActionsBar(props: {
   onSave: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-5">
       <Button
-        variant={props.status === "archived_veto" ? "outline" : "coral"}
+        variant={props.status === "archived_veto" ? "outline" : "danger"}
         size="md"
         disabled={props.saving}
         onClick={props.onToggleArchive}
       >
         {props.status === "archived_veto" ? (
           <>
-            <IconRefresh size={15} stroke={1.5} />
+            <IconRefresh size={16} stroke={1.5} />
             <span>恢复至活跃跟踪</span>
           </>
         ) : (
           <>
-            <IconArchive size={15} stroke={1.5} />
-            <span>一票否决并放弃观察</span>
+            <IconArchive size={16} stroke={1.5} />
+            <span>一票否决并归档</span>
           </>
         )}
       </Button>
       <Button
         variant="primary"
-        size="md"
+        size="lg"
         disabled={props.saving || !props.canSave}
         onClick={props.onSave}
       >
         {props.saving ? (
-          <IconCheck size={15} stroke={1.5} />
+          <IconCheck size={16} stroke={1.5} />
         ) : (
-          <IconDeviceFloppy size={15} stroke={1.5} />
+          <IconDeviceFloppy size={16} stroke={1.5} />
         )}
-        <span>{props.saving ? "保存中..." : "保存 Step 1 并继续"}</span>
+        <span>{props.saving ? "保存中..." : "保存 Step 1"}</span>
       </Button>
+    </div>
+  );
+}
+
+function NotesField(p: {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="space-y-2.5">
+      <label htmlFor={p.id} className="block text-[15px] font-semibold text-ink-primary">
+        {p.label}
+      </label>
+      <Textarea
+        id={p.id}
+        value={p.value}
+        onChange={(e) => p.onChange(e.target.value)}
+        placeholder={p.placeholder}
+        className="min-h-[124px]"
+      />
     </div>
   );
 }
@@ -59,32 +82,20 @@ export function BusinessFilterNotesCard(props: {
   onSave: () => void;
 }) {
   return (
-    <Card className="space-y-4 p-6">
-      <div>
-        <label
-          htmlFor="thesis-summary"
-          className="mb-1.5 block text-sm font-semibold text-ink-primary"
-        >
-          一句话核心投资论点
-        </label>
-        <Textarea
+    <Card className="space-y-6 p-6 sm:p-8">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <NotesField
           id="thesis-summary"
+          label="一句话核心投资论点"
           value={props.summary}
-          onChange={(e) => props.onSummary(e.target.value)}
-          placeholder="用一句话讲清：这家公司为什么能持续赚超额利润？"
+          onChange={props.onSummary}
+          placeholder="用一句话讲清：这家公司为什么能持续赚取超额利润？"
         />
-      </div>
-      <div>
-        <label
-          htmlFor="filter-notes"
-          className="mb-1.5 block text-sm font-semibold text-ink-primary"
-        >
-          商业模式补充笔记
-        </label>
-        <Textarea
+        <NotesField
           id="filter-notes"
+          label="商业模式补充笔记"
           value={props.notes}
-          onChange={(e) => props.onNotes(e.target.value)}
+          onChange={props.onNotes}
           placeholder="记录产业链位置、护城河薄弱环节或潜在否决理由..."
         />
       </div>

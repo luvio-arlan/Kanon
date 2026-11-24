@@ -1,7 +1,7 @@
 "use client";
 
 import type { ThesisDetail } from "@kanon/core";
-import { Button, cn, DialogModal, Textarea } from "@kanon/ui";
+import { Button, ButtonGroup, ButtonGroupItem, DialogModal, Textarea } from "@kanon/ui";
 import { IconCheck, IconUpload } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { apiImportThesisArchive } from "../lib/portfolio-api";
@@ -28,24 +28,19 @@ function ImportToolbar({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center justify-between gap-2.5">
+      <ButtonGroup ariaLabel="导入模式">
         {IMPORT_MODES.map((opt) => (
-          <button
+          <ButtonGroupItem
             key={opt.id}
-            type="button"
+            size="sm"
+            selected={mode === opt.id}
             onClick={() => onMode(opt.id)}
-            className={cn(
-              "cursor-pointer rounded-pill border px-3 py-1 text-xs transition-colors",
-              mode === opt.id
-                ? "border-ink-primary bg-ink-primary font-medium text-ink-inverse"
-                : "border-hairline bg-surface text-ink-secondary hover:border-strong",
-            )}
           >
             {opt.label}
-          </button>
+          </ButtonGroupItem>
         ))}
-      </div>
+      </ButtonGroup>
       <input
         ref={fileRef}
         type="file"

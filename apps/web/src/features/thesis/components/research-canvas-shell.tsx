@@ -11,8 +11,8 @@ import type {
   ThesisRevision,
   ThesisSummary,
 } from "@kanon/core";
-import { cn, KANON_STEP_VARIANTS } from "@kanon/ui";
-import { IconFocus2 } from "@tabler/icons-react";
+import { Button, cn, KANON_STEP_VARIANTS, WorkbenchShell } from "@kanon/ui";
+import { IconFocus2, IconSparkles } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { readByokConfig } from "@/features/ai-settings";
@@ -20,7 +20,7 @@ import { useCanvasChromeState } from "../hooks/use-canvas-chrome";
 import { applyAgentProposal, useResearchAgent } from "../hooks/use-research-agent";
 import { type InitialCopilotState, useResearchCanvas } from "../hooks/use-research-canvas";
 import { AgentResearchSheet } from "./agent-research-sheet";
-import { CanvasTopbar, type StepId, StepRail } from "./canvas-chrome";
+import { ResearchSidebar, type StepId } from "./canvas-chrome";
 import { CanvasOverlays, StepFooterNav, useCanvasShellActions } from "./canvas-footer-controls";
 import { CanvasStepRenderer } from "./canvas-step-renderer";
 
@@ -35,81 +35,6 @@ export interface ResearchCanvasShellProps {
   initialReviews: readonly QuarterlyReview[];
   initialAgentRun: SavedAgentRun | null;
   inboundCrossChecks: readonly InboundCrossCheck[];
-}
-
-function FocusExitPill({ onExit }: { onExit: () => void }) {
-  return (
-    <div className="no-print mb-4 flex justify-end">
-      <button
-        type="button"
-        onClick={onExit}
-        className="inline-flex cursor-pointer items-center gap-1.5 rounded-pill border border-hairline bg-surface px-3 py-1 text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
-      >
-        <IconFocus2 size={13} stroke={1.5} />
-        <span>退出专注模式 (F)</span>
-      </button>
-    </div>
-  );
-}
-
-interface CanvasMainProps {
-  activeStep: StepId;
-  direction: number;
-  focusMode: boolean;
-  ctrl: ReturnType<typeof useResearchCanvas>;
-  allTheses: readonly ThesisSummary[];
-  inboundCrossChecks: readonly InboundCrossCheck[];
-  glossary: readonly GlossaryTerm[];
-  promotedRule: string | null;
-  onDirtyChange: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
-  onClearPromoted: () => void;
-  onPromoteRule: (rule: string) => void;
-  onSelectStep: (step: StepId) => void;
-  onExitFocus: () => void;
-}
-
-function CanvasMainContent(props: CanvasMainProps) {
-  const layoutClass = props.focusMode
-    ? "max-w-3xl"
-    : "grid max-w-6xl grid-cols-1 gap-10 lg:grid-cols-[216px_minmax(0,1fr)]";
-
-  return (
-    <main className={cn("mx-auto px-6 py-8 sm:px-10", layoutClass)}>
-      {props.focusMode ? (
-        <FocusExitPill onExit={props.onExitFocus} />
-      ) : (
-        <StepRail
-          activeStep={props.activeStep}
-          thesis={props.ctrl.thesis}
-          onSelect={props.onSelectStep}
-        />
-      )}
-      <section className="min-h-[540px] min-w-0">
-        <motion.div
-          key={props.activeStep}
-          custom={props.direction}
-          variants={KANON_STEP_VARIANTS}
-          initial="enter"
-          animate="center"
-        >
-          <CanvasStepRenderer
-            step={props.activeStep}
-            ctrl={props.ctrl}
-            allTheses={props.allTheses}
-            inboundCrossChecks={props.inboundCrossChecks}
-            glossary={props.glossary}
-            promotedRule={props.promotedRule}
-            onDirtyChange={props.onDirtyChange}
-            onClearPromoted={props.onClearPromoted}
-            onPromoteRule={props.onPromoteRule}
-          />
-        </motion.div>
-        <div className="no-print">
-          <StepFooterNav activeStep={props.activeStep} onSelectStep={props.onSelectStep} />
-        </div>
-      </section>
-    </main>
-  );
 }
 
 function CanvasOverlaysBridge({
@@ -188,52 +113,116 @@ function useCanvasBindings(props: ResearchCanvasShellProps) {
   return { promotedRule, setPromotedRule, ui, ctrl, agent, actions, promoteRule };
 }
 
+function CanvasStageSection(p: {
+  props: ResearchCanvasShellProps;
+  b: ReturnType<typeof useCanvasBindings>;
+}) {
+  const { ui, ctrl, promotedRule, setPromotedRule, promoteRule } = p.b;
+  return (
+    <div
+      className={cn(
+        "w-full px-5 pb-10 pt-5 sm:px-8 lg:px-10 lg:pt-5",
+        ui.focusMode ? "mx-auto max-w-4xl" : "max-w-[1440px]",
+      )}
+    >
+      {ui.focusMode ? (
+        <div className="no-print mb-6 flex justify-end">
+          <Button variant="outline" size="sm" onClick={ui.toggleFocus}>
+            <IconFocus2 size={15} stroke={1.5} />
+            <span>退出专注模式 (F)</span>
+          </Button>
+        </div>
+      ) : null}
+      <section className="min-h-[540px] min-w-0">
+        <motion.div
+          key={ui.nav.step}
+          custom={ui.nav.dir}
+          variants={KANON_STEP_VARIANTS}
+          initial="enter"
+          animate="center"
+        >
+          <CanvasStepRenderer
+            step={ui.nav.step}
+            ctrl={ctrl}
+            allTheses={p.props.allTheses}
+            inboundCrossChecks={p.props.inboundCrossChecks}
+            glossary={p.props.glossary}
+            promotedRule={promotedRule}
+            onDirtyChange={ui.setDirtyState}
+            onClearPromoted={() => setPromotedRule(null)}
+            onPromoteRule={promoteRule}
+          />
+        </motion.div>
+        <div className="no-print">
+          <StepFooterNav activeStep={ui.nav.step} onSelectStep={ui.jumpToStep} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MobileCanvasBarTitle({ thesis }: { thesis: ThesisDetail }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <span className="truncate text-base font-semibold text-ink-primary">
+        {thesis.companyName}
+      </span>
+      <span className="font-mono text-xs text-ink-muted">{thesis.ticker}</span>
+    </span>
+  );
+}
+
+function MobileAgentButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <Button variant="primary" size="sm" onClick={onOpen}>
+      <IconSparkles size={15} stroke={1.5} className="text-accent-coral" />
+      <span>Agent</span>
+    </Button>
+  );
+}
+
 export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
-  const { promotedRule, setPromotedRule, ui, ctrl, agent, actions, promoteRule } =
-    useCanvasBindings(props);
+  const b = useCanvasBindings(props);
+  const { ui, ctrl, agent, actions, promoteRule } = b;
+  const apply = (proposal: AgentProposal) =>
+    applyAgentProposal({
+      proposal,
+      ctrl,
+      onPromoteExitRule: promoteRule,
+      onApplied: agent.markApplied,
+    });
 
   return (
-    <div className="kanon-ambient-canvas min-h-dvh">
-      <CanvasTopbar
-        thesis={ctrl.thesis}
-        allTheses={props.allTheses}
-        hasByok={ui.hasByok}
-        focusMode={ui.focusMode}
-        onOpenAgent={() => ui.setModal("agent", true)}
-        onOpenCommand={() => ui.setModal("cmd", true)}
-        onOpenAiSettings={() => ui.setModal("ai", true)}
-        onToggleFocus={ui.toggleFocus}
-        onRequestDelete={() => ui.setModal("del", true)}
-      />
-      <CanvasMainContent
-        activeStep={ui.nav.step}
-        direction={ui.nav.dir}
-        focusMode={ui.focusMode}
-        ctrl={ctrl}
-        allTheses={props.allTheses}
-        inboundCrossChecks={props.inboundCrossChecks}
-        glossary={props.glossary}
-        promotedRule={promotedRule}
-        onDirtyChange={ui.setDirtyState}
-        onClearPromoted={() => setPromotedRule(null)}
-        onPromoteRule={promoteRule}
-        onSelectStep={ui.jumpToStep}
-        onExitFocus={ui.toggleFocus}
-      />
+    <>
+      <WorkbenchShell
+        hideSidebar={ui.focusMode}
+        mobileTitle={<MobileCanvasBarTitle thesis={ctrl.thesis} />}
+        mobileActions={<MobileAgentButton onOpen={() => ui.setModal("agent", true)} />}
+        sidebar={(ctx) => (
+          <ResearchSidebar
+            thesis={ctrl.thesis}
+            allTheses={props.allTheses}
+            activeStep={ui.nav.step}
+            collapsed={ctx.collapsed}
+            onToggleCollapse={ctx.onToggleCollapse}
+            onCloseMobile={ctx.closeMobile}
+            onSelectStep={ui.jumpToStep}
+            onOpenAgent={() => ui.setModal("agent", true)}
+            onOpenCommand={() => ui.setModal("cmd", true)}
+            onOpenSettings={() => ui.setModal("ai", true)}
+            onToggleFocus={ui.toggleFocus}
+          />
+        )}
+      >
+        <CanvasStageSection props={props} b={b} />
+      </WorkbenchShell>
       <CanvasOverlaysBridge
         ctrl={ctrl}
         ui={ui}
         actions={actions}
         agent={agent}
-        onApplyProposal={(proposal) =>
-          applyAgentProposal({
-            proposal,
-            ctrl,
-            onPromoteExitRule: promoteRule,
-            onApplied: agent.markApplied,
-          })
-        }
+        onApplyProposal={apply}
       />
-    </div>
+    </>
   );
 }

@@ -21,13 +21,16 @@ export interface SecFactsPanelProps {
 function FactsGrid({ facts }: { facts: readonly SecFinancialFact[] }) {
   if (facts.length === 0) return null;
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3">
       {facts.map((fact) => (
-        <div key={fact.metric} className="rounded-control border border-hairline bg-surface p-3.5">
-          <div className="text-xs text-ink-muted">
+        <div
+          key={fact.metric}
+          className="rounded-control border border-hairline bg-surface p-4 shadow-card"
+        >
+          <div className="text-xs font-medium text-ink-muted">
             {fact.label} · {fact.period}
           </div>
-          <div className="mt-1 font-mono text-xl font-semibold text-ink-primary tabular-nums">
+          <div className="mt-1.5 font-mono text-2xl font-light tracking-[-0.03em] text-ink-primary tabular-nums">
             {fact.valueFormatted}
           </div>
         </div>

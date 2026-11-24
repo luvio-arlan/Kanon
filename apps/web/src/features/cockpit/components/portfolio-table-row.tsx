@@ -27,7 +27,7 @@ function IdentityCell({
   onToggle: () => void;
 }) {
   return (
-    <td className="min-w-[220px] px-5 py-4">
+    <td className="min-w-[176px] px-4 py-3.5">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -47,7 +47,7 @@ function IdentityCell({
           <div className="flex items-center gap-2 whitespace-nowrap">
             <Link
               href={`/thesis/${thesis.id}`}
-              className="text-sm font-semibold text-ink-primary hover:text-accent-coral"
+              className="text-base font-semibold text-ink-primary hover:text-accent-coral"
             >
               {thesis.companyName}
             </Link>
@@ -71,11 +71,11 @@ function ValuationMetricCells({ thesis }: { thesis: ThesisDetail }) {
   const exp = calculateImpliedExpectations({ summary: valuation });
   return (
     <>
-      <td className="whitespace-nowrap px-4 py-4 text-right font-mono text-sm text-ink-primary tabular-nums">
+      <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm text-ink-primary tabular-nums">
         <div>${thesis.currentPrice.toFixed(2)}</div>
-        <div className="text-xs text-ink-muted">15%买点 ${exp.hurdleEntry15.toFixed(1)}</div>
+        <div className="text-xs text-ink-muted">买点 ${exp.hurdleEntry15.toFixed(1)}</div>
       </td>
-      <td className="whitespace-nowrap px-4 py-4 text-right font-mono text-sm tabular-nums">
+      <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm tabular-nums">
         <div className="font-semibold text-ink-primary">
           ${valuation.base.targetPrice.toFixed(1)}
         </div>
@@ -84,15 +84,15 @@ function ValuationMetricCells({ thesis }: { thesis: ThesisDetail }) {
           {valuation.upsidePct.toFixed(1)}%
         </div>
       </td>
-      <td className="whitespace-nowrap px-4 py-4 text-right font-mono text-sm text-ink-primary tabular-nums">
+      <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm text-ink-primary tabular-nums">
         {valuation.base.cagrPct.toFixed(1)}%
       </td>
-      <td className="whitespace-nowrap px-4 py-4 text-right font-mono text-sm tabular-nums">
+      <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm tabular-nums">
         <span className={exp.marginOfSafetyPct >= 25 ? "text-status-pass" : "text-ink-primary"}>
           {exp.marginOfSafetyPct.toFixed(1)}%
         </span>
       </td>
-      <td className="whitespace-nowrap px-4 py-4 text-right font-mono text-sm text-ink-secondary tabular-nums">
+      <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm text-ink-secondary tabular-nums">
         -{Math.max(0, valuation.downsidePct).toFixed(1)}%
       </td>
     </>
@@ -107,20 +107,20 @@ function RowActionsCell({
   onQuickInspect: (t: ThesisDetail) => void;
 }) {
   return (
-    <td className="whitespace-nowrap px-5 py-4 text-right">
+    <td className="whitespace-nowrap px-4 py-3.5 text-right">
       <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
         <button
           type="button"
           onClick={() => onQuickInspect(thesis)}
-          className="cursor-pointer whitespace-nowrap rounded-control px-2 py-1 text-xs text-ink-secondary hover:bg-muted hover:text-ink-primary"
+          className="h-8 cursor-pointer whitespace-nowrap rounded-control border border-hairline bg-surface px-2.5 text-xs font-medium text-ink-secondary shadow-button transition-colors hover:border-strong hover:text-ink-primary"
         >
-          校准
+          速览
         </button>
         <Link
           href={`/thesis/${thesis.id}`}
-          className="inline-flex items-center gap-1 whitespace-nowrap rounded-control px-2.5 py-1 text-xs font-medium text-ink-primary hover:bg-titanium-subtle"
+          className="inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-control bg-titanium px-2.5 text-xs font-medium text-ink-primary transition-colors hover:bg-titanium-subtle"
         >
-          <span>画布</span>
+          <span>进入</span>
           <IconArrowUpRight size={14} stroke={1.5} />
         </Link>
       </div>
@@ -155,7 +155,7 @@ export function PortfolioComparisonRow({
         onToggle={onToggle}
       />
       <ValuationMetricCells thesis={thesis} />
-      <td className="whitespace-nowrap px-4 py-4 text-right">
+      <td className="whitespace-nowrap px-3 py-3.5 text-right">
         <Badge
           variant={zoneBadgeVariant(valuation.convictionZone)}
           className="font-mono tabular-nums"
@@ -163,7 +163,7 @@ export function PortfolioComparisonRow({
           {ratioText}
         </Badge>
       </td>
-      <td className="whitespace-nowrap px-4 py-4 text-right">
+      <td className="whitespace-nowrap px-3 py-3.5 text-right">
         <div className="flex justify-end">
           <ReadinessRing
             scorePct={readiness.scorePct}

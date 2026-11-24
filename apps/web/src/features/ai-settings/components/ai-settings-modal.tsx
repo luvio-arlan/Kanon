@@ -1,139 +1,146 @@
 "use client";
 
 import type { ByokProvider } from "@kanon/ai";
-import { Button, cn, DialogModal, Input } from "@kanon/ui";
-import { IconCpu, IconShieldLock } from "@tabler/icons-react";
+import { SettingsDialogShell, type SettingsNavTab } from "@kanon/ui";
+import { IconAdjustmentsHorizontal, IconDatabaseExport, IconSparkles } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { readByokConfig, writeByokConfig } from "../lib/byok-storage";
+import { EngineSettingsPane } from "./settings-engine-pane";
+import { DataArchivePane, GeneralSettingsPane, type SettingsThesisContext } from "./settings-panes";
+
+type SettingsTabId = "general" | "data" | "engine";
 
 export interface AiSettingsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onChanged?: () => void;
+  thesisContext?: SettingsThesisContext;
+  refreshingPrices?: boolean;
+  onRefreshPrices?: () => void;
+  onOpenImport?: () => void;
+  onRequestDelete?: () => void;
 }
 
-const PROVIDERS: ReadonlyArray<{ id: ByokProvider; label: string; modelHint: string }> = [
-  { id: "gemini", label: "Gemini", modelHint: "gemini-2.5-flash" },
-  { id: "anthropic", label: "Claude", modelHint: "claude-sonnet-4" },
-  { id: "openai", label: "OpenAI", modelHint: "gpt-4.1-mini" },
+const TABS: readonly SettingsNavTab<SettingsTabId>[] = [
+  {
+    id: "general",
+    label: "常规与纪律",
+    icon: <IconAdjustmentsHorizontal size={17} stroke={1.5} />,
+  },
+  { id: "data", label: "数据与归档", icon: <IconDatabaseExport size={17} stroke={1.5} /> },
+  { id: "engine", label: "投研引擎", icon: <IconSparkles size={17} stroke={1.5} /> },
 ];
 
-function ProviderSelector({
-  provider,
-  onSelect,
-}: {
+const TITLES: Record<SettingsTabId, string> = {
+  general: "常规与投研纪律",
+  data: "数据导入与归档",
+  engine: "智能投研引擎",
+};
+
+function SettingsTabBody(p: {
+  tab: SettingsTabId;
+  props: AiSettingsModalProps;
   provider: ByokProvider;
-  onSelect: (next: ByokProvider) => void;
+  apiKey: string;
+  hasByok: boolean;
+  onProvider: (next: ByokProvider) => void;
+  onApiKey: (next: string) => void;
+  onClear: () => void;
+  onSave: () => void;
 }) {
+  if (p.tab === "general") {
+    return (
+      <GeneralSettingsPane
+        refreshingPrices={p.props.refreshingPrices}
+        onRefreshPrices={p.props.onRefreshPrices}
+      />
+    );
+  }
+  if (p.tab === "data") {
+    return (
+      <DataArchivePane
+        thesis={p.props.thesisContext}
+        onOpenImport={p.props.onOpenImport}
+        onRequestDelete={p.props.onRequestDelete}
+        onClose={() => p.props.onOpenChange(false)}
+      />
+    );
+  }
   return (
-    <div className="grid grid-cols-3 gap-2">
-      {PROVIDERS.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => onSelect(item.id)}
-          className={cn(
-            "cursor-pointer rounded-control border p-3 text-left transition-colors",
-            provider === item.id
-              ? "border-accent-coral bg-accent-coral-soft/60 text-ink-primary"
-              : "border-hairline bg-surface text-ink-secondary hover:border-strong",
-          )}
-        >
-          <div className="text-sm font-semibold">{item.label}</div>
-          <div className="mt-0.5 font-mono text-xs text-ink-muted">{item.modelHint}</div>
-        </button>
-      ))}
-    </div>
+    <EngineSettingsPane
+      provider={p.provider}
+      apiKey={p.apiKey}
+      hasByok={p.hasByok}
+      onProvider={p.onProvider}
+      onApiKey={p.onApiKey}
+      onClear={p.onClear}
+      onSave={p.onSave}
+    />
   );
 }
 
-function ByokKeyField({ apiKey, onChange }: { apiKey: string; onChange: (next: string) => void }) {
-  return (
-    <>
-      <div>
-        <label htmlFor="byok-key" className="mb-1.5 block text-xs font-medium text-ink-muted">
-          API Key（留空即使用本地一阶分析）
-        </label>
-        <Input
-          id="byok-key"
-          type="password"
-          value={apiKey}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="sk-... / AIza..."
-          className="font-mono"
-        />
-      </div>
-      <div className="flex items-start gap-2 rounded-control bg-muted/70 p-3 text-xs leading-relaxed text-ink-secondary">
-        <IconShieldLock size={15} stroke={1.5} className="mt-0.5 shrink-0 text-status-pass" />
-        <span>
-          密钥仅保存在当前浏览器本地，单次调用时通过请求头直连模型接口，不会上传或存储到服务器。所有财务事实均锚定
-          SEC 官方缓存，禁止模型编造数字。
-        </span>
-      </div>
-    </>
-  );
-}
-
-function AiSettingsFooter({ onClear, onSave }: { onClear: () => void; onSave: () => void }) {
-  return (
-    <>
-      <Button variant="outline" size="md" onClick={onClear}>
-        清除密钥
-      </Button>
-      <Button variant="primary" size="md" onClick={onSave}>
-        保存引擎设置
-      </Button>
-    </>
-  );
-}
-
-export function AiSettingsModal({ open, onOpenChange, onChanged }: AiSettingsModalProps) {
+function useByokModalState(open: boolean, onChanged?: () => void) {
   const [provider, setProvider] = useState<ByokProvider>("gemini");
   const [apiKey, setApiKey] = useState("");
+  const [hasByok, setHasByok] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     const saved = readByokConfig();
-    if (!saved) return;
-    setProvider(saved.provider);
-    setApiKey(saved.apiKey);
+    setHasByok(Boolean(saved));
+    setProvider(saved?.provider ?? "gemini");
+    setApiKey(saved?.apiKey ?? "");
   }, [open]);
 
-  function finish(nextConfig: { provider: ByokProvider; apiKey: string } | null, msg: string) {
-    writeByokConfig(nextConfig);
-    if (!nextConfig) setApiKey("");
+  function commit(next: { provider: ByokProvider; apiKey: string } | null, msg: string) {
+    writeByokConfig(next);
+    setHasByok(Boolean(next));
+    if (!next) setApiKey("");
     toast.success(msg);
     onChanged?.();
-    onOpenChange(false);
   }
 
-  const handleSave = () =>
-    apiKey.trim()
-      ? finish(
-          { provider, apiKey: apiKey.trim() },
-          `已启用 BYOK 云端模型（${provider.toUpperCase()}）`,
-        )
-      : finish(null, "已切换为本地确定性一阶分析引擎");
+  return {
+    provider,
+    setProvider,
+    apiKey,
+    setApiKey,
+    hasByok,
+    clear: () => commit(null, "已恢复后台托管默认引擎"),
+    save: () => {
+      const trimmed = apiKey.trim();
+      if (trimmed)
+        commit({ provider, apiKey: trimmed }, `已启用个人 ${provider.toUpperCase()} 引擎`);
+      else commit(null, "已恢复后台托管默认引擎");
+    },
+  };
+}
+
+export function AiSettingsModal(props: AiSettingsModalProps) {
+  const [tab, setTab] = useState<SettingsTabId>("general");
+  const byok = useByokModalState(props.open, props.onChanged);
 
   return (
-    <DialogModal
-      open={open}
-      onOpenChange={onOpenChange}
-      title="投研副驾驶引擎（BYOK）"
-      subtitle="可选接入自有大模型 Key；未配置时使用零成本一阶确定性引擎"
-      icon={<IconCpu size={18} stroke={1.5} />}
-      footer={
-        <AiSettingsFooter
-          onClear={() => finish(null, "已清除密钥，切回本地一阶引擎")}
-          onSave={handleSave}
-        />
-      }
+    <SettingsDialogShell
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={TITLES[tab]}
+      tabs={TABS}
+      activeTab={tab}
+      onSelectTab={setTab}
     >
-      <div className="space-y-4">
-        <ProviderSelector provider={provider} onSelect={setProvider} />
-        <ByokKeyField apiKey={apiKey} onChange={setApiKey} />
-      </div>
-    </DialogModal>
+      <SettingsTabBody
+        tab={tab}
+        props={props}
+        provider={byok.provider}
+        apiKey={byok.apiKey}
+        hasByok={byok.hasByok}
+        onProvider={byok.setProvider}
+        onApiKey={byok.setApiKey}
+        onClear={byok.clear}
+        onSave={byok.save}
+      />
+    </SettingsDialogShell>
   );
 }

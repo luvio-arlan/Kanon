@@ -21,16 +21,16 @@ function PresetQuickPickRow({
 }) {
   return (
     <div className="mb-4 border-b border-hairline pb-4">
-      <div className="mb-2 text-xs text-ink-muted">机构研究模板（一键填充，含 SEC 基准快照）</div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="mb-2.5 text-xs font-medium text-ink-muted">经典样本快填（含 SEC 基准）</div>
+      <div className="flex flex-wrap gap-2">
         {INSTITUTIONAL_THESIS_PRESETS.map((preset) => (
           <button
             key={preset.ticker}
             type="button"
             onClick={() => onPick(preset)}
-            className={`cursor-pointer rounded-pill border px-3 py-1 font-mono text-xs transition-colors ${
+            className={`cursor-pointer rounded-control border px-3 py-1.5 font-mono text-xs transition-colors ${
               activeTicker === preset.ticker
-                ? "border-strong bg-titanium font-semibold text-ink-primary"
+                ? "border-strong bg-titanium font-semibold text-ink-primary shadow-button"
                 : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary"
             }`}
           >

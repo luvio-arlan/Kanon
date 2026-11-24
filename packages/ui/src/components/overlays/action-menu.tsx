@@ -18,7 +18,7 @@ export interface ActionMenuProps {
   ariaLabel: string;
   items: readonly ActionMenuItem[];
   triggerClassName?: string;
-  placement?: "bottom end" | "bottom start";
+  placement?: "bottom end" | "bottom start" | "top start" | "top end";
 }
 
 function ActionMenuEntry({ item }: { item: ActionMenuItem }) {
@@ -28,13 +28,13 @@ function ActionMenuEntry({ item }: { item: ActionMenuItem }) {
       textValue={item.label}
       variant={item.tone === "danger" ? "danger" : "default"}
       className={cn(
-        "flex cursor-pointer items-center justify-between gap-3 rounded-control px-2.5 py-2 text-xs font-medium outline-none transition-colors",
+        "flex cursor-pointer items-center justify-between gap-3 rounded-control px-3 py-2 text-sm font-medium outline-none transition-colors",
         item.tone === "danger"
           ? "text-status-fail data-[hovered=true]:bg-status-fail-soft/70"
           : "text-ink-primary data-[hovered=true]:bg-muted",
       )}
     >
-      <span className="flex items-center gap-2">
+      <span className="flex items-center gap-2.5">
         {item.icon ? <span className="text-ink-muted">{item.icon}</span> : null}
         <span>{item.label}</span>
       </span>
@@ -57,8 +57,8 @@ export function ActionMenu({
       <Dropdown.Trigger
         aria-label={ariaLabel}
         className={cn(
-          "inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-control",
-          "border border-hairline bg-surface px-2.5 text-xs font-medium text-ink-secondary",
+          "inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-control",
+          "border border-hairline bg-surface px-3 text-sm font-medium text-ink-secondary shadow-button",
           "transition-colors hover:border-strong hover:text-ink-primary focus:outline-none",
           "focus-visible:ring-2 focus-visible:ring-accent-coral",
           triggerClassName,
@@ -66,7 +66,7 @@ export function ActionMenu({
       >
         {trigger}
       </Dropdown.Trigger>
-      <Dropdown.Popover placement={placement} className="z-50 min-w-[208px]">
+      <Dropdown.Popover placement={placement} className="z-50 min-w-[224px]">
         <Dropdown.Menu
           onAction={(key) => items.find((item) => item.id === String(key))?.onSelect()}
           className="p-1.5"

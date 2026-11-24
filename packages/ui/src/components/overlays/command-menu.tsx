@@ -4,8 +4,9 @@ import { Modal } from "@heroui/react";
 import { IconCornerDownLeft, IconSearch } from "@tabler/icons-react";
 import { Command } from "cmdk";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "../../lib/cn";
+import { Kbd } from "../primitives/kbd";
 
 export interface CommandActionItem {
   id: string;
@@ -20,6 +21,7 @@ export interface CommandActionItem {
 export interface CommandActionGroup {
   heading: string;
   items: CommandActionItem[];
+  secondary?: boolean;
 }
 
 export interface CommandMenuProps {
@@ -41,58 +43,104 @@ function CommandRow({
       value={[item.label, item.description ?? "", ...(item.keywords ?? [])].join(" ")}
       onSelect={() => onRun(item)}
       className={cn(
-        "group flex cursor-pointer items-center justify-between gap-3 rounded-control px-3 py-2.5",
+        "group flex h-10 cursor-pointer items-center justify-between gap-3 rounded-control px-2.5",
         "text-sm text-ink-primary outline-none transition-colors duration-100",
         "data-[selected=true]:bg-muted data-[selected=true]:text-ink-primary",
       )}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      <span className="flex min-w-0 flex-1 items-center gap-2.5">
         {item.icon ? (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-hairline bg-surface text-ink-secondary group-data-[selected=true]:border-strong group-data-[selected=true]:text-ink-primary">
+          <span className="shrink-0 text-ink-muted transition-colors group-data-[selected=true]:text-ink-primary">
             {item.icon}
           </span>
         ) : null}
-        <div className="min-w-0">
-          <div className="truncate font-medium text-ink-primary">{item.label}</div>
-          {item.description ? (
-            <div className="truncate text-xs text-ink-secondary">{item.description}</div>
-          ) : null}
-        </div>
-      </div>
-      {item.shortcut ? (
-        <kbd className="shrink-0 rounded-control border border-hairline bg-surface px-2 py-0.5 font-mono text-xs text-ink-muted tabular-nums">
-          {item.shortcut}
-        </kbd>
-      ) : (
-        <IconCornerDownLeft
-          size={15}
-          stroke={1.5}
-          className="shrink-0 text-ink-muted opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
-        />
-      )}
+        <span className="truncate font-medium text-ink-primary">{item.label}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        {item.description ? (
+          <span className="hidden max-w-[180px] truncate text-xs text-ink-muted sm:inline">
+            {item.description}
+          </span>
+        ) : null}
+        {item.shortcut ? (
+          <Kbd>{item.shortcut}</Kbd>
+        ) : (
+          <IconCornerDownLeft
+            size={14}
+            stroke={1.5}
+            className="text-ink-muted opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
+          />
+        )}
+      </span>
     </Command.Item>
   );
 }
 
-function CommandGroupBlock({
-  group,
-  onRun,
+function ScopeSwitcher({
+  scope,
+  onScope,
 }: {
-  group: CommandActionGroup;
-  onRun: (action: CommandActionItem) => void;
+  scope: "main" | "glossary";
+  onScope: (next: "main" | "glossary") => void;
+}) {
+  const pill = (active: boolean) =>
+    cn(
+      "h-7 cursor-pointer rounded-md px-2.5 text-xs font-medium transition-colors",
+      active ? "bg-muted text-ink-primary" : "text-ink-muted hover:text-ink-primary",
+    );
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 rounded-control border border-hairline bg-canvas p-0.5">
+      <button type="button" onClick={() => onScope("main")} className={pill(scope === "main")}>
+        指令
+      </button>
+      <button
+        type="button"
+        onClick={() => onScope("glossary")}
+        className={pill(scope === "glossary")}
+      >
+        术语
+      </button>
+    </div>
+  );
+}
+
+function CommandFooterBar() {
+  return (
+    <div className="flex h-10 items-center justify-between border-t border-hairline px-4 text-xs text-ink-muted">
+      <span className="inline-flex items-center gap-1.5">
+        <Kbd>↑</Kbd>
+        <Kbd>↓</Kbd>
+        <span>切换</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <Kbd>↵</Kbd>
+        <span>执行</span>
+      </span>
+    </div>
+  );
+}
+
+function CommandSearchBar(p: {
+  query: string;
+  placeholder: string;
+  hasSecondary: boolean;
+  scope: "main" | "glossary";
+  onQuery: (next: string) => void;
+  onScope: (next: "main" | "glossary") => void;
 }) {
   return (
-    <Command.Group
-      heading={group.heading}
-      className={cn(
-        "[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:pt-3",
-        "[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-ink-muted",
-      )}
-    >
-      {group.items.map((item) => (
-        <CommandRow key={item.id} item={item} onRun={onRun} />
-      ))}
-    </Command.Group>
+    <div className="flex h-12 items-center gap-2.5 border-b border-hairline px-4">
+      <IconSearch size={16} stroke={1.5} className="shrink-0 text-ink-muted" />
+      <Command.Input
+        autoFocus
+        value={p.query}
+        onValueChange={p.onQuery}
+        placeholder={p.placeholder}
+        className="min-w-0 flex-1 bg-transparent text-sm text-ink-primary placeholder:text-ink-muted focus:outline-none"
+      />
+      {p.hasSecondary ? <ScopeSwitcher scope={p.scope} onScope={p.onScope} /> : null}
+      <Kbd>ESC</Kbd>
+    </div>
   );
 }
 
@@ -105,35 +153,42 @@ function CommandPaletteBody({
   placeholder: string;
   onRun: (item: CommandActionItem) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<"main" | "glossary">("main");
+  const hasSecondary = groups.some((g) => g.secondary && g.items.length > 0);
+  const visibleGroups = groups.filter((g) => {
+    if (g.items.length === 0) return false;
+    if (query.trim()) return true;
+    return scope === "glossary" ? Boolean(g.secondary) : !g.secondary;
+  });
+
   return (
-    <Command label="卡农快捷指令" className="flex flex-col">
-      <div className="flex items-center gap-3 border-b border-hairline px-4 py-3.5">
-        <IconSearch size={18} stroke={1.5} className="shrink-0 text-ink-muted" />
-        <Command.Input
-          autoFocus
-          placeholder={placeholder}
-          className="w-full bg-transparent text-sm text-ink-primary placeholder:text-ink-muted focus:outline-none"
-        />
-        <kbd className="rounded-control border border-hairline bg-muted px-2 py-0.5 font-mono text-xs text-ink-muted">
-          ESC
-        </kbd>
-      </div>
-      <Command.List className="max-h-[540px] overflow-y-auto px-2 pb-2">
-        <Command.Empty className="py-12 text-center text-sm text-ink-muted">
-          未找到匹配的标的、术语或指令
+    <Command label="快捷检索" className="flex w-full flex-col bg-surface">
+      <CommandSearchBar
+        query={query}
+        placeholder={placeholder}
+        hasSecondary={hasSecondary}
+        scope={scope}
+        onQuery={setQuery}
+        onScope={setScope}
+      />
+      <Command.List className="kanon-scroll-thin max-h-[380px] overflow-y-auto p-2">
+        <Command.Empty className="py-10 text-center text-sm text-ink-muted">
+          未找到匹配项
         </Command.Empty>
-        {groups.map((group) => (
-          <CommandGroupBlock key={group.heading} group={group} onRun={onRun} />
+        {visibleGroups.map((group) => (
+          <Command.Group
+            key={group.heading}
+            heading={group.heading}
+            className="mb-1 last:mb-0 [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-ink-muted"
+          >
+            {group.items.map((item) => (
+              <CommandRow key={item.id} item={item} onRun={onRun} />
+            ))}
+          </Command.Group>
         ))}
       </Command.List>
-      <div className="flex items-center justify-between border-t border-hairline bg-muted/40 px-4 py-2.5 text-xs text-ink-muted">
-        <div className="flex items-center gap-4">
-          <span>↑↓ 切换</span>
-          <span>↵ 执行</span>
-          <span>ESC 关闭</span>
-        </div>
-        <span className="font-mono tracking-wider">KANON · 卡农</span>
-      </div>
+      <CommandFooterBar />
     </Command>
   );
 }
@@ -142,7 +197,7 @@ export function CommandMenu({
   open,
   onOpenChange,
   groups,
-  placeholder = "搜索标的、术语、纪律或快捷操作...",
+  placeholder = "搜索标的、术语或快捷操作...",
 }: CommandMenuProps) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -162,13 +217,10 @@ export function CommandMenu({
 
   return (
     <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange} className="kanon-backdrop">
-      <Modal.Container placement="top" className="pt-[10vh]">
+      <Modal.Container placement="top" size="lg" className="kanon-dialog-container pt-[12vh]">
         <Modal.Dialog
-          aria-label="卡农快捷指令"
-          className={cn(
-            "w-[min(92vw,580px)] overflow-hidden rounded-card border border-strong",
-            "bg-surface-elevated p-0 shadow-overlay focus:outline-none",
-          )}
+          aria-label="快捷检索"
+          className="kanon-dialog-panel w-[min(92vw,560px)] max-w-[min(92vw,560px)] overflow-clip rounded-[18px] border border-strong bg-surface p-0 shadow-overlay focus:outline-none"
         >
           <CommandPaletteBody groups={groups} placeholder={placeholder} onRun={handleRun} />
         </Modal.Dialog>

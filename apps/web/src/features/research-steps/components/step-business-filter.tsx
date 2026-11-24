@@ -9,7 +9,7 @@ import type {
   ThesisDetail,
   ThesisStatus,
 } from "@kanon/core";
-import { Badge, Card, cn } from "@kanon/ui";
+import { Badge, ButtonGroup, ButtonGroupItem, type ButtonGroupTone, Card } from "@kanon/ui";
 import { useMemo } from "react";
 import { GlossaryText } from "@/features/glossary";
 import { DraftStatusBar } from "@/shared/components/draft-status-bar";
@@ -34,48 +34,41 @@ export interface StepBusinessFilterProps {
 
 type FilterKey = "recurringRevenue" | "pricingPower" | "capitalReturn" | "governance";
 
-const DIMENSIONS: ReadonlyArray<{ key: FilterKey; title: string; prompt: string }> = [
+const DIMENSIONS: ReadonlyArray<{ code: string; key: FilterKey; title: string; prompt: string }> = [
   {
+    code: "01",
     key: "recurringRevenue",
     title: "复购性与「水电煤」属性",
-    prompt: "客户是否具备高粘性复购或长期锁单特征，还是每年必须从零重新找客户？",
+    prompt: "客户是否具备高粘性复购或长期锁单特征，还是每年必须从零重新获客？",
   },
   {
+    code: "02",
     key: "pricingPower",
     title: "上下游定价权与 Moat 护城河",
-    prompt: "在成本通胀或行业低谷时，公司能否守住 Gross Margin 并把压力传导给上下游？",
+    prompt: "在成本通胀或行业低谷时，能否守住 Gross Margin 并传导成本压力？",
   },
   {
+    code: "03",
     key: "capitalReturn",
     title: "ROIC 与自由现金流（FCF）质量",
-    prompt: "赚到的是真金白银的 FCF，还是不断靠巨额 CapEx 续命的纸面利润？",
+    prompt: "盈利是否转化为真实 FCF，还是持续依赖高强度 CapEx 维系账面利润？",
   },
   {
+    code: "04",
     key: "governance",
     title: "管理层诚信与资本配置纪律",
-    prompt: "管理层是否诚实面对 10-K 风险、审慎扩产，并合理执行回购与研发投入？",
+    prompt: "管理层是否坦诚面对 10-K 风险、审慎扩产并合理配置回购与研发投入？",
   },
 ];
 
-const VERDICTS: ReadonlyArray<{ id: FilterVerdict; label: string; activeClass: string }> = [
-  {
-    id: "pass",
-    label: "通过",
-    activeClass: "border-status-pass bg-status-pass-soft text-status-pass",
-  },
-  {
-    id: "watch",
-    label: "待观察",
-    activeClass: "border-status-warn bg-status-warn-soft text-status-warn",
-  },
-  {
-    id: "veto",
-    label: "一票否决",
-    activeClass: "border-status-fail bg-status-fail-soft text-status-fail",
-  },
+const VERDICTS: ReadonlyArray<{ id: FilterVerdict; label: string; tone: ButtonGroupTone }> = [
+  { id: "pass", label: "通过", tone: "pass" },
+  { id: "watch", label: "待观察", tone: "warn" },
+  { id: "veto", label: "一票否决", tone: "fail" },
 ];
 
 function DimensionRow(props: {
+  code: string;
   title: string;
   prompt: string;
   verdict: FilterVerdict;
@@ -83,69 +76,61 @@ function DimensionRow(props: {
   onSelect: (next: FilterVerdict) => void;
 }) {
   return (
-    <div className="flex flex-col justify-between gap-4 border-b border-hairline py-4 last:border-none sm:flex-row sm:items-center">
-      <div className="min-w-0">
-        <div className="text-sm font-semibold text-ink-primary">
-          <GlossaryText text={props.title} terms={props.glossary} />
-        </div>
-        <div className="mt-1 text-xs leading-relaxed text-ink-secondary">
-          <GlossaryText text={props.prompt} terms={props.glossary} />
+    <div className="flex flex-col justify-between gap-4 py-5 first:pt-2 last:pb-1 lg:flex-row lg:items-center lg:gap-8">
+      <div className="flex min-w-0 items-start gap-3.5">
+        <span className="mt-0.5 shrink-0 font-mono text-xs text-ink-muted tabular-nums">
+          {props.code}
+        </span>
+        <div className="min-w-0">
+          <div className="text-base font-semibold text-ink-primary">
+            <GlossaryText text={props.title} terms={props.glossary} />
+          </div>
+          <div className="mt-1 text-sm leading-relaxed text-ink-secondary">
+            <GlossaryText text={props.prompt} terms={props.glossary} />
+          </div>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">
+      <ButtonGroup ariaLabel={`${props.title} 判定`} className="shrink-0 self-start lg:self-center">
         {VERDICTS.map((opt) => (
-          <button
+          <ButtonGroupItem
             key={opt.id}
-            type="button"
+            tone={opt.tone}
+            showDot
+            selected={props.verdict === opt.id}
             onClick={() => props.onSelect(opt.id)}
-            className={cn(
-              "cursor-pointer rounded-pill border px-3 py-1 text-xs font-medium transition-colors",
-              props.verdict === opt.id
-                ? opt.activeClass
-                : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
-            )}
           >
             {opt.label}
-          </button>
+          </ButtonGroupItem>
         ))}
-      </div>
+      </ButtonGroup>
     </div>
   );
 }
 
-function FilterMatrixCard(props: {
-  status: ThesisStatus;
-  filter: BusinessFilter;
-  glossary: readonly GlossaryTerm[];
-  onSelect: (key: FilterKey, verdict: FilterVerdict) => void;
-}) {
-  const hasVeto = Object.values(props.filter).includes("veto");
+function StepOneMasthead({ status, filter }: { status: ThesisStatus; filter: BusinessFilter }) {
+  const hasVeto = Object.values(filter).includes("veto");
   const statusText =
-    props.status === "archived_veto" ? "已否决归档" : hasVeto ? "存在否决项" : "通过初筛";
-  const statusTone = props.status === "archived_veto" ? "fail" : hasVeto ? "warn" : "pass";
+    status === "archived_veto" ? "已否决归档" : hasVeto ? "存在否决项" : "通过初筛";
+  const statusTone = status === "archived_veto" ? "fail" : hasVeto ? "warn" : "pass";
 
   return (
-    <Card className="p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
-        <div>
-          <h2 className="text-lg font-semibold text-ink-primary">Step 1 · 商业模式滤镜</h2>
-          <p className="mt-0.5 text-xs text-ink-muted">先排除烂生意，再投入深度研究</p>
+    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-hairline pb-5">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2.5">
+          <span className="h-[1.5px] w-7 bg-accent-coral" />
+          <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 01</span>
         </div>
-        <Badge variant={statusTone}>{statusText}</Badge>
+        <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary">
+            商业模式滤镜
+          </h1>
+          <span className="kanon-serif-italic text-2xl">Quality Filter</span>
+        </div>
       </div>
-      <div className="mt-3">
-        {DIMENSIONS.map((dim) => (
-          <DimensionRow
-            key={dim.key}
-            title={dim.title}
-            prompt={dim.prompt}
-            verdict={props.filter[dim.key]}
-            glossary={props.glossary}
-            onSelect={(v) => props.onSelect(dim.key, v)}
-          />
-        ))}
-      </div>
-    </Card>
+      <Badge variant={statusTone} className="px-3 py-1.5 text-sm">
+        {statusText}
+      </Badge>
+    </header>
   );
 }
 
@@ -181,6 +166,32 @@ function useStep1Draft(props: StepBusinessFilterProps) {
   });
 }
 
+function DimensionsMatrixCard({
+  filter,
+  glossary,
+  onSelect,
+}: {
+  filter: BusinessFilter;
+  glossary: readonly GlossaryTerm[];
+  onSelect: (key: FilterKey, verdict: FilterVerdict) => void;
+}) {
+  return (
+    <Card className="divide-y divide-hairline px-6 py-4 sm:px-8">
+      {DIMENSIONS.map((dim) => (
+        <DimensionRow
+          key={dim.key}
+          code={dim.code}
+          title={dim.title}
+          prompt={dim.prompt}
+          verdict={filter[dim.key]}
+          glossary={glossary}
+          onSelect={(v) => onSelect(dim.key, v)}
+        />
+      ))}
+    </Card>
+  );
+}
+
 export function StepBusinessFilter(props: StepBusinessFilterProps) {
   const { thesis, glossary, annuals = [], quarterlies = [], saving, onSave } = props;
   const d = useStep1Draft(props);
@@ -190,10 +201,10 @@ export function StepBusinessFilter(props: StepBusinessFilterProps) {
     d.setDraft((prev) => ({ ...prev, filter: { ...prev.filter, ...patch } }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <DraftStatusBar draft={d} saving={saving} />
-      <FilterMatrixCard
-        status={thesis.status}
+      <StepOneMasthead status={thesis.status} filter={d.draft.filter} />
+      <DimensionsMatrixCard
         filter={d.draft.filter}
         glossary={glossary}
         onSelect={(key, verdict) => patchFilter({ [key]: verdict })}

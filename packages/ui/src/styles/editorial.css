@@ -21,8 +21,12 @@
 }
 
 .kanon-serif-italic {
+  display: inline-block;
   font-family: var(--font-serif);
   font-style: italic;
+  line-height: 1.15;
+  padding: 0.04em 0.14em 0.22em 0.02em;
+  margin-bottom: -0.22em;
   background: var(--editorial-serif-gradient);
   -webkit-background-clip: text;
   background-clip: text;

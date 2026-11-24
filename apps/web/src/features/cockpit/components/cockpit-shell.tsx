@@ -6,19 +6,18 @@ import {
   type PublicUser,
   type ThesisDetail,
 } from "@kanon/core";
-import { CommandMenu, KANON_TRANSITION_FAST } from "@kanon/ui";
+import { Button, CommandMenu, KANON_TRANSITION_FAST, WorkbenchShell } from "@kanon/ui";
+import { IconPlus } from "@tabler/icons-react";
 import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AiSettingsModal, readByokConfig } from "@/features/ai-settings";
 import { CompareThesesSheet, ImportArchiveModal, PortfolioStressSheet } from "@/features/portfolio";
 import { useCockpitState } from "../lib/cockpit-state";
-import { shouldShowGuideByDefault, writeGuideDismissedCookie } from "../lib/guide-cookie";
 import { usePortfolioOverlayState } from "../lib/use-portfolio-overlays";
 import { CockpitEmptyState } from "./cockpit-empty-state";
 import { type CockpitFilter, CockpitHeader, type CockpitViewMode } from "./cockpit-header";
-import { CockpitTopbar } from "./cockpit-topbar";
+import { CockpitSidebar } from "./cockpit-sidebar";
 import { NewThesisModal } from "./new-thesis-modal";
-import { OnboardingGuideCard } from "./onboarding-guide-card";
 import { PortfolioComparisonTable } from "./portfolio-comparison-table";
 import { ThesisBentoCard } from "./thesis-bento-card";
 import { ThesisPreviewSheet } from "./thesis-preview-sheet";
@@ -27,26 +26,6 @@ export interface CockpitShellProps {
   initialTheses: ThesisDetail[];
   glossary: readonly GlossaryTerm[];
   currentUser: PublicUser;
-  initialGuideDismissed?: boolean;
-}
-
-function CardsGrid({
-  theses,
-  onQuickInspect,
-}: {
-  theses: readonly ThesisDetail[];
-  onQuickInspect: (thesis: ThesisDetail) => void;
-}) {
-  return (
-    <section
-      aria-label="跟踪标的列表"
-      className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2"
-    >
-      {theses.map((thesis) => (
-        <ThesisBentoCard key={thesis.id} thesis={thesis} onQuickInspect={onQuickInspect} />
-      ))}
-    </section>
-  );
 }
 
 interface CollectionViewProps {
@@ -61,6 +40,7 @@ interface CollectionViewProps {
   onQuickInspect: (thesis: ThesisDetail) => void;
   onResetFilters: () => void;
   onNewThesis: () => void;
+  onCreated: (thesis: ThesisDetail) => void;
 }
 
 function ThesisCollectionView(p: CollectionViewProps) {
@@ -73,6 +53,7 @@ function ThesisCollectionView(p: CollectionViewProps) {
         totalActiveCount={p.totalActiveCount}
         onResetFilters={p.onResetFilters}
         onNewThesis={p.onNewThesis}
+        onCreated={p.onCreated}
       />
     ) : p.viewMode === "table" ? (
       <PortfolioComparisonTable
@@ -83,20 +64,57 @@ function ThesisCollectionView(p: CollectionViewProps) {
         onQuickInspect={p.onQuickInspect}
       />
     ) : (
-      <CardsGrid theses={p.theses} onQuickInspect={p.onQuickInspect} />
+      <section
+        aria-label="跟踪标的列表"
+        className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-2 2xl:grid-cols-3"
+      >
+        {p.theses.map((thesis) => (
+          <ThesisBentoCard key={thesis.id} thesis={thesis} onQuickInspect={p.onQuickInspect} />
+        ))}
+      </section>
     );
 
   return (
-    <div className="min-h-[360px]">
+    <div className="min-h-[340px]">
       <motion.div
         key={stateKey}
-        initial={{ opacity: 0.72 }}
+        initial={{ opacity: 0.78 }}
         animate={{ opacity: 1 }}
         transition={KANON_TRANSITION_FAST}
       >
         {body}
       </motion.div>
     </div>
+  );
+}
+
+function PortfolioDialogs({
+  ui,
+  ext,
+}: {
+  ui: ReturnType<typeof useCockpitState>;
+  ext: ReturnType<typeof usePortfolioOverlayState>;
+}) {
+  return (
+    <>
+      <CompareThesesSheet
+        open={ext.compareOpen}
+        theses={ext.compareTheses}
+        onOpenChange={ext.setCompareOpen}
+        onClearSelection={ext.clearCompare}
+      />
+      <ImportArchiveModal
+        open={ext.importOpen}
+        onOpenChange={ext.setImportOpen}
+        onImported={ext.onImported}
+      />
+      <PortfolioStressSheet
+        open={ext.stressOpen}
+        theses={ui.theses}
+        onOpenChange={ext.setStressOpen}
+        onInspectThesis={ui.setPreviewThesis}
+      />
+    </>
   );
 }
 
@@ -128,63 +146,47 @@ function CockpitOverlays({
         open={ui.modals.ai}
         onOpenChange={(o) => ui.setModal("ai", o)}
         onChanged={() => ui.setHasByok(Boolean(readByokConfig()))}
+        refreshingPrices={ext.refreshingPrices}
+        onRefreshPrices={() => void ext.refreshPrices()}
+        onOpenImport={() => ext.setImportOpen(true)}
       />
-      <CompareThesesSheet
-        open={ext.compareOpen}
-        theses={ext.compareTheses}
-        onOpenChange={ext.setCompareOpen}
-        onClearSelection={ext.clearCompare}
-      />
-      <ImportArchiveModal
-        open={ext.importOpen}
-        onOpenChange={ext.setImportOpen}
-        onImported={ext.onImported}
-      />
-      <PortfolioStressSheet
-        open={ext.stressOpen}
-        theses={ui.theses}
-        onOpenChange={ext.setStressOpen}
-        onInspectThesis={ui.setPreviewThesis}
-      />
+      <PortfolioDialogs ui={ui} ext={ext} />
     </>
   );
 }
 
-interface MainBodyProps {
+function CockpitMainStage({
+  ui,
+  ext,
+  analytics,
+}: {
   ui: ReturnType<typeof useCockpitState>;
   ext: ReturnType<typeof usePortfolioOverlayState>;
   analytics: ReturnType<typeof calculatePortfolioAnalytics>;
-  guideOpen: boolean;
-  onDismissGuide: () => void;
-}
-
-function CockpitMainBody({ ui, ext, analytics, guideOpen, onDismissGuide }: MainBodyProps) {
+}) {
   return (
-    <main className="mx-auto max-w-6xl px-5 pb-16 sm:px-10">
+    <div className="w-full space-y-5 px-5 pb-10 pt-5 sm:px-8 lg:px-9 lg:pt-5">
       <CockpitHeader
         analytics={analytics}
+        theses={ui.theses}
         filter={ui.filter}
-        filterCounts={ui.filterCounts}
         viewMode={ui.viewMode}
         sortBy={ui.sortBy}
         query={ui.query}
         searchInputRef={ui.searchInputRef}
-        onFilterChange={ui.setFilter}
-        onViewModeChange={ui.setViewMode}
         onSortChange={ui.setSortBy}
         onQueryChange={ui.setQuery}
+        onNewThesis={() => ui.setModal("create", true)}
         onFocusBuyZone={() => {
+          ui.setViewMode("cards");
           ui.setFilter("attractive");
           ui.setSortBy("margin");
         }}
-        onFocusWarnings={() => ui.setFilter("attention")}
+        onFocusWarnings={() => {
+          ui.setViewMode("cards");
+          ui.setFilter("attention");
+        }}
         onOpenStressTest={() => ext.setStressOpen(true)}
-      />
-      <OnboardingGuideCard
-        open={guideOpen}
-        theses={ui.theses}
-        onDismiss={onDismissGuide}
-        onNewThesis={() => ui.setModal("create", true)}
       />
       <ThesisCollectionView
         theses={ui.visibleTheses}
@@ -198,51 +200,49 @@ function CockpitMainBody({ ui, ext, analytics, guideOpen, onDismissGuide }: Main
         onQuickInspect={ui.setPreviewThesis}
         onResetFilters={ui.resetFilters}
         onNewThesis={() => ui.setModal("create", true)}
+        onCreated={ext.onCreated}
       />
-    </main>
+    </div>
   );
 }
 
-export function CockpitShell({
-  initialTheses,
-  glossary,
-  currentUser,
-  initialGuideDismissed = false,
-}: CockpitShellProps) {
+export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitShellProps) {
   const ui = useCockpitState(initialTheses, glossary);
   const ext = usePortfolioOverlayState(ui);
   const analytics = useMemo(() => calculatePortfolioAnalytics(ui.theses), [ui.theses]);
-  const [guideOpen, setGuideOpen] = useState(() =>
-    shouldShowGuideByDefault(initialTheses, initialGuideDismissed),
-  );
-  const toggleGuide = (next: boolean) => {
-    setGuideOpen(next);
-    writeGuideDismissedCookie(!next);
-  };
 
   return (
-    <div className="kanon-ambient-canvas min-h-dvh">
-      <CockpitTopbar
-        currentUser={currentUser}
-        hasByok={ui.hasByok}
-        refreshingPrices={ext.refreshingPrices}
-        guideOpen={guideOpen}
-        onRefreshPrices={() => void ext.refreshPrices()}
-        onOpenImport={() => ext.setImportOpen(true)}
-        onOpenStressTest={() => ext.setStressOpen(true)}
-        onToggleGuide={() => toggleGuide(!guideOpen)}
-        onOpenCommand={() => ui.setModal("cmd", true)}
-        onOpenAiSettings={() => ui.setModal("ai", true)}
-        onNewThesis={() => ui.setModal("create", true)}
-      />
-      <CockpitMainBody
-        ui={ui}
-        ext={ext}
-        analytics={analytics}
-        guideOpen={guideOpen}
-        onDismissGuide={() => toggleGuide(false)}
-      />
+    <>
+      <WorkbenchShell
+        mobileActions={
+          <Button variant="primary" size="sm" onClick={() => ui.setModal("create", true)}>
+            <IconPlus size={15} stroke={1.5} />
+            <span>新建</span>
+          </Button>
+        }
+        sidebar={({ collapsed, onToggleCollapse, closeMobile }) => (
+          <CockpitSidebar
+            currentUser={currentUser}
+            theses={ui.theses}
+            filter={ui.filter}
+            filterCounts={ui.filterCounts}
+            viewMode={ui.viewMode}
+            refreshingPrices={ext.refreshingPrices}
+            collapsed={collapsed}
+            onToggleCollapse={onToggleCollapse}
+            onCloseMobile={closeMobile}
+            onSelectFilter={ui.setFilter}
+            onSelectViewMode={ui.setViewMode}
+            onOpenCommand={() => ui.setModal("cmd", true)}
+            onRefreshPrices={() => void ext.refreshPrices()}
+            onOpenStressTest={() => ext.setStressOpen(true)}
+            onOpenSettings={() => ui.setModal("ai", true)}
+          />
+        )}
+      >
+        <CockpitMainStage ui={ui} ext={ext} analytics={analytics} />
+      </WorkbenchShell>
       <CockpitOverlays ui={ui} ext={ext} />
-    </div>
+    </>
   );
 }

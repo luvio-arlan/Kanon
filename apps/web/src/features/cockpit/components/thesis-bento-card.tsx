@@ -34,7 +34,7 @@ const DOT_CLASS: Record<Hypothesis["status"], string> = {
 
 function resolveNextStepHref(thesisId: string, readiness: ResearchReadiness) {
   const next = readiness.steps.find((s) => !s.complete);
-  if (!next) return { href: `/thesis/${thesisId}`, label: "进入画布", isContinue: false };
+  if (!next) return { href: `/thesis/${thesisId}`, label: "进入研究", isContinue: false };
   return {
     href: `/thesis/${thesisId}?step=${next.step}`,
     label: `继续 · ${STEP_SHORT_NAMES[next.step]}`,
@@ -52,32 +52,48 @@ function CardIdentityHeader({
   targetHref: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-5">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={targetHref}
-            className="text-xl font-semibold tracking-[-0.02em] text-ink-primary transition-colors hover:text-accent-coral"
-          >
-            {thesis.companyName}
-          </Link>
-          <span className="rounded-control bg-titanium px-2 py-0.5 font-mono text-xs font-semibold tracking-wide text-ink-primary tabular-nums">
-            {thesis.ticker}
-          </span>
-          {thesis.currentWeightPct > 0 ? (
-            <span className="rounded-pill border border-hairline bg-muted/60 px-2 py-0.5 font-mono text-xs text-ink-secondary tabular-nums">
-              {thesis.currentWeightPct}%
-            </span>
-          ) : null}
-          {thesis.status === "archived_veto" ? <Badge variant="fail">已否决</Badge> : null}
+    <div className="px-6 pb-4 pt-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2 font-mono text-xs text-ink-muted tabular-nums">
+          <span>NO.{thesis.indexLabel}</span>
+          <span aria-hidden="true">·</span>
+          <span className="truncate font-sans">{thesis.sectorTag}</span>
         </div>
-        <div className="mt-1 truncate text-xs text-ink-muted">{thesis.sectorTag}</div>
+        <ReadinessRing
+          scorePct={readiness.scorePct}
+          size={24}
+          label={`${readiness.completedCount}/5`}
+        />
       </div>
-      <ReadinessRing
-        scorePct={readiness.scorePct}
-        size={22}
-        label={`${readiness.completedCount}/5`}
-      />
+      <div className="mt-3 flex flex-wrap items-center gap-2.5">
+        <Link
+          href={targetHref}
+          className="text-2xl font-semibold tracking-[-0.025em] text-ink-primary transition-colors hover:text-accent-coral"
+        >
+          {thesis.companyName}
+        </Link>
+        <span className="rounded-md border border-hairline bg-titanium px-2.5 py-0.5 font-mono text-xs font-semibold tracking-[0.06em] text-ink-primary tabular-nums">
+          {thesis.ticker}
+        </span>
+        {thesis.currentWeightPct > 0 ? (
+          <span className="rounded-md border border-hairline bg-muted/75 px-2 py-0.5 font-mono text-xs text-ink-secondary tabular-nums">
+            仓位 {thesis.currentWeightPct}%
+          </span>
+        ) : null}
+        {thesis.status === "archived_veto" ? <Badge variant="fail">已否决</Badge> : null}
+      </div>
+    </div>
+  );
+}
+
+function ThesisInsightExcerpt({ thesis }: { thesis: ThesisDetail }) {
+  const excerpt = thesis.convictionSummary.trim() || thesis.hypotheses[0]?.title.trim() || "";
+  if (!excerpt) return null;
+  return (
+    <div className="border-t border-hairline px-6 py-4">
+      <p className="line-clamp-2 border-l-2 border-strong/75 pl-3.5 text-sm leading-relaxed text-ink-secondary">
+        {excerpt}
+      </p>
     </div>
   );
 }
@@ -93,7 +109,7 @@ function HypothesisSignalButton({
   const validated = hypotheses.filter((h) => h.status === "validated").length;
   const label =
     warnings > 0
-      ? `${warnings} 条预警`
+      ? `${warnings} 条证伪预警`
       : validated === hypotheses.length
         ? `${validated}/${hypotheses.length} 已验证`
         : `假设 ${validated}/${hypotheses.length}`;
@@ -102,12 +118,12 @@ function HypothesisSignalButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex min-w-0 cursor-pointer items-center gap-2 rounded-control px-1.5 py-1 text-xs transition-colors hover:bg-muted/70"
+      className="inline-flex min-w-0 cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 text-sm transition-colors hover:bg-muted/80"
       title="查看全部核心假设与速览校准"
     >
       <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
         {hypotheses.map((h) => (
-          <span key={h.id} className={cn("h-1.5 w-1.5 rounded-pill", DOT_CLASS[h.status])} />
+          <span key={h.id} className={cn("h-2 w-2 rounded-pill", DOT_CLASS[h.status])} />
         ))}
       </span>
       <span
@@ -133,36 +149,28 @@ function CardActionFooter({
 }) {
   const next = resolveNextStepHref(thesis.id, readiness);
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-hairline px-5 py-3 sm:px-6">
+    <div className="mt-auto flex items-center justify-between gap-2 border-t border-hairline bg-muted/25 px-5 py-3.5 sm:px-6">
       <HypothesisSignalButton
         hypotheses={thesis.hypotheses}
         onClick={() => onQuickInspect(thesis)}
       />
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={() => onQuickInspect(thesis)}
-          className="inline-flex h-8 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-control px-2.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-muted hover:text-ink-primary"
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-control border border-hairline bg-surface px-3 text-sm font-medium text-ink-secondary shadow-button transition-colors hover:border-strong hover:text-ink-primary"
         >
           速览
         </button>
         <Link
           href={next.href}
-          className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-control px-2.5 text-xs font-medium text-ink-primary transition-colors hover:bg-titanium-subtle"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-control border border-strong/80 bg-surface px-3.5 text-sm font-medium text-ink-primary shadow-button transition-colors hover:border-ink-primary hover:bg-ink-primary hover:text-ink-inverse"
         >
           <span>{next.label}</span>
           {next.isContinue ? (
-            <IconArrowRight
-              size={14}
-              stroke={1.5}
-              className="text-accent-coral transition-transform duration-150 group-hover:translate-x-0.5"
-            />
+            <IconArrowRight size={15} stroke={1.5} className="shrink-0" />
           ) : (
-            <IconArrowUpRight
-              size={14}
-              stroke={1.5}
-              className="transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-            />
+            <IconArrowUpRight size={15} stroke={1.5} className="shrink-0" />
           )}
         </Link>
       </div>
@@ -175,14 +183,15 @@ export function ThesisBentoCard({ thesis, onQuickInspect }: ThesisBentoCardProps
   const next = resolveNextStepHref(thesis.id, readiness);
 
   return (
-    <motion.article whileHover={KANON_CARD_HOVER}>
-      <Card interactive className="group relative flex flex-col overflow-hidden">
+    <motion.article whileHover={KANON_CARD_HOVER} className="flex h-full">
+      <Card interactive className="group relative flex w-full flex-col overflow-hidden">
         <div
           aria-hidden="true"
           className="h-[2px] w-full origin-left scale-x-0 bg-accent-coral transition-transform duration-200 group-hover:scale-x-100"
         />
         <CardIdentityHeader thesis={thesis} readiness={readiness} targetHref={next.href} />
         <ValuationAnchorPanel valuation={thesis.valuation} priceHistory={thesis.priceHistory} />
+        <ThesisInsightExcerpt thesis={thesis} />
         <CardActionFooter thesis={thesis} readiness={readiness} onQuickInspect={onQuickInspect} />
       </Card>
     </motion.article>
