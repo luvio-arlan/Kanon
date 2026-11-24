@@ -6,6 +6,7 @@ import {
   checkDocsEntryParity,
   checkExpandOnlyMigrations,
   checkGardenAstRules,
+  checkMarketingOpticalGuards,
   checkUniversalDirDensity,
 } from "./garden-guards.mjs";
 
@@ -255,6 +256,7 @@ function main() {
   checkUniversalDirDensity(ROOT, errors);
   checkExpandOnlyMigrations(ROOT, errors);
   checkDocsEntryParity(ROOT, errors);
+  checkMarketingOpticalGuards(ROOT, errors);
   for (const filePath of files) {
     const relPath = path.relative(ROOT, filePath).split(path.sep).join("/");
     const content = fs.readFileSync(filePath, "utf8");

@@ -1,31 +1,28 @@
-# KANON Editorial Craft & Copy Restraint Constitution
+# KANON Editorial Craft & Interaction Constitution
 
-> 最高审美准绳：**不为界面凑字，不向用户转嫁复杂度。** 任何面向用户的页面（`marketing/` 与 `apps/web/`）必须同时满足极致的克制文案与光学级交互细节。
+> 最高准绳：**极度克制、零跳动丝滑、边界自洽、光学零容错。** 凡标有 `[guard]` 的条款均由 `pnpm check` 机械拦截，AI 写完代码即刻自验。
 
-## 1. 文案克制铁律（Zero Ornamental Microcopy）
+## 1. 文案极简（Zero Ornamental Microcopy）
 
-- **删无可删**：屏幕上的每一个字都必须服务于用户当下要做的判断或操作。如果删掉一行字后界面意图依然成立，就必须删掉。
-- **严禁以下装饰性小字**：
-  - 页脚/角落的凑字技术标签与卖点堆砌（如 `SEC XBRL / 5×5 赔率矩阵 / 零杠杆铁律`、`+86 独立加密存储`）。
-  - 标题下方的重复解释性副文案（主标题已说清楚时，不补灰字说明）。
-  - 暴露内部迭代或时间表的话术（如 `v4.0 / v5.0 / v6.0`、「未来十年」）。
-  - 同一屏内重复出现的品牌口号或冗余跳转入口。
-- **用设计本身替代说明**：用留白、字号层级、细线分割、微交互状态反馈传达质感与可信度，而不是用小号灰字向用户解释「我们很专业 / 很安全」。
+- **删无可删**：屏幕上的每个字都必须直接服务于用户当下操作；删掉后意图不变的文字一律删除。
+- **严禁凑字与复杂化**：禁止页脚技术标签堆砌（如 `SEC XBRL / +86 独立加密存储`）、主标题下方冗余解释副文案、内部版本号与路线图年份（`v4.0` / `未来十年`）、以及注册/首屏里的非必要配置开关。
+- **职责唯一**：`kanon.hk` 是唯一品牌官网；`app.kanon.hk` 是纯净工作台（未登录 HTTP 307 直达极简登录门户），应用内不维护第二套营销页，品牌 Logo 直接点击回官网，不额外堆放「返回官网」文字链。
 
-## 2. 界面职责唯一（No Overlapping Surfaces）
+## 2. 零跳动丝滑切换（Zero-Jump Silky Transitions）
 
-- `kanon.hk`（`marketing/`）是唯一的品牌官网；`app.kanon.hk`（`apps/web/`）是纯净应用工作台，未登录直达极简登录门户，禁止在应用内维护第二套营销页或无必要的多余中转页。
-- 复杂分析能力一律采用**渐进披露（Progressive Disclosure）**，首屏保持低噪音、单一视觉焦点。
+- **固定顶部锚点，禁止垂直跳动**：同组高度不同的 Tab 视图（如 `登录 | 注册`）**必须**采用固定上边距（如 `items-start pt-[clamp(24px,9vh,88px)]`），严禁 `items-center` 垂直居中导致 Tab 行随内容高度上下跳动。
+- **0ms 即时切换 + 静默 URL 同步**：同域高频模式切换（如 `登录 ↔ 注册`）使用本地状态瞬切并保留已填公共字段（如手机号），用 `window.history.replaceState` 同步地址栏，杜绝跨路由网络往返、整屏白闪与外层舞台重播动画。
+- **丝滑微动效**：Tab 行单行排布，激活线用 `layoutId` + `KANON_SPRING` 弹簧滑行；内容区用 `AnimatePresence mode="popLayout"` 做轻柔方向横移（`~220ms`，`cubic-bezier(0.22, 1, 0.36, 1)`）。
+- **禁止顶部闪烁进度条** `[no-route-progress-bar]`：严禁挂载全局顶部红条/加载条组件（`RouteProgressBar` / `NextTopLoader`）。
 
-## 3. 顶级视觉与动效光学精度（Optical & Motion Precision）
+## 3. 表单与密码边界纪律（Bounded Inputs & Auth Policy）
 
-- **配色克制**：95% 单色暖纸白 / 暗夜黑曜石 + 天然钛金中性灰，仅在最关键的结论或行动焦点使用一抹珊瑚橙（`--accent-coral`）。
-- **SVG 动效铁律（零飞出、零截断、零变形）**：
-  - 所有对 SVG 子元素做 `scale` / `rotate` 的 CSS 动画**必须**同时声明 `transform-box: fill-box; transform-origin: center;`，防止缩放原点漂移至画布中心导致元素飞出。
-  - 所有 SVG 描边绘制动画**必须**在路径上声明 `pathLength="100"` 并配合 `stroke-dasharray: 100`，严禁手填像素估算长度导致线段提前截断。
-  - 含圆形、圆点或脉冲环的 SVG **严禁**使用 `preserveAspectRatio="none"`，并为端点光晕留足 `viewBox` 安全边距与 `overflow: visible`。
-  - 关联元素（如曲线、渐变填充、端点圆点、呼吸光环）必须共享统一缓动曲线并编排先后时序，杜绝各动各的割裂感。
-- **零闪烁丝滑转场铁律（Silky Zero-Flash Transitions）**：
-  - 同域视图切换（如 `登录 ↔ 注册`、研究步骤、Tab 面板）**必须**复用持久化共享布局（App Router Route Group `layout.tsx` 或受控组件状态），严禁卸载重建共享外框、重播背景/标题进场动画或误触全局骨架屏（`loading.tsx`）。
-  - 严禁挂载全局顶部一闪而过的红色进度条等干扰式指示器。
-  - 标签/模式切换的激活指示器采用弹簧共享布局（`layoutId` + `KANON_SPRING`）平滑滑行，内容切换采用短促克制的微位移渐入（`opacity: 0.4 → 1`、`y: 6 → 0`、`~200ms`，禁止从 `0` 整屏白闪）。
+- **密码输入框强制截断** `[bounded-password-input]`：所有密码 `<input>` 必须声明 `maxLength={PASSWORD_MAX_LENGTH}`（并在 `onChange` 中同步截断），杜绝超长输入溢出下划线框。
+- **强密码统一契约**（`auth-contracts.test.ts` 校验）：长度 `8–24` 位，必须同时包含 **英文字母 + 数字 + 符号**，前后端 Zod 与实时强度条共享单一真源。
+
+## 4. 官网与 SVG 光学精度（Optical Motion Precision）
+
+- **配色克制**：95% 暖纸白 / 暗夜黑曜石 + 天然钛金中性灰，仅在核心结论或主行动点使用单一珊瑚橙（`--accent-coral`）。
+- **禁止圆点变形** `[svg-no-distorted-circles]`：含 `<circle>` 的 `<svg>` 严禁使用 `preserveAspectRatio="none"`，并为端点光晕预留安全 `viewBox` 边距与 `overflow: visible`。
+- **禁止动画飞出** `[svg-beacon-fill-box]`：所有带动画且使用 `transform-origin: center` 的 SVG 子元素样式**必须**同时声明 `transform-box: fill-box`。
+- **禁止描边截断** `[svg-pathlength-draw]`：所有 `stroke-dashoffset` 描边动画路径**必须**声明 `pathLength="100"`（配 `stroke-dasharray: 100`），严禁手填像素估算值；关联阴影与端点圆点须与主曲线共享缓动并编排时序。

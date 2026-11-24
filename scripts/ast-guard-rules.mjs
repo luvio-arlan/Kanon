@@ -2,6 +2,7 @@ import ts from "typescript";
 
 const MAX_USE_EFFECT_PER_FILE = 1;
 const POPOVER_TAGS = new Set(["GlossaryText", "GlossaryPopoverCard"]);
+const FORBIDDEN_TOP_LOADERS = new Set(["RouteProgressBar", "NextTopLoader", "TopLoader"]);
 
 function getLine(sf, pos) {
   return sf.getLineAndCharacterOfPosition(pos).line + 1;
@@ -9,6 +10,15 @@ function getLine(sf, pos) {
 
 function addError(errors, relPath, line, rule, message) {
   errors.push(`${relPath}:${line} [${rule}] ${message}`);
+}
+
+function getJsxAttr(node, name) {
+  for (const prop of node.attributes.properties) {
+    if (ts.isJsxAttribute(prop) && prop.name.text === name) {
+      return prop;
+    }
+  }
+  return null;
 }
 
 function checkJsxGuard(relPath, sf, node, ctx, errors) {
@@ -31,6 +41,29 @@ function checkJsxGuard(relPath, sf, node, ctx, errors) {
       "no-block-popover-in-p",
       `<${tag}> inside <p> risks SSR HTML auto-closing (React #418). Wrap the text container in <div> instead.`,
     );
+  }
+  if (FORBIDDEN_TOP_LOADERS.has(tag)) {
+    addError(
+      errors,
+      relPath,
+      line,
+      "no-route-progress-bar",
+      `<${tag}> causes noisy top-edge flashing on navigation. Use persistent layouts and instant state transitions (.rules/editorial-craft.md §2).`,
+    );
+  }
+  if (tag === "input") {
+    const typeAttr = getJsxAttr(node, "type");
+    if (typeAttr?.initializer && /["']password["']/.test(typeAttr.initializer.getText(sf))) {
+      if (!getJsxAttr(node, "maxLength")) {
+        addError(
+          errors,
+          relPath,
+          line,
+          "bounded-password-input",
+          "Password <input> MUST declare maxLength (PASSWORD_MAX_LENGTH) so input truncates cleanly without overflowing (.rules/editorial-craft.md §3).",
+        );
+      }
+    }
   }
 }
 

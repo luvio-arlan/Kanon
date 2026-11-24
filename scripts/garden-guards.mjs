@@ -181,3 +181,82 @@ export function checkGardenAstRules(relPath, sf, isTestFile, errors) {
 
   walk(sf);
 }
+
+function lineAtIndex(source, index) {
+  return source.slice(0, index).split("\n").length;
+}
+
+function checkDistortedSvgCircles(html, relPath, errors) {
+  for (const match of html.matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg>/gi)) {
+    const attrs = match[1] ?? "";
+    const body = match[2] ?? "";
+    if (/preserveAspectRatio\s*=\s*["']none["']/i.test(attrs) && /<circle\b/i.test(body)) {
+      addError(
+        errors,
+        relPath,
+        lineAtIndex(html, match.index ?? 0),
+        "svg-no-distorted-circles",
+        'SVG containing <circle> MUST NOT use preserveAspectRatio="none" (distorts circles into ovals; .rules/editorial-craft.md §4).',
+      );
+    }
+  }
+}
+
+function checkAnimatedSvgFillBox(html, relPath, cls, block, matchIndex, errors) {
+  const needsFillBox =
+    /transform-origin\s*:\s*center\b/.test(block) &&
+    /animation\s*:/.test(block) &&
+    !/transform-box\s*:\s*fill-box\b/.test(block);
+  if (!needsFillBox) return;
+  const svgChildRe = new RegExp(
+    `<(?:circle|path|rect|ellipse|polygon|g)\\b[^>]*class\\s*=\\s*["'][^"']*\\b${cls}\\b`,
+    "i",
+  );
+  if (!svgChildRe.test(html)) return;
+  addError(
+    errors,
+    relPath,
+    lineAtIndex(html, matchIndex),
+    "svg-beacon-fill-box",
+    `Animated SVG class ".${cls}" uses transform-origin: center without transform-box: fill-box (causes element to fly off-canvas; .rules/editorial-craft.md §4).`,
+  );
+}
+
+function checkSvgStrokeDrawPaths(html, relPath, strokeDrawClasses, errors) {
+  for (const cls of strokeDrawClasses) {
+    const pathRe = new RegExp(
+      `<path\\b([^>]*class\\s*=\\s*["'][^"']*\\b${cls}\\b[^"']*["'][^>]*)>`,
+      "gi",
+    );
+    for (const match of html.matchAll(pathRe)) {
+      if (!/\bpathLength\s*=\s*["']100["']/.test(match[1] ?? "")) {
+        addError(
+          errors,
+          relPath,
+          lineAtIndex(html, match.index ?? 0),
+          "svg-pathlength-draw",
+          `Animated stroke-draw <path class="${cls}"> MUST declare pathLength="100" instead of hardcoded pixel dasharray (.rules/editorial-craft.md §4).`,
+        );
+      }
+    }
+  }
+}
+
+export function checkMarketingOpticalGuards(rootDir, errors) {
+  const relPath = "marketing/index.html";
+  const filePath = path.join(rootDir, relPath);
+  if (!fs.existsSync(filePath)) return;
+  const html = fs.readFileSync(filePath, "utf8");
+  checkDistortedSvgCircles(html, relPath, errors);
+
+  const strokeDrawClasses = new Set();
+  for (const match of html.matchAll(/\.([a-zA-Z0-9_-]+)\s*\{([^}]*)\}/g)) {
+    const cls = match[1] ?? "";
+    const block = match[2] ?? "";
+    if (/stroke-dashoffset\s*:/.test(block) && /animation\s*:/.test(block)) {
+      strokeDrawClasses.add(cls);
+    }
+    checkAnimatedSvgFillBox(html, relPath, cls, block, match.index ?? 0, errors);
+  }
+  checkSvgStrokeDrawPaths(html, relPath, strokeDrawClasses, errors);
+}
