@@ -49,7 +49,7 @@ export function calculatePortfolioAnalytics(theses: readonly ThesisDetail[]): Po
     validatedHypotheses: hyp.validated,
     watchingHypotheses: hyp.watching,
     warningHypotheses: hyp.warning,
-    totalHypotheses: active.length * 3,
+    totalHypotheses: active.reduce((sum, item) => sum + item.hypotheses.length, 0),
     averageRiskReward: calculateAverageRiskReward(active.map((t) => t.valuation.riskRewardRatio)),
     averageBaseCagrPct: averageFinite(cagrs),
     averageMarginOfSafetyPct: averageFinite(margins),

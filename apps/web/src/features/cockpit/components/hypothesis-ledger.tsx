@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 
 export interface HypothesisLedgerProps {
-  hypotheses: readonly [Hypothesis, Hypothesis, Hypothesis];
+  hypotheses: readonly Hypothesis[];
 }
 
 const STATUS_META: Record<

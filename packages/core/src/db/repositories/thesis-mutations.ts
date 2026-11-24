@@ -54,18 +54,20 @@ function buildStarterHypotheses(thesisId: string, companyName: string) {
   ];
 }
 
-function buildStarterValuation(thesisId: string, price: number) {
-  const baseEps = roundTo(price / 22, 2);
+function buildStarterValuation(thesisId: string, price: number, latestSecEps?: number) {
+  const trailingEps = latestSecEps && latestSecEps > 0 ? latestSecEps : roundTo(price / 22, 2);
+  const rawPe = Math.min(35, Math.max(12, Math.round(price / trailingEps)));
+  const basePe = Math.min(32, Math.max(14, rawPe));
   return {
     thesisId,
-    bearEps: roundTo(baseEps * 0.78, 2),
-    bearPe: 16,
+    bearEps: roundTo(Math.max(0.5, trailingEps * 0.9), 2),
+    bearPe: Math.max(10, basePe - 5),
     bearProb: 0.25,
-    baseEps: roundTo(baseEps * 1.35, 2),
-    basePe: 22,
+    baseEps: roundTo(Math.max(0.8, trailingEps * 1.38), 2),
+    basePe,
     baseProb: 0.5,
-    bullEps: roundTo(baseEps * 1.75, 2),
-    bullPe: 26,
+    bullEps: roundTo(Math.max(1.2, trailingEps * 1.8), 2),
+    bullPe: Math.min(42, basePe + 5),
     bullProb: 0.25,
     priceHistory: [
       { label: "6M前", price: roundTo(price * 0.88, 2) },
@@ -123,7 +125,9 @@ export async function createThesis(
 
     await tx.insert(thesesTable).values(buildNewThesisRow(id, nextOrder, parsed));
     await tx.insert(hypothesesTable).values(buildStarterHypotheses(id, parsed.companyName));
-    await tx.insert(valuationScenariosTable).values(buildStarterValuation(id, parsed.currentPrice));
+    await tx
+      .insert(valuationScenariosTable)
+      .values(buildStarterValuation(id, parsed.currentPrice, parsed.latestSecEps));
 
     const created = await getThesisById(tx, id);
     if (!created) {

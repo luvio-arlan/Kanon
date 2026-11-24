@@ -39,6 +39,10 @@ export {
   CopilotApiResponseSchema,
   CreateThesisResponseSchema,
   DeleteOkResponseSchema,
+  type MarketBootstrapResponse,
+  MarketBootstrapResponseSchema,
+  type RefreshPricesResponse,
+  RefreshPricesResponseSchema,
   SecSyncResponseSchema,
   ThesisMutationResponseSchema,
 } from "./contracts/api-contracts";

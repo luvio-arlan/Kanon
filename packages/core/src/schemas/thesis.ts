@@ -76,7 +76,7 @@ export const ThesisCardSchema = z.object({
   lastReviewedAt: z.string().min(1),
   horizonLabel: z.string().min(1),
   convictionSummary: z.string().min(1),
-  hypotheses: z.tuple([HypothesisSchema, HypothesisSchema, HypothesisSchema]),
+  hypotheses: z.array(HypothesisSchema).min(3).max(5),
   valuation: ValuationScenarioSummarySchema,
   priceHistory: z.array(SparklinePointSchema).min(2),
 });

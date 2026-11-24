@@ -9,8 +9,10 @@ import type {
   ThesisStatus,
 } from "@kanon/core";
 import { Badge, Card, cn } from "@kanon/ui";
-import { useState } from "react";
+import { useMemo } from "react";
 import { GlossaryText } from "@/features/glossary";
+import { DraftStatusBar } from "@/shared/components/draft-status-bar";
+import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { BusinessFilterNotesCard } from "./business-filter-notes";
 import { SecAnnualsTable } from "./sec-annuals-table";
 import { VariantPerceptionCard } from "./variant-perception-card";
@@ -20,6 +22,7 @@ export interface StepBusinessFilterProps {
   glossary: readonly GlossaryTerm[];
   annuals?: readonly SecAnnualFinancial[];
   saving: boolean;
+  onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
   onSave: (payload: {
     status: ThesisStatus;
     convictionSummary: string;
@@ -146,50 +149,74 @@ function FilterMatrixCard(props: {
   );
 }
 
-export function StepBusinessFilter({
-  thesis,
-  glossary,
-  annuals = [],
-  saving,
-  onSave,
-}: StepBusinessFilterProps) {
-  const [filter, setFilter] = useState<BusinessFilter>(thesis.businessFilter);
-  const [summary, setSummary] = useState(thesis.convictionSummary);
+interface Step1Draft {
+  filter: BusinessFilter;
+  summary: string;
+}
+
+function isStep1Draft(val: unknown): val is Step1Draft {
+  if (!val || typeof val !== "object") return false;
+  const rec = val as { filter?: unknown; summary?: unknown };
+  return typeof rec.summary === "string" && Boolean(rec.filter && typeof rec.filter === "object");
+}
+
+function useStep1Draft(props: StepBusinessFilterProps) {
+  const serverValue = useMemo<Step1Draft>(
+    () => ({ filter: props.thesis.businessFilter, summary: props.thesis.convictionSummary }),
+    [props.thesis.businessFilter, props.thesis.convictionSummary],
+  );
+  return useThesisStepDraft({
+    storageKey: `kanon-draft:${props.thesis.id}:step1`,
+    serverValue,
+    serverVersion: props.thesis.updatedAt,
+    canSave: !props.saving,
+    onDirtyChange: props.onDirtyChange,
+    validateStored: isStep1Draft,
+    onSave: (val) =>
+      props.onSave({
+        status: props.thesis.status,
+        convictionSummary: val.summary,
+        businessFilter: val.filter,
+      }),
+  });
+}
+
+export function StepBusinessFilter(props: StepBusinessFilterProps) {
+  const { thesis, glossary, annuals = [], saving, onSave } = props;
+  const d = useStep1Draft(props);
   const nextStatus: ThesisStatus = thesis.status === "archived_veto" ? "active" : "archived_veto";
-  const vetoReason = nextStatus === "archived_veto" ? filter.notes || "商业模式未通过" : "";
+  const vetoReason = nextStatus === "archived_veto" ? d.draft.filter.notes || "商业模式未通过" : "";
+  const patchFilter = (patch: Partial<BusinessFilter>) =>
+    d.setDraft((prev) => ({ ...prev, filter: { ...prev.filter, ...patch } }));
 
   return (
     <div className="space-y-6">
+      <DraftStatusBar draft={d} saving={saving} />
       <FilterMatrixCard
         status={thesis.status}
-        filter={filter}
+        filter={d.draft.filter}
         glossary={glossary}
-        onSelect={(key, verdict) => setFilter((prev) => ({ ...prev, [key]: verdict }))}
+        onSelect={(key, verdict) => patchFilter({ [key]: verdict })}
       />
-      <VariantPerceptionCard
-        filter={filter}
-        onPatch={(patch) => setFilter((prev) => ({ ...prev, ...patch }))}
-      />
+      <VariantPerceptionCard filter={d.draft.filter} onPatch={patchFilter} />
       {annuals.length > 0 ? (
         <SecAnnualsTable annuals={annuals} title="历史财务基本盘佐证（SEC 10-K）" />
       ) : null}
       <BusinessFilterNotesCard
         status={thesis.status}
-        summary={summary}
-        notes={filter.notes}
+        summary={d.draft.summary}
+        notes={d.draft.filter.notes}
         saving={saving}
-        onSummary={setSummary}
-        onNotes={(notes) => setFilter((prev) => ({ ...prev, notes }))}
+        onSummary={(summary) => d.setDraft((prev) => ({ ...prev, summary }))}
+        onNotes={(notes) => patchFilter({ notes })}
         onToggleArchive={() =>
           onSave({
             status: nextStatus,
-            convictionSummary: summary,
-            businessFilter: { ...filter, vetoReason },
+            convictionSummary: d.draft.summary,
+            businessFilter: { ...d.draft.filter, vetoReason },
           })
         }
-        onSave={() =>
-          onSave({ status: thesis.status, convictionSummary: summary, businessFilter: filter })
-        }
+        onSave={() => void d.save()}
       />
     </div>
   );

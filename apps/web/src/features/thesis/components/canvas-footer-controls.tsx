@@ -144,16 +144,60 @@ export function useCanvasShellActions(params: {
   return { commandGroups, handleConfirmDelete };
 }
 
+function UnsavedChangesDialog(props: {
+  open: boolean;
+  saving: boolean;
+  onResolve: (mode: "save" | "discard" | "cancel") => Promise<void>;
+}) {
+  return (
+    <DialogModal
+      open={props.open}
+      onOpenChange={(open) => {
+        if (!open) void props.onResolve("cancel");
+      }}
+      title="当前步骤有未保存修改"
+      subtitle="草稿已自动暂存本地，建议落库后再切换，避免研究思考中断"
+      icon={<IconAlertTriangle size={18} stroke={1.5} />}
+      footer={
+        <>
+          <Button variant="ghost" size="md" onClick={() => void props.onResolve("discard")}>
+            放弃修改
+          </Button>
+          <Button variant="outline" size="md" onClick={() => void props.onResolve("cancel")}>
+            继续编辑
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            disabled={props.saving}
+            onClick={() => void props.onResolve("save")}
+          >
+            {props.saving ? "保存中..." : "保存并切换"}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm leading-relaxed text-ink-secondary">
+        你可以直接点击「保存并切换」同步写入 PostgreSQL 并跳转，或按{" "}
+        <kbd className="font-mono">⌘S</kbd> 随时快速落库。
+      </p>
+    </DialogModal>
+  );
+}
+
 export function CanvasOverlays(props: {
   thesis: ThesisDetail;
   deleting: boolean;
+  saving: boolean;
   commandOpen: boolean;
   aiModalOpen: boolean;
   deleteOpen: boolean;
+  unsavedOpen: boolean;
   commandGroups: ReturnType<typeof buildCanvasCommandGroups>;
   onCommandOpen: (open: boolean) => void;
   onAiModalOpen: (open: boolean) => void;
   onDeleteOpen: (open: boolean) => void;
+  onResolveUnsaved: (mode: "save" | "discard" | "cancel") => Promise<void>;
   onByokChanged: () => void;
   onConfirmDelete: () => Promise<void>;
 }) {
@@ -177,6 +221,11 @@ export function CanvasOverlays(props: {
         deleting={props.deleting}
         onOpenChange={props.onDeleteOpen}
         onConfirm={props.onConfirmDelete}
+      />
+      <UnsavedChangesDialog
+        open={props.unsavedOpen}
+        saving={props.saving}
+        onResolve={props.onResolveUnsaved}
       />
     </>
   );

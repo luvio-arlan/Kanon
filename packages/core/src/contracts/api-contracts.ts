@@ -31,6 +31,26 @@ export const DeleteOkResponseSchema = z.object({
   ok: z.literal(true),
 });
 
+export const MarketBootstrapResponseSchema = z.object({
+  ticker: z.string().min(1),
+  companyName: z.string(),
+  currentPrice: z.number().nullable(),
+  priceSource: z.enum(["fmp", "yahoo", "cached", "none"]),
+  latestEps: z.number().nullable(),
+  secYearsCovered: z.number().int().nonnegative(),
+  secCached: z.boolean(),
+  notice: z.string(),
+});
+export type MarketBootstrapResponse = z.infer<typeof MarketBootstrapResponseSchema>;
+
+export const RefreshPricesResponseSchema = z.object({
+  updatedTheses: z.array(ThesisDetailSchema),
+  updatedCount: z.number().int().nonnegative(),
+  skippedTickers: z.array(z.string()),
+  notice: z.string(),
+});
+export type RefreshPricesResponse = z.infer<typeof RefreshPricesResponseSchema>;
+
 export const CopilotApiResponseSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("red_team"),

@@ -157,6 +157,7 @@ export const CreateThesisInputSchema = z.object({
   sectorTag: z.string().trim().min(1).max(40),
   currentPrice: z.number().finite().positive(),
   convictionSummary: z.string().trim().min(1).max(280).optional(),
+  latestSecEps: z.number().finite().positive().optional(),
 });
 export type CreateThesisInput = z.input<typeof CreateThesisInputSchema>;
 
@@ -193,7 +194,7 @@ export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
   }),
   z.object({
     step: z.literal("hypotheses"),
-    hypotheses: z.tuple([HypothesisSchema, HypothesisSchema, HypothesisSchema]),
+    hypotheses: z.array(HypothesisSchema).min(3).max(5),
   }),
   z.object({
     step: z.literal("cross_checks"),

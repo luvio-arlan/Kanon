@@ -1,10 +1,17 @@
 "use client";
 
-import type { EarningsDigest } from "@kanon/ai";
-import type { CrossCheck, GlossaryTerm, SecSnapshot, ThesisDetail } from "@kanon/core";
+import type {
+  CrossCheck,
+  EarningsDigest,
+  GlossaryTerm,
+  SecSnapshot,
+  ThesisDetail,
+} from "@kanon/core";
 import { Badge, Button, Card, Textarea } from "@kanon/ui";
 import { IconCheck, IconDeviceFloppy, IconSparkles } from "@tabler/icons-react";
 import { useState } from "react";
+import { DraftStatusBar } from "@/shared/components/draft-status-bar";
+import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { AddCrossCheckForm, CrossCheckItemCard, nextAlignment } from "./cross-check-editor";
 import { SecAnnualsTable } from "./sec-annuals-table";
 import { SecFactsPanel } from "./sec-facts-panel";
@@ -17,6 +24,7 @@ export interface StepFirstPrinciplesProps {
   digestLoading: boolean;
   digest: EarningsDigest | null;
   saving: boolean;
+  onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
   onSyncSec: () => Promise<void>;
   onRunDigest: (sourceText?: string) => Promise<void>;
   onSaveCrossChecks: (items: CrossCheck[]) => Promise<void>;
@@ -143,11 +151,34 @@ function CrossCheckListSection(props: {
   );
 }
 
+function isCrossCheckArray(val: unknown): val is CrossCheck[] {
+  return Array.isArray(val);
+}
+
+function StepThreeHeading() {
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-ink-primary">Step 3 · 一阶资料与产业链交叉验证</h2>
+      <p className="mt-0.5 text-sm text-ink-secondary">
+        不只听公司一面之词：用 SEC 多年度财务轨迹、电话会原话与上下游伙伴口径互证真相
+      </p>
+    </div>
+  );
+}
+
 export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
-  const [checks, setChecks] = useState<CrossCheck[]>(props.thesis.crossChecks);
+  const d = useThesisStepDraft({
+    storageKey: `kanon-draft:${props.thesis.id}:step3`,
+    serverValue: props.thesis.crossChecks,
+    serverVersion: props.thesis.updatedAt,
+    canSave: !props.saving,
+    onDirtyChange: props.onDirtyChange,
+    validateStored: isCrossCheckArray,
+    onSave: props.onSaveCrossChecks,
+  });
   const [transcript, setTranscript] = useState("");
   const cycleCheck = (id: string) =>
-    setChecks((prev) =>
+    d.setDraft((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, alignment: nextAlignment(item.alignment) } : item,
       ),
@@ -155,14 +186,8 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-ink-primary">
-          Step 3 · 一阶资料与产业链交叉验证
-        </h2>
-        <p className="mt-0.5 text-sm text-ink-secondary">
-          不只听公司一面之词：用 SEC 多年度财务轨迹、电话会原话与上下游伙伴口径互证真相
-        </p>
-      </div>
+      <DraftStatusBar draft={d} saving={props.saving} />
+      <StepThreeHeading />
       <SecFactsPanel
         ticker={props.thesis.ticker}
         snapshot={props.secSnapshot}
@@ -180,13 +205,13 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
       />
       {props.digest ? <EarningsDigestPanel digest={props.digest} /> : null}
       <CrossCheckListSection
-        checks={checks}
+        checks={d.draft}
         glossary={props.glossary}
         saving={props.saving}
         onCycle={cycleCheck}
-        onDelete={(id) => setChecks((prev) => prev.filter((item) => item.id !== id))}
-        onAdd={(next) => setChecks((prev) => [...prev, next])}
-        onSave={() => props.onSaveCrossChecks(checks)}
+        onDelete={(id) => d.setDraft((prev) => prev.filter((item) => item.id !== id))}
+        onAdd={(next) => d.setDraft((prev) => [...prev, next])}
+        onSave={d.save}
       />
     </div>
   );

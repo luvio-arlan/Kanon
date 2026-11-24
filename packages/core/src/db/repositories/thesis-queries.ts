@@ -37,7 +37,7 @@ function normalizeFilter(raw: BusinessFilter): BusinessFilter {
   };
 }
 
-function toHypothesisTuple(rows: HypothesisRow[]): [Hypothesis, Hypothesis, Hypothesis] {
+function normalizeHypotheses(rows: HypothesisRow[]): Hypothesis[] {
   const sorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
   const fallback = (idx: number): Hypothesis => ({
     id: `placeholder-h-${idx}`,
@@ -47,7 +47,11 @@ function toHypothesisTuple(rows: HypothesisRow[]): [Hypothesis, Hypothesis, Hypo
     status: "watching",
     note: "请在 Step 2 补充量化观测口径与证伪条件。",
   });
-  return [sorted[0] ?? fallback(1), sorted[1] ?? fallback(2), sorted[2] ?? fallback(3)];
+  const result = sorted.slice(0, 5).map(({ thesisId: _, sortOrder: __, ...rest }) => rest);
+  while (result.length < 3) {
+    result.push(fallback(result.length + 1));
+  }
+  return result;
 }
 
 function buildValuationInput(row: ThesisRow, valuationRow: ValuationRow | undefined) {
@@ -110,7 +114,7 @@ function hydrateThesis(params: {
     convictionSummary: row.convictionSummary,
     status: row.status,
     businessFilter: normalizeFilter(row.businessFilter),
-    hypotheses: toHypothesisTuple(hypotheses),
+    hypotheses: normalizeHypotheses(hypotheses),
     crossChecks: formattedChecks,
     valuationInput: valInput,
     valuation: calculateValuationScenarios(valInput),

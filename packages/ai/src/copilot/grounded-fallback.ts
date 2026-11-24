@@ -1,6 +1,7 @@
 import {
   analyzeSecQuality,
   calculateImpliedExpectations,
+  type Hypothesis,
   type SecSnapshot,
   type ThesisDetail,
 } from "@kanon/core";
@@ -12,6 +13,22 @@ import {
   type RedTeamReport,
   RedTeamReportSchema,
 } from "../schemas/copilot";
+
+const DEFAULT_HYP: Hypothesis = {
+  id: "default-h",
+  title: "核心盈利增长前提",
+  metricLabel: "核心财务指标",
+  threshold: "既定红线",
+  status: "watching",
+  note: "请持续核验季度财报一阶数据。",
+};
+
+function pickCoreHypotheses(thesis: ThesisDetail) {
+  const h0 = thesis.hypotheses[0] ?? DEFAULT_HYP;
+  const h1 = thesis.hypotheses[1] ?? h0;
+  const hLast = thesis.hypotheses[thesis.hypotheses.length - 1] ?? h0;
+  return { h0, h1, hLast };
+}
 
 function extractTranscriptSnippets(sourceText: string | undefined): string[] {
   if (!sourceText?.trim()) return [];
@@ -55,6 +72,7 @@ export function buildGroundedEarningsDigest(
   const snippets = extractTranscriptSnippets(sourceText);
   const { anchor, quarterLabel, guidanceSummary } = buildDigestMeta(thesis, secSnapshot, snippets);
   const crossCheck = thesis.crossChecks[0];
+  const { h0, h1, hLast } = pickCoreHypotheses(thesis);
 
   return EarningsDigestSchema.parse({
     ticker: thesis.ticker,
@@ -63,24 +81,24 @@ export function buildGroundedEarningsDigest(
     capexSignals: [
       snippets[1]
         ? `原文关键信号：${snippets[1]}`
-        : `围绕「${thesis.hypotheses[0].metricLabel}」核对管理层最新指引是否守住 ${thesis.hypotheses[0].threshold}。`,
+        : `围绕「${h0.metricLabel}」核对管理层最新指引是否守住 ${h0.threshold}。`,
       crossCheck
         ? `产业链互证（${crossCheck.peerCompany}）：${crossCheck.takeaway}`
         : "建议在 Step 3 补充至少 1 家上下游核心伙伴的 CapEx 口径对照。",
     ],
     toneShifts: [
-      `核心假设「${thesis.hypotheses[2].title}」处于${thesis.hypotheses[2].status === "warning" ? "证伪预警" : "持续观察"}，需紧盯管理层口径变化。`,
+      `核心假设「${hLast.title}」处于${hLast.status === "warning" ? "证伪预警" : "持续观察"}，需紧盯管理层口径变化。`,
       `中性目标价 $${thesis.valuation.base.targetPrice.toFixed(1)}（年化 ${thesis.valuation.base.cagrPct.toFixed(1)}%），警惕将短期景气误判为永续增速。`,
     ],
     quotesWithAnchors: [
       {
-        topic: snippets.length > 0 ? "粘贴原文核心锚点" : thesis.hypotheses[0].metricLabel,
-        summary: snippets[0] ?? thesis.hypotheses[0].note,
+        topic: snippets.length > 0 ? "粘贴原文核心锚点" : h0.metricLabel,
+        summary: snippets[0] ?? h0.note,
         sourceAnchor: snippets.length > 0 ? "用户导入电话会 / 财报原文" : anchor,
       },
       {
-        topic: thesis.hypotheses[1].metricLabel,
-        summary: thesis.hypotheses[1].note,
+        topic: h1.metricLabel,
+        summary: h1.note,
         sourceAnchor: crossCheck?.sourceAnchor ?? anchor,
       },
     ],
@@ -94,6 +112,7 @@ export function buildGroundedRedTeam(
   const filingAnchor = secSnapshot?.filings[0]
     ? `${thesis.ticker} ${secSnapshot.filings[0].form} Item 1A (${secSnapshot.filings[0].filingDate})`
     : `${thesis.ticker} 10-K Item 1A 风险披露`;
+  const { h0, hLast } = pickCoreHypotheses(thesis);
 
   return RedTeamReportSchema.parse({
     ticker: thesis.ticker,
@@ -101,8 +120,8 @@ export function buildGroundedRedTeam(
     challenges: [
       {
         id: "rt-1",
-        question: `如果「${thesis.hypotheses[0].title}」在未来两季失速，你的估值底线是否被高估？`,
-        falsificationPath: `当 ${thesis.hypotheses[0].metricLabel} 连续两季未能守住「${thesis.hypotheses[0].threshold}」红线，盈利预期将向悲观 EPS $${thesis.valuation.bear.eps} 靠拢。`,
+        question: `如果「${h0.title}」在未来两季失速，你的估值底线是否被高估？`,
+        falsificationPath: `当 ${h0.metricLabel} 连续两季未能守住「${h0.threshold}」红线，盈利预期将向悲观 EPS $${thesis.valuation.bear.eps} 靠拢。`,
         severity: "critical",
         sourceAnchor: filingAnchor,
       },
@@ -115,8 +134,8 @@ export function buildGroundedRedTeam(
       },
       {
         id: "rt-3",
-        question: `针对「${thesis.hypotheses[2].title}」，产业链上下游是否已经出现提前备货与透支需求？`,
-        falsificationPath: `若「${thesis.hypotheses[2].metricLabel}」触发 ${thesis.hypotheses[2].threshold} 反向突破，应立即启动交易纪律减仓审查。`,
+        question: `针对「${hLast.title}」，产业链上下游是否已经出现提前备货与透支需求？`,
+        falsificationPath: `若「${hLast.metricLabel}」触发 ${hLast.threshold} 反向突破，应立即启动交易纪律减仓审查。`,
         severity: "moderate",
         sourceAnchor: thesis.crossChecks[0]
           ? `产业链交叉验证 · ${thesis.crossChecks[0].peerCompany}（${thesis.crossChecks[0].sourceAnchor}）`
@@ -142,7 +161,7 @@ export function buildGroundedInvestmentMemo(
   const secLine = quality
     ? `SEC ${quality.yearsCovered} 年质量画像（${quality.qualityLabel}）：最新 ${quality.latestFiscalYear} 毛利率 ${quality.latestGrossMarginPct ?? "—"}%，FCF 转化率 ${quality.fcfConversionPct ?? "—"}%，CapEx 强度 ${quality.capexIntensityPct ?? "—"}%。`
     : `当前市场参考价 $${thesis.currentPrice.toFixed(2)}，已完成三情景独立赔率测算。`;
-  const latestExit = thesis.disciplineEntries[0]?.exitRule;
+  const { h0, hLast } = pickCoreHypotheses(thesis);
 
   return InvestmentMemoSchema.parse({
     ticker: thesis.ticker,
@@ -151,17 +170,17 @@ export function buildGroundedInvestmentMemo(
     moatAndQuality: `${thesis.convictionSummary} ${thesis.businessFilter.notes || ""}`.trim(),
     keyEvidence: [
       secLine,
-      ...thesis.hypotheses.map(
-        (h, i) => `假设 0${i + 1}（${h.threshold}）：${h.title} — ${h.note}`,
-      ),
+      ...thesis.hypotheses
+        .slice(0, 4)
+        .map((h, i) => `假设 0${i + 1}（${h.threshold}）：${h.title} — ${h.note}`),
     ],
     nextQuarterChecklist: [
-      `核验「${thesis.hypotheses[0].metricLabel}」最新季报实绩是否稳守 ${thesis.hypotheses[0].threshold}。`,
-      `追踪「${thesis.hypotheses[2].metricLabel}」及上下游伙伴最新 CapEx 与需求表态是否出现分歧。`,
+      `核验「${h0.metricLabel}」最新季报实绩是否稳守 ${h0.threshold}。`,
+      `追踪「${hLast.metricLabel}」及上下游伙伴最新 CapEx 与需求表态是否出现分歧。`,
       "对照 10-Q 现金流量表检查自由现金流转化率，验证盈利质量未因激进扩产恶化。",
     ],
     exitDiscipline:
-      latestExit ??
-      `严守零杠杆铁律；若「${thesis.hypotheses[2].title}」触发证伪红线且核心毛利率失守，无条件减仓复盘。`,
+      thesis.disciplineEntries[0]?.exitRule ??
+      `严守零杠杆铁律；若「${hLast.title}」触发证伪红线且核心毛利率失守，无条件减仓复盘。`,
   });
 }

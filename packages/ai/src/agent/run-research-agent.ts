@@ -51,6 +51,8 @@ function buildIcBriefing(params: {
         ? `当前赔率处于均衡区间（${ratio}），建议耐心等待更好安全边际或核心争论明朗`
         : `当前估值偏紧（${ratio}），不具备足够安全边际，严禁情绪化追高`;
 
+  const h0 = thesis.hypotheses[0];
+  const hLast = thesis.hypotheses[thesis.hypotheses.length - 1] ?? h0;
   return AgentBriefingSchema.parse({
     ticker: thesis.ticker,
     engine: "grounded-local",
@@ -58,10 +60,10 @@ function buildIcBriefing(params: {
     convictionScore: score,
     bullSynthesis:
       thesis.businessFilter.variantPerception.trim() ||
-      `${thesis.companyName} 核心驱动在于「${thesis.hypotheses[0].title}」，中性目标 $${thesis.valuation.base.targetPrice.toFixed(1)}（年化 ${thesis.valuation.base.cagrPct.toFixed(1)}%）。`,
+      `${thesis.companyName} 核心驱动在于「${h0?.title ?? thesis.convictionSummary}」，中性目标 $${thesis.valuation.base.targetPrice.toFixed(1)}（年化 ${thesis.valuation.base.cagrPct.toFixed(1)}%）。`,
     bearCritique:
       thesis.businessFilter.preMortem.trim() ||
-      `最大下行风险来自「${thesis.hypotheses[2].title}」证伪叠加估值回落至 ${thesis.valuation.bear.peMultiple}x（回撤 ${thesis.valuation.downsidePct.toFixed(1)}%）。`,
+      `最大下行风险来自「${hLast?.title ?? "核心盈利假设"}」证伪叠加估值回落至 ${thesis.valuation.bear.peMultiple}x（回撤 ${thesis.valuation.downsidePct.toFixed(1)}%）。`,
     accountingCheck: traces[0]?.finding ?? "暂缺多年度 SEC 现金流数据，建议先执行同步。",
     traces,
     proposals: proposals.slice(0, 4),

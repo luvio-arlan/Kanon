@@ -3,8 +3,9 @@
 import { calculatePortfolioAnalytics, type GlossaryTerm, type ThesisDetail } from "@kanon/core";
 import { CommandMenu, KANON_STAGGER_CONTAINER } from "@kanon/ui";
 import { motion } from "framer-motion";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AiSettingsModal, readByokConfig } from "@/features/ai-settings";
+import { apiRefreshClosingPrices } from "../lib/cockpit-api";
 import { useCockpitState } from "../lib/cockpit-state";
 import { CockpitHeader, type CockpitViewMode } from "./cockpit-header";
 import { CockpitTopbar } from "./cockpit-topbar";
@@ -85,12 +86,25 @@ function CockpitOverlays({ ui }: { ui: ReturnType<typeof useCockpitState> }) {
 
 export function CockpitShell({ initialTheses, glossary }: CockpitShellProps) {
   const ui = useCockpitState(initialTheses, glossary);
+  const [refreshingPrices, setRefreshingPrices] = useState(false);
   const analytics = useMemo(() => calculatePortfolioAnalytics(ui.theses), [ui.theses]);
+
+  async function handleRefreshPrices() {
+    setRefreshingPrices(true);
+    try {
+      const updated = await apiRefreshClosingPrices();
+      if (updated) ui.setTheses(updated);
+    } finally {
+      setRefreshingPrices(false);
+    }
+  }
 
   return (
     <div className="kanon-ambient-canvas min-h-dvh">
       <CockpitTopbar
         hasByok={ui.hasByok}
+        refreshingPrices={refreshingPrices}
+        onRefreshPrices={() => void handleRefreshPrices()}
         onOpenCommand={() => ui.setModal("cmd", true)}
         onOpenAiSettings={() => ui.setModal("ai", true)}
         onNewThesis={() => ui.setModal("create", true)}

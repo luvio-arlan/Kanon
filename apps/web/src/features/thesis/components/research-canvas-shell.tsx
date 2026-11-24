@@ -52,6 +52,7 @@ interface CanvasMainProps {
   ctrl: ReturnType<typeof useResearchCanvas>;
   glossary: readonly GlossaryTerm[];
   promotedRule: string | null;
+  onDirtyChange: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
   onClearPromoted: () => void;
   onPromoteRule: (rule: string) => void;
   onSelectStep: (step: StepId) => void;
@@ -89,6 +90,7 @@ function CanvasMainContent(props: CanvasMainProps) {
               ctrl={props.ctrl}
               glossary={props.glossary}
               promotedRule={props.promotedRule}
+              onDirtyChange={props.onDirtyChange}
               onClearPromoted={props.onClearPromoted}
               onPromoteRule={props.onPromoteRule}
             />
@@ -120,13 +122,16 @@ function CanvasOverlaysBridge({
       <CanvasOverlays
         thesis={ctrl.thesis}
         deleting={ctrl.deleting}
+        saving={ctrl.saving}
         commandOpen={ui.modals.cmd}
         aiModalOpen={ui.modals.ai}
         deleteOpen={ui.modals.del}
+        unsavedOpen={ui.pendingNav !== null}
         commandGroups={actions.commandGroups}
         onCommandOpen={(o) => ui.setModal("cmd", o)}
         onAiModalOpen={(o) => ui.setModal("ai", o)}
         onDeleteOpen={(o) => ui.setModal("del", o)}
+        onResolveUnsaved={ui.resolvePendingNav}
         onByokChanged={() => ui.setHasByok(Boolean(readByokConfig()))}
         onConfirmDelete={actions.handleConfirmDelete}
       />
@@ -198,6 +203,7 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
         ctrl={ctrl}
         glossary={props.glossary}
         promotedRule={promotedRule}
+        onDirtyChange={ui.setDirtyState}
         onClearPromoted={() => setPromotedRule(null)}
         onPromoteRule={promoteRule}
         onSelectStep={ui.jumpToStep}

@@ -19,6 +19,12 @@ export {
   type CopilotRunResult,
   runThesisCopilot,
 } from "./copilot/run-copilot";
+export {
+  fetchMarketClosingQuote,
+  fetchMarketClosingQuotes,
+  type MarketQuoteResult,
+  type MarketQuoteSource,
+} from "./market/quote-client";
 export { parseStructuredOutput, type StructuredParseResult } from "./parse-structured";
 export {
   type ByokProvider,

@@ -18,19 +18,24 @@ function findLatestSecEps(annuals?: readonly SecAnnualFinancial[]): number | nul
   return null;
 }
 
+type DirtyCallback = (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
+
 interface EarlyStepsProps {
   step: 1 | 2 | 3;
   ctrl: CanvasController;
   glossary: readonly GlossaryTerm[];
+  onDirtyChange: DirtyCallback;
   onPromoteRule: (rule: string) => void;
 }
 
 function StepThreeView({
   ctrl,
   glossary,
+  onDirtyChange,
 }: {
   ctrl: CanvasController;
   glossary: readonly GlossaryTerm[];
+  onDirtyChange: DirtyCallback;
 }) {
   return (
     <StepFirstPrinciples
@@ -41,6 +46,7 @@ function StepThreeView({
       digestLoading={ctrl.copilot.busy === "earnings_digest"}
       digest={ctrl.copilot.digest}
       saving={ctrl.saving}
+      onDirtyChange={onDirtyChange}
       onSyncSec={ctrl.syncSec}
       onRunDigest={(sourceText) => ctrl.runCopilot("earnings_digest", sourceText)}
       onSaveCrossChecks={(crossChecks) =>
@@ -50,15 +56,15 @@ function StepThreeView({
   );
 }
 
-function EarlySteps({ step, ctrl, glossary, onPromoteRule }: EarlyStepsProps) {
+function EarlySteps({ step, ctrl, glossary, onDirtyChange, onPromoteRule }: EarlyStepsProps) {
   if (step === 1) {
     return (
       <StepBusinessFilter
-        key={`${ctrl.thesis.id}-${ctrl.thesis.updatedAt}`}
         thesis={ctrl.thesis}
         glossary={glossary}
         annuals={ctrl.secSnapshot?.annuals}
         saving={ctrl.saving}
+        onDirtyChange={onDirtyChange}
         onSave={(p) =>
           ctrl.patchStep({ step: "business_filter", ...p }, "Step 1 商业模式滤镜已保存")
         }
@@ -73,26 +79,32 @@ function EarlySteps({ step, ctrl, glossary, onPromoteRule }: EarlyStepsProps) {
         saving={ctrl.saving}
         redTeamLoading={ctrl.copilot.busy === "red_team"}
         redTeam={ctrl.copilot.redTeam}
+        onDirtyChange={onDirtyChange}
         onSave={(hypotheses) =>
-          ctrl.patchStep({ step: "hypotheses", hypotheses }, "3 条核心假设已保存")
+          ctrl.patchStep(
+            { step: "hypotheses", hypotheses },
+            `${hypotheses.length} 条核心假设已保存`,
+          )
         }
         onRunRedTeam={() => ctrl.runCopilot("red_team")}
         onPromoteRedTeamRule={onPromoteRule}
       />
     );
   }
-  return <StepThreeView ctrl={ctrl} glossary={glossary} />;
+  return <StepThreeView ctrl={ctrl} glossary={glossary} onDirtyChange={onDirtyChange} />;
 }
 
 function LateSteps({
   step,
   ctrl,
   promotedRule,
+  onDirtyChange,
   onClearPromoted,
 }: {
   step: 4 | 5;
   ctrl: CanvasController;
   promotedRule: string | null;
+  onDirtyChange: DirtyCallback;
   onClearPromoted: () => void;
 }) {
   if (step === 4) {
@@ -101,6 +113,7 @@ function LateSteps({
         thesis={ctrl.thesis}
         latestSecEps={findLatestSecEps(ctrl.secSnapshot?.annuals)}
         saving={ctrl.saving}
+        onDirtyChange={onDirtyChange}
         onSave={(valuationInput) =>
           ctrl.patchStep({ step: "valuation", valuationInput }, "三情景估值赔率已写入数据库")
         }
@@ -128,6 +141,7 @@ export function CanvasStepRenderer(props: {
   ctrl: CanvasController;
   glossary: readonly GlossaryTerm[];
   promotedRule: string | null;
+  onDirtyChange: DirtyCallback;
   onClearPromoted: () => void;
   onPromoteRule: (rule: string) => void;
 }) {
@@ -137,6 +151,7 @@ export function CanvasStepRenderer(props: {
         step={props.step as 1 | 2 | 3}
         ctrl={props.ctrl}
         glossary={props.glossary}
+        onDirtyChange={props.onDirtyChange}
         onPromoteRule={props.onPromoteRule}
       />
     );
@@ -146,6 +161,7 @@ export function CanvasStepRenderer(props: {
       step={props.step as 4 | 5}
       ctrl={props.ctrl}
       promotedRule={props.promotedRule}
+      onDirtyChange={props.onDirtyChange}
       onClearPromoted={props.onClearPromoted}
     />
   );

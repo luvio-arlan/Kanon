@@ -82,12 +82,13 @@ function runExpectationsTool({ thesis, secSnapshot }: ResearchToolContext): Rese
       : `按中性 PE 折算，当前价已隐含远期 EPS $${exp.impliedEpsAtBasePe.toFixed(2)}。`;
   const finding = `相对中性目标安全边际 ${exp.marginOfSafetyPct}%，15% 年化买点 $${exp.hurdleEntry15.toFixed(1)}（当前${exp.isBelowHurdle15 ? "已处于买点区间内" : "高于买点"}）。${gapLine}`;
   const citation = `${thesis.ticker} 反向估值模型 · ${thesis.horizonYears}Y 三情景锚点`;
+  const h0Title = thesis.hypotheses[0]?.title ?? "核心增长假设";
   const proposal: AgentProposal | undefined = !thesis.businessFilter.preMortem.trim()
     ? {
         id: "prop-premortem",
         target: "pre_mortem",
         title: "补全 18 个月事前验尸（Pre-Mortem）剧本",
-        content: `假设 18 个月后 ${thesis.companyName} 股价回撤 ${Math.max(25, Math.round(thesis.valuation.downsidePct + 15))}%：核心原因很可能是「${thesis.hypotheses[0].title}」不及预期，叠加估值压缩至悲观情景 ${thesis.valuation.bear.peMultiple}x（$${thesis.valuation.bear.targetPrice.toFixed(1)}）。`,
+        content: `假设 18 个月后 ${thesis.companyName} 股价回撤 ${Math.max(25, Math.round(thesis.valuation.downsidePct + 15))}%：核心原因很可能是「${h0Title}」不及预期，叠加估值压缩至悲观情景 ${thesis.valuation.bear.peMultiple}x（$${thesis.valuation.bear.targetPrice.toFixed(1)}）。`,
         rationale: "机构级风控要求在建仓前先写下失败叙事，避免确认偏误。",
         citation,
       }
@@ -102,13 +103,14 @@ function runHypothesisAuditTool({ thesis }: ResearchToolContext): ResearchToolOu
   const missingVariant = !thesis.businessFilter.variantPerception.trim();
   const finding = `研究成熟度 ${readiness.completedCount}/5（${readiness.scorePct}%）；存在 ${warnings.length} 条预警假设、${divergent.length} 条产业链口径分歧${missingVariant ? "，尚缺明确「预期差」陈述" : "，已建立预期差框架"}。`;
   const citation = `${thesis.ticker} 核心假设台账 & ${thesis.crossChecks.length} 条产业链互证`;
-  const targetHyp = warnings[0] ?? thesis.hypotheses[2];
+  const h0 = thesis.hypotheses[0];
+  const targetHyp = warnings[0] ?? thesis.hypotheses[thesis.hypotheses.length - 1] ?? h0;
   const proposal: AgentProposal = missingVariant
     ? {
         id: "prop-variant",
         target: "variant_perception",
         title: "凝练买方核心预期差（Variant Perception）",
-        content: `市场当前过度关注短期波动，但若「${thesis.hypotheses[0].title}」持续兑现（${thesis.hypotheses[0].threshold}），${thesis.companyName} 盈利中枢将系统性高于一致预期。`,
+        content: `市场当前过度关注短期波动，但若「${h0?.title ?? thesis.convictionSummary}」持续兑现（${h0?.threshold ?? "核心红线"}），${thesis.companyName} 盈利中枢将系统性高于一致预期。`,
         rationale: "没有清晰预期差的看多逻辑只是跟随共识，难以建立超额收益底气。",
         citation,
       }
@@ -116,7 +118,7 @@ function runHypothesisAuditTool({ thesis }: ResearchToolContext): ResearchToolOu
         id: "prop-debate",
         target: "key_debate",
         title: "聚焦未来 18 个月唯一核心争论",
-        content: `核心多空分歧集中在「${targetHyp.title}」能否守住 ${targetHyp.threshold}，建议下一季财报优先核验 ${targetHyp.metricLabel}。`,
+        content: `核心多空分歧集中在「${targetHyp?.title ?? "核心盈利前提"}」能否守住 ${targetHyp?.threshold ?? "关键红线"}，建议下一季财报优先核验 ${targetHyp?.metricLabel ?? "核心财务指标"}。`,
         rationale: "将研究精力聚焦于决定估值重估的 1 个核心胜负手，而非面面俱到。",
         citation,
       };

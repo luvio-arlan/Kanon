@@ -40,7 +40,7 @@ export async function writeHypothesesStep(
     .set({ lastReviewedLabel: "刚刚更新 · 核心假设", updatedAt: now })
     .where(eq(thesesTable.id, thesisId));
   const validated = parsed.hypotheses.filter((h) => h.status === "validated").length;
-  return `更新 3 条可证伪核心假设（已验证 ${validated}/3）`;
+  return `更新 ${parsed.hypotheses.length} 条可证伪核心假设（已验证 ${validated}/${parsed.hypotheses.length}）`;
 }
 
 export async function writeCrossChecksStep(

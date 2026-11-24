@@ -1,5 +1,8 @@
 import {
   CreateThesisResponseSchema,
+  type MarketBootstrapResponse,
+  MarketBootstrapResponseSchema,
+  RefreshPricesResponseSchema,
   type ThesisDetail,
   ThesisMutationResponseSchema,
 } from "@kanon/core";
@@ -12,6 +15,7 @@ export interface NewThesisDraft {
   sectorTag: string;
   currentPrice: string;
   convictionSummary: string;
+  latestSecEps?: number;
 }
 
 export const INSTITUTIONAL_THESIS_PRESETS: readonly NewThesisDraft[] = [
@@ -76,6 +80,7 @@ export async function apiCreateThesis(draft: NewThesisDraft): Promise<ThesisDeta
       sectorTag: draft.sectorTag.trim(),
       currentPrice: priceNum,
       convictionSummary: draft.convictionSummary.trim() || undefined,
+      latestSecEps: draft.latestSecEps,
     },
     fallbackError: "创建标的失败",
   });
@@ -85,6 +90,39 @@ export async function apiCreateThesis(draft: NewThesisDraft): Promise<ThesisDeta
   }
   toast.success(`已新建 ${res.data.thesis.companyName} (${res.data.thesis.ticker}) 研究档案`);
   return res.data.thesis;
+}
+
+export async function apiBootstrapTicker(ticker: string): Promise<MarketBootstrapResponse | null> {
+  const clean = ticker.trim().toUpperCase();
+  if (!clean) {
+    toast.error("请先输入美股代码（如 AVGO / COST）");
+    return null;
+  }
+  const res = await kanonFetch(
+    `/api/market/bootstrap?ticker=${encodeURIComponent(clean)}`,
+    MarketBootstrapResponseSchema,
+    { fallbackError: "自动识别美股档案失败，可继续手工填写" },
+  );
+  if (!res.ok) {
+    toast.error(res.error);
+    return null;
+  }
+  toast.success(res.data.notice);
+  return res.data;
+}
+
+export async function apiRefreshClosingPrices(): Promise<ThesisDetail[] | null> {
+  const res = await kanonFetch("/api/market/refresh-prices", RefreshPricesResponseSchema, {
+    method: "POST",
+    fallbackError: "收盘价校准失败，已保留原参考价",
+  });
+  if (!res.ok) {
+    toast.error(res.error);
+    return null;
+  }
+  if (res.data.updatedCount > 0) toast.success(res.data.notice);
+  else toast(res.data.notice);
+  return res.data.updatedTheses;
 }
 
 export async function apiCalibratePriceAnchor(

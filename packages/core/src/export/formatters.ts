@@ -80,7 +80,7 @@ export function formatThesisMarkdown(thesis: ThesisDetail, extras?: ThesisExport
     thesis.convictionSummary,
     ...formatVariantSection(thesis),
     "",
-    "## 二、三条可证伪核心假设",
+    `## 二、可证伪核心假设（${thesis.hypotheses.length} 条）`,
     hypothesisLines,
     "",
     "## 三、一阶资料与产业链交叉印证",
@@ -163,7 +163,7 @@ export function formatPortfolioCsv(theses: readonly ThesisDetail[]): string {
       exp.hurdleEntry15.toFixed(2),
       t.valuation.base.cagrPct.toFixed(1),
       ratio,
-      `${validated}/3`,
+      `${validated}/${t.hypotheses.length}`,
       t.lastReviewedAt,
     ]
       .map(escapeCsvCell)
