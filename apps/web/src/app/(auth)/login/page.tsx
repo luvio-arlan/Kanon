@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { LoginForm } from "@/features/auth";
+import { AuthPortal } from "@/features/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,5 +14,5 @@ interface LoginPageProps {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { next } = await searchParams;
-  return <LoginForm nextPath={next} />;
+  return <AuthPortal initialMode="login" nextPath={next} />;
 }

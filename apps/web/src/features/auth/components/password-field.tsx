@@ -1,6 +1,10 @@
 "use client";
 
-import { evaluatePasswordStrength, type PasswordStrengthResult } from "@kanon/core";
+import {
+  evaluatePasswordStrength,
+  PASSWORD_MAX_LENGTH,
+  type PasswordStrengthResult,
+} from "@kanon/core";
 import { KANON_TRANSITION_FAST } from "@kanon/ui";
 import { IconCheck, IconEye, IconEyeOff } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -118,8 +122,9 @@ function PasswordInputLine(props: PasswordInputLineProps) {
         type={props.visible ? "text" : "password"}
         autoComplete={props.autoComplete ?? "current-password"}
         disabled={props.disabled}
+        maxLength={PASSWORD_MAX_LENGTH}
         value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
+        onChange={(e) => props.onChange(e.target.value.slice(0, PASSWORD_MAX_LENGTH))}
         onKeyUp={props.onKeyState}
         onKeyDown={props.onKeyState}
         onBlur={props.onBlur}

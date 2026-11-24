@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { RegisterForm } from "@/features/auth";
+import { AuthPortal } from "@/features/auth";
 
 export const metadata: Metadata = {
   title: "注册独立空间 — KANON 卡农",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function RegisterPage() {
-  return <RegisterForm />;
+  return <AuthPortal initialMode="register" />;
 }

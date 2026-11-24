@@ -1,11 +1,16 @@
 "use client";
 
 import { IconArrowRight, IconLoader2 } from "@tabler/icons-react";
-import Link from "next/link";
 import { useId } from "react";
 import { useRegisterState } from "../lib/use-register-state";
 import { PasswordField } from "./password-field";
 import { PhoneField } from "./phone-field";
+
+export interface RegisterFormProps {
+  phoneDigits: string;
+  onPhoneChange: (next: string) => void;
+  onSwitchToLogin: () => void;
+}
 
 function DisplayNameLineField(props: {
   value: string;
@@ -44,6 +49,7 @@ function RegisterSubmitFooter(props: {
   serverError: string | null;
   submitting: boolean;
   canSubmit: boolean;
+  onSwitchToLogin: () => void;
 }) {
   return (
     <div className="space-y-5 pt-1">
@@ -68,25 +74,26 @@ function RegisterSubmitFooter(props: {
         ) : null}
       </button>
       <div className="flex items-center justify-center text-xs">
-        <Link href="/login" className="text-ink-muted transition-colors hover:text-ink-primary">
+        <button
+          type="button"
+          onClick={props.onSwitchToLogin}
+          className="cursor-pointer text-ink-muted transition-colors hover:text-ink-primary"
+        >
           已有账号？直接登录
-        </Link>
+        </button>
       </div>
     </div>
   );
 }
 
-export function RegisterForm() {
-  const { draft, updateField, submitting, serverError, canSubmit, onSubmit } = useRegisterState();
+export function RegisterForm({ phoneDigits, onPhoneChange, onSwitchToLogin }: RegisterFormProps) {
+  const { draft, updateField, submitting, serverError, canSubmit, onSubmit } =
+    useRegisterState(phoneDigits);
   return (
     <>
       <h1 className="text-3xl font-normal tracking-tight text-ink-primary">开通独立投研空间</h1>
       <form onSubmit={onSubmit} className="space-y-6" noValidate>
-        <PhoneField
-          value={draft.phoneDigits}
-          onChange={(v) => updateField("phoneDigits", v)}
-          disabled={submitting}
-        />
+        <PhoneField value={phoneDigits} onChange={onPhoneChange} disabled={submitting} />
         <DisplayNameLineField
           value={draft.displayName}
           onChange={(v) => updateField("displayName", v)}
@@ -97,7 +104,7 @@ export function RegisterForm() {
           value={draft.password}
           onChange={(v) => updateField("password", v)}
           autoComplete="new-password"
-          placeholder="8 位以上，含字母与数字"
+          placeholder="8–24 位，含字母、数字与符号"
           disabled={submitting}
           showStrength
         />
@@ -114,6 +121,7 @@ export function RegisterForm() {
           serverError={serverError}
           submitting={submitting}
           canSubmit={canSubmit}
+          onSwitchToLogin={onSwitchToLogin}
         />
       </form>
     </>

@@ -26,7 +26,9 @@ describe("KANON +86 Phone & Password Auth Contracts", () => {
     expect(evaluatePasswordStrength("").level).toBe("empty");
     expect(evaluatePasswordStrength("12345").isValid).toBe(false);
     expect(evaluatePasswordStrength("abcdefgh").isValid).toBe(false);
-    expect(evaluatePasswordStrength("kanon2026")).toMatchObject({
+    expect(evaluatePasswordStrength("kanon2026").isValid).toBe(false);
+    expect(evaluatePasswordStrength("kanon2026!").isValid).toBe(true);
+    expect(evaluatePasswordStrength("kanon2026!")).toMatchObject({
       isValid: true,
       level: "good",
       score: 3,
@@ -36,6 +38,7 @@ describe("KANON +86 Phone & Password Auth Contracts", () => {
       level: "strong",
       score: 4,
     });
+    expect(evaluatePasswordStrength("Kanon@2026!123456789012345").isValid).toBe(false);
   });
 
   it("validates register payloads including confirmPassword parity", () => {

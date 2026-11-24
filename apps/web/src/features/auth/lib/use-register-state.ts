@@ -6,15 +6,13 @@ import { toast } from "sonner";
 import { registerAccount } from "./auth-api";
 
 export interface RegisterFormDraft {
-  phoneDigits: string;
   displayName: string;
   password: string;
   confirmPassword: string;
 }
 
-export function useRegisterState() {
+export function useRegisterState(phoneDigits: string) {
   const [draft, setDraft] = useState<RegisterFormDraft>({
-    phoneDigits: "",
     displayName: "",
     password: "",
     confirmPassword: "",
@@ -27,7 +25,7 @@ export function useRegisterState() {
   };
 
   const canSubmit =
-    normalizeChinaPhone(draft.phoneDigits) !== null &&
+    normalizeChinaPhone(phoneDigits) !== null &&
     evaluatePasswordStrength(draft.password).isValid &&
     draft.password.length > 0 &&
     draft.password === draft.confirmPassword &&
@@ -36,13 +34,13 @@ export function useRegisterState() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) {
-      setServerError("请先完善有效的 +86 手机号与符合要求的密码。");
+      setServerError("请填写有效 +86 手机号，并设置含字母、数字与符号的 8–24 位密码。");
       return;
     }
     setSubmitting(true);
     setServerError(null);
     const res = await registerAccount({
-      phone: draft.phoneDigits,
+      phone: phoneDigits,
       displayName: draft.displayName.trim() || undefined,
       password: draft.password,
       confirmPassword: draft.confirmPassword,

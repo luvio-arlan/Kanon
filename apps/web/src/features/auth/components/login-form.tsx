@@ -2,7 +2,6 @@
 
 import { normalizeChinaPhone } from "@kanon/core";
 import { IconArrowRight, IconLoader2 } from "@tabler/icons-react";
-import Link from "next/link";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { loginAccount } from "../lib/auth-api";
@@ -11,6 +10,9 @@ import { PhoneField } from "./phone-field";
 
 export interface LoginFormProps {
   nextPath?: string;
+  phoneDigits: string;
+  onPhoneChange: (next: string) => void;
+  onSwitchToRegister: () => void;
 }
 
 function resolveSafeRedirect(nextPath?: string): string {
@@ -22,6 +24,7 @@ function LoginSubmitFooter(props: {
   serverError: string | null;
   submitting: boolean;
   canSubmit: boolean;
+  onSwitchToRegister: () => void;
 }) {
   return (
     <div className="space-y-6 pt-2">
@@ -46,23 +49,25 @@ function LoginSubmitFooter(props: {
         ) : null}
       </button>
       <div className="flex items-center justify-center pt-1 text-xs">
-        <Link href="/register" className="text-ink-muted transition-colors hover:text-ink-primary">
+        <button
+          type="button"
+          onClick={props.onSwitchToRegister}
+          className="cursor-pointer text-ink-muted transition-colors hover:text-ink-primary"
+        >
           还没有账号？创建新账号
-        </Link>
+        </button>
       </div>
     </div>
   );
 }
 
-export function LoginForm({ nextPath }: LoginFormProps) {
-  const [phoneDigits, setPhoneDigits] = useState("");
+function useLoginSubmit(phoneDigits: string, nextPath?: string) {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-
   const canSubmit = normalizeChinaPhone(phoneDigits) !== null && password.length > 0 && !submitting;
 
-  async function handleSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) {
       setServerError("请输入有效的 +86 手机号与密码。");
@@ -80,11 +85,24 @@ export function LoginForm({ nextPath }: LoginFormProps) {
     window.location.assign(resolveSafeRedirect(nextPath));
   }
 
+  return { password, setPassword, submitting, serverError, canSubmit, onSubmit };
+}
+
+export function LoginForm(props: LoginFormProps) {
+  const { password, setPassword, submitting, serverError, canSubmit, onSubmit } = useLoginSubmit(
+    props.phoneDigits,
+    props.nextPath,
+  );
+
   return (
     <>
       <h1 className="text-3xl font-normal tracking-tight text-ink-primary">欢迎回到 KANON</h1>
-      <form onSubmit={handleSubmit} className="space-y-7" noValidate>
-        <PhoneField value={phoneDigits} onChange={setPhoneDigits} disabled={submitting} />
+      <form onSubmit={onSubmit} className="space-y-7" noValidate>
+        <PhoneField
+          value={props.phoneDigits}
+          onChange={props.onPhoneChange}
+          disabled={submitting}
+        />
         <PasswordField
           label="密码"
           value={password}
@@ -97,6 +115,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           serverError={serverError}
           submitting={submitting}
           canSubmit={canSubmit}
+          onSwitchToRegister={props.onSwitchToRegister}
         />
       </form>
     </>

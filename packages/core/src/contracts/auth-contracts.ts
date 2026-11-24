@@ -36,8 +36,15 @@ export function maskChinaPhone(phoneE164: string): string {
   return `+86 ${digits.slice(0, 3)} ···· ${digits.slice(7)}`;
 }
 
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 24;
+
+const PASSWORD_LETTER_RE = /[A-Za-z]/;
+const PASSWORD_NUMBER_RE = /\d/;
+const PASSWORD_SYMBOL_RE = /[^A-Za-z0-9\s]/;
+
 export interface PasswordRuleItem {
-  id: "length" | "letter" | "number" | "bonus";
+  id: "length" | "letter" | "number" | "symbol";
   label: string;
   required: boolean;
   passed: boolean;
@@ -55,49 +62,46 @@ export interface PasswordStrengthResult {
 
 function scorePasswordTier(
   isValid: boolean,
-  rawCount: number,
+  passedRequired: number,
+  hasBonus: boolean,
 ): Pick<PasswordStrengthResult, "score" | "level" | "label"> {
   if (!isValid) {
-    return rawCount >= 2
+    return passedRequired >= 3
       ? { score: 2, level: "fair", label: "待完善" }
       : { score: 1, level: "weak", label: "较弱" };
   }
-  return rawCount >= 4
+  return hasBonus
     ? { score: 4, level: "strong", label: "强密码" }
     : { score: 3, level: "good", label: "良好" };
 }
 
 export function evaluatePasswordStrength(password: string): PasswordStrengthResult {
-  const lengthOk = password.length >= 8 && password.length <= 64;
-  const hasLetter = /[A-Za-z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  const hasMixedOrSymbol =
-    (/[a-z]/.test(password) && /[A-Z]/.test(password)) || /[^A-Za-z0-9]/.test(password);
+  const lengthOk = password.length >= PASSWORD_MIN_LENGTH && password.length <= PASSWORD_MAX_LENGTH;
+  const hasLetter = PASSWORD_LETTER_RE.test(password);
+  const hasNumber = PASSWORD_NUMBER_RE.test(password);
+  const hasSymbol = PASSWORD_SYMBOL_RE.test(password);
+  const hasMixedCase = /[a-z]/.test(password) && /[A-Z]/.test(password);
   const isLong = password.length >= 12;
 
   const rules: PasswordRuleItem[] = [
-    { id: "length", label: "8–64 位字符", required: true, passed: lengthOk },
+    {
+      id: "length",
+      label: `${PASSWORD_MIN_LENGTH}–${PASSWORD_MAX_LENGTH} 位字符`,
+      required: true,
+      passed: lengthOk,
+    },
     { id: "letter", label: "包含英文字母", required: true, passed: hasLetter },
     { id: "number", label: "包含数字", required: true, passed: hasNumber },
-    {
-      id: "bonus",
-      label: "含大小写 / 符号或 12 位以上（更强）",
-      required: false,
-      passed: hasMixedOrSymbol || isLong,
-    },
+    { id: "symbol", label: "包含符号（如 !@#$）", required: true, passed: hasSymbol },
   ];
 
   if (password.length === 0) {
     return { score: 0, level: "empty", label: "待设置", isValid: false, rules };
   }
-  const isValid = lengthOk && hasLetter && hasNumber;
-  const rawCount =
-    Number(lengthOk) +
-    Number(hasLetter) +
-    Number(hasNumber) +
-    Number(hasMixedOrSymbol) +
-    Number(isLong);
-  return { ...scorePasswordTier(isValid, rawCount), isValid, rules };
+  const isValid = lengthOk && hasLetter && hasNumber && hasSymbol;
+  const passedRequired =
+    Number(lengthOk) + Number(hasLetter) + Number(hasNumber) + Number(hasSymbol);
+  return { ...scorePasswordTier(isValid, passedRequired, hasMixedCase || isLong), isValid, rules };
 }
 
 export const ChinaPhoneInputSchema = z
@@ -110,11 +114,15 @@ export const ChinaPhoneInputSchema = z
 
 export const PasswordInputSchema = z
   .string()
-  .min(8, "密码至少需要 8 位字符。")
-  .max(64, "密码不能超过 64 位字符。")
-  .refine((val) => /[A-Za-z]/.test(val) && /\d/.test(val), {
-    message: "密码需同时包含英文字母与数字。",
-  });
+  .min(PASSWORD_MIN_LENGTH, `密码至少需要 ${PASSWORD_MIN_LENGTH} 位字符。`)
+  .max(PASSWORD_MAX_LENGTH, `密码不能超过 ${PASSWORD_MAX_LENGTH} 位字符。`)
+  .refine(
+    (val) =>
+      PASSWORD_LETTER_RE.test(val) && PASSWORD_NUMBER_RE.test(val) && PASSWORD_SYMBOL_RE.test(val),
+    {
+      message: "密码需同时包含字母、数字与符号。",
+    },
+  );
 
 export const UserRoleSchema = z.enum(["member", "demo"]);
 export type UserRole = z.infer<typeof UserRoleSchema>;
@@ -151,7 +159,10 @@ export type ParsedRegisterRequest = z.output<typeof RegisterRequestSchema>;
 
 export const LoginRequestSchema = z.object({
   phone: ChinaPhoneInputSchema,
-  password: z.string().min(1, "请输入登录密码。").max(64, "密码长度超出限制。"),
+  password: z
+    .string()
+    .min(1, "请输入登录密码。")
+    .max(PASSWORD_MAX_LENGTH, `密码不能超过 ${PASSWORD_MAX_LENGTH} 位字符。`),
 });
 export type LoginRequest = z.input<typeof LoginRequestSchema>;
 
