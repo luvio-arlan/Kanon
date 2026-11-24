@@ -1,13 +1,32 @@
 export {
   formatGoogleDocHtml,
   formatPortfolioCsv,
+  formatThesisArchiveJson,
   formatThesisMarkdown,
+  type ThesisExportExtras,
 } from "./export/formatters";
+export {
+  calculateImpliedExpectations,
+  type ImpliedExpectations,
+  matchProbabilityPreset,
+  PROBABILITY_PRESETS,
+  type ProbabilityPreset,
+  type ProbabilityPresetId,
+} from "./math/implied-expectations";
+export {
+  calculatePortfolioAnalytics,
+  type PortfolioAnalytics,
+} from "./math/portfolio-analytics";
 export {
   calculateResearchReadiness,
   type ResearchReadiness,
   type StepReadinessItem,
 } from "./math/research-readiness";
+export {
+  analyzeSecQuality,
+  type SecQualityGrade,
+  type SecQualitySummary,
+} from "./math/sec-analytics";
 export {
   calculateSensitivityMatrix,
   type SensitivityCell,
@@ -40,6 +59,8 @@ export {
   GlossaryTermSchema,
   type PeerRole,
   PeerRoleSchema,
+  type RevisionStep,
+  RevisionStepSchema,
   type SavedCopilotOutput,
   SavedCopilotOutputSchema,
   type SecAnnualFinancial,
@@ -52,8 +73,12 @@ export {
   SecSnapshotSchema,
   type ThesisDetail,
   ThesisDetailSchema,
+  type ThesisRevision,
+  ThesisRevisionSchema,
   type ThesisStatus,
   ThesisStatusSchema,
+  type ThesisSummary,
+  ThesisSummarySchema,
   type TradeAction,
   TradeActionSchema,
   type UpdateThesisStepInput,

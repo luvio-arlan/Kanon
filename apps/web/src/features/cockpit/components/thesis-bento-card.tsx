@@ -1,7 +1,7 @@
 "use client";
 
-import type { ThesisDetail } from "@kanon/core";
-import { Badge, Card, KANON_CARD_HOVER, KANON_FADE_UP_ITEM } from "@kanon/ui";
+import { calculateResearchReadiness, type ThesisDetail } from "@kanon/core";
+import { Badge, Card, KANON_CARD_HOVER, KANON_FADE_UP_ITEM, ReadinessRing } from "@kanon/ui";
 import { IconArrowUpRight } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -14,6 +14,7 @@ export interface ThesisBentoCardProps {
 }
 
 function CardIdentityHeader({ thesis }: { thesis: ThesisDetail }) {
+  const readiness = calculateResearchReadiness(thesis);
   return (
     <div className="flex items-start justify-between gap-4 px-7 pb-5 pt-6">
       <div className="min-w-0">
@@ -32,9 +33,16 @@ function CardIdentityHeader({ thesis }: { thesis: ThesisDetail }) {
         <div className="mt-1.5 text-sm text-ink-secondary">{thesis.sectorTag}</div>
       </div>
 
-      <span className="font-mono text-3xl font-light leading-none tracking-tight text-ink-muted/45 tabular-nums select-none">
-        {thesis.indexLabel}
-      </span>
+      <div className="flex items-center gap-3">
+        <ReadinessRing
+          scorePct={readiness.scorePct}
+          size={22}
+          label={`${readiness.completedCount}/5`}
+        />
+        <span className="font-mono text-3xl font-light leading-none tracking-tight text-ink-muted/45 tabular-nums select-none">
+          {thesis.indexLabel}
+        </span>
+      </div>
     </div>
   );
 }
@@ -55,7 +63,7 @@ function CardActionFooter({
           onClick={() => onQuickInspect(thesis)}
           className="cursor-pointer rounded-control px-2.5 py-1 text-xs font-medium text-ink-secondary transition-colors hover:bg-muted hover:text-ink-primary"
         >
-          速览
+          速览与校准
         </button>
         <Link
           href={`/thesis/${thesis.id}`}

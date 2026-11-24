@@ -97,4 +97,19 @@ CREATE TABLE IF NOT EXISTS copilot_outputs (
   payload JSONB NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS thesis_revisions (
+  id TEXT PRIMARY KEY,
+  thesis_id TEXT NOT NULL REFERENCES theses(id) ON DELETE CASCADE,
+  step TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  current_price DOUBLE PRECISION NOT NULL,
+  base_target_price DOUBLE PRECISION NOT NULL,
+  risk_reward_ratio DOUBLE PRECISION,
+  readiness_score INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_thesis_revisions_thesis_created
+  ON thesis_revisions (thesis_id, created_at DESC);
 `;

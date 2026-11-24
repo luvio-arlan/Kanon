@@ -1,0 +1,107 @@
+import type { SeedThesisRecord } from "./seed-types";
+
+export const SEED_THESIS_NVDA: SeedThesisRecord = {
+  id: "thesis-nvda",
+  indexOrder: 2,
+  ticker: "NVDA",
+  companyName: "英伟达",
+  sectorTag: "AI 算力 · 全栈平台",
+  currentPrice: 138,
+  horizonYears: 3,
+  convictionSummary:
+    "机柜级 NVLink 互联与 CUDA 软件生态护城河稳固，长思考推理需求持续扩大系统级算力溢价。",
+  status: "active",
+  lastReviewedLabel: "5 天前复盘 · Q3 电话会",
+  businessFilter: {
+    recurringRevenue: "pass",
+    pricingPower: "pass",
+    capitalReturn: "pass",
+    governance: "pass",
+    notes: "全栈硬件 + NVLink 网络 + CUDA 软件形成极高转换成本，ROIC 与 FCF 质量处于全球顶尖梯队。",
+    vetoReason: "",
+    consensusView:
+      "市场普遍认可短期机柜供不应求，但开始折价担忧云厂自研 ASIC 替代及 2027 年 CapEx 见顶回落。",
+    variantPerception:
+      "长思考推理（Test-Time Compute）把算力需求从训练单次采购转为持续推理消耗，NVLink 机柜级互联与软件栈溢价远超单芯片性价比对比。",
+    keyDebate:
+      "北美四大云厂商的 AI 资本开支 ROI 能否在未来 4 季兑现为可见云收入，从而支撑 30x+ 稳态估值？",
+    preMortem:
+      "若 18 个月后股价回撤 40%，主因将是两家以上云巨头公开下调 CapEx 指引并转向内部 ASIC，引发业绩增速放缓与 PE 压缩双击。",
+  },
+  hypotheses: [
+    {
+      id: "nvda-h1",
+      title: "推理算力需求增速快于云厂自研芯片",
+      metricLabel: "数据中心年化营收",
+      threshold: "> $1800 亿",
+      status: "validated",
+      note: "推理扩展定律与主权 AI 采购持续拉长旗舰机柜交付周期，定制芯片替代率低于预期。",
+    },
+    {
+      id: "nvda-h2",
+      title: "NVLink 网络配套稳守 72%+ 毛利率",
+      metricLabel: "稳态毛利率",
+      threshold: "> 72%",
+      status: "validated",
+      note: "Blackwell 机柜级封装良率趋于稳定，软件与高速网络配套维持高定价权。",
+    },
+    {
+      id: "nvda-h3",
+      title: "北美四大云厂商资本开支回报兑现",
+      metricLabel: "云 AI 收入占比",
+      threshold: "> 35%",
+      status: "warning",
+      note: "证伪红线：若两家及以上云巨头连续下调 CapEx，32 倍中性 PE 估值锚点将明显承压。",
+    },
+  ],
+  crossChecks: [
+    {
+      id: "nvda-cc-1",
+      peerCompany: "微软 / Meta / Google（云厂商）",
+      peerRole: "downstream",
+      topic: "年度 AI 基础设施 CapEx 强度与云收入变现",
+      sourceAnchor: "北美四大云厂 Q3 财报 CapEx 指引",
+      statement: "管理层强调投资不足的风险远大于过度投资，但市场开始审视折旧对利润率的拖累。",
+      alignment: "divergent",
+      takeaway: "短期订单无忧，但 2027 年 ROI 兑现节奏是当前最核心的证伪观察点。",
+    },
+    {
+      id: "nvda-cc-2",
+      peerCompany: "台积电（TSMC）",
+      peerRole: "upstream",
+      topic: "3nm / 2nm 与 CoWoS 先进封装排产",
+      sourceAnchor: "TSMC 季度营收结构与 HPC 占比",
+      statement: "HPC 高性能计算占比持续攀升，先进封装产能全年满载。",
+      alignment: "aligned",
+      takeaway: "上游晶圆与封装满载直接印证英伟达出货景气度。",
+    },
+  ],
+  valuationInput: {
+    bearEps: 4.4,
+    bearPe: 24,
+    baseEps: 6.2,
+    basePe: 32,
+    bullEps: 7.5,
+    bullPe: 36,
+    priceHistory: [
+      { label: "25Q1", price: 116.0 },
+      { label: "25Q2", price: 124.5 },
+      { label: "25Q3", price: 131.2 },
+      { label: "25Q4", price: 128.4 },
+      { label: "26Q1", price: 142.8 },
+      { label: "现价", price: 138.0 },
+    ],
+  },
+  disciplineEntries: [
+    {
+      id: "nvda-disc-1",
+      action: "hold",
+      noLeverageConfirmed: true,
+      positionCapConfirmed: true,
+      exitRule: "若两家以上北美云巨头明确下调年度 CapEx 且毛利率跌破 70%，执行纪律减仓。",
+      emotion: "calm",
+      priceAnchor: 138.0,
+      note: "当前赔率 1.86× 处于均衡区间，耐心持有观察 H3 指标，不追高加杠杆。",
+    },
+  ],
+};

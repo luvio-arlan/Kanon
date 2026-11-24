@@ -9,7 +9,8 @@ export function Toaster() {
   return (
     <SonnerToaster
       theme={theme}
-      position="bottom-right"
+      position="top-center"
+      offset={68}
       toastOptions={{
         classNames: {
           toast:

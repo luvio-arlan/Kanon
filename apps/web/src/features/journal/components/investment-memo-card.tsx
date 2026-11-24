@@ -2,7 +2,13 @@
 
 import type { InvestmentMemo } from "@kanon/ai";
 import { Button, Card } from "@kanon/ui";
-import { IconCopy, IconDownload, IconFileText, IconRefresh } from "@tabler/icons-react";
+import {
+  IconCopy,
+  IconDownload,
+  IconFileText,
+  IconPrinter,
+  IconRefresh,
+} from "@tabler/icons-react";
 import { toast } from "sonner";
 
 export interface InvestmentMemoCardProps {
@@ -67,12 +73,18 @@ function MemoActionButtons(props: {
   onGenerate: () => Promise<void>;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="no-print flex flex-wrap items-center gap-2">
       {props.hasMemo ? (
-        <Button variant="ghost" size="sm" onClick={props.onCopy}>
-          <IconCopy size={14} stroke={1.5} />
-          <span>复制</span>
-        </Button>
+        <>
+          <Button variant="ghost" size="sm" onClick={props.onCopy}>
+            <IconCopy size={14} stroke={1.5} />
+            <span>复制</span>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => window.print()}>
+            <IconPrinter size={14} stroke={1.5} />
+            <span>打印 PDF</span>
+          </Button>
+        </>
       ) : null}
       <a
         href={`/api/export/thesis/${props.thesisId}?format=gdoc`}
@@ -80,6 +92,12 @@ function MemoActionButtons(props: {
       >
         <IconDownload size={14} stroke={1.5} />
         <span>Google Doc</span>
+      </a>
+      <a
+        href={`/api/export/thesis/${props.thesisId}?format=json`}
+        className="inline-flex h-8 items-center rounded-control border border-hairline bg-surface px-2.5 font-mono text-xs text-ink-muted transition-colors hover:border-strong hover:text-ink-primary"
+      >
+        JSON
       </a>
       <Button variant="primary" size="sm" disabled={props.loading} onClick={props.onGenerate}>
         {props.hasMemo ? (

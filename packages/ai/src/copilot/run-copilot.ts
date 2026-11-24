@@ -1,7 +1,12 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import type { SecSnapshot, ThesisDetail } from "@kanon/core";
+import {
+  analyzeSecQuality,
+  calculateImpliedExpectations,
+  type SecSnapshot,
+  type ThesisDetail,
+} from "@kanon/core";
 import { generateObject, type LanguageModel } from "ai";
 import {
   type ByokProvider,
@@ -62,18 +67,32 @@ function buildContextBrief(
   secSnapshot: SecSnapshot | null,
   sourceText?: string,
 ): string {
+  const quality = analyzeSecQuality(secSnapshot?.annuals ?? []);
+  const expectations = calculateImpliedExpectations({
+    summary: thesis.valuation,
+    trailingEps: quality?.latestEps,
+  });
   const facts = secSnapshot?.facts
     .map((f) => `${f.label}: ${f.valueFormatted} (${f.period})`)
     .join("; ");
   const hyps = thesis.hypotheses
     .map((h, i) => `H${i + 1}[${h.status}] ${h.title} (${h.metricLabel} ${h.threshold}): ${h.note}`)
     .join("\n");
+  const checks = thesis.crossChecks
+    .slice(0, 4)
+    .map((c) => `- ${c.peerCompany}[${c.alignment}] ${c.topic}: ${c.takeaway}`)
+    .join("\n");
+  const qualityLine = quality
+    ? `SEC ${quality.yearsCovered}年画像: ${quality.qualityLabel} | 营收CAGR ${quality.revenueCagrPct ?? "—"}% | 毛利率均值 ${quality.avgGrossMarginPct ?? "—"}% | FCF转化 ${quality.fcfConversionPct ?? "—"}% | CapEx强度 ${quality.capexIntensityPct ?? "—"}%`
+    : "";
   return [
     `标的: ${thesis.companyName} (${thesis.ticker}) | 赛道: ${thesis.sectorTag} | 当前价: $${thesis.currentPrice}`,
     `核心论点: ${thesis.convictionSummary}`,
-    `三情景目标价: 悲观 $${thesis.valuation.bear.targetPrice} / 中性 $${thesis.valuation.base.targetPrice} / 乐观 $${thesis.valuation.bull.targetPrice} (赔率 ${thesis.valuation.riskRewardRatio ?? "∞"})`,
+    `三情景目标价: 悲观 $${thesis.valuation.bear.targetPrice} / 中性 $${thesis.valuation.base.targetPrice} / 乐观 $${thesis.valuation.bull.targetPrice} (赔率 ${thesis.valuation.riskRewardRatio ?? "∞"} | 安全边际 ${expectations.marginOfSafetyPct}% | 15%买点 $${expectations.hurdleEntry15})`,
     `SEC 缓存事实: ${facts || "暂未拉取，严禁编造任何具体财务数字"}`,
+    qualityLine,
     `核心假设:\n${hyps}`,
+    checks ? `产业链交叉验证:\n${checks}` : "",
     sourceText?.trim() ? `用户粘贴的一阶电话会/财报原文:\n${sourceText.trim()}` : "",
   ]
     .filter(Boolean)

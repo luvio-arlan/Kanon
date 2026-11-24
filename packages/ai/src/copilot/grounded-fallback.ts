@@ -1,4 +1,9 @@
-import type { SecSnapshot, ThesisDetail } from "@kanon/core";
+import {
+  analyzeSecQuality,
+  calculateImpliedExpectations,
+  type SecSnapshot,
+  type ThesisDetail,
+} from "@kanon/core";
 import {
   type EarningsDigest,
   EarningsDigestSchema,
@@ -113,7 +118,9 @@ export function buildGroundedRedTeam(
         question: `针对「${thesis.hypotheses[2].title}」，产业链上下游是否已经出现提前备货与透支需求？`,
         falsificationPath: `若「${thesis.hypotheses[2].metricLabel}」触发 ${thesis.hypotheses[2].threshold} 反向突破，应立即启动交易纪律减仓审查。`,
         severity: "moderate",
-        sourceAnchor: thesis.crossChecks[0]?.sourceAnchor ?? filingAnchor,
+        sourceAnchor: thesis.crossChecks[0]
+          ? `产业链交叉验证 · ${thesis.crossChecks[0].peerCompany}（${thesis.crossChecks[0].sourceAnchor}）`
+          : filingAnchor,
       },
     ],
   });
@@ -127,16 +134,20 @@ export function buildGroundedInvestmentMemo(
     thesis.valuation.riskRewardRatio !== null
       ? `${thesis.valuation.riskRewardRatio.toFixed(2)}×`
       : "无明显下行保底";
-  const latestAnnual = secSnapshot?.annuals[secSnapshot.annuals.length - 1];
-  const secLine = latestAnnual?.grossMarginPct
-    ? `SEC 历史实证（${latestAnnual.fiscalYear}）：毛利率 ${latestAnnual.grossMarginPct}%，稀释 EPS ${latestAnnual.dilutedEps !== null ? `$${latestAnnual.dilutedEps}` : "见原件"}。`
+  const quality = analyzeSecQuality(secSnapshot?.annuals ?? []);
+  const expectations = calculateImpliedExpectations({
+    summary: thesis.valuation,
+    trailingEps: quality?.latestEps,
+  });
+  const secLine = quality
+    ? `SEC ${quality.yearsCovered} 年质量画像（${quality.qualityLabel}）：最新 ${quality.latestFiscalYear} 毛利率 ${quality.latestGrossMarginPct ?? "—"}%，FCF 转化率 ${quality.fcfConversionPct ?? "—"}%，CapEx 强度 ${quality.capexIntensityPct ?? "—"}%。`
     : `当前市场参考价 $${thesis.currentPrice.toFixed(2)}，已完成三情景独立赔率测算。`;
   const latestExit = thesis.disciplineEntries[0]?.exitRule;
 
   return InvestmentMemoSchema.parse({
     ticker: thesis.ticker,
     headline: `${thesis.companyName}（${thesis.ticker}）一页纸投研备忘录 · ${thesis.horizonYears} 年赔率 ${ratio}`,
-    verdictSummary: `当前价 $${thesis.currentPrice.toFixed(2)}，自主测算 ${thesis.horizonYears} 年悲观 / 中性 / 乐观目标价为 $${thesis.valuation.bear.targetPrice.toFixed(1)} / $${thesis.valuation.base.targetPrice.toFixed(1)} / $${thesis.valuation.bull.targetPrice.toFixed(1)}，中性年化 CAGR ${thesis.valuation.base.cagrPct.toFixed(1)}%，期望目标价 $${thesis.valuation.expectedTargetPrice.toFixed(1)}。`,
+    verdictSummary: `当前价 $${thesis.currentPrice.toFixed(2)}（相对中性安全边际 ${expectations.marginOfSafetyPct}%，15% CAGR 买点 $${expectations.hurdleEntry15.toFixed(1)}），自主测算 ${thesis.horizonYears} 年悲观 / 中性 / 乐观目标价为 $${thesis.valuation.bear.targetPrice.toFixed(1)} / $${thesis.valuation.base.targetPrice.toFixed(1)} / $${thesis.valuation.bull.targetPrice.toFixed(1)}，中性年化 CAGR ${thesis.valuation.base.cagrPct.toFixed(1)}%。`,
     moatAndQuality: `${thesis.convictionSummary} ${thesis.businessFilter.notes || ""}`.trim(),
     keyEvidence: [
       secLine,

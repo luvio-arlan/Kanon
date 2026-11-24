@@ -1,6 +1,6 @@
 "use client";
 
-import type { GlossaryTerm, ThesisDetail } from "@kanon/core";
+import type { GlossaryTerm, ThesisDetail, ThesisSummary } from "@kanon/core";
 import { Button, CommandMenu, DialogModal, useTheme } from "@kanon/ui";
 import { IconAlertTriangle, IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
@@ -102,10 +102,11 @@ function DeleteThesisDialog({
 
 export function useCanvasShellActions(params: {
   ctrl: ReturnType<typeof useResearchCanvas>;
-  allTheses: readonly ThesisDetail[];
+  allTheses: readonly ThesisSummary[];
   glossary: readonly GlossaryTerm[];
   onSelectStep: (step: StepId) => void;
   onToggleFocus: () => void;
+  onOpenAgent: () => void;
   onOpenAi: () => void;
   onCloseDelete: () => void;
 }) {
@@ -124,6 +125,7 @@ export function useCanvasShellActions(params: {
     onSelectStep,
     onSwitchThesis: (id) => router.push(`/thesis/${id}`),
     onGoHome: () => router.push("/"),
+    onOpenAgent: params.onOpenAgent,
     onRunRedTeam: () => trigger(2, "red_team"),
     onRunDigest: () => trigger(3, "earnings_digest"),
     onRunMemo: () => trigger(5, "investment_memo"),

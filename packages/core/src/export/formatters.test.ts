@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createMemoryKanonDb, type KanonDb } from "../db/client";
 import { listTheses } from "../db/thesis-queries";
-import { formatGoogleDocHtml, formatPortfolioCsv, formatThesisMarkdown } from "./formatters";
+import {
+  formatGoogleDocHtml,
+  formatPortfolioCsv,
+  formatThesisArchiveJson,
+  formatThesisMarkdown,
+} from "./formatters";
 
 describe("KANON Export Formatters", () => {
   let db: KanonDb;
@@ -36,5 +41,13 @@ describe("KANON Export Formatters", () => {
     expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain("MU,美光科技");
     expect(csv).toContain("NVDA,英伟达");
+    expect(csv).toContain("安全边际(%)");
+
+    const archive = JSON.parse(formatThesisArchiveJson(mu)) as {
+      schemaVersion: string;
+      expectations: { hurdleEntry15: number };
+    };
+    expect(archive.schemaVersion).toBe("kanon-archive/v2");
+    expect(archive.expectations.hurdleEntry15).toBeGreaterThan(100);
   });
 });

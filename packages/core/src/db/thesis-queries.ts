@@ -1,11 +1,13 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { calculateValuationScenarios } from "../math/valuation-scenarios";
 import type {
+  BusinessFilter,
   CrossCheck,
   DisciplineEntry,
   GlossaryTerm,
   SecSnapshot,
   ThesisDetail,
+  ThesisSummary,
 } from "../schemas/research";
 import type { Hypothesis } from "../schemas/thesis";
 import type { KanonDb } from "./client";
@@ -24,6 +26,16 @@ type HypothesisRow = typeof hypothesesTable.$inferSelect;
 type CrossCheckRow = typeof crossChecksTable.$inferSelect;
 type ValuationRow = typeof valuationScenariosTable.$inferSelect;
 type DisciplineRow = typeof disciplineEntriesTable.$inferSelect;
+
+function normalizeFilter(raw: BusinessFilter): BusinessFilter {
+  return {
+    ...raw,
+    consensusView: raw.consensusView ?? "",
+    variantPerception: raw.variantPerception ?? "",
+    keyDebate: raw.keyDebate ?? "",
+    preMortem: raw.preMortem ?? "",
+  };
+}
 
 function toHypothesisTuple(rows: HypothesisRow[]): [Hypothesis, Hypothesis, Hypothesis] {
   const sorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -60,6 +72,16 @@ function buildValuationInput(row: ThesisRow, valuationRow: ValuationRow | undefi
   };
 }
 
+function groupByThesisId<T extends { thesisId: string }>(rows: readonly T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const bucket = map.get(row.thesisId);
+    if (bucket) bucket.push(row);
+    else map.set(row.thesisId, [row]);
+  }
+  return map;
+}
+
 function hydrateThesis(params: {
   row: ThesisRow;
   hypotheses: HypothesisRow[];
@@ -87,7 +109,7 @@ function hydrateThesis(params: {
     horizonYears: row.horizonYears,
     convictionSummary: row.convictionSummary,
     status: row.status,
-    businessFilter: row.businessFilter,
+    businessFilter: normalizeFilter(row.businessFilter),
     hypotheses: toHypothesisTuple(hypotheses),
     crossChecks: formattedChecks,
     valuationInput: valInput,
@@ -109,16 +131,42 @@ export async function listTheses(db: KanonDb): Promise<ThesisDetail[]> {
     db.select().from(valuationScenariosTable),
     db.select().from(disciplineEntriesTable).orderBy(desc(disciplineEntriesTable.createdAt)),
   ]);
+  const hypMap = groupByThesisId(allHypotheses);
+  const checkMap = groupByThesisId(allChecks);
+  const discMap = groupByThesisId(allDiscipline);
+  const valMap = new Map(allVals.map((v) => [v.thesisId, v]));
 
   return rows.map((row) =>
     hydrateThesis({
       row,
-      hypotheses: allHypotheses.filter((h) => h.thesisId === row.id),
-      crossChecks: allChecks.filter((c) => c.thesisId === row.id),
-      valuationRow: allVals.find((v) => v.thesisId === row.id),
-      disciplineRows: allDiscipline.filter((d) => d.thesisId === row.id),
+      hypotheses: hypMap.get(row.id) ?? [],
+      crossChecks: checkMap.get(row.id) ?? [],
+      valuationRow: valMap.get(row.id),
+      disciplineRows: discMap.get(row.id) ?? [],
     }),
   );
+}
+
+export async function listThesisSummaries(db: KanonDb): Promise<ThesisSummary[]> {
+  const [rows, vals] = await Promise.all([
+    db.select().from(thesesTable).orderBy(asc(thesesTable.indexOrder)),
+    db.select().from(valuationScenariosTable),
+  ]);
+  const valMap = new Map(vals.map((v) => [v.thesisId, v]));
+
+  return rows.map((row) => {
+    const val = calculateValuationScenarios(buildValuationInput(row, valMap.get(row.id)));
+    return {
+      id: row.id,
+      indexLabel: String(row.indexOrder).padStart(2, "0"),
+      ticker: row.ticker,
+      companyName: row.companyName,
+      sectorTag: row.sectorTag,
+      status: row.status,
+      baseTargetPrice: val.base.targetPrice,
+      riskRewardRatio: val.riskRewardRatio,
+    };
+  });
 }
 
 export async function getThesisById(db: KanonDb, id: string): Promise<ThesisDetail | null> {
@@ -144,13 +192,7 @@ export async function getThesisById(db: KanonDb, id: string): Promise<ThesisDeta
       .orderBy(desc(disciplineEntriesTable.createdAt)),
   ]);
 
-  return hydrateThesis({
-    row,
-    hypotheses,
-    crossChecks,
-    valuationRow: vals[0],
-    disciplineRows,
-  });
+  return hydrateThesis({ row, hypotheses, crossChecks, valuationRow: vals[0], disciplineRows });
 }
 
 export async function listGlossaryTerms(db: KanonDb): Promise<GlossaryTerm[]> {

@@ -1,4 +1,4 @@
-import type { GlossaryTerm, ThesisDetail } from "@kanon/core";
+import type { GlossaryTerm, ThesisDetail, ThesisSummary } from "@kanon/core";
 import type { CommandActionGroup, CommandActionItem } from "@kanon/ui";
 import {
   IconArrowLeft,
@@ -26,12 +26,13 @@ const STEP_COMMANDS: ReadonlyArray<{ id: StepId; label: string; desc: string }> 
 
 export interface CanvasCommandParams {
   currentThesis: ThesisDetail;
-  allTheses: readonly ThesisDetail[];
+  allTheses: readonly ThesisSummary[];
   glossary: readonly GlossaryTerm[];
   theme: "light" | "dark";
   onSelectStep: (step: StepId) => void;
   onSwitchThesis: (thesisId: string) => void;
   onGoHome: () => void;
+  onOpenAgent: () => void;
   onRunRedTeam: () => void;
   onRunDigest: () => void;
   onRunMemo: () => void;
@@ -44,6 +45,14 @@ export interface CanvasCommandParams {
 
 function buildCopilotItems(p: CanvasCommandParams): CommandActionItem[] {
   return [
+    {
+      id: "open-agent",
+      label: "打开「投研 Agent」多步深度审计工作台",
+      description: "自动调度 3 个确定性投研工具，输出投委会简报与一键人机共审采纳提案",
+      shortcut: "⌘J",
+      icon: <IconSparkles size={15} stroke={1.5} />,
+      onSelect: p.onOpenAgent,
+    },
     {
       id: "run-red-team",
       label: "启动「魔鬼代言人」红队拷问",
@@ -150,7 +159,7 @@ export function buildCanvasCommandGroups(p: CanvasCommandParams): CommandActionG
       items: siblings.map((item) => ({
         id: `switch-${item.id}`,
         label: `${item.indexLabel} · ${item.companyName} (${item.ticker})`,
-        description: `${item.sectorTag} · 中性目标 $${item.valuation.base.targetPrice.toFixed(1)}`,
+        description: `${item.sectorTag} · 中性目标 $${item.baseTargetPrice.toFixed(1)}`,
         shortcut: item.ticker,
         keywords: [item.ticker, item.companyName, item.sectorTag],
         icon: <IconTrendingUp size={15} stroke={1.5} />,

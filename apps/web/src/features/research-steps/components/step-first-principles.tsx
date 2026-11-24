@@ -48,6 +48,23 @@ function EarningsDigestPanel({ digest }: { digest: EarningsDigest }) {
           </ul>
         </div>
       </div>
+      {digest.quotesWithAnchors.length > 0 ? (
+        <div className="space-y-2 border-t border-hairline pt-4">
+          <div className="text-xs font-semibold text-ink-muted">一阶原文锚点摘录</div>
+          {digest.quotesWithAnchors.map((q) => (
+            <div
+              key={`${q.topic}-${q.sourceAnchor}`}
+              className="border-l-2 border-accent-coral/60 pl-3.5 py-0.5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-medium text-ink-primary">{q.topic}</span>
+                <span className="font-mono text-ink-muted">{q.sourceAnchor}</span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-ink-secondary">{q.summary}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </Card>
   );
 }

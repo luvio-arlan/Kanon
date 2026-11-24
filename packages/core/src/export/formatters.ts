@@ -1,13 +1,10 @@
+import { calculateImpliedExpectations } from "../math/implied-expectations";
+import { calculateResearchReadiness } from "../math/research-readiness";
+import { analyzeSecQuality } from "../math/sec-analytics";
 import type { ThesisDetail } from "../schemas/research";
+import { formatGoogleDocHtml, type ThesisExportExtras } from "./formatters-html";
 
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
+export { formatGoogleDocHtml, type ThesisExportExtras };
 
 function escapeCsvCell(value: string | number): string {
   const raw = String(value);
@@ -17,17 +14,33 @@ function escapeCsvCell(value: string | number): string {
   return raw;
 }
 
-export function formatThesisMarkdown(thesis: ThesisDetail): string {
-  const { valuation } = thesis;
-  const ratio =
-    valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞";
+function formatExpectationsSection(thesis: ThesisDetail, extras?: ThesisExportExtras): string[] {
+  const quality = analyzeSecQuality(extras?.secSnapshot?.annuals ?? []);
+  const exp = calculateImpliedExpectations({
+    summary: thesis.valuation,
+    trailingEps: quality?.latestEps,
+  });
+  const lines = [
+    "## 五、反向估值预期与买点标尺（Expectations Investing）",
+    `- **相对中性目标安全边际**：${exp.marginOfSafetyPct}%（相对概率期望：${exp.expectedMarginOfSafetyPct}%）`,
+    `- **15% 年化回报安全买点**：$${exp.hurdleEntry15.toFixed(2)} ｜ **20% 年化回报安全买点**：$${exp.hurdleEntry20.toFixed(2)}`,
+    `- **现价隐含远期 EPS（按中性 PE）**：$${exp.impliedEpsAtBasePe.toFixed(2)}${exp.impliedEpsCagrPct !== null ? `（隐含复合增速 ${exp.impliedEpsCagrPct}%）` : ""}`,
+  ];
+  if (quality) {
+    lines.push(
+      `- **SEC 历史质量画像（${quality.yearsCovered} 年）**：${quality.qualityLabel} · 营收 CAGR ${quality.revenueCagrPct ?? "—"}% · 均值毛利率 ${quality.avgGrossMarginPct ?? "—"}% · FCF 转化率 ${quality.fcfConversionPct ?? "—"}%`,
+    );
+  }
+  return lines;
+}
+
+function formatResearchBullets(thesis: ThesisDetail) {
   const hypothesisLines = thesis.hypotheses
     .map(
       (h, idx) =>
         `${idx + 1}. **[${h.status.toUpperCase()}] ${h.title}** — 指标：${h.metricLabel}（红线：${h.threshold}）\n   - 佐证：${h.note}`,
     )
     .join("\n");
-
   const crossCheckLines =
     thesis.crossChecks.length === 0
       ? "- 暂未记录上下游交叉印证。"
@@ -37,14 +50,35 @@ export function formatThesisMarkdown(thesis: ThesisDetail): string {
               `- **${cc.peerCompany}**（${cc.topic} · ${cc.sourceAnchor}）：${cc.statement} → 结论：${cc.takeaway}`,
           )
           .join("\n");
+  return { hypothesisLines, crossCheckLines };
+}
+
+function formatVariantSection(thesis: ThesisDetail): string[] {
+  const f = thesis.businessFilter;
+  const rows = [
+    f.consensusView ? `- **市场一致预期**：${f.consensusView}` : "",
+    f.variantPerception ? `- **我的核心预期差**：${f.variantPerception}` : "",
+    f.keyDebate ? `- **未来 18 个月核心争论**：${f.keyDebate}` : "",
+    f.preMortem ? `- **事前验尸（Pre-Mortem）**：${f.preMortem}` : "",
+  ].filter(Boolean);
+  return rows.length > 0 ? ["", "### 买方预期差与事前验尸", ...rows] : [];
+}
+
+export function formatThesisMarkdown(thesis: ThesisDetail, extras?: ThesisExportExtras): string {
+  const { valuation } = thesis;
+  const ratio =
+    valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞";
+  const readiness = calculateResearchReadiness(thesis);
+  const { hypothesisLines, crossCheckLines } = formatResearchBullets(thesis);
 
   return [
     `# ${thesis.indexLabel} · ${thesis.companyName} (${thesis.ticker}) — KANON 深度研究档案`,
     "",
-    `> 赛道：${thesis.sectorTag} | 当前参考价：$${thesis.currentPrice.toFixed(2)} | 最近复盘：${thesis.lastReviewedAt}`,
+    `> 赛道：${thesis.sectorTag} | 当前参考价：$${thesis.currentPrice.toFixed(2)} | 研究成熟度：${readiness.completedCount}/5 (${readiness.scorePct}%) | 最近复盘：${thesis.lastReviewedAt}`,
     "",
     "## 一、核心投资论点",
     thesis.convictionSummary,
+    ...formatVariantSection(thesis),
     "",
     "## 二、三条可证伪核心假设",
     hypothesisLines,
@@ -53,58 +87,41 @@ export function formatThesisMarkdown(thesis: ThesisDetail): string {
     crossCheckLines,
     "",
     `## 四、三情景估值赔率表（${thesis.horizonYears} 年）`,
-    "| 情景 | EPS | 合理 PE | 目标价 | 总空间 | 年化 CAGR |",
-    "| :--- | :---: | :---: | :---: | :---: | :---: |",
-    `| 悲观 | $${valuation.bear.eps} | ${valuation.bear.peMultiple}x | $${valuation.bear.targetPrice.toFixed(2)} | ${valuation.bear.returnPct}% | ${valuation.bear.cagrPct}% |`,
-    `| 中性 | $${valuation.base.eps} | ${valuation.base.peMultiple}x | $${valuation.base.targetPrice.toFixed(2)} | ${valuation.base.returnPct}% | ${valuation.base.cagrPct}% |`,
-    `| 乐观 | $${valuation.bull.eps} | ${valuation.bull.peMultiple}x | $${valuation.bull.targetPrice.toFixed(2)} | ${valuation.bull.returnPct}% | ${valuation.bull.cagrPct}% |`,
+    "| 情景 | EPS | 合理 PE | 权重 | 目标价 | 总空间 | 年化 CAGR |",
+    "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
+    `| 悲观 | $${valuation.bear.eps} | ${valuation.bear.peMultiple}x | ${Math.round(valuation.bear.probability * 100)}% | $${valuation.bear.targetPrice.toFixed(2)} | ${valuation.bear.returnPct}% | ${valuation.bear.cagrPct}% |`,
+    `| 中性 | $${valuation.base.eps} | ${valuation.base.peMultiple}x | ${Math.round(valuation.base.probability * 100)}% | $${valuation.base.targetPrice.toFixed(2)} | ${valuation.base.returnPct}% | ${valuation.base.cagrPct}% |`,
+    `| 乐观 | $${valuation.bull.eps} | ${valuation.bull.peMultiple}x | ${Math.round(valuation.bull.probability * 100)}% | $${valuation.bull.targetPrice.toFixed(2)} | ${valuation.bull.returnPct}% | ${valuation.bull.cagrPct}% |`,
     "",
     `- **赔率比（Upside / Downside）**：${ratio} ｜ **概率期望目标价**：$${valuation.expectedTargetPrice.toFixed(2)}`,
+    "",
+    ...formatExpectationsSection(thesis, extras),
     "",
     "---",
     "*Generated by KANON（卡农）— Conviction, composed.*",
   ].join("\n");
 }
 
-export function formatGoogleDocHtml(thesis: ThesisDetail): string {
-  const { valuation } = thesis;
-  const ratio =
-    valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞";
-  const rows = [
-    ["悲观", valuation.bear],
-    ["中性", valuation.base],
-    ["乐观", valuation.bull],
-  ] as const;
-
-  const tableRows = rows
-    .map(
-      ([label, item]) =>
-        `<tr><td>${label}</td><td>$${item.eps}</td><td>${item.peMultiple}x</td><td>$${item.targetPrice.toFixed(2)}</td><td>${item.cagrPct}%</td></tr>`,
-    )
-    .join("");
-
-  const hypHtml = thesis.hypotheses
-    .map(
-      (h) =>
-        `<li><strong>${escapeHtml(h.title)}</strong>（${escapeHtml(h.metricLabel)}：${escapeHtml(h.threshold)}）<br/>${escapeHtml(h.note)}</li>`,
-    )
-    .join("");
-
-  return [
-    "<!doctype html>",
-    '<html lang="zh-CN"><head><meta charset="utf-8" />',
-    `<title>${escapeHtml(thesis.companyName)} (${escapeHtml(thesis.ticker)}) — KANON 研报</title>`,
-    "<style>body{font-family:-apple-system,PingFang SC,sans-serif;max-width:760px;margin:40px auto;line-height:1.7;color:CanvasText}table{width:100%;border-collapse:collapse;margin:16px 0}th,td{border:1px solid silver;padding:8px 12px;text-align:left}</style>",
-    "</head><body>",
-    `<h1>${escapeHtml(thesis.indexLabel)} · ${escapeHtml(thesis.companyName)} (${escapeHtml(thesis.ticker)})</h1>`,
-    `<p><strong>赛道：</strong>${escapeHtml(thesis.sectorTag)} ｜ <strong>当前价：</strong>$${thesis.currentPrice.toFixed(2)} ｜ <strong>赔率比：</strong>${ratio}</p>`,
-    `<h2>核心投资论点</h2><p>${escapeHtml(thesis.convictionSummary)}</p>`,
-    `<h2>三条可证伪核心假设</h2><ol>${hypHtml}</ol>`,
-    `<h2>${thesis.horizonYears} 年三情景估值赔率表</h2>`,
-    `<table><thead><tr><th>情景</th><th>EPS</th><th>PE</th><th>目标价</th><th>年化 CAGR</th></tr></thead><tbody>${tableRows}</tbody></table>`,
-    `<p><em>由 KANON（卡农）生成，可直接上传 Google Drive 并转换为 Google Doc。</em></p>`,
-    "</body></html>",
-  ].join("\n");
+export function formatThesisArchiveJson(thesis: ThesisDetail, extras?: ThesisExportExtras): string {
+  const secQuality = analyzeSecQuality(extras?.secSnapshot?.annuals ?? []);
+  const expectations = calculateImpliedExpectations({
+    summary: thesis.valuation,
+    trailingEps: secQuality?.latestEps,
+  });
+  return JSON.stringify(
+    {
+      schemaVersion: "kanon-archive/v2",
+      exportedAt: new Date().toISOString(),
+      thesis,
+      readiness: calculateResearchReadiness(thesis),
+      expectations,
+      secQuality,
+      secSnapshot: extras?.secSnapshot ?? null,
+      revisions: extras?.revisions ?? [],
+    },
+    null,
+    2,
+  );
 }
 
 export function formatPortfolioCsv(theses: readonly ThesisDetail[]): string {
@@ -119,6 +136,8 @@ export function formatPortfolioCsv(theses: readonly ThesisDetail[]): string {
     "中性目标($)",
     "乐观目标($)",
     "中性空间(%)",
+    "安全边际(%)",
+    "15%买点($)",
     "3年CAGR(%)",
     "赔率比",
     "已验证假设",
@@ -128,6 +147,7 @@ export function formatPortfolioCsv(theses: readonly ThesisDetail[]): string {
   const rows = theses.map((t) => {
     const validated = t.hypotheses.filter((h) => h.status === "validated").length;
     const ratio = t.valuation.riskRewardRatio !== null ? `${t.valuation.riskRewardRatio}x` : "INF";
+    const exp = calculateImpliedExpectations({ summary: t.valuation });
     return [
       t.indexLabel,
       t.ticker,
@@ -139,6 +159,8 @@ export function formatPortfolioCsv(theses: readonly ThesisDetail[]): string {
       t.valuation.base.targetPrice.toFixed(2),
       t.valuation.bull.targetPrice.toFixed(2),
       t.valuation.upsidePct.toFixed(1),
+      exp.marginOfSafetyPct.toFixed(1),
+      exp.hurdleEntry15.toFixed(2),
       t.valuation.base.cagrPct.toFixed(1),
       ratio,
       `${validated}/3`,

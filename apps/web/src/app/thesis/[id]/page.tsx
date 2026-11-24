@@ -13,7 +13,8 @@ import {
   getThesisById,
   listCopilotOutputs,
   listGlossaryTerms,
-  listTheses,
+  listThesisRevisions,
+  listThesisSummaries,
 } from "@kanon/core/db";
 import { notFound } from "next/navigation";
 import { ResearchCanvasShell } from "@/features/thesis";
@@ -46,11 +47,12 @@ function hydrateCopilotOutputs(rows: readonly SavedCopilotOutput[]) {
 export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
   const { id } = await params;
   const db = await getKanonDb();
-  const [thesis, glossary, allTheses, savedOutputs] = await Promise.all([
+  const [thesis, glossary, allTheses, savedOutputs, revisions] = await Promise.all([
     getThesisById(db, id),
     listGlossaryTerms(db),
-    listTheses(db),
+    listThesisSummaries(db),
     listCopilotOutputs(db, id),
+    listThesisRevisions(db, id),
   ]);
 
   if (!thesis) {
@@ -65,6 +67,7 @@ export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
       glossary={glossary}
       initialSecSnapshot={secSnapshot}
       initialCopilot={hydrateCopilotOutputs(savedOutputs)}
+      initialRevisions={revisions}
     />
   );
 }

@@ -3,9 +3,10 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { calculateResearchReadiness } from "../math/research-readiness";
 import { calculateSensitivityMatrix } from "../math/sensitivity-matrix";
-import { createMemoryKanonDb, type KanonDb } from "./client";
+import { createMemoryKanonDb, getDbHealthStats, type KanonDb } from "./client";
 import { listCopilotOutputs, upsertCopilotOutput } from "./copilot-store";
 import { addDisciplineEntry, deleteThesis } from "./discipline-mutations";
+import { listThesisRevisions } from "./revision-queries";
 import {
   copilotOutputsTable,
   crossChecksTable,
@@ -14,10 +15,17 @@ import {
   hypothesesTable,
   secFilingsCacheTable,
   thesesTable,
+  thesisRevisionsTable,
   valuationScenariosTable,
 } from "./schema";
 import { createThesis, updateThesisStep } from "./thesis-mutations";
-import { getSecSnapshot, getThesisById, listGlossaryTerms, listTheses } from "./thesis-queries";
+import {
+  getSecSnapshot,
+  getThesisById,
+  listGlossaryTerms,
+  listTheses,
+  listThesisSummaries,
+} from "./thesis-queries";
 
 describe("KANON PostgreSQL Repository & DDL Parity", () => {
   let db: KanonDb;
@@ -43,6 +51,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
       glossaryTermsTable,
       secFilingsCacheTable,
       copilotOutputsTable,
+      thesisRevisionsTable,
     ];
 
     for (const table of tables) {
@@ -70,6 +79,11 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
 
     const muSec = await getSecSnapshot(db, "mu");
     expect(muSec?.cik).toBe("0000723125");
+
+    const summaries = await listThesisSummaries(db);
+    expect(summaries).toHaveLength(2);
+    expect(summaries[0]?.baseTargetPrice).toBe(175);
+    expect(theses[0]?.businessFilter.variantPerception.length).toBeGreaterThan(10);
   });
 
   it("supports full thesis CRUD and live 5-step updates", async () => {
@@ -94,6 +108,20 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     });
     expect(updatedVal?.valuation.base.targetPrice).toBe(540);
     expect(updatedVal?.valuation.upsidePct).toBe(35);
+
+    const calibrated = await updateThesisStep(db, created.id, {
+      step: "price_anchor",
+      currentPrice: 390,
+    });
+    expect(calibrated?.currentPrice).toBe(390);
+
+    const revisions = await listThesisRevisions(db, created.id);
+    expect(revisions.length).toBeGreaterThanOrEqual(3);
+    expect(revisions[0]?.step).toBe("price_anchor");
+
+    const health = await getDbHealthStats(db);
+    expect(health.engine).toBe("pglite-embedded");
+    expect(health.secCachedCount).toBeGreaterThanOrEqual(4);
 
     const removed = await deleteThesis(db, created.id);
     expect(removed).toBe(true);

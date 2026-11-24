@@ -13,6 +13,7 @@ import type {
   BusinessFilter,
   EmotionState,
   PeerRole,
+  RevisionStep,
   SecAnnualFinancial,
   SecFilingItem,
   SecFinancialFact,
@@ -125,6 +126,20 @@ export const copilotOutputsTable = pgTable("copilot_outputs", {
   engine: text("engine").$type<"vercel-ai-sdk" | "grounded-local">().notNull(),
   payload: jsonb("payload").$type<unknown>().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const thesisRevisionsTable = pgTable("thesis_revisions", {
+  id: text("id").primaryKey(),
+  thesisId: text("thesis_id")
+    .notNull()
+    .references(() => thesesTable.id, { onDelete: "cascade" }),
+  step: text("step").$type<RevisionStep>().notNull(),
+  summary: text("summary").notNull(),
+  currentPrice: doublePrecision("current_price").notNull(),
+  baseTargetPrice: doublePrecision("base_target_price").notNull(),
+  riskRewardRatio: doublePrecision("risk_reward_ratio"),
+  readinessScore: integer("readiness_score").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const selectThesisRowSchema = createSelectSchema(thesesTable);

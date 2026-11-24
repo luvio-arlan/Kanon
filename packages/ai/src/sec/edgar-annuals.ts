@@ -7,10 +7,15 @@ interface SecFactUnit {
   end?: string;
 }
 
-export type UsGaapFacts = Record<
+export type XbrlFactsNamespace = Record<
   string,
   { units?: { USD?: SecFactUnit[]; "USD/shares"?: SecFactUnit[] } }
 >;
+
+export interface SecFactsPayload {
+  "us-gaap"?: XbrlFactsNamespace;
+  "ifrs-full"?: XbrlFactsNamespace;
+}
 
 export function formatUsdCompact(value: number): string {
   const abs = Math.abs(value);
@@ -38,14 +43,14 @@ function indexUnitRows(list: readonly SecFactUnit[]): Map<number, number> {
   return new Map([...byYear.entries()].map(([fy, v]) => [fy, v.val]));
 }
 
-function collectAnnualMap(
-  gaap: UsGaapFacts | undefined,
+function collectFromNamespace(
+  ns: XbrlFactsNamespace | undefined,
   tags: readonly string[],
-  unitKey: "USD" | "USD/shares" = "USD",
+  unitKey: "USD" | "USD/shares",
 ): Map<number, number> {
-  if (!gaap) return new Map();
+  if (!ns) return new Map();
   for (const tag of tags) {
-    const list = gaap[tag]?.units?.[unitKey];
+    const list = ns[tag]?.units?.[unitKey];
     if (!list) continue;
     const map = indexUnitRows(list);
     if (map.size > 0) return map;
@@ -53,17 +58,41 @@ function collectAnnualMap(
   return new Map();
 }
 
-export function extractAnnualHistory(gaap: UsGaapFacts | undefined): SecAnnualFinancial[] {
-  const rev = collectAnnualMap(gaap, [
-    "RevenueFromContractWithCustomerExcludingAssessedTax",
-    "Revenues",
-    "SalesRevenueNet",
-  ]);
-  const gp = collectAnnualMap(gaap, ["GrossProfit"]);
-  const ni = collectAnnualMap(gaap, ["NetIncomeLoss"]);
-  const ocf = collectAnnualMap(gaap, ["NetCashProvidedByUsedInOperatingActivities"]);
-  const capex = collectAnnualMap(gaap, ["PaymentsToAcquirePropertyPlantAndEquipment"]);
-  const eps = collectAnnualMap(gaap, ["EarningsPerShareDiluted"], "USD/shares");
+function collectAnnualMap(
+  facts: SecFactsPayload | undefined,
+  usTags: readonly string[],
+  ifrsTags: readonly string[] = [],
+  unitKey: "USD" | "USD/shares" = "USD",
+): Map<number, number> {
+  const usMap = collectFromNamespace(facts?.["us-gaap"], usTags, unitKey);
+  if (usMap.size > 0) return usMap;
+  return collectFromNamespace(facts?.["ifrs-full"], ifrsTags, unitKey);
+}
+
+export function extractAnnualHistory(facts: SecFactsPayload | undefined): SecAnnualFinancial[] {
+  const rev = collectAnnualMap(
+    facts,
+    ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
+    ["Revenue"],
+  );
+  const gp = collectAnnualMap(facts, ["GrossProfit"], ["GrossProfit"]);
+  const ni = collectAnnualMap(facts, ["NetIncomeLoss"], ["ProfitLoss"]);
+  const ocf = collectAnnualMap(
+    facts,
+    ["NetCashProvidedByUsedInOperatingActivities"],
+    ["CashFlowsFromUsedInOperatingActivities"],
+  );
+  const capex = collectAnnualMap(
+    facts,
+    ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
+  );
+  const eps = collectAnnualMap(
+    facts,
+    ["EarningsPerShareDiluted"],
+    ["DilutedEarningsLossPerShare"],
+    "USD/shares",
+  );
 
   const years = [...new Set([...rev.keys(), ...ni.keys()])].sort((a, b) => a - b).slice(-5);
   return years.map((fy) => {

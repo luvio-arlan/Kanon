@@ -1,3 +1,18 @@
+export { streamResearchAgent } from "./agent/run-research-agent";
+export { RESEARCH_AGENT_TOOLS, type ResearchToolSpec } from "./agent/tool-registry";
+export {
+  type AgentBriefing,
+  AgentBriefingSchema,
+  type AgentProposal,
+  AgentProposalSchema,
+  type AgentProposalTarget,
+  AgentProposalTargetSchema,
+  type AgentRequest,
+  AgentRequestSchema,
+  type AgentStreamEvent,
+  type AgentTraceStep,
+  AgentTraceStepSchema,
+} from "./agent/types";
 export {
   type ByokCredentials,
   type CopilotPayloadMap,

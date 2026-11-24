@@ -1,20 +1,24 @@
 "use client";
 
-import type { ThesisDetail } from "@kanon/core";
+import type { ThesisDetail, ThesisSummary } from "@kanon/core";
 import { ActionMenu, type ActionMenuItem, KanonMark, RollingNumber, useTheme } from "@kanon/ui";
 import {
   IconArrowLeft,
   IconChevronDown,
+  IconCode,
   IconCpu,
   IconDots,
   IconDownload,
   IconFocus2,
   IconMoon,
   IconSearch,
+  IconSparkles,
   IconSun,
   IconTrash,
+  IconTrendingUp,
 } from "@tabler/icons-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export { type StepId, StepRail } from "./step-rail";
 
@@ -22,6 +26,7 @@ interface TopbarMenuProps {
   thesisId: string;
   hasByok: boolean;
   focusMode: boolean;
+  onOpenAgent: () => void;
   onOpenCommand: () => void;
   onOpenAiSettings: () => void;
   onToggleFocus: () => void;
@@ -41,6 +46,12 @@ function buildExportItems(thesisId: string): ActionMenuItem[] {
       label: "导出 Google Doc 排版",
       icon: <IconDownload size={14} stroke={1.5} />,
       onSelect: () => window.location.assign(`/api/export/thesis/${thesisId}?format=gdoc`),
+    },
+    {
+      id: "json",
+      label: "导出全量 JSON 备份",
+      icon: <IconCode size={14} stroke={1.5} />,
+      onSelect: () => window.location.assign(`/api/export/thesis/${thesisId}?format=json`),
     },
   ];
 }
@@ -89,6 +100,15 @@ function TopbarMenus(props: TopbarMenuProps) {
     <div className="flex items-center gap-1.5">
       <button
         type="button"
+        onClick={props.onOpenAgent}
+        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-accent-coral/35 bg-accent-coral-soft px-2.5 text-xs font-medium text-accent-coral transition-all duration-150 hover:border-accent-coral/70 active:scale-[0.97]"
+      >
+        <IconSparkles size={14} stroke={1.5} />
+        <span className="hidden sm:inline">投研 Agent</span>
+        <kbd className="hidden font-mono text-xs opacity-75 md:inline">⌘J</kbd>
+      </button>
+      <button
+        type="button"
         onClick={props.onOpenCommand}
         className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-hairline bg-surface px-2.5 text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
       >
@@ -115,7 +135,30 @@ function TopbarMenus(props: TopbarMenuProps) {
   );
 }
 
-function TopbarBreadcrumb({ thesis }: { thesis: ThesisDetail }) {
+function buildSwitcherItems(
+  currentId: string,
+  allTheses: readonly ThesisSummary[],
+  push: (href: string) => void,
+): ActionMenuItem[] {
+  return allTheses.map((item) => ({
+    id: item.id,
+    label: `${item.companyName} (${item.ticker})`,
+    shortcut: item.riskRewardRatio !== null ? `${item.riskRewardRatio.toFixed(1)}×` : "∞",
+    icon: <IconTrendingUp size={14} stroke={1.5} />,
+    onSelect: () => {
+      if (item.id !== currentId) push(`/thesis/${item.id}`);
+    },
+  }));
+}
+
+function TopbarBreadcrumb({
+  thesis,
+  allTheses,
+}: {
+  thesis: ThesisDetail;
+  allTheses: readonly ThesisSummary[];
+}) {
+  const router = useRouter();
   const ratio = thesis.valuation.riskRewardRatio;
   return (
     <div className="flex min-w-0 items-center gap-2.5 text-sm">
@@ -130,9 +173,19 @@ function TopbarBreadcrumb({ thesis }: { thesis: ThesisDetail }) {
         /
       </span>
       <KanonMark size={15} className="hidden shrink-0 sm:block" />
-      <span className="truncate font-semibold text-ink-primary">{thesis.companyName}</span>
-      <span className="font-mono text-xs text-ink-muted">{thesis.ticker}</span>
-      <span className="hidden items-center gap-1.5 pl-2 font-mono text-xs text-ink-muted tabular-nums md:inline-flex">
+      <ActionMenu
+        ariaLabel="快速切换标的"
+        items={buildSwitcherItems(thesis.id, allTheses, router.push)}
+        triggerClassName="border-transparent bg-transparent px-1.5 hover:bg-muted/70"
+        trigger={
+          <span className="inline-flex items-center gap-1.5">
+            <span className="truncate font-semibold text-ink-primary">{thesis.companyName}</span>
+            <span className="font-mono text-xs text-ink-muted">{thesis.ticker}</span>
+            <IconChevronDown size={13} stroke={1.5} className="text-ink-muted" />
+          </span>
+        }
+      />
+      <span className="hidden items-center gap-1.5 pl-1 font-mono text-xs text-ink-muted tabular-nums md:inline-flex">
         <span>·</span>
         <span>中性</span>
         <RollingNumber
@@ -149,21 +202,24 @@ function TopbarBreadcrumb({ thesis }: { thesis: ThesisDetail }) {
 
 export function CanvasTopbar(props: {
   thesis: ThesisDetail;
+  allTheses: readonly ThesisSummary[];
   hasByok: boolean;
   focusMode: boolean;
+  onOpenAgent: () => void;
   onOpenCommand: () => void;
   onOpenAiSettings: () => void;
   onToggleFocus: () => void;
   onRequestDelete: () => void;
 }) {
   return (
-    <header className="kanon-topbar-glass sticky top-0 z-30 border-b border-hairline">
+    <header className="no-print kanon-topbar-glass sticky top-0 z-30 border-b border-hairline">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-6 sm:px-10">
-        <TopbarBreadcrumb thesis={props.thesis} />
+        <TopbarBreadcrumb thesis={props.thesis} allTheses={props.allTheses} />
         <TopbarMenus
           thesisId={props.thesis.id}
           hasByok={props.hasByok}
           focusMode={props.focusMode}
+          onOpenAgent={props.onOpenAgent}
           onOpenCommand={props.onOpenCommand}
           onOpenAiSettings={props.onOpenAiSettings}
           onToggleFocus={props.onToggleFocus}

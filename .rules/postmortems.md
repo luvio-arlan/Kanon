@@ -80,3 +80,9 @@
 - **Mistake**: Importing runtime `@kanon/ai` AI SDK modules inside `"use client"` hooks to cast persisted `copilot_outputs` rows, or letting Copilot actions drift away from core fundamental research.
 - **Correct Pattern**: Keep every Copilot action strictly aligned with fundamental value investing (`earnings_digest`, `red_team`, `investment_memo`), validate persisted JSONB payloads with `@kanon/ai` Zod `safeParse` inside Server Components before passing typed props to client islands, and keep `import type` only in client modules.
 - **Why / Gate**: Preserves institutional investor product clarity, prevents Node/AI SDK leaks into client bundles, and eliminates unsafe type assertions. Enforced by `packages/ai` Zod schemas + `AGENTS.md` §1 & §3.
+
+### [2026-11-24] Match HeroUI v3 `@layer base` Token Cascade & Guard CSS Grid Sticky / Overlay Ergonomics
+
+- **Mistake**: Placing custom theme overrides inside `@layer theme` when `@heroui/styles` declares its default `:root`/`.dark` tokens in `@layer base`, applying `lg:sticky` to a CSS Grid sidebar without `lg:self-start`, placing Sonner toasts at `bottom-right` over sticky save CTAs, or styling native `<select>` pills with inconsistent OS vertical alignment.
+- **Correct Pattern**: Declare KANON theme tokens in `@layer base` after `@import "@heroui/styles"`, pair `lg:sticky` inside CSS Grid with `lg:self-start`, position Sonner toasts at `top-center` with topbar offset (`68px`), keep frosted topbars at `>= 0.92` opacity, and use `@kanon/ui` `ActionMenu` pills instead of unstyled native `<select>` controls.
+- **Why / Gate**: Prevents silent HeroUI token shadowing, ensures sticky navigation works on tall canvases, and maintains museum-grade alignment across Light and Dark modes. Verified via live browser QA.

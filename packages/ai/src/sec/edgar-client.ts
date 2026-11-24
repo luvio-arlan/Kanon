@@ -2,8 +2,8 @@ import { type SecFilingItem, type SecSnapshot, SecSnapshotSchema } from "@kanon/
 import {
   extractAnnualHistory,
   formatUsdCompact,
+  type SecFactsPayload,
   summarizeLatestFacts,
-  type UsGaapFacts,
 } from "./edgar-annuals";
 
 export { formatUsdCompact };
@@ -42,12 +42,18 @@ interface SecSubmissionsResponse {
 }
 
 interface SecCompanyFactsResponse {
-  facts?: { "us-gaap"?: UsGaapFacts };
+  facts?: SecFactsPayload;
 }
+
+const CIK_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+let dynamicCikCache: { expiresAt: number; map: Map<string, string> } | null = null;
 
 async function resolveCik(ticker: string, fetchImpl: typeof fetch): Promise<string | null> {
   const upper = ticker.trim().toUpperCase();
   if (KNOWN_CIK_MAP[upper]) return KNOWN_CIK_MAP[upper];
+  if (dynamicCikCache && Date.now() < dynamicCikCache.expiresAt) {
+    return dynamicCikCache.map.get(upper) ?? null;
+  }
 
   const res = await fetchImpl("https://www.sec.gov/files/company_tickers.json", {
     headers: { "User-Agent": SEC_USER_AGENT },
@@ -55,8 +61,14 @@ async function resolveCik(ticker: string, fetchImpl: typeof fetch): Promise<stri
   });
   if (!res.ok) return null;
   const table = (await res.json()) as Record<string, { ticker?: string; cik_str?: number }>;
-  const match = Object.values(table).find((row) => row.ticker?.toUpperCase() === upper);
-  return match?.cik_str ? String(match.cik_str).padStart(10, "0") : null;
+  const map = new Map<string, string>();
+  for (const row of Object.values(table)) {
+    if (row.ticker && row.cik_str) {
+      map.set(row.ticker.toUpperCase(), String(row.cik_str).padStart(10, "0"));
+    }
+  }
+  dynamicCikCache = { expiresAt: Date.now() + CIK_CACHE_TTL_MS, map };
+  return map.get(upper) ?? null;
 }
 
 function buildFilingItem(
@@ -119,7 +131,7 @@ export async function fetchSecEdgarSnapshot(
     }
     const subJson = (await subRes.json()) as SecSubmissionsResponse;
     const factsJson = factsRes.ok ? ((await factsRes.json()) as SecCompanyFactsResponse) : {};
-    const annuals = extractAnnualHistory(factsJson.facts?.["us-gaap"]);
+    const annuals = extractAnnualHistory(factsJson.facts);
     const snapshot = SecSnapshotSchema.parse({
       ticker: upper,
       cik,

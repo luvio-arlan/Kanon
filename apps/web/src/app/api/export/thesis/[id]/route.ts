@@ -1,6 +1,6 @@
-import { formatGoogleDocHtml, formatThesisMarkdown } from "@kanon/core";
-import { getKanonDb, getThesisById } from "@kanon/core/db";
-import { NextResponse } from "next/server";
+import { formatGoogleDocHtml, formatThesisArchiveJson, formatThesisMarkdown } from "@kanon/core";
+import { getKanonDb, getSecSnapshot, getThesisById, listThesisRevisions } from "@kanon/core/db";
+import { apiHeaders, jsonError } from "../../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -9,28 +9,45 @@ interface RouteContext {
 }
 
 export async function GET(request: Request, context: RouteContext) {
+  const startedAt = performance.now();
   const { id } = await context.params;
   const format = new URL(request.url).searchParams.get("format") ?? "md";
   const db = await getKanonDb();
   const thesis = await getThesisById(db, id);
   if (!thesis) {
-    return NextResponse.json({ error: "未找到该研究标的。" }, { status: 404 });
+    return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
   }
 
+  const [secSnapshot, revisions] = await Promise.all([
+    getSecSnapshot(db, thesis.ticker),
+    listThesisRevisions(db, id, 30),
+  ]);
+  const extras = { secSnapshot, revisions };
   const safeSlug = thesis.ticker.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (format === "gdoc") {
-    const html = formatGoogleDocHtml(thesis);
-    return new Response(html, {
+
+  if (format === "json") {
+    return new Response(formatThesisArchiveJson(thesis, extras), {
       headers: {
+        ...apiHeaders(startedAt),
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename="kanon-${safeSlug}-archive.json"`,
+      },
+    });
+  }
+
+  if (format === "gdoc") {
+    return new Response(formatGoogleDocHtml(thesis, extras), {
+      headers: {
+        ...apiHeaders(startedAt),
         "Content-Type": "text/html; charset=utf-8",
         "Content-Disposition": `attachment; filename="kanon-${safeSlug}-memo.html"`,
       },
     });
   }
 
-  const markdown = formatThesisMarkdown(thesis);
-  return new Response(markdown, {
+  return new Response(formatThesisMarkdown(thesis, extras), {
     headers: {
+      ...apiHeaders(startedAt),
       "Content-Type": "text/markdown; charset=utf-8",
       "Content-Disposition": `attachment; filename="kanon-${safeSlug}-memo.md"`,
     },

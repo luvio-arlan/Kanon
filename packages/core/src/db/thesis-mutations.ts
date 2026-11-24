@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
 import { roundTo } from "../math/valuation-scenarios";
 import {
   type CreateThesisInput,
@@ -8,9 +7,17 @@ import {
   type UpdateThesisStepInput,
   UpdateThesisStepSchema,
 } from "../schemas/research";
-import type { KanonDb } from "./client";
-import { crossChecksTable, hypothesesTable, thesesTable, valuationScenariosTable } from "./schema";
+import { type KanonDb, runInTransaction } from "./client";
+import { recordThesisRevision } from "./revision-queries";
+import { hypothesesTable, thesesTable, valuationScenariosTable } from "./schema";
 import { getThesisById } from "./thesis-queries";
+import {
+  writeBusinessFilterStep,
+  writeCrossChecksStep,
+  writeHypothesesStep,
+  writePriceAnchorStep,
+  writeValuationStep,
+} from "./thesis-step-writers";
 
 function buildStarterHypotheses(thesisId: string, companyName: string) {
   return [
@@ -69,19 +76,14 @@ function buildStarterValuation(thesisId: string, price: number) {
   };
 }
 
-export async function createThesis(
-  db: KanonDb,
-  rawInput: CreateThesisInput,
-): Promise<ThesisDetail> {
-  const parsed = CreateThesisInputSchema.parse(rawInput);
-  const existing = await db.select({ indexOrder: thesesTable.indexOrder }).from(thesesTable);
-  const nextOrder = existing.reduce((max, row) => Math.max(max, row.indexOrder), 0) + 1;
-  const slug = parsed.ticker.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const id = `thesis-${slug}-${crypto.randomUUID().slice(0, 6)}`;
-
-  await db.insert(thesesTable).values({
+function buildNewThesisRow(
+  id: string,
+  indexOrder: number,
+  parsed: ReturnType<typeof CreateThesisInputSchema.parse>,
+) {
+  return {
     id,
-    indexOrder: nextOrder,
+    indexOrder,
     ticker: parsed.ticker,
     companyName: parsed.companyName,
     sectorTag: parsed.sectorTag,
@@ -90,110 +92,64 @@ export async function createThesis(
     convictionSummary:
       parsed.convictionSummary ??
       `待完善 ${parsed.companyName}（${parsed.ticker}）的核心护城河与 3 年盈利驱动逻辑。`,
-    status: "active",
+    status: "active" as const,
     businessFilter: {
-      recurringRevenue: "watch",
-      pricingPower: "watch",
-      capitalReturn: "watch",
-      governance: "watch",
+      recurringRevenue: "watch" as const,
+      pricingPower: "watch" as const,
+      capitalReturn: "watch" as const,
+      governance: "watch" as const,
       notes: "",
       vetoReason: "",
+      consensusView: "",
+      variantPerception: "",
+      keyDebate: "",
+      preMortem: "",
     },
     lastReviewedLabel: "刚刚创建 · 待初筛",
-  });
-
-  await db.insert(hypothesesTable).values(buildStarterHypotheses(id, parsed.companyName));
-  await db.insert(valuationScenariosTable).values(buildStarterValuation(id, parsed.currentPrice));
-
-  const created = await getThesisById(db, id);
-  if (!created) {
-    throw new Error(`Failed to hydrate newly created thesis "${id}".`);
-  }
-  return created;
-}
-
-async function saveValuationStep(
-  db: KanonDb,
-  thesisId: string,
-  parsed: Extract<UpdateThesisStepInput, { step: "valuation" }>,
-  now: Date,
-): Promise<void> {
-  const input = parsed.valuationInput;
-  const horizonYears = Math.round(input.horizonYears ?? 3);
-  await db
-    .update(thesesTable)
-    .set({
-      currentPrice: input.currentPrice,
-      horizonYears,
-      lastReviewedLabel: "刚刚更新 · 三情景赔率",
-      updatedAt: now,
-    })
-    .where(eq(thesesTable.id, thesisId));
-
-  const [existing] = await db
-    .select()
-    .from(valuationScenariosTable)
-    .where(eq(valuationScenariosTable.thesisId, thesisId));
-
-  const nextHistory = parsed.priceHistory ??
-    existing?.priceHistory.map((pt, idx, arr) =>
-      idx === arr.length - 1 ? { ...pt, price: input.currentPrice } : pt,
-    ) ?? [
-      { label: "起点", price: roundTo(input.currentPrice * 0.92, 2) },
-      { label: "现价", price: input.currentPrice },
-    ];
-
-  const payload = {
-    bearEps: input.bear.eps,
-    bearPe: input.bear.peMultiple,
-    bearProb: input.bear.probability ?? 0.25,
-    baseEps: input.base.eps,
-    basePe: input.base.peMultiple,
-    baseProb: input.base.probability ?? 0.5,
-    bullEps: input.bull.eps,
-    bullPe: input.bull.peMultiple,
-    bullProb: input.bull.probability ?? 0.25,
-    priceHistory: nextHistory,
   };
-
-  await db
-    .insert(valuationScenariosTable)
-    .values({ thesisId, ...payload })
-    .onConflictDoUpdate({ target: valuationScenariosTable.thesisId, set: payload });
 }
 
-async function saveHypothesesStep(
+export async function createThesis(
   db: KanonDb,
-  thesisId: string,
-  parsed: Extract<UpdateThesisStepInput, { step: "hypotheses" }>,
-  now: Date,
-): Promise<void> {
-  await db.delete(hypothesesTable).where(eq(hypothesesTable.thesisId, thesisId));
-  await db
-    .insert(hypothesesTable)
-    .values(parsed.hypotheses.map((h, idx) => ({ ...h, thesisId, sortOrder: idx })));
-  await db
-    .update(thesesTable)
-    .set({ lastReviewedLabel: "刚刚更新 · 核心假设", updatedAt: now })
-    .where(eq(thesesTable.id, thesisId));
+  rawInput: CreateThesisInput,
+): Promise<ThesisDetail> {
+  const parsed = CreateThesisInputSchema.parse(rawInput);
+  const slug = parsed.ticker.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const id = `thesis-${slug}-${crypto.randomUUID().slice(0, 6)}`;
+
+  return runInTransaction(db, async (tx) => {
+    const existing = await tx.select({ indexOrder: thesesTable.indexOrder }).from(thesesTable);
+    const nextOrder = existing.reduce((max, row) => Math.max(max, row.indexOrder), 0) + 1;
+
+    await tx.insert(thesesTable).values(buildNewThesisRow(id, nextOrder, parsed));
+    await tx.insert(hypothesesTable).values(buildStarterHypotheses(id, parsed.companyName));
+    await tx.insert(valuationScenariosTable).values(buildStarterValuation(id, parsed.currentPrice));
+
+    const created = await getThesisById(tx, id);
+    if (!created) {
+      throw new Error(`Failed to hydrate newly created thesis "${id}".`);
+    }
+    await recordThesisRevision(
+      tx,
+      created,
+      "create",
+      `建档 ${created.companyName}（${created.ticker}），初始参考价 $${created.currentPrice.toFixed(2)}`,
+    );
+    return created;
+  });
 }
 
-async function saveCrossChecksStep(
-  db: KanonDb,
+async function dispatchStepWrite(
+  tx: KanonDb,
   thesisId: string,
-  parsed: Extract<UpdateThesisStepInput, { step: "cross_checks" }>,
+  parsed: UpdateThesisStepInput,
   now: Date,
-): Promise<void> {
-  await db.delete(crossChecksTable).where(eq(crossChecksTable.thesisId, thesisId));
-  if (parsed.crossChecks.length > 0) {
-    await db
-      .insert(crossChecksTable)
-      .values(parsed.crossChecks.map((item) => ({ ...item, thesisId })));
-  }
-  await db
-    .update(thesesTable)
-    .set({ lastReviewedLabel: "刚刚更新 · 一阶交叉验证", updatedAt: now })
-    .where(eq(thesesTable.id, thesisId));
+): Promise<string> {
+  if (parsed.step === "business_filter") return writeBusinessFilterStep(tx, thesisId, parsed, now);
+  if (parsed.step === "hypotheses") return writeHypothesesStep(tx, thesisId, parsed, now);
+  if (parsed.step === "cross_checks") return writeCrossChecksStep(tx, thesisId, parsed, now);
+  if (parsed.step === "price_anchor") return writePriceAnchorStep(tx, thesisId, parsed, now);
+  return writeValuationStep(tx, thesisId, parsed, now);
 }
 
 export async function updateThesisStep(
@@ -204,23 +160,15 @@ export async function updateThesisStep(
   const parsed = UpdateThesisStepSchema.parse(rawInput);
   const now = new Date();
 
-  if (parsed.step === "business_filter") {
-    await db
-      .update(thesesTable)
-      .set({
-        status: parsed.status,
-        convictionSummary: parsed.convictionSummary,
-        businessFilter: parsed.businessFilter,
-        lastReviewedLabel: "刚刚更新 · 商业模式滤镜",
-        updatedAt: now,
-      })
-      .where(eq(thesesTable.id, thesisId));
-  } else if (parsed.step === "hypotheses") {
-    await saveHypothesesStep(db, thesisId, parsed, now);
-  } else if (parsed.step === "cross_checks") {
-    await saveCrossChecksStep(db, thesisId, parsed, now);
-  } else {
-    await saveValuationStep(db, thesisId, parsed, now);
-  }
-  return getThesisById(db, thesisId);
+  return runInTransaction(db, async (tx) => {
+    const existing = await getThesisById(tx, thesisId);
+    if (!existing) return null;
+
+    const summary = await dispatchStepWrite(tx, thesisId, parsed, now);
+    const updated = await getThesisById(tx, thesisId);
+    if (updated) {
+      await recordThesisRevision(tx, updated, parsed.step, summary);
+    }
+    return updated;
+  });
 }

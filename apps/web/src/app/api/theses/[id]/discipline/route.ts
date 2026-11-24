@@ -1,6 +1,6 @@
 import { CreateDisciplineEntrySchema } from "@kanon/core";
-import { addDisciplineEntry, getKanonDb } from "@kanon/core/db";
-import { NextResponse } from "next/server";
+import { addDisciplineEntry, getKanonDb, listThesisRevisions } from "@kanon/core/db";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -9,26 +9,26 @@ interface RouteContext {
 }
 
 export async function POST(request: Request, context: RouteContext) {
+  const startedAt = performance.now();
   const { id } = await context.params;
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "请求体不是合法 JSON。" }, { status: 400 });
-  }
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
 
-  const parsed = CreateDisciplineEntrySchema.safeParse(body);
+  const parsed = CreateDisciplineEntrySchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "纪律检查未通过。" },
-      { status: 400 },
+    return jsonError(
+      formatZodError(parsed.error, "纪律检查未通过。"),
+      400,
+      startedAt,
+      "DISCIPLINE_BLOCKED",
     );
   }
 
   const db = await getKanonDb();
   const thesis = await addDisciplineEntry(db, id, parsed.data);
   if (!thesis) {
-    return NextResponse.json({ error: "未找到该研究标的。" }, { status: 404 });
+    return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
   }
-  return NextResponse.json({ thesis }, { status: 201 });
+  const revisions = await listThesisRevisions(db, id);
+  return jsonOk({ thesis, revisions }, startedAt, 201);
 }

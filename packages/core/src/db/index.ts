@@ -1,7 +1,16 @@
-export { createMemoryKanonDb, getKanonDb, type KanonDb } from "./client";
+export {
+  createMemoryKanonDb,
+  type DbHealthStats,
+  getDbHealthStats,
+  getKanonDb,
+  type KanonDb,
+  type KanonDbEngine,
+  runInTransaction,
+} from "./client";
 export { listCopilotOutputs, upsertCopilotOutput } from "./copilot-store";
 export { KANON_POSTGRES_DDL } from "./ddl";
 export { addDisciplineEntry, deleteThesis, upsertSecSnapshot } from "./discipline-mutations";
+export { listThesisRevisions, recordThesisRevision } from "./revision-queries";
 export {
   copilotOutputsTable,
   crossChecksTable,
@@ -13,6 +22,7 @@ export {
   selectGlossaryRowSchema,
   selectThesisRowSchema,
   thesesTable,
+  thesisRevisionsTable,
   valuationScenariosTable,
 } from "./schema";
 export { createThesis, updateThesisStep } from "./thesis-mutations";
@@ -21,4 +31,5 @@ export {
   getThesisById,
   listGlossaryTerms,
   listTheses,
+  listThesisSummaries,
 } from "./thesis-queries";

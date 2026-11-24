@@ -1,5 +1,6 @@
 import { createMemoryKanonDb, getSecSnapshot, getThesisById } from "@kanon/core/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { streamResearchAgent } from "./agent/run-research-agent";
 import { runThesisCopilot } from "./copilot/run-copilot";
 import { fetchSecEdgarSnapshot, formatUsdCompact } from "./sec/edgar-client";
 
@@ -79,6 +80,51 @@ describe("packages/ai SEC EDGAR Multi-Year XBRL & Copilot Contracts", () => {
     }
   });
 
+  it("extracts IFRS 20-F fundamentals for ADR issuers like TSMC", async () => {
+    const mockFetch: typeof fetch = async (input) => {
+      if (String(input).includes("/submissions/")) {
+        return new Response(
+          JSON.stringify({
+            name: "TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD",
+            filings: {
+              recent: {
+                form: ["20-F"],
+                filingDate: ["2026-04-17"],
+                reportDate: ["2025-12-31"],
+                accessionNumber: ["0001046179-26-000018"],
+                primaryDocument: ["tsm-20251231.htm"],
+                primaryDocDescription: ["FY25 20-F"],
+              },
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          facts: {
+            "ifrs-full": {
+              Revenue: { units: { USD: [{ val: 90_080_000_000, form: "20-F", fy: 2024 }] } },
+              GrossProfit: { units: { USD: [{ val: 50_535_000_000, form: "20-F", fy: 2024 }] } },
+              ProfitLoss: { units: { USD: [{ val: 36_510_000_000, form: "20-F", fy: 2024 }] } },
+              DilutedEarningsLossPerShare: {
+                units: { "USD/shares": [{ val: 7.04, form: "20-F", fy: 2024 }] },
+              },
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    };
+
+    const result = await fetchSecEdgarSnapshot("TSM", mockFetch);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.annuals[0]?.grossMarginPct).toBe(56.1);
+      expect(result.data.annuals[0]?.dilutedEps).toBe(7.04);
+    }
+  });
+
   describe("runThesisCopilot grounded Zod execution", () => {
     let closeDb: () => Promise<void>;
     let thesis: Awaited<ReturnType<typeof getThesisById>>;
@@ -114,6 +160,18 @@ describe("packages/ai SEC EDGAR Multi-Year XBRL & Copilot Contracts", () => {
       const memo = await runThesisCopilot({ action: "investment_memo", thesis, secSnapshot: sec });
       expect(memo.data.ticker).toBe("MU");
       expect(memo.data.nextQuarterChecklist.length).toBeGreaterThanOrEqual(2);
+
+      const events = [];
+      for await (const evt of streamResearchAgent({ thesis, secSnapshot: sec })) {
+        events.push(evt);
+      }
+      const ready = events.find((e) => e.type === "briefing_ready");
+      expect(ready?.type).toBe("briefing_ready");
+      if (ready?.type === "briefing_ready") {
+        expect(ready.briefing.traces).toHaveLength(3);
+        expect(ready.briefing.convictionScore).toBeGreaterThan(50);
+        expect(ready.briefing.proposals.length).toBeGreaterThanOrEqual(1);
+      }
     });
   });
 });

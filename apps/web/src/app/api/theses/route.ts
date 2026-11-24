@@ -1,43 +1,45 @@
 import { CreateThesisInputSchema } from "@kanon/core";
 import { createThesis, getKanonDb, listGlossaryTerms, listTheses } from "@kanon/core/db";
-import { NextResponse } from "next/server";
+import {
+  formatZodError,
+  isUniqueConstraintError,
+  jsonError,
+  jsonOk,
+  readJsonBody,
+} from "../_lib/http";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const startedAt = performance.now();
   const db = await getKanonDb();
   const [theses, glossary] = await Promise.all([listTheses(db), listGlossaryTerms(db)]);
-  return NextResponse.json({ theses, glossary });
+  return jsonOk({ theses, glossary }, startedAt);
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "请求体不是合法 JSON。" }, { status: 400 });
-  }
+  const startedAt = performance.now();
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
 
-  const parsed = CreateThesisInputSchema.safeParse(body);
+  const parsed = CreateThesisInputSchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "标的参数校验失败。" },
-      { status: 400 },
-    );
+    return jsonError(formatZodError(parsed.error, "标的参数校验失败。"), 400, startedAt, "INVALID");
   }
 
   try {
     const db = await getKanonDb();
     const thesis = await createThesis(db, parsed.data);
-    return NextResponse.json({ thesis }, { status: 201 });
+    return jsonOk({ thesis }, startedAt, 201);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "";
-    if (msg.toLowerCase().includes("unique")) {
-      return NextResponse.json(
-        { error: `标的 ${parsed.data.ticker} 已在跟踪列表中，请直接进入原画布编辑。` },
-        { status: 409 },
+    if (isUniqueConstraintError(err)) {
+      return jsonError(
+        `标的 ${parsed.data.ticker} 已在跟踪列表中，请直接进入原画布编辑。`,
+        409,
+        startedAt,
+        "CONFLICT",
       );
     }
-    return NextResponse.json({ error: "创建标的失败，请检查输入后重试。" }, { status: 500 });
+    return jsonError("创建标的失败，请检查输入后重试。", 500, startedAt, "CREATE_FAILED");
   }
 }

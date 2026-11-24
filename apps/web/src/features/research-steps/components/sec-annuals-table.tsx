@@ -1,7 +1,10 @@
 "use client";
 
-import type { SecAnnualFinancial } from "@kanon/core";
-import { Card } from "@kanon/ui";
+import { analyzeSecQuality, type SecAnnualFinancial, type SecQualitySummary } from "@kanon/core";
+import { Badge, Card, type SecChartDatum, SecFinancialChart, SegmentedTabs } from "@kanon/ui";
+import { useMemo, useState } from "react";
+
+type DisplayMode = "table" | "chart";
 
 function formatCompactMoney(value: number | null): string {
   if (value === null) return "—";
@@ -16,6 +19,54 @@ function formatSignedEps(value: number | null): string {
   if (value === null) return "—";
   const sign = value < 0 ? "-" : "";
   return `${sign}$${Math.abs(value).toFixed(2)}`;
+}
+
+function toChartData(annuals: readonly SecAnnualFinancial[]): SecChartDatum[] {
+  return annuals.map((row) => ({
+    fiscalYear: row.fiscalYear,
+    revenueBillions: row.revenue !== null ? Number((row.revenue / 1e9).toFixed(2)) : null,
+    fcfBillions: row.freeCashFlow !== null ? Number((row.freeCashFlow / 1e9).toFixed(2)) : null,
+    grossMarginPct: row.grossMarginPct,
+    dilutedEps: row.dilutedEps,
+  }));
+}
+
+function gradeBadgeVariant(grade: SecQualitySummary["qualityGrade"]) {
+  if (grade === "compounder") return "pass" as const;
+  if (grade === "capital_intensive") return "titanium" as const;
+  if (grade === "cyclical") return "warn" as const;
+  return "default" as const;
+}
+
+function SecQualityStrip({ quality }: { quality: SecQualitySummary }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 border-b border-hairline bg-muted/30 px-5 py-3 font-mono text-xs tabular-nums sm:grid-cols-4">
+      <div>
+        <div className="font-sans text-ink-muted">营收复合增速</div>
+        <div className="mt-0.5 text-sm font-semibold text-ink-primary">
+          {quality.revenueCagrPct !== null ? `${quality.revenueCagrPct.toFixed(1)}%` : "—"}
+        </div>
+      </div>
+      <div>
+        <div className="font-sans text-ink-muted">均值毛利率</div>
+        <div className="mt-0.5 text-sm font-semibold text-ink-primary">
+          {quality.avgGrossMarginPct !== null ? `${quality.avgGrossMarginPct.toFixed(1)}%` : "—"}
+        </div>
+      </div>
+      <div>
+        <div className="font-sans text-ink-muted">FCF 转化率</div>
+        <div className="mt-0.5 text-sm font-semibold text-status-pass">
+          {quality.fcfConversionPct !== null ? `${quality.fcfConversionPct.toFixed(1)}%` : "—"}
+        </div>
+      </div>
+      <div>
+        <div className="font-sans text-ink-muted">CapEx 强度</div>
+        <div className="mt-0.5 text-sm font-semibold text-ink-secondary">
+          {quality.capexIntensityPct !== null ? `${quality.capexIntensityPct.toFixed(1)}%` : "—"}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SecAnnualRow({ row }: { row: SecAnnualFinancial }) {
@@ -40,6 +91,30 @@ function SecAnnualRow({ row }: { row: SecAnnualFinancial }) {
   );
 }
 
+function SecTableGrid({ annuals }: { annuals: readonly SecAnnualFinancial[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[540px] border-collapse font-mono text-xs tabular-nums">
+        <thead>
+          <tr className="bg-muted/45 font-sans text-ink-muted">
+            <th className="px-5 py-2.5 text-left font-medium">财年</th>
+            <th className="px-3 py-2.5 text-right font-medium">营业收入</th>
+            <th className="px-3 py-2.5 text-right font-medium">毛利率</th>
+            <th className="px-3 py-2.5 text-right font-medium">净利润</th>
+            <th className="px-3 py-2.5 text-right font-medium">自由现金流</th>
+            <th className="px-5 py-2.5 text-right font-medium">稀释 EPS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {annuals.map((row) => (
+            <SecAnnualRow key={row.fiscalYear} row={row} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function SecAnnualsTable({
   annuals,
   title = "SEC 多年度基本面质量轨迹",
@@ -47,33 +122,36 @@ export function SecAnnualsTable({
   annuals: readonly SecAnnualFinancial[];
   title?: string;
 }) {
+  const [mode, setMode] = useState<DisplayMode>("table");
+  const quality = useMemo(() => analyzeSecQuality(annuals), [annuals]);
+  const chartData = useMemo(() => toChartData(annuals), [annuals]);
   if (annuals.length === 0) return null;
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
-        <h3 className="text-sm font-semibold text-ink-primary">{title}</h3>
-        <span className="font-mono text-xs text-ink-muted">SEC 10-K / XBRL 事实</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-5 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <h3 className="text-sm font-semibold text-ink-primary">{title}</h3>
+          {quality ? (
+            <Badge variant={gradeBadgeVariant(quality.qualityGrade)}>{quality.qualityLabel}</Badge>
+          ) : null}
+        </div>
+        <SegmentedTabs
+          layoutId={`sec-view-${title}`}
+          value={mode}
+          onChange={setMode}
+          items={[
+            { id: "table", label: "财务表" },
+            { id: "chart", label: "趋势图" },
+          ]}
+        />
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[540px] border-collapse font-mono text-xs tabular-nums">
-          <thead>
-            <tr className="bg-muted/45 font-sans text-ink-muted">
-              <th className="px-5 py-2.5 text-left font-medium">财年</th>
-              <th className="px-3 py-2.5 text-right font-medium">营业收入</th>
-              <th className="px-3 py-2.5 text-right font-medium">毛利率</th>
-              <th className="px-3 py-2.5 text-right font-medium">净利润</th>
-              <th className="px-3 py-2.5 text-right font-medium">自由现金流</th>
-              <th className="px-5 py-2.5 text-right font-medium">稀释 EPS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {annuals.map((row) => (
-              <SecAnnualRow key={row.fiscalYear} row={row} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {quality ? <SecQualityStrip quality={quality} /> : null}
+      {mode === "chart" ? (
+        <SecFinancialChart data={chartData} />
+      ) : (
+        <SecTableGrid annuals={annuals} />
+      )}
     </Card>
   );
 }

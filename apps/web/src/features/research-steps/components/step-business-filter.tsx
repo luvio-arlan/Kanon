@@ -13,6 +13,7 @@ import { useState } from "react";
 import { GlossaryText } from "@/features/glossary";
 import { BusinessFilterNotesCard } from "./business-filter-notes";
 import { SecAnnualsTable } from "./sec-annuals-table";
+import { VariantPerceptionCard } from "./variant-perception-card";
 
 export interface StepBusinessFilterProps {
   thesis: ThesisDetail;
@@ -164,6 +165,10 @@ export function StepBusinessFilter({
         filter={filter}
         glossary={glossary}
         onSelect={(key, verdict) => setFilter((prev) => ({ ...prev, [key]: verdict }))}
+      />
+      <VariantPerceptionCard
+        filter={filter}
+        onPatch={(patch) => setFilter((prev) => ({ ...prev, ...patch }))}
       />
       {annuals.length > 0 ? (
         <SecAnnualsTable annuals={annuals} title="历史财务基本盘佐证（SEC 10-K）" />

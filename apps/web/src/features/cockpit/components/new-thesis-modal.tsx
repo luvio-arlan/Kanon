@@ -4,7 +4,11 @@ import type { ThesisDetail } from "@kanon/core";
 import { Button, DialogModal, Input, Textarea } from "@kanon/ui";
 import { IconSparkles } from "@tabler/icons-react";
 import { useState } from "react";
-import { apiCreateThesis, type NewThesisDraft } from "../lib/cockpit-api";
+import {
+  apiCreateThesis,
+  INSTITUTIONAL_THESIS_PRESETS,
+  type NewThesisDraft,
+} from "../lib/cockpit-api";
 
 export interface NewThesisModalProps {
   open: boolean;
@@ -19,6 +23,39 @@ const EMPTY_DRAFT: NewThesisDraft = {
   currentPrice: "150",
   convictionSummary: "",
 };
+
+function PresetQuickPickRow({
+  activeTicker,
+  onPick,
+}: {
+  activeTicker: string;
+  onPick: (preset: NewThesisDraft) => void;
+}) {
+  return (
+    <div className="mb-4 border-b border-hairline pb-4">
+      <div className="mb-2 text-xs text-ink-muted">机构研究模板（一键填充，含 SEC 基准快照）</div>
+      <div className="flex flex-wrap gap-1.5">
+        {INSTITUTIONAL_THESIS_PRESETS.map((preset) => {
+          const active = activeTicker === preset.ticker;
+          return (
+            <button
+              key={preset.ticker}
+              type="button"
+              onClick={() => onPick(preset)}
+              className={`cursor-pointer rounded-pill border px-3 py-1 font-mono text-xs transition-colors ${
+                active
+                  ? "border-strong bg-titanium text-ink-primary font-semibold"
+                  : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary"
+              }`}
+            >
+              {preset.ticker} · {preset.companyName}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function TickerPriceRow({
   draft,
@@ -93,12 +130,18 @@ function DraftFormFields({
           />
         </div>
       </div>
-      <Textarea
-        value={draft.convictionSummary}
-        onChange={(e) => onPatch({ convictionSummary: e.target.value })}
-        placeholder="初步看多逻辑（可选）：先记下一句直觉，进入画布后再用 5 步脚手架证伪打磨..."
-        className="min-h-[76px]"
-      />
+      <div>
+        <label htmlFor="new-summary" className="mb-1.5 block text-xs font-medium text-ink-muted">
+          初步看多逻辑（可选）
+        </label>
+        <Textarea
+          id="new-summary"
+          value={draft.convictionSummary}
+          onChange={(e) => onPatch({ convictionSummary: e.target.value })}
+          placeholder="先记下一句核心直觉，进入画布后再用 5 步脚手架证伪打磨..."
+          className="min-h-[76px]"
+        />
+      </div>
     </div>
   );
 }
@@ -138,6 +181,7 @@ export function NewThesisModal({ open, onOpenChange, onCreated }: NewThesisModal
         </>
       }
     >
+      <PresetQuickPickRow activeTicker={draft.ticker} onPick={setDraft} />
       <DraftFormFields draft={draft} onPatch={(p) => setDraft((prev) => ({ ...prev, ...p }))} />
     </DialogModal>
   );

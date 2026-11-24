@@ -1,4 +1,9 @@
 export {
+  type SecChartDatum,
+  SecFinancialChart,
+  type SecFinancialChartProps,
+} from "./charts/sec-financial-chart";
+export {
   ValuationSparkline,
   type ValuationSparklinePoint,
   type ValuationSparklineProps,
@@ -26,6 +31,7 @@ export {
 export { Input, type InputProps } from "./components/input";
 export { KanonMark, type KanonMarkProps } from "./components/kanon-mark";
 export { PrecisionSlider, type PrecisionSliderProps } from "./components/precision-slider";
+export { ReadinessRing, type ReadinessRingProps } from "./components/readiness-ring";
 export { RollingNumber, type RollingNumberProps } from "./components/rolling-number";
 export {
   type SegmentedTabItem,
@@ -48,6 +54,7 @@ export {
   KANON_FADE_UP_ITEM,
   KANON_SPRING,
   KANON_STAGGER_CONTAINER,
+  KANON_STEP_VARIANTS,
   KANON_TAP_PRESS,
   KANON_TRANSITION_FAST,
 } from "./lib/motion";

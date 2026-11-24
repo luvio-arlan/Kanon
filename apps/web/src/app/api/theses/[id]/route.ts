@@ -4,9 +4,10 @@ import {
   getKanonDb,
   getSecSnapshot,
   getThesisById,
+  listThesisRevisions,
   updateThesisStep,
 } from "@kanon/core/db";
-import { NextResponse } from "next/server";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -15,47 +16,47 @@ interface RouteContext {
 }
 
 export async function GET(_request: Request, context: RouteContext) {
+  const startedAt = performance.now();
   const { id } = await context.params;
   const db = await getKanonDb();
   const thesis = await getThesisById(db, id);
   if (!thesis) {
-    return NextResponse.json({ error: "未找到该研究标的。" }, { status: 404 });
+    return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
   }
-  const secSnapshot = await getSecSnapshot(db, thesis.ticker);
-  return NextResponse.json({ thesis, secSnapshot });
+  const [secSnapshot, revisions] = await Promise.all([
+    getSecSnapshot(db, thesis.ticker),
+    listThesisRevisions(db, id),
+  ]);
+  return jsonOk({ thesis, secSnapshot, revisions }, startedAt);
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const startedAt = performance.now();
   const { id } = await context.params;
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "请求体不是合法 JSON。" }, { status: 400 });
-  }
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
 
-  const parsed = UpdateThesisStepSchema.safeParse(body);
+  const parsed = UpdateThesisStepSchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "更新参数校验失败。" },
-      { status: 400 },
-    );
+    return jsonError(formatZodError(parsed.error, "更新参数校验失败。"), 400, startedAt, "INVALID");
   }
 
   const db = await getKanonDb();
   const updated = await updateThesisStep(db, id, parsed.data);
   if (!updated) {
-    return NextResponse.json({ error: "标的档案不存在。" }, { status: 404 });
+    return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
   }
-  return NextResponse.json({ thesis: updated });
+  const revisions = await listThesisRevisions(db, id);
+  return jsonOk({ thesis: updated, revisions }, startedAt);
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
+  const startedAt = performance.now();
   const { id } = await context.params;
   const db = await getKanonDb();
   const deleted = await deleteThesis(db, id);
   if (!deleted) {
-    return NextResponse.json({ error: "标的档案不存在。" }, { status: 404 });
+    return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
   }
-  return NextResponse.json({ ok: true });
+  return jsonOk({ ok: true }, startedAt);
 }

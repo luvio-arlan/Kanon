@@ -41,12 +41,18 @@ export function useCanvasShortcuts(params: {
   disabled: boolean;
   onSelectStep: (step: StepId) => void;
   onToggleFocus: () => void;
+  onToggleAgent: () => void;
   onCycleThesis: (delta: -1 | 1) => void;
 }) {
-  const { disabled, onSelectStep, onToggleFocus, onCycleThesis } = params;
+  const { disabled, onSelectStep, onToggleFocus, onToggleAgent, onCycleThesis } = params;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j") {
+        event.preventDefault();
+        onToggleAgent();
+        return;
+      }
       if (shouldIgnoreShortcut(event, disabled)) return;
       dispatchShortcut(event.key.toLowerCase(), event, {
         onSelectStep,
@@ -57,5 +63,5 @@ export function useCanvasShortcuts(params: {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [disabled, onSelectStep, onToggleFocus, onCycleThesis]);
+  }, [disabled, onSelectStep, onToggleFocus, onToggleAgent, onCycleThesis]);
 }

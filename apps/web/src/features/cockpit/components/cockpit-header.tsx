@@ -1,23 +1,42 @@
 "use client";
 
-import { cn, KANON_SPRING } from "@kanon/ui";
-import { IconLayoutGrid, IconTable } from "@tabler/icons-react";
+import type { PortfolioAnalytics } from "@kanon/core";
+import { ActionMenu, cn, KANON_SPRING } from "@kanon/ui";
+import {
+  IconCheck,
+  IconChevronDown,
+  IconLayoutGrid,
+  IconSearch,
+  IconTable,
+  IconX,
+} from "@tabler/icons-react";
 import { motion } from "framer-motion";
+import type { ReactNode, RefObject } from "react";
+import { PortfolioTelemetryStrip } from "./portfolio-telemetry-strip";
 
 export type CockpitFilter = "all" | "attractive" | "attention" | "archived";
 export type CockpitViewMode = "cards" | "table";
+export type CockpitSortBy = "index" | "odds" | "cagr" | "margin";
 
 export interface CockpitHeaderProps {
-  totalCount: number;
-  archivedCount: number;
-  validatedCount: number;
-  totalHypotheses: number;
-  averageRiskReward: number | null;
+  analytics: PortfolioAnalytics;
   filter: CockpitFilter;
   viewMode: CockpitViewMode;
+  sortBy: CockpitSortBy;
+  query: string;
+  searchInputRef: RefObject<HTMLInputElement | null>;
   onFilterChange: (next: CockpitFilter) => void;
   onViewModeChange: (next: CockpitViewMode) => void;
+  onSortChange: (next: CockpitSortBy) => void;
+  onQueryChange: (next: string) => void;
 }
+
+const SORT_OPTIONS: ReadonlyArray<{ id: CockpitSortBy; label: string }> = [
+  { id: "index", label: "默认编号" },
+  { id: "odds", label: "赔率优先" },
+  { id: "cagr", label: "CAGR 优先" },
+  { id: "margin", label: "安全边际" },
+];
 
 function FilterTabs({
   filter,
@@ -45,7 +64,7 @@ function FilterTabs({
             type="button"
             onClick={() => onFilterChange(option.id)}
             className={cn(
-              "relative cursor-pointer rounded-pill px-3.5 py-1.5 text-sm font-medium transition-colors duration-150",
+              "relative cursor-pointer rounded-pill px-3.5 py-1.5 text-xs font-medium transition-colors duration-150",
               active ? "text-ink-primary" : "text-ink-secondary hover:text-ink-primary",
             )}
           >
@@ -71,70 +90,142 @@ function ViewModeSwitch({
   viewMode: CockpitViewMode;
   onChange: (next: CockpitViewMode) => void;
 }) {
+  const modes: ReadonlyArray<{ id: CockpitViewMode; label: string; icon: ReactNode }> = [
+    { id: "cards", label: "卡片", icon: <IconLayoutGrid size={14} stroke={1.5} /> },
+    { id: "table", label: "赔率对比", icon: <IconTable size={14} stroke={1.5} /> },
+  ];
   return (
     <div className="inline-flex items-center rounded-pill border border-hairline bg-surface p-1 shadow-card">
-      <button
-        type="button"
-        onClick={() => onChange("cards")}
-        aria-label="Bento 卡片视图"
-        className={cn(
-          "inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-medium transition-colors",
-          viewMode === "cards"
-            ? "bg-titanium-subtle text-ink-primary"
-            : "text-ink-secondary hover:text-ink-primary",
-        )}
-      >
-        <IconLayoutGrid size={14} stroke={1.5} />
-        <span>卡片</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("table")}
-        aria-label="全仓赔率对比表"
-        className={cn(
-          "inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-medium transition-colors",
-          viewMode === "table"
-            ? "bg-titanium-subtle text-ink-primary"
-            : "text-ink-secondary hover:text-ink-primary",
-        )}
-      >
-        <IconTable size={14} stroke={1.5} />
-        <span>赔率对比</span>
-      </button>
+      {modes.map((m) => {
+        const active = viewMode === m.id;
+        return (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onChange(m.id)}
+            className={cn(
+              "relative inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-medium transition-colors",
+              active ? "text-ink-primary" : "text-ink-secondary hover:text-ink-primary",
+            )}
+          >
+            {active ? (
+              <motion.span
+                layoutId="cockpit-view-pill"
+                transition={KANON_SPRING}
+                className="absolute inset-0 rounded-pill bg-titanium-subtle"
+              />
+            ) : null}
+            <span className="relative z-10 inline-flex items-center gap-1.5">
+              {m.icon}
+              <span>{m.label}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SortDropdown({
+  sortBy,
+  onSortChange,
+}: {
+  sortBy: CockpitSortBy;
+  onSortChange: (next: CockpitSortBy) => void;
+}) {
+  const activeSortLabel = SORT_OPTIONS.find((opt) => opt.id === sortBy)?.label ?? "默认编号";
+  const items = SORT_OPTIONS.map((opt) => ({
+    id: opt.id,
+    label: opt.label,
+    icon:
+      sortBy === opt.id ? (
+        <IconCheck size={14} stroke={1.5} />
+      ) : (
+        <span className="inline-block w-3.5" />
+      ),
+    onSelect: () => onSortChange(opt.id),
+  }));
+
+  return (
+    <ActionMenu
+      ariaLabel="标的排序方式"
+      items={items}
+      triggerClassName="h-9 rounded-pill px-3.5 shadow-card"
+      trigger={
+        <>
+          <span>排序：{activeSortLabel}</span>
+          <IconChevronDown size={13} stroke={1.5} className="text-ink-muted" />
+        </>
+      }
+    />
+  );
+}
+
+function SearchAndSortControls(props: {
+  query: string;
+  sortBy: CockpitSortBy;
+  searchInputRef: RefObject<HTMLInputElement | null>;
+  onQueryChange: (next: string) => void;
+  onSortChange: (next: CockpitSortBy) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative flex items-center">
+        <IconSearch
+          size={14}
+          stroke={1.5}
+          className="pointer-events-none absolute left-3 text-ink-muted"
+        />
+        <input
+          ref={props.searchInputRef}
+          type="text"
+          value={props.query}
+          onChange={(e) => props.onQueryChange(e.target.value)}
+          placeholder="筛选代码 / 赛道 ( / )"
+          aria-label="筛选标的"
+          className="h-9 w-48 rounded-pill border border-hairline bg-surface pl-8 pr-7 text-xs text-ink-primary shadow-card placeholder:text-ink-muted focus:border-strong focus:outline-none focus:ring-2 focus:ring-accent-coral/40 sm:w-56"
+        />
+        {props.query ? (
+          <button
+            type="button"
+            onClick={() => props.onQueryChange("")}
+            aria-label="清除筛选"
+            className="absolute right-2.5 cursor-pointer text-ink-muted hover:text-ink-primary"
+          >
+            <IconX size={13} stroke={1.5} />
+          </button>
+        ) : null}
+      </div>
+      <SortDropdown sortBy={props.sortBy} onSortChange={props.onSortChange} />
     </div>
   );
 }
 
 export function CockpitHeader(props: CockpitHeaderProps) {
   return (
-    <section className="flex flex-col justify-between gap-6 pb-9 pt-12 lg:flex-row lg:items-end">
-      <div>
-        <h1 className="text-3xl font-semibold leading-tight tracking-[-0.03em] text-ink-primary sm:text-[34px]">
-          在噪音里，谱出自己的确定性。
-        </h1>
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink-secondary">
-          <span className="tabular-nums">跟踪 {props.totalCount} 只标的</span>
-          <span aria-hidden="true" className="text-ink-muted">
-            ·
-          </span>
-          <span className="inline-flex items-center gap-2 tabular-nums">
-            <span className="h-2 w-2 rounded-pill bg-status-pass" />
-            {props.validatedCount}/{props.totalHypotheses} 核心假设已验证
-          </span>
-          <span aria-hidden="true" className="text-ink-muted">
-            ·
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-pill bg-titanium-subtle px-2.5 py-0.5 font-mono text-xs font-medium text-ink-primary tabular-nums">
-            平均赔率{" "}
-            {props.averageRiskReward !== null ? `${props.averageRiskReward.toFixed(2)}×` : "∞"}
-          </span>
+    <section className="pb-8 pt-10">
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+        <div>
+          <div className="kanon-micro-label text-ink-muted">KANON · FUNDAMENTAL CONVICTION OS</div>
+          <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-[-0.03em] text-ink-primary sm:text-[34px]">
+            在噪音里，谱出自己的确定性。
+          </h1>
         </div>
+        <SearchAndSortControls
+          query={props.query}
+          sortBy={props.sortBy}
+          searchInputRef={props.searchInputRef}
+          onQueryChange={props.onQueryChange}
+          onSortChange={props.onSortChange}
+        />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2.5">
+      <PortfolioTelemetryStrip analytics={props.analytics} />
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <FilterTabs
           filter={props.filter}
-          archivedCount={props.archivedCount}
+          archivedCount={props.analytics.archivedCount}
           onFilterChange={props.onFilterChange}
         />
         <ViewModeSwitch viewMode={props.viewMode} onChange={props.onViewModeChange} />

@@ -1,36 +1,5 @@
-import type {
-  BusinessFilter,
-  CrossCheck,
-  DisciplineEntry,
-  ThesisStatus,
-} from "../schemas/research";
-import type { Hypothesis, SparklinePoint } from "../schemas/thesis";
-
-export interface SeedThesisRecord {
-  id: string;
-  indexOrder: number;
-  ticker: string;
-  companyName: string;
-  sectorTag: string;
-  currentPrice: number;
-  horizonYears: number;
-  convictionSummary: string;
-  status: ThesisStatus;
-  lastReviewedLabel: string;
-  businessFilter: BusinessFilter;
-  hypotheses: [Hypothesis, Hypothesis, Hypothesis];
-  crossChecks: CrossCheck[];
-  valuationInput: {
-    bearEps: number;
-    bearPe: number;
-    baseEps: number;
-    basePe: number;
-    bullEps: number;
-    bullPe: number;
-    priceHistory: SparklinePoint[];
-  };
-  disciplineEntries: Omit<DisciplineEntry, "createdAt">[];
-}
+import { SEED_THESIS_NVDA } from "./seed-thesis-nvda";
+import type { SeedThesisRecord } from "./seed-types";
 
 export const SEED_THESIS_RECORDS: readonly SeedThesisRecord[] = [
   {
@@ -52,6 +21,13 @@ export const SEED_THESIS_RECORDS: readonly SeedThesisRecord[] = [
       governance: "pass",
       notes: "传统 DRAM 仍有周期性，但 HBM3E 定制化与提前锁单使数据中心业务具备准长期协议特征。",
       vetoReason: "",
+      consensusView:
+        "市场仍按传统强周期存储股给 10–12x 估值，担忧 2026 下半年三星扩产引发价格战与库存回落。",
+      variantPerception:
+        "HBM3E 12 层封装消耗约 3 倍常规晶圆面积且绑定云厂年度锁单，数据中心占比过半已实质抬升跨周期毛利中枢至 42%+。",
+      keyDebate: "HBM 产能挤出效应能否延续至 2027 年，还是三星良率追赶会提前终结超额毛利？",
+      preMortem:
+        "若 18 个月后股价腰斩，最可能源于 AI 推理资本开支骤停叠加三星低价倾销 HBM3E，导致美光单季毛利率跌破 35% 且现金流转负。",
     },
     hypotheses: [
       {
@@ -140,102 +116,5 @@ export const SEED_THESIS_RECORDS: readonly SeedThesisRecord[] = [
       },
     ],
   },
-  {
-    id: "thesis-nvda",
-    indexOrder: 2,
-    ticker: "NVDA",
-    companyName: "英伟达",
-    sectorTag: "AI 算力 · 全栈平台",
-    currentPrice: 138,
-    horizonYears: 3,
-    convictionSummary:
-      "机柜级 NVLink 互联与 CUDA 软件生态护城河稳固，长思考推理需求持续扩大系统级算力溢价。",
-    status: "active",
-    lastReviewedLabel: "5 天前复盘 · Q3 电话会",
-    businessFilter: {
-      recurringRevenue: "pass",
-      pricingPower: "pass",
-      capitalReturn: "pass",
-      governance: "pass",
-      notes:
-        "全栈硬件 + NVLink 网络 + CUDA 软件形成极高转换成本，ROIC 与 FCF 质量处于全球顶尖梯队。",
-      vetoReason: "",
-    },
-    hypotheses: [
-      {
-        id: "nvda-h1",
-        title: "推理算力需求增速快于云厂自研芯片",
-        metricLabel: "数据中心年化营收",
-        threshold: "> $1800 亿",
-        status: "validated",
-        note: "推理扩展定律与主权 AI 采购持续拉长旗舰机柜交付周期，定制芯片替代率低于预期。",
-      },
-      {
-        id: "nvda-h2",
-        title: "NVLink 网络配套稳守 72%+ 毛利率",
-        metricLabel: "稳态毛利率",
-        threshold: "> 72%",
-        status: "validated",
-        note: "Blackwell 机柜级封装良率趋于稳定，软件与高速网络配套维持高定价权。",
-      },
-      {
-        id: "nvda-h3",
-        title: "北美四大云厂商资本开支回报兑现",
-        metricLabel: "云 AI 收入占比",
-        threshold: "> 35%",
-        status: "warning",
-        note: "证伪红线：若两家及以上云巨头连续下调 CapEx，32 倍中性 PE 估值锚点将明显承压。",
-      },
-    ],
-    crossChecks: [
-      {
-        id: "nvda-cc-1",
-        peerCompany: "微软 / Meta / Google（云厂商）",
-        peerRole: "downstream",
-        topic: "年度 AI 基础设施 CapEx 强度与云收入变现",
-        sourceAnchor: "北美四大云厂 Q3 财报 CapEx 指引",
-        statement: "管理层强调投资不足的风险远大于过度投资，但市场开始审视折旧对利润率的拖累。",
-        alignment: "divergent",
-        takeaway: "短期订单无忧，但 2027 年 ROI 兑现节奏是当前最核心的证伪观察点。",
-      },
-      {
-        id: "nvda-cc-2",
-        peerCompany: "台积电（TSMC）",
-        peerRole: "upstream",
-        topic: "3nm / 2nm 与 CoWoS 先进封装排产",
-        sourceAnchor: "TSMC 季度营收结构与 HPC 占比",
-        statement: "HPC 高性能计算占比持续攀升，先进封装产能全年满载。",
-        alignment: "aligned",
-        takeaway: "上游晶圆与封装满载直接印证英伟达出货景气度。",
-      },
-    ],
-    valuationInput: {
-      bearEps: 4.4,
-      bearPe: 24,
-      baseEps: 6.2,
-      basePe: 32,
-      bullEps: 7.5,
-      bullPe: 36,
-      priceHistory: [
-        { label: "25Q1", price: 116.0 },
-        { label: "25Q2", price: 124.5 },
-        { label: "25Q3", price: 131.2 },
-        { label: "25Q4", price: 128.4 },
-        { label: "26Q1", price: 142.8 },
-        { label: "现价", price: 138.0 },
-      ],
-    },
-    disciplineEntries: [
-      {
-        id: "nvda-disc-1",
-        action: "hold",
-        noLeverageConfirmed: true,
-        positionCapConfirmed: true,
-        exitRule: "若两家以上北美云巨头明确下调年度 CapEx 且毛利率跌破 70%，执行纪律减仓。",
-        emotion: "calm",
-        priceAnchor: 138.0,
-        note: "当前赔率 1.86× 处于均衡区间，耐心持有观察 H3 指标，不追高加杠杆。",
-      },
-    ],
-  },
+  SEED_THESIS_NVDA,
 ];

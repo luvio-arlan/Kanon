@@ -19,8 +19,11 @@ const EMOTION_LABEL: Record<EmotionState, string> = {
   fearful: "恐慌想割",
 };
 
-function TimelineRow({ entry }: { entry: DisciplineEntry }) {
+function TimelineRow({ entry, currentPrice }: { entry: DisciplineEntry; currentPrice: number }) {
   const emotionWarn = entry.emotion === "fomo" || entry.emotion === "fearful";
+  const deltaPct =
+    entry.priceAnchor > 0 ? ((currentPrice - entry.priceAnchor) / entry.priceAnchor) * 100 : null;
+  const deltaSign = deltaPct !== null && deltaPct > 0 ? "+" : "";
 
   return (
     <article className="py-5 first:pt-1 last:pb-1">
@@ -30,6 +33,14 @@ function TimelineRow({ entry }: { entry: DisciplineEntry }) {
           <span className="font-mono text-ink-secondary tabular-nums">
             ${entry.priceAnchor.toFixed(2)}
           </span>
+          {deltaPct !== null && Math.abs(deltaPct) >= 0.1 ? (
+            <span
+              className={`font-mono tabular-nums ${deltaPct >= 0 ? "text-status-pass" : "text-status-fail"}`}
+            >
+              ({deltaSign}
+              {deltaPct.toFixed(1)}%)
+            </span>
+          ) : null}
           <span aria-hidden="true" className="text-ink-muted">
             ·
           </span>
@@ -58,7 +69,13 @@ function TimelineRow({ entry }: { entry: DisciplineEntry }) {
   );
 }
 
-export function DisciplineTimeline({ entries }: { entries: readonly DisciplineEntry[] }) {
+export function DisciplineTimeline({
+  entries,
+  currentPrice,
+}: {
+  entries: readonly DisciplineEntry[];
+  currentPrice: number;
+}) {
   if (entries.length === 0) {
     return (
       <Card className="p-8 text-center">
@@ -73,7 +90,7 @@ export function DisciplineTimeline({ entries }: { entries: readonly DisciplineEn
     <Card className="px-6 py-4">
       <div className="divide-y divide-hairline">
         {entries.map((entry) => (
-          <TimelineRow key={entry.id} entry={entry} />
+          <TimelineRow key={entry.id} entry={entry} currentPrice={currentPrice} />
         ))}
       </div>
     </Card>

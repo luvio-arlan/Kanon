@@ -3,6 +3,7 @@ import type {
   CreateDisciplineEntryInput,
   SecSnapshot,
   ThesisDetail,
+  ThesisRevision,
   UpdateThesisStepInput,
 } from "@kanon/core";
 import { toast } from "sonner";
@@ -35,38 +36,44 @@ async function sendJson<T>(
   return { ok: res.ok, json: (await res.json()) as T };
 }
 
+export interface ThesisMutationResult {
+  thesis: ThesisDetail;
+  revisions?: ThesisRevision[];
+}
+
 export async function apiPatchStep(
   thesisId: string,
   payload: UpdateThesisStepInput,
   okMessage: string,
-): Promise<ThesisDetail | null> {
-  const { ok, json } = await sendJson<{ thesis?: ThesisDetail; error?: string }>(
-    `/api/theses/${thesisId}`,
-    payload,
-    "PATCH",
-  );
+): Promise<ThesisMutationResult | null> {
+  const { ok, json } = await sendJson<{
+    thesis?: ThesisDetail;
+    revisions?: ThesisRevision[];
+    error?: string;
+  }>(`/api/theses/${thesisId}`, payload, "PATCH");
   if (!ok || !json.thesis) {
     toast.error(json.error ?? "保存失败，请重试");
     return null;
   }
   toast.success(okMessage);
-  return json.thesis;
+  return { thesis: json.thesis, revisions: json.revisions };
 }
 
 export async function apiPostDiscipline(
   thesisId: string,
   entry: CreateDisciplineEntryInput,
-): Promise<ThesisDetail | null> {
-  const { ok, json } = await sendJson<{ thesis?: ThesisDetail; error?: string }>(
-    `/api/theses/${thesisId}/discipline`,
-    entry,
-  );
+): Promise<ThesisMutationResult | null> {
+  const { ok, json } = await sendJson<{
+    thesis?: ThesisDetail;
+    revisions?: ThesisRevision[];
+    error?: string;
+  }>(`/api/theses/${thesisId}/discipline`, entry);
   if (!ok || !json.thesis) {
     toast.error(json.error ?? "纪律检查未通过");
     return null;
   }
   toast.success("交易纪律复盘卡已落库");
-  return json.thesis;
+  return { thesis: json.thesis, revisions: json.revisions };
 }
 
 export async function apiSyncSec(ticker: string): Promise<SecSnapshot | null> {

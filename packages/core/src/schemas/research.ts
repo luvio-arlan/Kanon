@@ -19,8 +19,24 @@ export const BusinessFilterSchema = z.object({
   governance: FilterVerdictSchema,
   notes: z.string(),
   vetoReason: z.string(),
+  consensusView: z.string().default(""),
+  variantPerception: z.string().default(""),
+  keyDebate: z.string().default(""),
+  preMortem: z.string().default(""),
 });
 export type BusinessFilter = z.infer<typeof BusinessFilterSchema>;
+
+export const ThesisSummarySchema = z.object({
+  id: z.string().min(1),
+  indexLabel: z.string().regex(/^\d{2}$/),
+  ticker: z.string().min(1),
+  companyName: z.string().min(1),
+  sectorTag: z.string().min(1),
+  status: ThesisStatusSchema,
+  baseTargetPrice: z.number(),
+  riskRewardRatio: z.number().nullable(),
+});
+export type ThesisSummary = z.infer<typeof ThesisSummarySchema>;
 
 export const PeerRoleSchema = z.enum(["upstream", "downstream", "competitor", "primary"]);
 export type PeerRole = z.infer<typeof PeerRoleSchema>;
@@ -144,6 +160,30 @@ export const CreateThesisInputSchema = z.object({
 });
 export type CreateThesisInput = z.input<typeof CreateThesisInputSchema>;
 
+export const RevisionStepSchema = z.enum([
+  "create",
+  "business_filter",
+  "hypotheses",
+  "cross_checks",
+  "valuation",
+  "price_anchor",
+  "discipline",
+]);
+export type RevisionStep = z.infer<typeof RevisionStepSchema>;
+
+export const ThesisRevisionSchema = z.object({
+  id: z.string().min(1),
+  thesisId: z.string().min(1),
+  step: RevisionStepSchema,
+  summary: z.string().min(1),
+  currentPrice: z.number().finite().positive(),
+  baseTargetPrice: z.number().finite().positive(),
+  riskRewardRatio: z.number().nullable(),
+  readinessScore: z.number().int().min(0).max(100),
+  createdAt: z.string().min(1),
+});
+export type ThesisRevision = z.infer<typeof ThesisRevisionSchema>;
+
 export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
   z.object({
     step: z.literal("business_filter"),
@@ -163,6 +203,11 @@ export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
     step: z.literal("valuation"),
     valuationInput: ValuationScenarioInputSchema,
     priceHistory: z.array(SparklinePointSchema).min(2).optional(),
+  }),
+  z.object({
+    step: z.literal("price_anchor"),
+    currentPrice: z.number().finite().positive(),
+    label: z.string().trim().min(1).max(20).optional(),
   }),
 ]);
 export type UpdateThesisStepInput = z.infer<typeof UpdateThesisStepSchema>;

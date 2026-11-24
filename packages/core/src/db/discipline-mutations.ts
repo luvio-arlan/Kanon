@@ -7,9 +7,18 @@ import {
   SecSnapshotSchema,
   type ThesisDetail,
 } from "../schemas/research";
-import type { KanonDb } from "./client";
+import { type KanonDb, runInTransaction } from "./client";
+import { recordThesisRevision } from "./revision-queries";
 import { disciplineEntriesTable, secFilingsCacheTable, thesesTable } from "./schema";
 import { getThesisById } from "./thesis-queries";
+
+const ACTION_CN: Record<CreateDisciplineEntryInput["action"], string> = {
+  buy: "首次建仓",
+  add: "分批加仓",
+  hold: "耐心持有",
+  trim: "纪律减仓",
+  pass: "放弃观望",
+};
 
 export async function addDisciplineEntry(
   db: KanonDb,
@@ -17,23 +26,37 @@ export async function addDisciplineEntry(
   rawInput: CreateDisciplineEntryInput,
 ): Promise<ThesisDetail | null> {
   const parsed = CreateDisciplineEntrySchema.parse(rawInput);
-  await db.insert(disciplineEntriesTable).values({
-    id: `disc-${crypto.randomUUID().slice(0, 8)}`,
-    thesisId,
-    action: parsed.action,
-    noLeverageConfirmed: parsed.noLeverageConfirmed,
-    positionCapConfirmed: parsed.positionCapConfirmed,
-    exitRule: parsed.exitRule,
-    emotion: parsed.emotion,
-    priceAnchor: parsed.priceAnchor,
-    note: parsed.note,
-  });
-  await db
-    .update(thesesTable)
-    .set({ lastReviewedLabel: "刚刚复盘 · 纪律检查单", updatedAt: new Date() })
-    .where(eq(thesesTable.id, thesisId));
+  return runInTransaction(db, async (tx) => {
+    const existing = await getThesisById(tx, thesisId);
+    if (!existing) return null;
 
-  return getThesisById(db, thesisId);
+    await tx.insert(disciplineEntriesTable).values({
+      id: `disc-${crypto.randomUUID().slice(0, 8)}`,
+      thesisId,
+      action: parsed.action,
+      noLeverageConfirmed: parsed.noLeverageConfirmed,
+      positionCapConfirmed: parsed.positionCapConfirmed,
+      exitRule: parsed.exitRule,
+      emotion: parsed.emotion,
+      priceAnchor: parsed.priceAnchor,
+      note: parsed.note,
+    });
+    await tx
+      .update(thesesTable)
+      .set({ lastReviewedLabel: "刚刚复盘 · 纪律检查单", updatedAt: new Date() })
+      .where(eq(thesesTable.id, thesisId));
+
+    const updated = await getThesisById(tx, thesisId);
+    if (updated) {
+      await recordThesisRevision(
+        tx,
+        updated,
+        "discipline",
+        `签署「${ACTION_CN[parsed.action]}」零杠杆纪律卡（参考价 $${parsed.priceAnchor.toFixed(2)}）`,
+      );
+    }
+    return updated;
+  });
 }
 
 export async function deleteThesis(db: KanonDb, thesisId: string): Promise<boolean> {

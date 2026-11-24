@@ -5,9 +5,9 @@ import { cn } from "../lib/cn";
 export const buttonVariants = tv({
   base: [
     "inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium",
-    "rounded-control text-sm transition-all duration-150 select-none cursor-pointer",
+    "rounded-control text-sm transition-all duration-150 select-none cursor-pointer motion-reduce:transition-none",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-    "disabled:pointer-events-none disabled:opacity-45 active:scale-[0.98]",
+    "disabled:pointer-events-none disabled:opacity-45 active:scale-[0.97]",
   ].join(" "),
   variants: {
     variant: {

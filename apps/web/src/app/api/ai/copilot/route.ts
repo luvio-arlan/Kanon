@@ -5,7 +5,7 @@ import {
   runThesisCopilot,
 } from "@kanon/ai";
 import { getKanonDb, getSecSnapshot, getThesisById, upsertCopilotOutput } from "@kanon/core/db";
-import { NextResponse } from "next/server";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -19,22 +19,24 @@ function parseByokHeaders(request: Request): ByokCredentials | undefined {
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "请求体不是合法 JSON。" }, { status: 400 });
-  }
+  const startedAt = performance.now();
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
 
-  const parsed = CopilotRequestSchema.safeParse(body);
+  const parsed = CopilotRequestSchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json({ error: "投研副驾驶参数不合法。" }, { status: 400 });
+    return jsonError(
+      formatZodError(parsed.error, "投研副驾驶参数不合法。"),
+      400,
+      startedAt,
+      "INVALID",
+    );
   }
 
   const db = await getKanonDb();
   const thesis = await getThesisById(db, parsed.data.thesisId);
   if (!thesis) {
-    return NextResponse.json({ error: "未找到对应标的档案。" }, { status: 404 });
+    return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   }
 
   const secSnapshot = await getSecSnapshot(db, thesis.ticker);
@@ -52,5 +54,5 @@ export async function POST(request: Request) {
     payload: result.data,
   });
 
-  return NextResponse.json(result);
+  return jsonOk(result, startedAt);
 }

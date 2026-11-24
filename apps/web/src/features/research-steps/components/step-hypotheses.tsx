@@ -3,7 +3,7 @@
 import type { RedTeamReport } from "@kanon/ai";
 import type { GlossaryTerm, Hypothesis, HypothesisStatus, ThesisDetail } from "@kanon/core";
 import { Badge, Button, Card, cn, Input, Textarea } from "@kanon/ui";
-import { IconCheck, IconDeviceFloppy, IconFlame } from "@tabler/icons-react";
+import { IconArrowRight, IconCheck, IconDeviceFloppy, IconFlame } from "@tabler/icons-react";
 import { useState } from "react";
 import { GlossaryChips } from "@/features/glossary";
 
@@ -15,6 +15,7 @@ export interface StepHypothesesProps {
   redTeam: RedTeamReport | null;
   onSave: (hypotheses: [Hypothesis, Hypothesis, Hypothesis]) => Promise<void>;
   onRunRedTeam: () => Promise<void>;
+  onPromoteRedTeamRule?: (rule: string) => void;
 }
 
 const STATUS_OPTS: ReadonlyArray<{ id: HypothesisStatus; label: string; active: string }> = [
@@ -112,7 +113,52 @@ function HypothesisEditorCard({ index, item, glossary, onChange }: EditorCardPro
   );
 }
 
-function RedTeamResultCard({ report }: { report: RedTeamReport }) {
+function RedTeamChallengeRow({
+  ch,
+  idx,
+  onPromoteRule,
+}: {
+  ch: RedTeamReport["challenges"][number];
+  idx: number;
+  onPromoteRule?: (rule: string) => void;
+}) {
+  const variant = ch.severity === "critical" ? "fail" : ch.severity === "high" ? "warn" : "default";
+  const label = ch.severity === "critical" ? "致命" : ch.severity === "high" ? "高危" : "中危";
+  return (
+    <div className="rounded-control border border-hairline bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-sm font-semibold text-ink-primary">
+          0{idx + 1}. {ch.question}
+        </div>
+        <Badge variant={variant}>{label}</Badge>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-ink-secondary">
+        证伪路径：{ch.falsificationPath}
+      </p>
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="font-mono text-xs text-ink-muted">锚点：{ch.sourceAnchor}</div>
+        {onPromoteRule ? (
+          <button
+            type="button"
+            onClick={() => onPromoteRule(ch.falsificationPath)}
+            className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-coral transition-opacity hover:opacity-80"
+          >
+            <span>带入 Step 5 离场红线</span>
+            <IconArrowRight size={13} stroke={1.5} />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function RedTeamResultCard({
+  report,
+  onPromoteRule,
+}: {
+  report: RedTeamReport;
+  onPromoteRule?: (rule: string) => void;
+}) {
   return (
     <Card tone="titanium" className="space-y-4 p-6">
       <div className="flex items-center justify-between gap-2">
@@ -123,24 +169,7 @@ function RedTeamResultCard({ report }: { report: RedTeamReport }) {
       </div>
       <div className="space-y-3">
         {report.challenges.map((ch, idx) => (
-          <div key={ch.id} className="rounded-control border border-hairline bg-surface p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="text-sm font-semibold text-ink-primary">
-                0{idx + 1}. {ch.question}
-              </div>
-              <Badge
-                variant={
-                  ch.severity === "critical" ? "fail" : ch.severity === "high" ? "warn" : "default"
-                }
-              >
-                {ch.severity === "critical" ? "致命" : ch.severity === "high" ? "高危" : "中危"}
-              </Badge>
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-ink-secondary">
-              证伪路径：{ch.falsificationPath}
-            </p>
-            <div className="mt-2 font-mono text-xs text-ink-muted">锚点：{ch.sourceAnchor}</div>
-          </div>
+          <RedTeamChallengeRow key={ch.id} ch={ch} idx={idx} onPromoteRule={onPromoteRule} />
         ))}
       </div>
     </Card>
@@ -186,7 +215,9 @@ export function StepHypotheses(props: StepHypothesesProps) {
           />
         ))}
       </div>
-      {props.redTeam ? <RedTeamResultCard report={props.redTeam} /> : null}
+      {props.redTeam ? (
+        <RedTeamResultCard report={props.redTeam} onPromoteRule={props.onPromoteRedTeamRule} />
+      ) : null}
       <div className="flex justify-end">
         <Button
           variant="primary"

@@ -3,18 +3,22 @@
 import {
   calculateSensitivityMatrix,
   calculateValuationScenarios,
+  matchProbabilityPreset,
+  type ProbabilityPreset,
   type ThesisDetail,
   type ValuationScenarioSummary,
 } from "@kanon/core";
-import { Button, cn, Input } from "@kanon/ui";
+import { Button } from "@kanon/ui";
 import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { LiveOddsBanner } from "./live-odds-banner";
 import { ScenarioEditorCard } from "./scenario-editor-card";
 import { SensitivityMatrixCard } from "./sensitivity-matrix-card";
+import { ValuationControlsBar } from "./valuation-controls-bar";
 
 type CaseKey = "bear" | "base" | "bull";
-type CasePair = { eps: number; peMultiple: number };
+type CasePair = { eps: number; peMultiple: number; probability: number };
 type CaseMap = Record<CaseKey, CasePair>;
 
 export interface ValuationWorkbenchProps {
@@ -24,7 +28,6 @@ export interface ValuationWorkbenchProps {
   onSave: (payload: { currentPrice: number; horizonYears: number } & CaseMap) => Promise<void>;
 }
 
-const HORIZONS = [2, 3, 5] as const;
 const PE_RANGE = { min: 6, max: 60, step: 1 };
 const CASE_META: ReadonlyArray<{
   key: CaseKey;
@@ -44,84 +47,12 @@ function computeEpsRange(initialEps: number) {
 }
 
 function initialCasesFromThesis(thesis: ThesisDetail): CaseMap {
+  const { bear, base, bull } = thesis.valuationInput;
   return {
-    bear: {
-      eps: thesis.valuationInput.bear.eps,
-      peMultiple: thesis.valuationInput.bear.peMultiple,
-    },
-    base: {
-      eps: thesis.valuationInput.base.eps,
-      peMultiple: thesis.valuationInput.base.peMultiple,
-    },
-    bull: {
-      eps: thesis.valuationInput.bull.eps,
-      peMultiple: thesis.valuationInput.bull.peMultiple,
-    },
+    bear: { eps: bear.eps, peMultiple: bear.peMultiple, probability: bear.probability ?? 0.25 },
+    base: { eps: base.eps, peMultiple: base.peMultiple, probability: base.probability ?? 0.5 },
+    bull: { eps: bull.eps, peMultiple: bull.peMultiple, probability: bull.probability ?? 0.25 },
   };
-}
-
-function HorizonSelector({
-  horizonYears,
-  onHorizon,
-}: {
-  horizonYears: number;
-  onHorizon: (next: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-ink-muted">投资周期</span>
-      <div className="inline-flex rounded-pill border border-hairline bg-muted/70 p-1">
-        {HORIZONS.map((year) => (
-          <button
-            key={year}
-            type="button"
-            onClick={() => onHorizon(year)}
-            className={cn(
-              "cursor-pointer rounded-pill px-3 py-1 font-mono text-xs font-medium transition-colors",
-              horizonYears === year
-                ? "bg-surface text-ink-primary shadow-card"
-                : "text-ink-secondary hover:text-ink-primary",
-            )}
-          >
-            {year} 年
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PriceAndHorizonBar(props: {
-  currentPrice: number;
-  horizonYears: number;
-  latestSecEps?: number | null;
-  onPrice: (next: number) => void;
-  onHorizon: (next: number) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-hairline bg-surface px-5 py-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <label htmlFor="kanon-current-price" className="text-sm font-medium text-ink-primary">
-          当前参考价 ($)
-        </label>
-        <Input
-          id="kanon-current-price"
-          type="number"
-          min={0.5}
-          step={0.5}
-          value={props.currentPrice}
-          onChange={(e) => props.onPrice(Number(e.target.value) || 0)}
-          className="w-28 font-mono tabular-nums"
-        />
-        {props.latestSecEps && props.latestSecEps > 0 ? (
-          <span className="rounded-pill bg-titanium-subtle px-2.5 py-1 font-mono text-xs text-ink-secondary tabular-nums">
-            SEC 最新年报 EPS ${props.latestSecEps.toFixed(2)}
-          </span>
-        ) : null}
-      </div>
-      <HorizonSelector horizonYears={props.horizonYears} onHorizon={props.onHorizon} />
-    </div>
-  );
 }
 
 function ScenarioCardsGrid({
@@ -140,7 +71,7 @@ function ScenarioCardsGrid({
       {CASE_META.map((meta) => (
         <ScenarioEditorCard
           key={meta.key}
-          label={meta.label}
+          label={`${meta.label} · ${Math.round(cases[meta.key].probability * 100)}%`}
           subtitle={meta.subtitle}
           tone={meta.tone}
           eps={cases[meta.key].eps}
@@ -171,7 +102,41 @@ function computeValuationBundle(safePrice: number, horizonYears: number, cases: 
   return { summary, matrix };
 }
 
-function ValuationSaveFooter({
+function useValuationDraft(thesis: ThesisDetail) {
+  const [currentPrice, setCurrentPrice] = useState(thesis.currentPrice);
+  const [horizonYears, setHorizonYears] = useState(thesis.horizonYears);
+  const [cases, setCases] = useState<CaseMap>(() => initialCasesFromThesis(thesis));
+  const safePrice = currentPrice > 0 ? currentPrice : 1;
+  const { summary, matrix } = computeValuationBundle(safePrice, horizonYears, cases);
+  const activePreset = matchProbabilityPreset(
+    cases.bear.probability,
+    cases.base.probability,
+    cases.bull.probability,
+  );
+  const patchCase = (key: CaseKey, next: Partial<CasePair>) =>
+    setCases((prev) => ({ ...prev, [key]: { ...prev[key], ...next } }));
+  const applyPreset = (p: ProbabilityPreset) =>
+    setCases((prev) => ({
+      bear: { ...prev.bear, probability: p.bear },
+      base: { ...prev.base, probability: p.base },
+      bull: { ...prev.bull, probability: p.bull },
+    }));
+  return {
+    currentPrice,
+    setCurrentPrice,
+    horizonYears,
+    setHorizonYears,
+    cases,
+    safePrice,
+    summary,
+    matrix,
+    activePreset,
+    patchCase,
+    applyPreset,
+  };
+}
+
+function ValuationSaveBar({
   saving,
   disabled,
   onSave,
@@ -200,41 +165,43 @@ export function ValuationWorkbench({
   saving,
   onSave,
 }: ValuationWorkbenchProps) {
-  const [currentPrice, setCurrentPrice] = useState(thesis.currentPrice);
-  const [horizonYears, setHorizonYears] = useState(thesis.horizonYears);
-  const [cases, setCases] = useState<CaseMap>(() => initialCasesFromThesis(thesis));
-  const safePrice = currentPrice > 0 ? currentPrice : 1;
-  const { summary, matrix } = computeValuationBundle(safePrice, horizonYears, cases);
-  const patchCase = (key: CaseKey, next: Partial<CasePair>) =>
-    setCases((prev) => ({ ...prev, [key]: { ...prev[key], ...next } }));
+  const d = useValuationDraft(thesis);
+  const snapBase = (eps: number, peMultiple: number) => {
+    d.patchCase("base", { eps, peMultiple });
+    toast.success(`已将中性基准锚定为 EPS $${eps.toFixed(2)} × ${peMultiple}x`);
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-ink-primary">Step 4 · 三情景估值赔率计算器</h2>
         <p className="mt-0.5 text-sm text-ink-secondary">
-          拖动悲观 / 中性 / 乐观 EPS 与 PE 滑块，结合 5×5 敏感度矩阵算清安全边际与赔率比
+          拖动悲观 / 中性 / 乐观 EPS 与 PE 滑块，结合反向估值预期与 5×5 敏感度矩阵算清安全边际
         </p>
       </div>
-      <LiveOddsBanner summary={summary} />
-      <PriceAndHorizonBar
-        currentPrice={currentPrice}
-        horizonYears={horizonYears}
+      <LiveOddsBanner summary={d.summary} trailingEps={latestSecEps} />
+      <ValuationControlsBar
+        currentPrice={d.currentPrice}
+        horizonYears={d.horizonYears}
         latestSecEps={latestSecEps}
-        onPrice={setCurrentPrice}
-        onHorizon={setHorizonYears}
+        activePreset={d.activePreset}
+        onPrice={d.setCurrentPrice}
+        onHorizon={d.setHorizonYears}
+        onApplyPreset={d.applyPreset}
       />
       <ScenarioCardsGrid
-        cases={cases}
+        cases={d.cases}
         epsRange={computeEpsRange(thesis.valuationInput.bull.eps)}
-        summary={summary}
-        onPatch={patchCase}
+        summary={d.summary}
+        onPatch={d.patchCase}
       />
-      <SensitivityMatrixCard matrix={matrix} />
-      <ValuationSaveFooter
+      <SensitivityMatrixCard matrix={d.matrix} onSelectBaseCell={snapBase} />
+      <ValuationSaveBar
         saving={saving}
-        disabled={saving || currentPrice <= 0}
-        onSave={() => onSave({ currentPrice: safePrice, horizonYears, ...cases })}
+        disabled={saving || d.currentPrice <= 0}
+        onSave={() =>
+          onSave({ currentPrice: d.safePrice, horizonYears: d.horizonYears, ...d.cases })
+        }
       />
     </div>
   );
