@@ -5,7 +5,7 @@ import type {
   PortfolioStressScenario,
   PositionSizingRow,
 } from "@kanon/core";
-import { Badge, Button, cn, RollingNumber } from "@kanon/ui";
+import { Badge, Button, cn, ProgressBar, RollingNumber, StatCard } from "@kanon/ui";
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
 
 const ROLE_LABELS: Record<PositionSizingRow["portfolioRole"], string> = {
@@ -15,53 +15,59 @@ const ROLE_LABELS: Record<PositionSizingRow["portfolioRole"], string> = {
   exited: "清仓",
 };
 
+function formatStressPnl(pnlPct: number | null) {
+  if (pnlPct === null) return { text: "—", delta: "未持仓", tone: "neutral" as const };
+  const sign = pnlPct > 0 ? "+" : "";
+  return {
+    text: `${sign}${pnlPct.toFixed(1)}%`,
+    delta: pnlPct >= 0 ? "浮盈" : "浮亏",
+    tone: pnlPct >= 0 ? ("pass" as const) : ("fail" as const),
+  };
+}
+
+function formatStressOdds(allocatedPct: number, rr: number | null): string {
+  if (allocatedPct === 0) return "—";
+  return rr !== null ? `${rr.toFixed(2)}×` : "∞";
+}
+
 export function StressKpiStrip({ report }: { report: PortfolioStressReport }) {
-  const rrText =
-    report.portfolioRiskReward !== null ? `${report.portfolioRiskReward.toFixed(2)}×` : "∞";
-  const pnlText =
-    report.weightedUnrealizedPnlPct !== null
-      ? `${report.weightedUnrealizedPnlPct > 0 ? "+" : ""}${report.weightedUnrealizedPnlPct.toFixed(1)}%`
-      : "—";
+  const rrText = formatStressOdds(report.allocatedWeightPct, report.portfolioRiskReward);
+  const pnl = formatStressPnl(report.weightedUnrealizedPnlPct);
 
   return (
-    <div className="grid grid-cols-2 divide-y divide-hairline overflow-hidden rounded-card border border-hairline bg-surface sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-      <div className="px-4 py-3">
-        <div className="text-xs text-ink-muted">已配仓位 / 现金</div>
-        <div className="mt-1 font-mono text-base font-semibold text-ink-primary tabular-nums">
-          <RollingNumber value={report.allocatedWeightPct} suffix="%" decimals={1} />
-          <span className="ml-1.5 text-xs font-normal text-ink-muted">
-            / {report.cashBufferPct}%
-          </span>
-        </div>
-      </div>
-      <div className="px-4 py-3">
-        <div className="text-xs text-ink-muted">组合加权赔率</div>
-        <div className="mt-1 font-mono text-base font-semibold text-ink-primary tabular-nums">
-          {rrText}
-        </div>
-      </div>
-      <div className="px-4 py-3">
-        <div className="text-xs text-ink-muted">集中度 HHI</div>
-        <div className="mt-1 flex items-baseline gap-1.5 font-mono tabular-nums">
-          <span className="text-base font-semibold text-ink-primary">
-            {report.hhiConcentration}
-          </span>
-          <span className="font-sans text-xs text-ink-secondary">
-            {report.diversificationLabel}
-          </span>
-        </div>
-      </div>
-      <div className="px-4 py-3">
-        <div className="text-xs text-ink-muted">加权成本浮盈</div>
-        <div
-          className={cn(
-            "mt-1 font-mono text-base font-semibold tabular-nums",
-            (report.weightedUnrealizedPnlPct ?? 0) >= 0 ? "text-status-pass" : "text-status-fail",
-          )}
-        >
-          {pnlText}
-        </div>
-      </div>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <StatCard
+        label="已配仓位"
+        value={<RollingNumber value={report.allocatedWeightPct} suffix="%" decimals={1} />}
+        caption="现金缓冲"
+        delta={`${report.cashBufferPct}%`}
+      />
+      <StatCard
+        label="加权赔率"
+        value={rrText}
+        caption="组合期望"
+        delta={
+          report.allocatedWeightPct === 0
+            ? "待建仓"
+            : (report.portfolioRiskReward ?? 0) >= 2
+              ? "优选"
+              : "均衡"
+        }
+        deltaTone={(report.portfolioRiskReward ?? 0) >= 2 ? "pass" : "neutral"}
+      />
+      <StatCard
+        label="集中度 HHI"
+        value={report.hhiConcentration}
+        caption="分散度"
+        delta={report.diversificationLabel}
+      />
+      <StatCard
+        label="加权浮盈"
+        value={pnl.text}
+        caption="持仓成本"
+        delta={pnl.delta}
+        deltaTone={pnl.tone}
+      />
     </div>
   );
 }
@@ -93,15 +99,7 @@ export function StressScenarioRow({ scenario }: { scenario: PortfolioStressScena
           <div className="whitespace-nowrap text-xs text-ink-muted">持仓部分 {investedText}</div>
         </div>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-pill bg-muted">
-        <div
-          className={cn(
-            "h-full rounded-pill transition-[width] duration-200",
-            positive ? "bg-status-pass" : "bg-accent-coral",
-          )}
-          style={{ width: `${barWidth}%` }}
-        />
-      </div>
+      <ProgressBar value={barWidth} max={100} tone={positive ? "pass" : "accent"} size="md" />
       <div className="text-xs text-ink-muted">{scenario.driverNote}</div>
     </div>
   );
@@ -119,15 +117,13 @@ function SizingProgressBar({
   const fillPct = Math.min(100, (current / Math.max(1, cap)) * 100);
   return (
     <div className="mt-2 flex items-center gap-3">
-      <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-muted">
-        <div
-          className={cn(
-            "h-full rounded-pill transition-[width] duration-200",
-            overCap ? "bg-status-fail" : "bg-ink-primary",
-          )}
-          style={{ width: `${Math.max(current > 0 ? 6 : 0, fillPct)}%` }}
-        />
-      </div>
+      <ProgressBar
+        value={Math.max(current > 0 ? 6 : 0, fillPct)}
+        max={100}
+        tone={overCap ? "fail" : "ink"}
+        size="md"
+        className="flex-1"
+      />
       <span className="shrink-0 font-mono text-xs text-ink-secondary tabular-nums">
         {current}% / 上限 {cap}%
       </span>

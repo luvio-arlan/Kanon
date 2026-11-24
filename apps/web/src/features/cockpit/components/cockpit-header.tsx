@@ -1,15 +1,8 @@
 "use client";
 
 import type { PortfolioAnalytics } from "@kanon/core";
-import { ActionMenu, SegmentedTabs } from "@kanon/ui";
-import {
-  IconCheck,
-  IconChevronDown,
-  IconLayoutGrid,
-  IconSearch,
-  IconTable,
-  IconX,
-} from "@tabler/icons-react";
+import { ActionMenu, SearchField, SegmentedTabs } from "@kanon/ui";
+import { IconCheck, IconChevronDown, IconLayoutGrid, IconTable } from "@tabler/icons-react";
 import type { RefObject } from "react";
 import { AttentionRadarStrip } from "@/features/portfolio";
 import { PortfolioTelemetryStrip } from "./portfolio-telemetry-strip";
@@ -84,41 +77,6 @@ function SortDropdown({
   );
 }
 
-function InlineFilterInput(props: {
-  query: string;
-  searchInputRef: RefObject<HTMLInputElement | null>;
-  onQueryChange: (next: string) => void;
-}) {
-  return (
-    <div className="relative flex items-center">
-      <IconSearch
-        size={14}
-        stroke={1.5}
-        className="pointer-events-none absolute left-3 text-ink-muted"
-      />
-      <input
-        ref={props.searchInputRef}
-        type="text"
-        value={props.query}
-        onChange={(e) => props.onQueryChange(e.target.value)}
-        placeholder="筛选代码 ( / )"
-        aria-label="筛选标的"
-        className="h-9 w-40 rounded-pill border border-hairline bg-surface pl-8 pr-7 text-xs text-ink-primary transition-colors placeholder:text-ink-muted focus:border-strong focus:outline-none focus:ring-1 focus:ring-accent-coral/50 sm:w-44"
-      />
-      {props.query ? (
-        <button
-          type="button"
-          onClick={() => props.onQueryChange("")}
-          aria-label="清除筛选"
-          className="absolute right-2.5 cursor-pointer text-ink-muted hover:text-ink-primary"
-        >
-          <IconX size={13} stroke={1.5} />
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 function CockpitControlBar(props: CockpitHeaderProps) {
   const filterItems = [
     { id: "all" as const, label: "全部", count: props.filterCounts.all },
@@ -138,10 +96,13 @@ function CockpitControlBar(props: CockpitHeaderProps) {
         items={filterItems}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <InlineFilterInput
-          query={props.query}
-          searchInputRef={props.searchInputRef}
-          onQueryChange={props.onQueryChange}
+        <SearchField
+          value={props.query}
+          onChange={props.onQueryChange}
+          inputRef={props.searchInputRef}
+          placeholder="筛选代码 ( / )"
+          ariaLabel="筛选标的"
+          className="w-40 sm:w-44"
         />
         <SortDropdown sortBy={props.sortBy} onSortChange={props.onSortChange} />
         <SegmentedTabs

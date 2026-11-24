@@ -13,7 +13,7 @@ export function ThemeOrbButton({ className = "" }: ThemeOrbButtonProps) {
   return (
     <button
       type="button"
-      onClick={toggleTheme}
+      onClick={(e) => toggleTheme({ x: e.clientX, y: e.clientY })}
       aria-label={isDark ? "切换至浅色模式" : "切换至深色模式"}
       className={`group inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-pill border border-strong text-ink-secondary transition-[border-color,color,transform] duration-300 hover:border-ink-primary hover:text-ink-primary ${className}`}
     >

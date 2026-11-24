@@ -1,64 +1,18 @@
 "use client";
 
 import type { PortfolioAnalytics } from "@kanon/core";
-import { RollingNumber } from "@kanon/ui";
-import type { ReactNode } from "react";
+import { RollingNumber, StatCard } from "@kanon/ui";
+import { IconChartPie, IconScale, IconShieldCheck, IconStack2 } from "@tabler/icons-react";
 
-function MetricItem({
-  label,
-  sub,
-  onClick,
-  children,
-}: {
-  label: string;
-  sub?: ReactNode;
-  onClick?: () => void;
-  children: ReactNode;
-}) {
-  const inner = (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs text-ink-muted">{label}</span>
-      <div className="flex flex-wrap items-baseline gap-x-2 font-mono tabular-nums">
-        {children}
-        {sub ? <span className="font-sans text-xs text-ink-muted">{sub}</span> : null}
-      </div>
-    </div>
-  );
-  if (!onClick) return <div className="py-1">{inner}</div>;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group cursor-pointer rounded-control py-1 text-left transition-opacity hover:opacity-75 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-coral"
-    >
-      {inner}
-    </button>
-  );
+function OddsValue({ value, activeCount }: { value: number | null; activeCount: number }) {
+  if (activeCount === 0) return <span>—</span>;
+  if (value === null) return <span>∞</span>;
+  return <RollingNumber value={value} suffix="×" decimals={2} />;
 }
 
-function OddsFigure({ value, activeCount }: { value: number | null; activeCount: number }) {
-  if (activeCount === 0) return <span className="text-2xl font-semibold text-ink-primary">—</span>;
-  if (value === null) return <span className="text-2xl font-semibold text-ink-primary">∞</span>;
-  return (
-    <RollingNumber
-      value={value}
-      suffix="×"
-      decimals={2}
-      className="text-2xl font-semibold tracking-tight text-ink-primary"
-    />
-  );
-}
-
-function MarginFigure({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-2xl font-semibold text-ink-primary">—</span>;
-  return (
-    <RollingNumber
-      value={value}
-      suffix="%"
-      decimals={1}
-      className="text-2xl font-semibold tracking-tight text-ink-primary"
-    />
-  );
+function MarginValue({ value }: { value: number | null }) {
+  if (value === null) return <span>—</span>;
+  return <RollingNumber value={value} suffix="%" decimals={1} />;
 }
 
 export function PortfolioTelemetryStrip({
@@ -68,42 +22,45 @@ export function PortfolioTelemetryStrip({
   analytics: PortfolioAnalytics;
   onOpenStressTest: () => void;
 }) {
-  const cagrSub =
-    analytics.averageBaseCagrPct !== null
-      ? `年化 ${analytics.averageBaseCagrPct.toFixed(1)}%`
-      : undefined;
-  const oddsSub =
-    analytics.attractiveCount > 0 ? (
-      <span className="text-status-pass">{analytics.attractiveCount} 只优选</span>
-    ) : undefined;
-
+  const cagr = analytics.averageBaseCagrPct;
+  const cagrDelta = cagr !== null ? `年化 ${cagr.toFixed(1)}%` : "—";
   return (
-    <div className="mt-5 grid grid-cols-2 gap-x-8 gap-y-4 border-y border-hairline py-4 sm:grid-cols-4">
-      <MetricItem label="跟踪标的" sub={`完成度 ${analytics.averageReadinessPct}%`}>
-        <RollingNumber
-          value={analytics.activeCount}
-          decimals={0}
-          className="text-2xl font-semibold tracking-tight text-ink-primary"
-        />
-      </MetricItem>
-      <MetricItem label="平均赔率" sub={oddsSub}>
-        <OddsFigure value={analytics.averageRiskReward} activeCount={analytics.activeCount} />
-      </MetricItem>
-      <MetricItem label="安全边际" sub={cagrSub}>
-        <MarginFigure value={analytics.averageMarginOfSafetyPct} />
-      </MetricItem>
-      <MetricItem
+    <div className="mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+      <StatCard
+        label="跟踪标的"
+        icon={<IconStack2 size={15} stroke={1.5} />}
+        value={<RollingNumber value={analytics.activeCount} decimals={0} />}
+        caption="研究完成度"
+        delta={`${analytics.averageReadinessPct}%`}
+        deltaTone={analytics.averageReadinessPct >= 80 ? "pass" : "neutral"}
+      />
+      <StatCard
+        label="平均赔率"
+        icon={<IconScale size={15} stroke={1.5} />}
+        value={
+          <OddsValue value={analytics.averageRiskReward} activeCount={analytics.activeCount} />
+        }
+        caption="高赔率优选"
+        delta={`${analytics.attractiveCount} 只`}
+        deltaTone={analytics.attractiveCount > 0 ? "pass" : "neutral"}
+      />
+      <StatCard
+        label="安全边际"
+        icon={<IconShieldCheck size={15} stroke={1.5} />}
+        value={<MarginValue value={analytics.averageMarginOfSafetyPct} />}
+        caption="中性三年预期"
+        delta={cagrDelta}
+        deltaTone={(analytics.averageMarginOfSafetyPct ?? 0) >= 25 ? "pass" : "neutral"}
+      />
+      <StatCard
         label="已配仓位"
-        sub={`现金 ${analytics.cashBufferPct}%`}
+        icon={<IconChartPie size={15} stroke={1.5} />}
+        value={<RollingNumber value={analytics.totalWeightPct} suffix="%" decimals={0} />}
+        caption="点击压力测试"
+        delta={`现金 ${analytics.cashBufferPct}%`}
+        deltaTone={analytics.overCapTickers.length > 0 ? "fail" : "neutral"}
         onClick={onOpenStressTest}
-      >
-        <RollingNumber
-          value={analytics.totalWeightPct}
-          suffix="%"
-          decimals={0}
-          className="text-2xl font-semibold tracking-tight text-ink-primary"
-        />
-      </MetricItem>
+      />
     </div>
   );
 }

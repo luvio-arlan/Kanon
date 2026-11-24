@@ -1,7 +1,14 @@
 "use client";
 
 import type { ThesisDetail, ThesisSummary } from "@kanon/core";
-import { ActionMenu, type ActionMenuItem, KanonMark, RollingNumber, useTheme } from "@kanon/ui";
+import {
+  ActionMenu,
+  type ActionMenuItem,
+  KanonMark,
+  Kbd,
+  RollingNumber,
+  useTheme,
+} from "@kanon/ui";
 import {
   IconArrowLeft,
   IconChevronDown,
@@ -106,7 +113,7 @@ function TopbarMenus(props: TopbarMenuProps) {
       >
         <IconSparkles size={14} stroke={1.5} className="shrink-0 text-accent-coral" />
         <span className="hidden sm:inline">投研 Agent</span>
-        <kbd className="hidden font-mono text-xs text-ink-secondary md:inline">⌘J</kbd>
+        <Kbd className="hidden md:inline-flex">⌘J</Kbd>
       </button>
       <button
         type="button"
@@ -115,7 +122,7 @@ function TopbarMenus(props: TopbarMenuProps) {
         className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-control border border-hairline bg-surface px-2.5 text-xs leading-none text-ink-secondary shadow-button transition-[transform,border-color,color,background-color] duration-150 hover:border-strong hover:bg-muted/50 hover:text-ink-primary active:scale-[0.975]"
       >
         <IconSearch size={14} stroke={1.5} className="shrink-0" />
-        <kbd className="hidden font-mono text-xs text-ink-muted sm:inline">⌘K</kbd>
+        <Kbd className="hidden sm:inline-flex">⌘K</Kbd>
       </button>
       <ActionMenu
         ariaLabel="导出研究档案"

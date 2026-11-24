@@ -8,14 +8,39 @@ export {
   type ValuationSparklinePoint,
   type ValuationSparklineProps,
 } from "./charts/valuation-sparkline";
+export {
+  AgentLogList,
+  AgentLogRow,
+  AgentShimmerText,
+  AgentWorkingRow,
+} from "./components/agent/agent-log";
+export {
+  AgentThinking,
+  type AgentThinkingProps,
+  type AgentThinkingTone,
+  type AgentThinkingVariant,
+} from "./components/agent/agent-thinking";
+export { ComposerLoader, type ComposerLoaderProps } from "./components/agent/composer-loader";
+export {
+  ProgressBar,
+  type ProgressBarProps,
+  type ProgressSize,
+  type ProgressTone,
+} from "./components/data-display/progress-bar";
 export { ReadinessRing, type ReadinessRingProps } from "./components/data-display/readiness-ring";
 export { RollingNumber, type RollingNumberProps } from "./components/data-display/rolling-number";
+export {
+  StatCard,
+  type StatCardProps,
+  type StatDeltaTone,
+} from "./components/data-display/stat-card";
 export {
   DisciplineSwitch,
   type DisciplineSwitchProps,
 } from "./components/forms/discipline-switch";
 export { Input, type InputProps } from "./components/forms/input";
 export { PrecisionSlider, type PrecisionSliderProps } from "./components/forms/precision-slider";
+export { SearchField, type SearchFieldProps } from "./components/forms/search-field";
 export {
   type SegmentedTabItem,
   SegmentedTabs,
@@ -38,6 +63,11 @@ export {
   GlossaryPopoverCard,
   type GlossaryPopoverCardProps,
 } from "./components/overlays/glossary-popover-card";
+export {
+  ScrollFade,
+  type ScrollFadeProps,
+  useScrollFade,
+} from "./components/overlays/scroll-fade";
 export { Sheet, type SheetProps } from "./components/overlays/sheet";
 export { Toaster } from "./components/overlays/toaster";
 export { Tooltip, type TooltipProps } from "./components/overlays/tooltip";
@@ -51,9 +81,12 @@ export {
   type CardProps,
 } from "./components/primitives/card";
 export { KanonMark, type KanonMarkProps } from "./components/primitives/kanon-mark";
+export { Kbd, type KbdProps } from "./components/primitives/kbd";
+export { Spinner, type SpinnerProps, type SpinnerSize } from "./components/primitives/spinner";
 export {
   THEME_INIT_SCRIPT,
   type ThemeMode,
+  type ThemeOrigin,
   ThemeProvider,
   useTheme,
 } from "./components/primitives/theme-provider";

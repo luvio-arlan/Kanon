@@ -5,7 +5,7 @@ import {
   calculateResearchReadiness,
   type ThesisDetail,
 } from "@kanon/core";
-import { cn, KANON_TAB_TRANSITION, ReadinessRing, RollingNumber } from "@kanon/ui";
+import { cn, KANON_TAB_TRANSITION, ProgressBar, ReadinessRing, RollingNumber } from "@kanon/ui";
 import { IconCheck } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useMemo } from "react";
@@ -71,27 +71,30 @@ function PeripheralAnchorSummary({ thesis }: { thesis: ThesisDetail }) {
   const { valuation } = thesis;
   const exp = useMemo(() => calculateImpliedExpectations({ summary: valuation }), [valuation]);
   return (
-    <div className="rounded-control border border-hairline bg-surface/80 p-3.5 font-mono text-xs tabular-nums">
-      <div className="flex items-center justify-between text-ink-muted">
-        <span className="font-sans">实时估值锚点</span>
+    <div className="rounded-card border border-hairline bg-muted/60 p-1.5 font-mono text-xs tabular-nums">
+      <div className="flex items-center justify-between px-2.5 py-1.5 text-ink-muted">
+        <span className="font-sans font-medium text-ink-secondary">实时估值锚点</span>
         <span>{valuation.horizonYears}Y</span>
       </div>
-      <div className="mt-2.5 space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="font-sans text-ink-secondary">现价 / 目标</span>
+      <div className="space-y-1.5 rounded-control border border-hairline bg-surface px-3 py-2.5 shadow-card">
+        <div className="flex items-center justify-between gap-2 whitespace-nowrap">
+          <span className="font-sans text-ink-secondary">当前参考</span>
+          <span className="font-medium text-ink-primary">${thesis.currentPrice.toFixed(1)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2 whitespace-nowrap">
+          <span className="font-sans text-ink-secondary">中性目标</span>
           <span className="font-semibold text-ink-primary">
-            ${thesis.currentPrice.toFixed(1)} →{" "}
             <RollingNumber value={valuation.base.targetPrice} prefix="$" decimals={1} />
           </span>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 whitespace-nowrap">
           <span className="font-sans text-ink-secondary">赔率 / 边际</span>
           <span className="text-ink-primary">
             {valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞"}{" "}
-            · {exp.marginOfSafetyPct.toFixed(1)}%
+            · {exp.marginOfSafetyPct.toFixed(0)}%
           </span>
         </div>
-        <div className="flex items-center justify-between border-t border-hairline pt-1.5">
+        <div className="flex items-center justify-between gap-2 whitespace-nowrap border-t border-hairline pt-1.5">
           <span className="font-sans text-ink-secondary">15% 买点</span>
           <span
             className={exp.isBelowHurdle15 ? "font-semibold text-status-pass" : "text-ink-muted"}
@@ -128,15 +131,12 @@ export function StepRail({
           </div>
           <ReadinessRing scorePct={readiness.scorePct} size={28} />
         </div>
-        <div className="h-1 w-full overflow-hidden rounded-pill bg-muted">
-          <div
-            className={cn(
-              "h-full rounded-pill transition-[width] duration-300",
-              readiness.scorePct >= 100 ? "bg-status-pass" : "bg-accent-coral",
-            )}
-            style={{ width: `${readiness.scorePct}%` }}
-          />
-        </div>
+        <ProgressBar
+          value={readiness.scorePct}
+          max={100}
+          tone={readiness.scorePct >= 100 ? "pass" : "accent"}
+          size="sm"
+        />
       </div>
       <nav aria-label="五步研究进度" className="space-y-0.5">
         {STEPS.map((step, idx) => (

@@ -1,9 +1,9 @@
 "use client";
 
 import type { AgentBriefing } from "@kanon/core";
-import { Badge, ReadinessRing } from "@kanon/ui";
+import { Badge, ProgressBar, ReadinessRing } from "@kanon/ui";
 
-function DebateRoleRow({
+function DebateRoleCard({
   roleLabel,
   tag,
   tone,
@@ -15,35 +15,43 @@ function DebateRoleRow({
   body: string;
 }) {
   return (
-    <div className="space-y-1 py-2.5 first:pt-0 last:pb-0">
-      <div className="flex items-center gap-2">
+    <div className="rounded-control border border-hairline bg-surface px-3.5 py-3 shadow-card">
+      <div className="flex items-center justify-between gap-2">
         <Badge variant={tone}>{roleLabel}</Badge>
         <span className="font-mono text-xs text-ink-muted">{tag}</span>
       </div>
-      <p className="text-xs leading-relaxed text-ink-secondary">{body}</p>
+      <p className="mt-2 text-xs leading-relaxed text-ink-secondary">{body}</p>
     </div>
   );
 }
 
 function BriefingHeader({ briefing }: { briefing: AgentBriefing }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-ink-muted">
-          <span>投资总监裁决 · IC Debate</span>
-          <Badge variant={briefing.engine === "vercel-ai-sdk" ? "pass" : "default"}>
-            {briefing.engine === "vercel-ai-sdk" ? "BYOK 模型综合" : "确定性引擎"}
-          </Badge>
-          <Badge variant="titanium">已持久化留痕</Badge>
+    <div className="rounded-control border border-hairline bg-surface p-3.5 shadow-card">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-ink-muted">
+            <span>投委会裁决</span>
+            <Badge variant={briefing.engine === "vercel-ai-sdk" ? "pass" : "default"}>
+              {briefing.engine === "vercel-ai-sdk" ? "BYOK 模型" : "确定性引擎"}
+            </Badge>
+          </div>
+          <div className="mt-1.5 text-sm font-semibold leading-snug text-ink-primary">
+            {briefing.verdict}
+          </div>
         </div>
-        <div className="mt-1.5 text-sm font-semibold leading-snug text-ink-primary">
-          {briefing.verdict}
-        </div>
+        <ReadinessRing
+          scorePct={briefing.convictionScore}
+          size={36}
+          label={`${briefing.convictionScore}`}
+        />
       </div>
-      <ReadinessRing
-        scorePct={briefing.convictionScore}
-        size={36}
-        label={`${briefing.convictionScore}`}
+      <ProgressBar
+        value={briefing.convictionScore}
+        max={100}
+        tone={briefing.convictionScore >= 75 ? "pass" : "accent"}
+        size="sm"
+        className="mt-3"
       />
     </div>
   );
@@ -51,29 +59,29 @@ function BriefingHeader({ briefing }: { briefing: AgentBriefing }) {
 
 export function AgentBriefingCard({ briefing }: { briefing: AgentBriefing }) {
   return (
-    <div className="space-y-3 rounded-card border border-hairline bg-titanium-subtle p-4 shadow-card">
+    <div className="space-y-2.5 rounded-card border border-hairline bg-muted/55 p-3 shadow-card">
       <BriefingHeader briefing={briefing} />
       {briefing.fallbackReason ? (
         <div className="rounded-control bg-status-warn-soft px-3 py-1.5 text-xs text-status-warn">
           {briefing.fallbackReason}
         </div>
       ) : null}
-      <div className="divide-y divide-hairline border-t border-hairline pt-3">
-        <DebateRoleRow
+      <div className="space-y-2">
+        <DebateRoleCard
           roleLabel="基本面多头"
-          tag="LONG · 预期差与催化剂"
+          tag="LONG · 预期差"
           tone="pass"
           body={briefing.bullSynthesis}
         />
-        <DebateRoleRow
+        <DebateRoleCard
           roleLabel="法证空头"
-          tag="BEAR · 反演与下行红线"
+          tag="BEAR · 下行红线"
           tone="warn"
           body={briefing.bearCritique}
         />
-        <DebateRoleRow
+        <DebateRoleCard
           roleLabel="财务法证官"
-          tag="FORENSICS · 盈利含金量"
+          tag="FORENSICS · 现金流"
           tone="titanium"
           body={briefing.accountingCheck}
         />

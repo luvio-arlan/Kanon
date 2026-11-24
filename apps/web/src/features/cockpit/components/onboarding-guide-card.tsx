@@ -1,7 +1,7 @@
 "use client";
 
 import { calculateResearchReadiness, type ThesisDetail } from "@kanon/core";
-import { cn, KANON_TRANSITION_FAST } from "@kanon/ui";
+import { cn, KANON_TRANSITION_FAST, ProgressBar } from "@kanon/ui";
 import { IconArrowRight, IconCheck, IconPlus, IconX } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
@@ -94,10 +94,10 @@ function deriveGuideSteps(
 
 function GuideStepTile({ item }: { item: GuideStepSpec }) {
   const rowClass = cn(
-    "group flex items-center justify-between gap-3 rounded-control border px-3.5 py-3 text-left transition-colors",
+    "group flex items-center justify-between gap-3 rounded-control border px-3.5 py-3 text-left shadow-card transition-[border-color,background-color] duration-150",
     item.done
-      ? "border-hairline bg-muted/35 text-ink-secondary hover:border-strong"
-      : "border-hairline bg-canvas/70 text-ink-primary hover:border-strong hover:bg-muted/45",
+      ? "border-hairline bg-surface/75 text-ink-secondary hover:border-strong"
+      : "border-hairline bg-surface text-ink-primary hover:border-strong",
   );
   const inner = (
     <>
@@ -189,15 +189,24 @@ export function OnboardingGuideCard(props: OnboardingGuideCardProps) {
           transition={KANON_TRANSITION_FAST}
           className="mb-6 overflow-hidden"
         >
-          <div className="rounded-card border border-hairline bg-surface p-5 shadow-card">
-            <GuideHeader doneCount={doneCount} onDismiss={props.onDismiss} />
+          <div className="rounded-card border border-hairline bg-muted/55 p-3 shadow-card sm:p-4">
+            <div className="px-1">
+              <GuideHeader doneCount={doneCount} onDismiss={props.onDismiss} />
+              <ProgressBar
+                value={doneCount}
+                max={3}
+                tone={doneCount >= 3 ? "pass" : "accent"}
+                size="sm"
+                className="mt-3"
+              />
+            </div>
             <div className="mt-3.5 grid grid-cols-1 gap-2.5 md:grid-cols-3">
               {steps.map((item) => (
                 <GuideStepTile key={item.code} item={item} />
               ))}
             </div>
             {props.theses.length === 0 ? (
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex justify-end px-1">
                 <button
                   type="button"
                   onClick={props.onNewThesis}

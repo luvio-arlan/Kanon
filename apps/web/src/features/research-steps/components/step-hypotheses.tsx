@@ -1,7 +1,7 @@
 "use client";
 
 import type { GlossaryTerm, Hypothesis, RedTeamReport, ThesisDetail } from "@kanon/core";
-import { Button } from "@kanon/ui";
+import { AgentThinking, Button, ComposerLoader, ProgressBar } from "@kanon/ui";
 import { IconCheck, IconDeviceFloppy, IconFlame, IconPlus } from "@tabler/icons-react";
 import { DraftStatusBar } from "@/shared/components/draft-status-bar";
 import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
@@ -62,9 +62,9 @@ function StepTwoHeader({
         <h2 className="text-lg font-semibold text-ink-primary">Step 2 · 核心假设（{count} 条）</h2>
         <p className="mt-0.5 text-xs text-ink-muted">聚焦 3–5 条可证伪前提，支持红队压力测试</p>
       </div>
-      <Button variant="coral" size="md" disabled={loading} onClick={onRun}>
-        <IconFlame size={15} stroke={1.5} />
-        <span>{loading ? "空头推演中..." : "红队挑刺"}</span>
+      <Button variant="coral" size="md" loading={loading} onClick={onRun}>
+        {!loading ? <IconFlame size={15} stroke={1.5} /> : null}
+        <span>{loading ? "推演中" : "红队挑刺"}</span>
       </Button>
     </div>
   );
@@ -151,6 +151,14 @@ export function StepHypotheses(props: StepHypothesesProps) {
         onMove={(idx, delta) => d.setDraft((prev) => swapItems(prev, idx, delta))}
         onRemove={(idx) => d.setDraft((prev) => prev.filter((_, i) => i !== idx))}
       />
+      {props.redTeamLoading ? (
+        <ComposerLoader active radius={20}>
+          <div className="space-y-2.5 rounded-card border border-hairline bg-surface p-4 shadow-card">
+            <AgentThinking variant="stars" label="红队空头正在反演核心假设盲区" />
+            <ProgressBar indeterminate tone="accent" size="sm" />
+          </div>
+        </ComposerLoader>
+      ) : null}
       {props.redTeam ? (
         <RedTeamResultCard report={props.redTeam} onPromoteRule={props.onPromoteRedTeamRule} />
       ) : null}

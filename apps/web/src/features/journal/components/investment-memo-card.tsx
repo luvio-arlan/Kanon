@@ -1,7 +1,7 @@
 "use client";
 
 import type { InvestmentMemo } from "@kanon/ai";
-import { Button, Card } from "@kanon/ui";
+import { AgentThinking, Button, Card, ComposerLoader } from "@kanon/ui";
 import {
   IconCopy,
   IconDownload,
@@ -142,7 +142,13 @@ export function InvestmentMemoCard({
           onGenerate={onGenerate}
         />
       </div>
-      {memo ? (
+      {loading ? (
+        <ComposerLoader active radius={16} className="mt-5">
+          <div className="flex items-center justify-center rounded-card border border-hairline bg-muted/45 px-5 py-8">
+            <AgentThinking variant="infinity" label="正在基于前 4 步一阶档案凝练 IC 投研备忘录" />
+          </div>
+        </ComposerLoader>
+      ) : memo ? (
         <MemoArticleBody memo={memo} />
       ) : (
         <div className="mt-6 border-t border-hairline pt-8 pb-4 text-center text-sm text-ink-muted">

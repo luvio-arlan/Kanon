@@ -9,7 +9,7 @@ import type {
   ThesisDetail,
   ThesisSummary,
 } from "@kanon/core";
-import { Button, Card, Textarea } from "@kanon/ui";
+import { AgentThinking, Button, Card, Textarea } from "@kanon/ui";
 import { IconCheck, IconDeviceFloppy, IconScissors, IconSparkles } from "@tabler/icons-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -67,12 +67,13 @@ function TranscriptInputCard({
             <IconScissors size={14} stroke={1.5} />
             <span>精读与划词摘录</span>
           </Button>
-          <Button variant="titanium" size="sm" disabled={loading} onClick={onRun}>
-            <IconSparkles size={14} stroke={1.5} />
-            <span>{loading ? "提炼中..." : "提炼电话会"}</span>
+          <Button variant="titanium" size="sm" loading={loading} onClick={onRun}>
+            {!loading ? <IconSparkles size={14} stroke={1.5} /> : null}
+            <span>{loading ? "提炼中" : "提炼电话会"}</span>
           </Button>
         </div>
       </div>
+      {loading ? <AgentThinking variant="wave" label="正在提炼电话会与财报核心要点" /> : null}
       <Textarea
         value={sourceText}
         onChange={(e) => onChange(e.target.value)}

@@ -1,7 +1,7 @@
-import { IconLoader2 } from "@tabler/icons-react";
 import type { ButtonHTMLAttributes } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "../../lib/cn";
+import { Spinner } from "./spinner";
 
 export const buttonVariants = tv({
   base: [
@@ -59,7 +59,7 @@ export function Button({
       className={cn(buttonVariants({ variant, size }), className)}
       {...props}
     >
-      {loading ? <IconLoader2 size={14} stroke={1.5} className="animate-spin" /> : null}
+      {loading ? <Spinner size="xs" decorative className="text-current" /> : null}
       {children}
     </button>
   );

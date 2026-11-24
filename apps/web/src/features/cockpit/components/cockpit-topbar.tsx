@@ -7,6 +7,7 @@ import {
   Button,
   KANON_TRANSITION_FAST,
   KanonMark,
+  Kbd,
   useTheme,
 } from "@kanon/ui";
 import {
@@ -54,7 +55,7 @@ function ThemeToggleButton() {
     <Button
       variant="ghost"
       size="icon"
-      onClick={toggleTheme}
+      onClick={(e) => toggleTheme({ x: e.clientX, y: e.clientY })}
       aria-label={theme === "dark" ? "切换浅色模式" : "切换深色模式"}
       title={theme === "dark" ? "浅色模式" : "深色模式"}
       className="h-9 w-9 text-ink-secondary hover:text-ink-primary"
@@ -86,7 +87,7 @@ function SearchTriggerButton({ onOpenCommand }: { onOpenCommand: () => void }) {
     >
       <IconSearch size={14} stroke={1.5} className="text-ink-muted group-hover:text-ink-primary" />
       <span className="hidden sm:inline">搜索</span>
-      <kbd className="hidden font-mono text-xs text-ink-muted tabular-nums sm:inline">⌘K</kbd>
+      <Kbd className="hidden sm:inline-flex">⌘K</Kbd>
     </button>
   );
 }
