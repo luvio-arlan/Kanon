@@ -2334,17 +2334,53 @@
         NVDA: {
           price: 138, bear: 102, eps: 6.8, pe: 31,
           cons: "市场将算力开支视作一次性周期见顶，给予远期倍数折价。",
-          ours: "推理算力正把 AI 转化为按 Token 计费的持续水电煤。"
+          ours: "推理算力正把 AI 转化为按 Token 计费的持续水电煤。",
+          bears: [
+            [
+              "若四大云厂明年资本开支增速转负，估值倍数将回撤多少？",
+              "前四大客户贡献超 44% 营收，定制 ASIC 是否正削弱定价权？",
+              "连续两季毛利率跌破 69% 时，你是否能无条件执行认错离场？"
+            ],
+            [
+              "如果下游软件变现慢于折旧曲线，这一轮算力投资会重演光纤过剩吗？",
+              "当库存周转天数悄然突破 115 天，你的仓位纪律如何响应？",
+              "把所有市场叙事剥离后，剔除股票激励的真实自由现金流值多少钱？"
+            ]
+          ]
         },
         MU: {
           price: 106, bear: 74, eps: 9.4, pe: 16,
           cons: "市场仍按重资产存储周期股给予 10× 峰值盈利估值。",
-          ours: "HBM 消耗 3× 晶圆面积形成结构性供给挤出，盈利中枢永久抬升。"
+          ours: "HBM 消耗 3× 晶圆面积形成结构性供给挤出，盈利中枢永久抬升。",
+          bears: [
+            [
+              "若三大存储厂同时激进扩产，DRAM 现货价重演 2023 年崩盘怎么办？",
+              "一旦 HBM3E 12-Hi 良率爬坡落后海力士，是否会错失主力机架份额？",
+              "重资产高资本开支下若自由现金流再度转负，你的止损红线在哪里？"
+            ],
+            [
+              "传统 PC 与手机换机需求持续疲软，能否仅靠 AI 服务器撑起全部产能？",
+              "大客户年度合约价一旦松动，毛利率从高位回落的速度会多快？",
+              "历史每次“这一次不一样”的存储超级周期，最终都以供给过剩收场——你凭什么例外？"
+            ]
+          ]
         },
         TSM: {
           price: 192, bear: 145, eps: 10.6, pe: 25,
           cons: "地缘折价长期压制先进制程垄断者的估值倍数。",
-          ours: "无论 GPU 或自研 ASIC 谁胜出，最终皆向唯一先进代工付费。"
+          ours: "无论 GPU 或自研 ASIC 谁胜出，最终皆向唯一先进代工付费。",
+          bears: [
+            [
+              "美日欧海外晶圆厂高昂折旧与人工成本，会否把长期毛利率拖破 50%？",
+              "极端地缘风险折价若长期存在，你的安全边际是否留足了估值下限？",
+              "如果苹果终端周期与 AI 算力资本开支同步放缓，2nm 产能利用率如何承压？"
+            ],
+            [
+              "先进制程设备资本开支连年攀升，单位资本回报率是否正悄然见顶？",
+              "CoWoS 封装供给瓶颈解除后，客户重复下单的虚高需求会否突然出清？",
+              "当对手以补贴价格争夺二线制程份额，台积电的提价权边界究竟在哪里？"
+            ]
+          ]
         }
       };
       let activeTk = "NVDA";
@@ -2437,41 +2473,37 @@
       sEps.addEventListener("input", () => { sliderDetent(); renderVal(true); });
       sPe.addEventListener("input", () => { sliderDetent(); renderVal(true); });
       const TK_NOTES = { NVDA: 587.33, MU: 739.99, TSM: 880.0 };
+      let bearIdx = 0;
+      function renderRedTeam() {
+        const sets = PRESETS[activeTk].bears;
+        const list = sets[bearIdx % sets.length];
+        const rows = document.querySelectorAll("#redList .red-row p");
+        list.forEach((txt, i) => { if (rows[i]) rows[i].textContent = txt; });
+      }
       document.querySelectorAll(".ticker-opt").forEach((btn) => {
         btn.addEventListener("click", () => {
           activeTk = btn.dataset.tk;
+          bearIdx = 0;
           KanonAudio.chime(TK_NOTES[activeTk] || 587.33, 0.036, 0.34);
           document.querySelectorAll(".ticker-opt").forEach((b) => b.classList.toggle("active", b === btn));
           sEps.value = PRESETS[activeTk].eps;
           sPe.value = PRESETS[activeTk].pe;
           document.getElementById("vpCons").textContent = PRESETS[activeTk].cons;
           document.getElementById("vpOurs").textContent = PRESETS[activeTk].ours;
+          renderRedTeam();
           const curve = document.getElementById("vpCurvePath");
           if (curve) { curve.classList.remove("vp-curve-draw"); void curve.offsetWidth; curve.classList.add("vp-curve-draw"); }
           renderVal(false);
         });
       });
       renderVal(true);
+      renderRedTeam();
 
-      /* Red team shuffle */
-      const BEAR_SETS = [
-        [
-          "若四大云厂明年资本开支增速转负，估值倍数将回撤多少？",
-          "前四大客户贡献超 44% 营收，定制 ASIC 是否正削弱定价权？",
-          "连续两季毛利率跌破 69% 时，你是否能无条件执行认错离场？"
-        ],
-        [
-          "如果下游软件变现慢于折旧曲线，这一轮算力投资会重演光纤过剩吗？",
-          "当库存周转天数悄然突破 115 天，你的仓位纪律如何响应？",
-          "把所有市场叙事剥离后，剔除股票激励的真实自由现金流值多少钱？"
-        ]
-      ];
-      let bearIdx = 0;
+      /* Red team shuffle (scoped per selected company) */
       document.getElementById("shuffleBearBtn").addEventListener("click", () => {
         KanonAudio.tick(1620, 0.04, 0.03);
-        bearIdx = (bearIdx + 1) % BEAR_SETS.length;
-        const rows = document.querySelectorAll("#redList .red-row p");
-        BEAR_SETS[bearIdx].forEach((txt, i) => { if (rows[i]) rows[i].textContent = txt; });
+        bearIdx = (bearIdx + 1) % PRESETS[activeTk].bears.length;
+        renderRedTeam();
       });
 
       /* Hardware Zero-Leverage Switch: Mechanical Shackle Lift -> Slam Shut ("ka-da!") */
