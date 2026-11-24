@@ -64,7 +64,7 @@ function FilterTabs({
             type="button"
             onClick={() => onFilterChange(option.id)}
             className={cn(
-              "relative cursor-pointer rounded-pill px-3.5 py-1.5 text-xs font-medium transition-colors duration-150",
+              "relative inline-flex h-7 cursor-pointer items-center justify-center whitespace-nowrap rounded-pill px-3.5 text-xs font-medium leading-none transition-colors duration-150",
               active ? "text-ink-primary" : "text-ink-secondary hover:text-ink-primary",
             )}
           >
@@ -72,7 +72,7 @@ function FilterTabs({
               <motion.span
                 layoutId="cockpit-filter-pill"
                 transition={KANON_SPRING}
-                className="absolute inset-0 rounded-pill border border-hairline bg-surface shadow-card"
+                className="absolute inset-0 rounded-pill border border-hairline bg-surface shadow-pill-active"
               />
             ) : null}
             <span className="relative z-10">{option.label}</span>
@@ -104,7 +104,7 @@ function ViewModeSwitch({
             type="button"
             onClick={() => onChange(m.id)}
             className={cn(
-              "relative inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-medium transition-colors",
+              "relative inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-pill px-3 text-xs font-medium leading-none transition-colors duration-150",
               active ? "text-ink-primary" : "text-ink-secondary hover:text-ink-primary",
             )}
           >
@@ -112,7 +112,7 @@ function ViewModeSwitch({
               <motion.span
                 layoutId="cockpit-view-pill"
                 transition={KANON_SPRING}
-                className="absolute inset-0 rounded-pill bg-titanium-subtle"
+                className="absolute inset-0 rounded-pill border border-hairline bg-titanium-subtle shadow-pill-active"
               />
             ) : null}
             <span className="relative z-10 inline-flex items-center gap-1.5">
@@ -203,7 +203,7 @@ function SearchAndSortControls(props: {
 
 export function CockpitHeader(props: CockpitHeaderProps) {
   return (
-    <section className="pb-8 pt-10">
+    <section className="pb-5 pt-9">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
           <div className="kanon-micro-label text-ink-muted">KANON · FUNDAMENTAL CONVICTION OS</div>

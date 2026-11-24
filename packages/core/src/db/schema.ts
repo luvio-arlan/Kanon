@@ -6,8 +6,10 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { DEFAULT_WORKSPACE_USER_ID, type UserRole } from "../contracts/auth-contracts";
 import type {
   Alignment,
   BusinessFilter,
@@ -28,25 +30,51 @@ import type {
 } from "../schemas/research";
 import type { HypothesisStatus, SparklinePoint } from "../schemas/thesis";
 
-export const thesesTable = pgTable("theses", {
+export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),
-  indexOrder: integer("index_order").notNull(),
-  ticker: text("ticker").notNull().unique(),
-  companyName: text("company_name").notNull(),
-  sectorTag: text("sector_tag").notNull(),
-  currentPrice: doublePrecision("current_price").notNull(),
-  horizonYears: integer("horizon_years").notNull().default(3),
-  convictionSummary: text("conviction_summary").notNull(),
-  status: text("status").$type<ThesisStatus>().notNull().default("active"),
-  portfolioRole: text("portfolio_role").$type<PortfolioRole>().notNull().default("watchlist"),
-  currentWeightPct: doublePrecision("current_weight_pct").notNull().default(0),
-  targetMaxWeightPct: doublePrecision("target_max_weight_pct").notNull().default(15),
-  avgCostBasis: doublePrecision("avg_cost_basis"),
-  businessFilter: jsonb("business_filter").$type<BusinessFilter>().notNull(),
-  lastReviewedLabel: text("last_reviewed_label").notNull(),
+  phoneE164: text("phone_e164").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").$type<UserRole>().notNull().default("member"),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const sessionsTable = pgTable("sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const thesesTable = pgTable(
+  "theses",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default(DEFAULT_WORKSPACE_USER_ID),
+    indexOrder: integer("index_order").notNull(),
+    ticker: text("ticker").notNull(),
+    companyName: text("company_name").notNull(),
+    sectorTag: text("sector_tag").notNull(),
+    currentPrice: doublePrecision("current_price").notNull(),
+    horizonYears: integer("horizon_years").notNull().default(3),
+    convictionSummary: text("conviction_summary").notNull(),
+    status: text("status").$type<ThesisStatus>().notNull().default("active"),
+    portfolioRole: text("portfolio_role").$type<PortfolioRole>().notNull().default("watchlist"),
+    currentWeightPct: doublePrecision("current_weight_pct").notNull().default(0),
+    targetMaxWeightPct: doublePrecision("target_max_weight_pct").notNull().default(15),
+    avgCostBasis: doublePrecision("avg_cost_basis"),
+    businessFilter: jsonb("business_filter").$type<BusinessFilter>().notNull(),
+    lastReviewedLabel: text("last_reviewed_label").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("idx_theses_user_ticker").on(table.userId, table.ticker)],
+);
 
 export const hypothesesTable = pgTable("hypotheses", {
   id: text("id").primaryKey(),

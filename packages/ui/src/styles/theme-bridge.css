@@ -125,6 +125,9 @@
   --radius-pill: var(--radius-pill);
   --shadow-card: var(--shadow-card);
   --shadow-card-hover: var(--shadow-card-hover);
+  --shadow-button: var(--shadow-button);
+  --shadow-button-primary: var(--shadow-button-primary);
+  --shadow-pill-active: var(--shadow-pill-active);
   --shadow-overlay: var(--shadow-overlay);
 }
 
@@ -148,6 +151,38 @@ body {
 ::selection {
   background-color: var(--accent-coral-soft);
   color: var(--ink-primary);
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.kanon-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--shimmer-base) 25%,
+    var(--shimmer-highlight) 50%,
+    var(--shimmer-base) 75%
+  );
+  background-size: 200% 100%;
+  animation: kanon-shimmer-sweep 1.35s ease-in-out infinite;
+}
+
+@keyframes kanon-shimmer-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kanon-shimmer {
+    animation: none;
+  }
 }
 
 .tabular-nums {

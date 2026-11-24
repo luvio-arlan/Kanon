@@ -10,7 +10,7 @@ export function Card({ className, interactive = false, tone = "surface", ...prop
   return (
     <div
       className={cn(
-        "rounded-card border border-hairline shadow-card transition-all duration-200",
+        "rounded-card border border-hairline shadow-card transition-[border-color,box-shadow,transform] duration-200",
         tone === "surface" && "bg-surface",
         tone === "titanium" && "bg-titanium-subtle",
         tone === "muted" && "bg-muted",

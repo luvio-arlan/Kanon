@@ -1,11 +1,10 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
 import { calculateValuationScenarios } from "../../math/valuation-scenarios";
 import type {
   BusinessFilter,
   CrossCheck,
   DisciplineEntry,
-  GlossaryTerm,
-  SecSnapshot,
   ThesisDetail,
   ThesisSummary,
 } from "../../schemas/research";
@@ -14,9 +13,7 @@ import type { KanonDb } from "../client";
 import {
   crossChecksTable,
   disciplineEntriesTable,
-  glossaryTermsTable,
   hypothesesTable,
-  secFilingsCacheTable,
   thesesTable,
   valuationScenariosTable,
 } from "../schema";
@@ -133,19 +130,51 @@ function hydrateThesis(params: {
   };
 }
 
-export async function listTheses(db: KanonDb): Promise<ThesisDetail[]> {
-  const [rows, allHypotheses, allChecks, allVals, allDiscipline] = await Promise.all([
-    db.select().from(thesesTable).orderBy(asc(thesesTable.indexOrder)),
-    db.select().from(hypothesesTable).orderBy(asc(hypothesesTable.sortOrder)),
-    db.select().from(crossChecksTable).orderBy(asc(crossChecksTable.createdAt)),
-    db.select().from(valuationScenariosTable),
-    db.select().from(disciplineEntriesTable).orderBy(desc(disciplineEntriesTable.createdAt)),
+async function loadThesisChildren(db: KanonDb, thesisIds: readonly string[]) {
+  const [hyps, checks, vals, disc] = await Promise.all([
+    db
+      .select()
+      .from(hypothesesTable)
+      .where(inArray(hypothesesTable.thesisId, [...thesisIds]))
+      .orderBy(asc(hypothesesTable.sortOrder)),
+    db
+      .select()
+      .from(crossChecksTable)
+      .where(inArray(crossChecksTable.thesisId, [...thesisIds]))
+      .orderBy(asc(crossChecksTable.createdAt)),
+    db
+      .select()
+      .from(valuationScenariosTable)
+      .where(inArray(valuationScenariosTable.thesisId, [...thesisIds])),
+    db
+      .select()
+      .from(disciplineEntriesTable)
+      .where(inArray(disciplineEntriesTable.thesisId, [...thesisIds]))
+      .orderBy(desc(disciplineEntriesTable.createdAt)),
   ]);
-  const hypMap = groupByThesisId(allHypotheses);
-  const checkMap = groupByThesisId(allChecks);
-  const discMap = groupByThesisId(allDiscipline);
-  const valMap = new Map(allVals.map((v) => [v.thesisId, v]));
+  return {
+    hypMap: groupByThesisId(hyps),
+    checkMap: groupByThesisId(checks),
+    discMap: groupByThesisId(disc),
+    valMap: new Map(vals.map((v) => [v.thesisId, v])),
+  };
+}
 
+export async function listTheses(
+  db: KanonDb,
+  userId: string = DEFAULT_WORKSPACE_USER_ID,
+): Promise<ThesisDetail[]> {
+  const rows = await db
+    .select()
+    .from(thesesTable)
+    .where(eq(thesesTable.userId, userId))
+    .orderBy(asc(thesesTable.indexOrder));
+  if (rows.length === 0) return [];
+
+  const { hypMap, checkMap, discMap, valMap } = await loadThesisChildren(
+    db,
+    rows.map((row) => row.id),
+  );
   return rows.map((row) =>
     hydrateThesis({
       row,
@@ -157,11 +186,26 @@ export async function listTheses(db: KanonDb): Promise<ThesisDetail[]> {
   );
 }
 
-export async function listThesisSummaries(db: KanonDb): Promise<ThesisSummary[]> {
-  const [rows, vals] = await Promise.all([
-    db.select().from(thesesTable).orderBy(asc(thesesTable.indexOrder)),
-    db.select().from(valuationScenariosTable),
-  ]);
+export async function listThesisSummaries(
+  db: KanonDb,
+  userId: string = DEFAULT_WORKSPACE_USER_ID,
+): Promise<ThesisSummary[]> {
+  const rows = await db
+    .select()
+    .from(thesesTable)
+    .where(eq(thesesTable.userId, userId))
+    .orderBy(asc(thesesTable.indexOrder));
+  if (rows.length === 0) return [];
+
+  const vals = await db
+    .select()
+    .from(valuationScenariosTable)
+    .where(
+      inArray(
+        valuationScenariosTable.thesisId,
+        rows.map((row) => row.id),
+      ),
+    );
   const valMap = new Map(vals.map((v) => [v.thesisId, v]));
 
   return rows.map((row) => {
@@ -179,52 +223,23 @@ export async function listThesisSummaries(db: KanonDb): Promise<ThesisSummary[]>
   });
 }
 
-export async function getThesisById(db: KanonDb, id: string): Promise<ThesisDetail | null> {
-  const [row] = await db.select().from(thesesTable).where(eq(thesesTable.id, id));
+export async function getThesisById(
+  db: KanonDb,
+  id: string,
+  userId?: string,
+): Promise<ThesisDetail | null> {
+  const whereClause = userId
+    ? and(eq(thesesTable.id, id), eq(thesesTable.userId, userId))
+    : eq(thesesTable.id, id);
+  const [row] = await db.select().from(thesesTable).where(whereClause);
   if (!row) return null;
 
-  const [hypotheses, crossChecks, vals, disciplineRows] = await Promise.all([
-    db
-      .select()
-      .from(hypothesesTable)
-      .where(eq(hypothesesTable.thesisId, id))
-      .orderBy(asc(hypothesesTable.sortOrder)),
-    db
-      .select()
-      .from(crossChecksTable)
-      .where(eq(crossChecksTable.thesisId, id))
-      .orderBy(asc(crossChecksTable.createdAt)),
-    db.select().from(valuationScenariosTable).where(eq(valuationScenariosTable.thesisId, id)),
-    db
-      .select()
-      .from(disciplineEntriesTable)
-      .where(eq(disciplineEntriesTable.thesisId, id))
-      .orderBy(desc(disciplineEntriesTable.createdAt)),
-  ]);
-
-  return hydrateThesis({ row, hypotheses, crossChecks, valuationRow: vals[0], disciplineRows });
-}
-
-export async function listGlossaryTerms(db: KanonDb): Promise<GlossaryTerm[]> {
-  return db.select().from(glossaryTermsTable).orderBy(asc(glossaryTermsTable.term));
-}
-
-export async function getSecSnapshot(db: KanonDb, ticker: string): Promise<SecSnapshot | null> {
-  const normalized = ticker.trim().toUpperCase();
-  const [row] = await db
-    .select()
-    .from(secFilingsCacheTable)
-    .where(eq(secFilingsCacheTable.ticker, normalized));
-  if (!row) return null;
-  return {
-    ticker: row.ticker,
-    cik: row.cik,
-    entityName: row.entityName,
-    source: row.source,
-    fetchedAt: row.fetchedAt.toISOString(),
-    filings: row.filings,
-    facts: row.facts,
-    annuals: row.annuals ?? [],
-    quarterlies: row.quarterlies ?? [],
-  };
+  const { hypMap, checkMap, discMap, valMap } = await loadThesisChildren(db, [id]);
+  return hydrateThesis({
+    row,
+    hypotheses: hypMap.get(id) ?? [],
+    crossChecks: checkMap.get(id) ?? [],
+    valuationRow: valMap.get(id),
+    disciplineRows: discMap.get(id) ?? [],
+  });
 }

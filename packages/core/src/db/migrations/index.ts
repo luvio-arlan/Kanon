@@ -1,5 +1,6 @@
 import { KANON_POSTGRES_DDL as BASELINE_SQL } from "./0001-baseline";
 import { KANON_V4_MIGRATION_SQL } from "./0002-v4-institutional";
+import { KANON_ACCOUNTS_MIGRATION_SQL } from "./0003-accounts-auth";
 
 export interface KanonMigration {
   id: string;
@@ -26,6 +27,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only v4 columns (portfolio, valuation drivers, quarterlies, snapshots) & review/agent tables",
     sql: KANON_V4_MIGRATION_SQL,
+  },
+  {
+    id: "0003_accounts_auth",
+    description:
+      "Multi-user accounts & sessions tables with per-user thesis isolation and +86 phone identity",
+    sql: KANON_ACCOUNTS_MIGRATION_SQL,
   },
 ];
 

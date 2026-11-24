@@ -1,11 +1,15 @@
 import { AgentApplyRequestSchema, AgentApplyResponseSchema } from "@kanon/core";
 import { getKanonDb, markAgentProposalApplied } from "@kanon/core/db";
+import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
 
@@ -15,7 +19,12 @@ export async function POST(request: Request) {
   }
 
   const db = await getKanonDb();
-  const applied = await markAgentProposalApplied(db, parsed.data.runId, parsed.data.proposalId);
+  const applied = await markAgentProposalApplied(
+    db,
+    parsed.data.runId,
+    parsed.data.proposalId,
+    auth.user.id,
+  );
   if (!applied) {
     return jsonError("未找到对应的 Agent 审计记录。", 404, startedAt, "NOT_FOUND");
   }

@@ -7,6 +7,7 @@ import {
   listThesisRevisions,
   updateThesisStep,
 } from "@kanon/core/db";
+import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +18,12 @@ interface RouteContext {
 
 export async function GET(_request: Request, context: RouteContext) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const { id } = await context.params;
   const db = await getKanonDb();
-  const thesis = await getThesisById(db, id);
+  const thesis = await getThesisById(db, id, auth.user.id);
   if (!thesis) {
     return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
   }
@@ -32,6 +36,9 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const { id } = await context.params;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
@@ -42,7 +49,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const db = await getKanonDb();
-  const updated = await updateThesisStep(db, id, parsed.data);
+  const updated = await updateThesisStep(db, id, parsed.data, auth.user.id);
   if (!updated) {
     return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
   }
@@ -52,9 +59,12 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(_request: Request, context: RouteContext) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const { id } = await context.params;
   const db = await getKanonDb();
-  const deleted = await deleteThesis(db, id);
+  const deleted = await deleteThesis(db, id, auth.user.id);
   if (!deleted) {
     return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
   }

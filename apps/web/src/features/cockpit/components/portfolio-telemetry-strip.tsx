@@ -4,11 +4,21 @@ import type { PortfolioAnalytics } from "@kanon/core";
 import { RollingNumber } from "@kanon/ui";
 import type { ReactNode } from "react";
 
-function TelemetryCell({ label, children }: { label: string; children: ReactNode }) {
+function TelemetryCell({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="px-5 py-3.5">
-      <div className="text-xs text-ink-muted">{label}</div>
-      <div className="mt-1 flex items-baseline gap-2 font-mono tabular-nums">{children}</div>
+    <div className={`px-4 py-3.5 sm:px-5 ${className ?? ""}`}>
+      <div className="truncate text-xs text-ink-muted">{label}</div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono tabular-nums">
+        {children}
+      </div>
     </div>
   );
 }
@@ -33,7 +43,13 @@ function HypothesisHealthCell({ analytics }: { analytics: PortfolioAnalytics }) 
       <span className="text-xl font-semibold text-ink-primary">
         {analytics.validatedHypotheses}/{analytics.totalHypotheses}
       </span>
-      <span className={warn ? "text-xs text-status-fail" : "text-xs text-ink-secondary"}>
+      <span
+        className={
+          warn
+            ? "whitespace-nowrap text-xs text-status-fail"
+            : "whitespace-nowrap text-xs text-ink-secondary"
+        }
+      >
         {warn ? `${analytics.warningHypotheses} 预警` : "零预警"}
       </span>
     </TelemetryCell>
@@ -47,27 +63,37 @@ export function PortfolioTelemetryStrip({ analytics }: { analytics: PortfolioAna
       : "—";
 
   return (
-    <div className="mt-6 grid grid-cols-2 divide-y divide-hairline rounded-card border border-hairline bg-surface/85 shadow-card sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-      <TelemetryCell label="跟踪标的 / 研究成熟度">
+    <div className="mt-6 grid grid-cols-2 overflow-hidden rounded-card border border-hairline bg-surface/85 shadow-card sm:grid-cols-4">
+      <TelemetryCell
+        label="跟踪标的 / 研究成熟度"
+        className="border-b border-r border-hairline sm:border-b-0"
+      >
         <RollingNumber
           value={analytics.activeCount}
           decimals={0}
           className="text-xl font-semibold text-ink-primary"
         />
-        <span className="text-xs text-ink-secondary">均值 {analytics.averageReadinessPct}%</span>
+        <span className="whitespace-nowrap text-xs text-ink-secondary">
+          均值 {analytics.averageReadinessPct}%
+        </span>
       </TelemetryCell>
-      <TelemetryCell label="组合平均赔率">
+      <TelemetryCell
+        label="组合平均赔率"
+        className="border-b border-hairline sm:border-b-0 sm:border-r"
+      >
         <OddsValue value={analytics.averageRiskReward} />
-        <span className="text-xs text-status-pass">{analytics.attractiveCount} 只高赔率</span>
+        <span className="whitespace-nowrap text-xs text-status-pass">
+          {analytics.attractiveCount} 只高赔率
+        </span>
       </TelemetryCell>
-      <TelemetryCell label="中性年化 / 安全边际">
+      <TelemetryCell label="中性年化 / 安全边际" className="border-r border-hairline">
         <RollingNumber
           value={analytics.averageBaseCagrPct ?? 0}
           suffix="%"
           decimals={1}
           className="text-xl font-semibold text-ink-primary"
         />
-        <span className="text-xs text-ink-secondary">边际 {marginLabel}</span>
+        <span className="whitespace-nowrap text-xs text-ink-secondary">边际 {marginLabel}</span>
       </TelemetryCell>
       <HypothesisHealthCell analytics={analytics} />
     </div>

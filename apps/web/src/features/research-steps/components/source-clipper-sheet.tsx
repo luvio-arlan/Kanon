@@ -4,7 +4,13 @@ import type { EarningsDigest } from "@kanon/core";
 import { Badge, Button, cn, Input, Sheet, Textarea } from "@kanon/ui";
 import { IconAlertTriangle, IconQuote, IconScissors } from "@tabler/icons-react";
 import { useState } from "react";
-import { buildParagraphItems, tokenizeSignals } from "../lib/cross-check-helpers";
+import {
+  buildParagraphItems,
+  filterParagraphsBySignal,
+  SIGNAL_FILTER_OPTIONS,
+  type SignalCategory,
+  tokenizeSignals,
+} from "../lib/cross-check-helpers";
 
 export interface SourceClipperSheetProps {
   open: boolean;
@@ -36,6 +42,34 @@ function HighlightedText({ text }: { text: string }) {
   );
 }
 
+function SignalCategoryPills({
+  category,
+  onSelect,
+}: {
+  category: SignalCategory;
+  onSelect: (next: SignalCategory) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {SIGNAL_FILTER_OPTIONS.map((opt) => (
+        <button
+          key={opt.id}
+          type="button"
+          onClick={() => onSelect(opt.id)}
+          className={cn(
+            "cursor-pointer rounded-pill border px-2.5 py-1 text-xs font-medium leading-none transition-colors",
+            category === opt.id
+              ? "border-strong bg-titanium text-ink-primary"
+              : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ParagraphReader({
   paragraphs,
   selected,
@@ -45,18 +79,23 @@ function ParagraphReader({
   selected: string;
   onSelect: (text: string) => void;
 }) {
+  const [category, setCategory] = useState<SignalCategory>("all");
+  const filtered = filterParagraphsBySignal(paragraphs, category);
   const handleSelectOrDrag = (paraText: string) => {
     const sel = window.getSelection()?.toString().trim();
     onSelect(sel && sel.length >= 6 ? sel : paraText);
   };
 
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between text-xs text-ink-muted">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
         <span>拖选任意原文词句，或点击整段直接选中摘录</span>
-        <Badge variant="titanium">买方信号词已自动高亮</Badge>
+        <Badge variant="titanium">
+          命中 {filtered.length}/{paragraphs.length} 段
+        </Badge>
       </div>
-      {paragraphs.map((para) => (
+      <SignalCategoryPills category={category} onSelect={setCategory} />
+      {filtered.map((para) => (
         <button
           key={para.id}
           type="button"
@@ -124,7 +163,7 @@ function ClipperQuotePreview({ quote, onClear }: { quote: string; onClear: () =>
   );
 }
 
-interface ClipperFooterProps {
+function ClipperFooter(p: {
   activeQuote: string;
   anchor: string;
   hasExitHandler: boolean;
@@ -132,9 +171,7 @@ interface ClipperFooterProps {
   onAnchor: (v: string) => void;
   onClipCheck: () => void;
   onClipExit: () => void;
-}
-
-function ClipperFooter(p: ClipperFooterProps) {
+}) {
   return (
     <div className="space-y-3">
       <ClipperQuotePreview quote={p.activeQuote} onClear={p.onClear} />
@@ -146,24 +183,12 @@ function ClipperFooter(p: ClipperFooterProps) {
           className="w-full"
         />
         <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="titanium"
-            size="sm"
-            disabled={!p.activeQuote}
-            onClick={p.onClipCheck}
-            className="shrink-0 whitespace-nowrap"
-          >
+          <Button variant="titanium" size="sm" disabled={!p.activeQuote} onClick={p.onClipCheck}>
             <IconScissors size={14} stroke={1.5} />
             <span>摘录至 Step 3 互证</span>
           </Button>
           {p.hasExitHandler ? (
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!p.activeQuote}
-              onClick={p.onClipExit}
-              className="shrink-0 whitespace-nowrap"
-            >
+            <Button variant="primary" size="sm" disabled={!p.activeQuote} onClick={p.onClipExit}>
               <IconAlertTriangle size={14} stroke={1.5} />
               <span>带入 Step 5 红线</span>
             </Button>

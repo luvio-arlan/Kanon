@@ -110,6 +110,38 @@ export function tokenizeSignals(text: string): SignalToken[] {
   });
 }
 
+export type SignalCategory = "all" | "capex" | "margin" | "demand" | "capital";
+
+export const SIGNAL_FILTER_OPTIONS: ReadonlyArray<{
+  id: SignalCategory;
+  label: string;
+  pattern: RegExp | null;
+}> = [
+  { id: "all", label: "全部段落", pattern: null },
+  { id: "capex", label: "资本开支/产能", pattern: /(CapEx|产能|扩产|资本开支|cleanroom|fab)/i },
+  { id: "margin", label: "毛利/定价", pattern: /(Margin|ASP|毛利率|定价|pricing|gross)/i },
+  {
+    id: "demand",
+    label: "订单/库存",
+    pattern: /(Guidance|Inventory|Backlog|HBM|指引|库存|订单|需求)/i,
+  },
+  {
+    id: "capital",
+    label: "现金流/回购",
+    pattern: /(FCF|Cash Flow|ROIC|Buyback|回购|现金流|分红)/i,
+  },
+];
+
+export function filterParagraphsBySignal<T extends { text: string }>(
+  items: readonly T[],
+  category: SignalCategory,
+): T[] {
+  const opt = SIGNAL_FILTER_OPTIONS.find((item) => item.id === category);
+  if (!opt?.pattern) return [...items];
+  const re = opt.pattern;
+  return items.filter((item) => re.test(item.text));
+}
+
 export function buildParagraphItems(sourceText: string, digest: EarningsDigest | null) {
   const lines = sourceText
     .split(/\n+/)

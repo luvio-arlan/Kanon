@@ -1,23 +1,14 @@
 "use client";
 
 import type { ForensicRedFlag, SecForensicReport, SecQuarterlyFinancial } from "@kanon/core";
-import { Badge } from "@kanon/ui";
+import { Badge, ReadinessRing } from "@kanon/ui";
 import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
-
-function formatCompact(value: number | null): string {
-  if (value === null) return "—";
-  const abs = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(0)}M`;
-  return `${sign}$${abs.toFixed(0)}`;
-}
-
-function formatPct(value: number | null, signed = false, suffix = "%"): string {
-  if (value === null) return "—";
-  const sign = signed && value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(1)}${suffix}`;
-}
+import {
+  buildForensicCells,
+  type ForensicCellTone,
+  formatCompact,
+  formatPct,
+} from "../lib/forensic-cells";
 
 function MetricCell({
   label,
@@ -26,7 +17,7 @@ function MetricCell({
 }: {
   label: string;
   value: string;
-  tone?: "primary" | "pass" | "warn" | "muted";
+  tone?: ForensicCellTone;
 }) {
   const toneMap = {
     pass: "text-status-pass",
@@ -84,58 +75,41 @@ function ForensicFlagList({ flags }: { flags: readonly ForensicRedFlag[] }) {
   );
 }
 
-function pickTone(
-  val: number | null,
-  cond: (n: number) => boolean,
-  hit: "pass" | "warn",
-  miss: "primary" | "warn" | "muted",
-): "primary" | "pass" | "warn" | "muted" {
-  return cond(val ?? 0) ? hit : miss;
-}
-
-function buildForensicCells(report: SecForensicReport) {
-  const shareVal =
-    report.shareChangeCagrPct !== null
-      ? `${report.shareChangeCagrPct > 0 ? "+" : ""}${report.shareChangeCagrPct.toFixed(2)}%/yr`
-      : "—";
-  return [
-    {
-      label: `投入资本回报率 (ROIC · ${report.latestFiscalYear})`,
-      value: formatPct(report.roicPct),
-      tone: pickTone(report.roicPct, (n) => n >= 18, "pass", "primary"),
-    },
-    {
-      label: "扣除 SBC 真实 FCF 转化率",
-      value: formatPct(report.ownerFcfConversionPct),
-      tone: pickTone(report.ownerFcfConversionPct, (n) => n >= 70, "pass", "warn"),
-    },
-    {
-      label: "SBC 占经营现金流比",
-      value: formatPct(report.sbcPctOfOcf),
-      tone: pickTone(report.sbcPctOfOcf, (n) => n >= 25, "warn", "primary"),
-    },
-    {
-      label: "股本年化净变动（负为净回购）",
-      value: shareVal,
-      tone: pickTone(report.shareChangeCagrPct, (n) => n <= 0, "pass", "warn"),
-    },
-    {
-      label: "净现金 / 净负债（Cash - Debt）",
-      value: formatCompact(report.netCash),
-      tone: pickTone(report.netCash, (n) => n >= 0, "pass", "muted"),
-    },
-    {
-      label: "研发投入强度 (R&D / Rev)",
-      value: formatPct(report.rdIntensityPct),
-      tone: "muted" as const,
-    },
-  ];
+function gradeBadgeTone(grade: SecForensicReport["forensicGrade"]) {
+  if (grade === "fortress" || grade === "compounder") return "pass" as const;
+  if (grade === "watch") return "warn" as const;
+  return "fail" as const;
 }
 
 export function SecForensicsView({ report }: { report: SecForensicReport }) {
   const cells = buildForensicCells(report);
   return (
     <div className="divide-y divide-hairline">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/25 px-5 py-3">
+        <div className="flex items-center gap-3">
+          <ReadinessRing
+            scorePct={report.forensicScore}
+            size={30}
+            label={`${report.forensicScore}`}
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-ink-primary">机构级法证盈利质量评级</span>
+              <Badge variant={gradeBadgeTone(report.forensicGrade)}>
+                {report.forensicGradeLabel}
+              </Badge>
+            </div>
+            <div className="mt-0.5 text-xs text-ink-muted">
+              覆盖 ROIC/ROIIC、Sloan 应计项、Owner FCF 转化与资本结构排雷
+            </div>
+          </div>
+        </div>
+        {report.rdIntensityPct !== null ? (
+          <span className="font-mono text-xs text-ink-secondary tabular-nums">
+            研发强度 {report.rdIntensityPct.toFixed(1)}%
+          </span>
+        ) : null}
+      </div>
       <div className="grid grid-cols-2 divide-x divide-y divide-hairline sm:grid-cols-3">
         {cells.map((c) => (
           <MetricCell key={c.label} label={c.label} value={c.value} tone={c.tone} />

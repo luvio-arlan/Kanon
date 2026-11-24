@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { drizzle as drizzlePglite, PgliteDatabase } from "drizzle-orm/pglite";
 import { drizzle as drizzlePostgres, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { DEFAULT_WORKSPACE_USER_ID } from "../contracts/auth-contracts";
 import { runKanonMigrations } from "./migrations";
 import * as schema from "./schema";
 import { SEED_GLOSSARY_TERMS } from "./seeds/seed-glossary";
@@ -85,7 +86,10 @@ async function backfillBuySideFilters(db: KanonDb): Promise<void> {
 }
 
 async function seedIfEmpty(db: KanonDb): Promise<void> {
-  const existingTheses = await db.select({ id: schema.thesesTable.id }).from(schema.thesesTable);
+  const existingTheses = await db
+    .select({ id: schema.thesesTable.id })
+    .from(schema.thesesTable)
+    .where(eq(schema.thesesTable.userId, DEFAULT_WORKSPACE_USER_ID));
   if (existingTheses.length === 0) {
     await insertSeedTheses(db);
   }
@@ -108,6 +112,7 @@ async function insertSeedTheses(db: KanonDb): Promise<void> {
       .insert(schema.thesesTable)
       .values({
         id: item.id,
+        userId: DEFAULT_WORKSPACE_USER_ID,
         indexOrder: item.indexOrder,
         ticker: item.ticker,
         companyName: item.companyName,

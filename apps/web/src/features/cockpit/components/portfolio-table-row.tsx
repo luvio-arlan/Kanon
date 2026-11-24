@@ -27,7 +27,7 @@ function IdentityCell({
   onToggle: () => void;
 }) {
   return (
-    <td className="px-5 py-4">
+    <td className="min-w-[220px] px-5 py-4">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -43,8 +43,8 @@ function IdentityCell({
         >
           {checked ? <IconCheck size={11} stroke={1.5} /> : null}
         </button>
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 whitespace-nowrap">
             <Link
               href={`/thesis/${thesis.id}`}
               className="text-sm font-semibold text-ink-primary hover:text-accent-coral"
@@ -57,7 +57,7 @@ function IdentityCell({
               </span>
             ) : null}
           </div>
-          <div className="mt-0.5 font-mono text-xs text-ink-muted">
+          <div className="mt-0.5 whitespace-nowrap font-mono text-xs text-ink-muted">
             {thesis.ticker} · {thesis.sectorTag}
           </div>
         </div>

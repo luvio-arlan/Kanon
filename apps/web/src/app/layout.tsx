@@ -2,6 +2,7 @@ import { THEME_INIT_SCRIPT, ThemeProvider, Toaster } from "@kanon/ui";
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
+import { RouteProgressBar } from "@/shared/components/route-progress-bar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-dvh bg-canvas text-ink-primary antialiased">
         <ThemeProvider>
+          <RouteProgressBar />
           {children}
           <Toaster />
         </ThemeProvider>

@@ -1,5 +1,6 @@
 "use client";
 
+import type { PublicUser } from "@kanon/core";
 import { Button, KANON_TRANSITION_FAST, KanonMark, useTheme } from "@kanon/ui";
 import {
   IconCpu,
@@ -11,8 +12,11 @@ import {
   IconUpload,
 } from "@tabler/icons-react";
 import { motion } from "framer-motion";
+import { AccountMenu } from "@/features/auth";
 
 export interface CockpitTopbarProps {
+  currentUser: PublicUser;
+  isDemo: boolean;
   hasByok: boolean;
   refreshingPrices: boolean;
   onRefreshPrices: () => void;
@@ -24,14 +28,14 @@ export interface CockpitTopbarProps {
 
 function BrandCluster() {
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-8 w-8 items-center justify-center rounded-control border border-hairline bg-surface shadow-card">
+    <div className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-hairline bg-surface shadow-card">
         <KanonMark size={17} />
       </span>
-      <div className="flex items-baseline gap-2.5">
+      <div className="flex items-baseline gap-2 whitespace-nowrap">
         <span className="text-sm font-semibold tracking-[0.18em] text-ink-primary">KANON</span>
-        <span aria-hidden="true" className="h-3.5 w-px bg-strong" />
-        <span className="text-sm font-medium text-ink-secondary">卡农</span>
+        <span aria-hidden="true" className="hidden h-3.5 w-px bg-strong sm:inline-block" />
+        <span className="hidden text-sm font-medium text-ink-secondary sm:inline">卡农</span>
       </div>
     </div>
   );
@@ -70,27 +74,34 @@ function SearchTriggerButton({ onOpenCommand }: { onOpenCommand: () => void }) {
     <button
       type="button"
       onClick={onOpenCommand}
-      className="group flex h-9 cursor-pointer items-center gap-3 rounded-control border border-hairline bg-surface px-3.5 text-sm text-ink-secondary shadow-card transition-all duration-150 hover:border-strong hover:text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral"
+      aria-label="搜索或打开指令面板"
+      className="group inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center gap-2.5 rounded-control border border-hairline bg-surface text-sm text-ink-secondary shadow-button transition-[transform,border-color,color,background-color] duration-150 hover:border-strong hover:bg-muted/50 hover:text-ink-primary active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral sm:w-auto sm:px-3"
     >
       <IconSearch size={15} stroke={1.5} className="text-ink-muted group-hover:text-ink-primary" />
       <span className="hidden sm:inline">搜索或指令</span>
-      <kbd className="rounded border border-hairline bg-muted px-1.5 py-0.5 font-mono text-xs text-ink-muted tabular-nums">
+      <kbd className="hidden rounded border border-hairline bg-muted/80 px-1.5 py-0.5 font-mono text-xs leading-none text-ink-muted tabular-nums sm:inline">
         ⌘K
       </kbd>
     </button>
   );
 }
 
-function TopbarActions(props: CockpitTopbarProps) {
+function UtilityActionButtons(props: {
+  hasByok: boolean;
+  refreshingPrices: boolean;
+  onRefreshPrices: () => void;
+  onOpenAiSettings: () => void;
+}) {
   return (
-    <div className="flex items-center gap-2">
-      <SearchTriggerButton onOpenCommand={props.onOpenCommand} />
+    <>
       <Button
         variant="outline"
         size="md"
         disabled={props.refreshingPrices}
         onClick={props.onRefreshPrices}
+        aria-label="校准收盘价"
         title="按需校准全仓最新收盘参考价（非实时盯盘）"
+        className="w-9 px-0 lg:w-auto lg:px-3.5"
       >
         <IconRefresh
           size={15}
@@ -101,14 +112,42 @@ function TopbarActions(props: CockpitTopbarProps) {
           {props.refreshingPrices ? "校准中..." : "校准收盘价"}
         </span>
       </Button>
-      <Button variant="outline" size="md" onClick={props.onOpenAiSettings} title="配置大模型引擎">
+      <Button
+        variant="outline"
+        size="md"
+        onClick={props.onOpenAiSettings}
+        aria-label="配置大模型引擎"
+        title="配置大模型引擎"
+        className="w-9 px-0 md:w-auto md:px-3.5"
+      >
         <span
-          className={`h-1.5 w-1.5 rounded-pill ${props.hasByok ? "bg-status-pass" : "bg-ink-muted"}`}
+          className={`hidden h-1.5 w-1.5 rounded-pill md:inline-block ${props.hasByok ? "bg-status-pass" : "bg-ink-muted"}`}
         />
         <IconCpu size={15} stroke={1.5} />
         <span className="hidden md:inline">{props.hasByok ? "BYOK" : "AI 引擎"}</span>
       </Button>
-      <Button variant="primary" size="md" onClick={props.onNewThesis}>
+    </>
+  );
+}
+
+function TopbarActions(props: CockpitTopbarProps) {
+  return (
+    <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+      <SearchTriggerButton onOpenCommand={props.onOpenCommand} />
+      <UtilityActionButtons
+        hasByok={props.hasByok}
+        refreshingPrices={props.refreshingPrices}
+        onRefreshPrices={props.onRefreshPrices}
+        onOpenAiSettings={props.onOpenAiSettings}
+      />
+      <span aria-hidden="true" className="mx-0.5 hidden h-4 w-px bg-hairline sm:inline-block" />
+      <Button
+        variant="primary"
+        size="md"
+        onClick={props.onNewThesis}
+        aria-label="新建标的"
+        className="w-9 px-0 sm:w-auto sm:px-3.5"
+      >
         <IconPlus size={15} stroke={1.5} />
         <span className="hidden sm:inline">新建标的</span>
       </Button>
@@ -118,11 +157,12 @@ function TopbarActions(props: CockpitTopbarProps) {
         onClick={props.onOpenImport}
         aria-label="导入 JSON 研究备份"
         title="导入 JSON 研究备份"
-        className="h-9 w-9"
+        className="hidden h-9 w-9 sm:inline-flex"
       >
         <IconUpload size={15} stroke={1.5} />
       </Button>
       <ThemeToggleButton />
+      <AccountMenu currentUser={props.currentUser} isDemo={props.isDemo} />
     </div>
   );
 }
@@ -130,7 +170,7 @@ function TopbarActions(props: CockpitTopbarProps) {
 export function CockpitTopbar(props: CockpitTopbarProps) {
   return (
     <header className="kanon-topbar-glass sticky top-0 z-30 border-b border-hairline">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-6 sm:px-10">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-10">
         <BrandCluster />
         <TopbarActions {...props} />
       </div>

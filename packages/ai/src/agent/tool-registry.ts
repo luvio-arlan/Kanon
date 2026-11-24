@@ -4,14 +4,19 @@ import {
   calculateImpliedExpectations,
   calculateResearchReadiness,
   calculateTrueReverseDcf,
+  type QuarterlyReview,
   type SecSnapshot,
   type ThesisDetail,
+  type ThesisRevision,
 } from "@kanon/core";
+import { runPortfolioDisciplineTool, runQuarterlyDriftTool } from "./drift-audit-tool";
 import type { AgentProposal } from "./types";
 
 export interface ResearchToolContext {
   thesis: ThesisDetail;
   secSnapshot: SecSnapshot | null;
+  reviews?: readonly QuarterlyReview[];
+  revisions?: readonly ThesisRevision[];
 }
 
 export interface ResearchToolOutput {
@@ -67,7 +72,7 @@ function runForensicsTool({ thesis, secSnapshot }: ResearchToolContext): Researc
       ? `触发 ${forensics.redFlags.length} 项法证提醒（${forensics.redFlags.map((f) => f.label).join("、")}）。`
       : "未触发核心法证排雷红灯。";
   const citation = `SEC ${secSnapshot?.cik ?? thesis.ticker} · ${quality.latestFiscalYear} 10-K/Q XBRL`;
-  const finding = `${quality.yearsCovered}年画像「${quality.qualityLabel}」：ROIC ${forensics.roicPct ?? "—"}%，Owner FCF 转化 ${forensics.ownerFcfConversionPct ?? "—"}%，SBC/OCF ${forensics.sbcPctOfOcf ?? "—"}%，CapEx 强度 ${quality.capexIntensityPct ?? "—"}%。${flagSummary}`;
+  const finding = `${quality.yearsCovered}年画像「${quality.qualityLabel}」· 法证 ${forensics.forensicScore}分(${forensics.forensicGradeLabel})：ROIC ${forensics.roicPct ?? "—"}%，ROIIC ${forensics.roiicPct ?? "—"}%，Rule of 40 ${forensics.ruleOf40Score ?? "—"}，Sloan 应计 ${forensics.sloanAccrualPct ?? "—"}%，SBC/OCF ${forensics.sbcPctOfOcf ?? "—"}%。${flagSummary}`;
   return {
     finding,
     citation,
@@ -189,31 +194,10 @@ function runSupplyChainPeerTool({ thesis }: ResearchToolContext): ResearchToolOu
   };
 }
 
-function runPortfolioDisciplineTool({ thesis }: ResearchToolContext): ResearchToolOutput {
-  const overCap = thesis.currentWeightPct > thesis.targetMaxWeightPct;
-  const hasDisc = thesis.disciplineEntries.length > 0;
-  const finding = `仓位角色「${thesis.portfolioRole}」：当前权重 ${thesis.currentWeightPct}% / 上限 ${thesis.targetMaxWeightPct}%${overCap ? "（已超个人上限！）" : ""}；已签零杠杆纪律卡 ${thesis.disciplineEntries.length} 次。`;
-  return {
-    finding,
-    citation: `${thesis.ticker} 资金配置与零杠杆交易纪律台账`,
-    proposal: !hasDisc
-      ? {
-          id: "prop-first-discipline",
-          target: "exit_rule",
-          title: "在建仓前预置首条零杠杆离场红线",
-          beforePreview: "（尚未签署交易纪律卡）",
-          content: `严守零杠杆与单票 ${thesis.targetMaxWeightPct}% 仓位上限；若核心假设 01 连续两季失守阈值，无条件减仓复盘。`,
-          rationale: "先写退出条件再投入本金，是控制永久性本金损失的底线。",
-          citation: `${thesis.ticker} Step 5 零杠杆铁律`,
-        }
-      : undefined,
-  };
-}
-
 export const RESEARCH_AGENT_TOOLS: readonly ResearchToolSpec[] = [
   {
     name: "inspect_sec_forensics",
-    label: "核验 SEC 14 项法证质量、ROIC 与 SBC 排雷",
+    label: "核验 SEC 法证评分、ROIC/ROIIC 与 SBC 排雷",
     description: "Run deterministic SEC forensic accounting & SBC/working-capital red-flag checks.",
     execute: runForensicsTool,
   },
@@ -239,6 +223,17 @@ export const RESEARCH_AGENT_TOOLS: readonly ResearchToolSpec[] = [
     name: "check_portfolio_discipline",
     label: "复核仓位上限与零杠杆交易纪律覆盖",
     description: "Verify position weight vs cap and zero-leverage discipline coverage.",
-    execute: runPortfolioDisciplineTool,
+    execute: (ctx) => runPortfolioDisciplineTool(ctx.thesis),
+  },
+  {
+    name: "audit_quarterly_drift",
+    label: "扫描季度财报复盘与估值锚点漂移轨迹",
+    description: "Audit quarterly hypothesis verdicts and cross-quarter target price drift.",
+    execute: (ctx) =>
+      runQuarterlyDriftTool({
+        thesis: ctx.thesis,
+        reviews: ctx.reviews ?? [],
+        revisions: ctx.revisions ?? [],
+      }),
   },
 ];

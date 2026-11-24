@@ -1,11 +1,15 @@
 import { ThesisArchiveImportRequestSchema } from "@kanon/core";
 import { getKanonDb, importThesisArchive } from "@kanon/core/db";
+import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
 
@@ -20,6 +24,6 @@ export async function POST(request: Request) {
   }
 
   const db = await getKanonDb();
-  const imported = await importThesisArchive(db, parsed.data);
+  const imported = await importThesisArchive(db, parsed.data, auth.user.id);
   return jsonOk(imported, startedAt, 201);
 }

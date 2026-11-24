@@ -4,6 +4,7 @@ import {
   type ThesisArchiveImportRequest,
   ThesisArchiveImportRequestSchema,
 } from "../../contracts/api-contracts";
+import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
 import type { ThesisDetail } from "../../schemas/research";
 import { type KanonDb, runInTransaction } from "../client";
 import {
@@ -75,13 +76,15 @@ async function upsertValuationFromSource(tx: KanonDb, targetId: string, source: 
 
 async function resolveTargetRow(
   tx: KanonDb,
+  userId: string,
   source: ThesisDetail,
   mode: "create_copy" | "overwrite",
   now: Date,
 ): Promise<{ targetId: string; appliedMode: "create_copy" | "overwrite" }> {
   const existingRows = await tx
     .select({ id: thesesTable.id, ticker: thesesTable.ticker, indexOrder: thesesTable.indexOrder })
-    .from(thesesTable);
+    .from(thesesTable)
+    .where(eq(thesesTable.userId, userId));
   const tickerUpper = source.ticker.trim().toUpperCase();
   const match = existingRows.find((r) => r.ticker.toUpperCase() === tickerUpper);
   const coreFields = {
@@ -108,23 +111,26 @@ async function resolveTargetRow(
   const nextOrder = existingRows.reduce((max, r) => Math.max(max, r.indexOrder), 0) + 1;
   const slug = tickerUpper.toLowerCase().replace(/[^a-z0-9]/g, "") || "ticker";
   const targetId = `thesis-${slug}-${crypto.randomUUID().slice(0, 6)}`;
-  await tx.insert(thesesTable).values({ id: targetId, indexOrder: nextOrder, ...coreFields });
+  await tx
+    .insert(thesesTable)
+    .values({ id: targetId, userId, indexOrder: nextOrder, ...coreFields });
   return { targetId, appliedMode: "create_copy" };
 }
 
 export async function importThesisArchive(
   db: KanonDb,
   rawInput: ThesisArchiveImportRequest,
+  userId: string = DEFAULT_WORKSPACE_USER_ID,
 ): Promise<{ thesis: ThesisDetail; mode: "create_copy" | "overwrite" }> {
   const parsed = ThesisArchiveImportRequestSchema.parse(rawInput);
   const source = parsed.archive.thesis;
 
   const result = await runInTransaction(db, async (tx) => {
     const now = new Date();
-    const { targetId, appliedMode } = await resolveTargetRow(tx, source, parsed.mode, now);
+    const { targetId, appliedMode } = await resolveTargetRow(tx, userId, source, parsed.mode, now);
     await replaceChildRows(tx, targetId, source);
     await upsertValuationFromSource(tx, targetId, source);
-    const hydrated = await getThesisById(tx, targetId);
+    const hydrated = await getThesisById(tx, targetId, userId);
     if (!hydrated) throw new Error("Imported thesis hydration failed");
     await recordThesisRevision(
       tx,

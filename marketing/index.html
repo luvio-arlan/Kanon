@@ -226,6 +226,31 @@
       color: var(--ink-inv);
       border-color: var(--ink);
     }
+    .nav-cta-solid {
+      font-size: 13px;
+      height: 34px;
+      padding: 0 18px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--ink-inv);
+      border: 1px solid var(--ink);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      transition: opacity 200ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .nav-cta-solid:hover { opacity: 0.88; }
+    .nav-login {
+      font-size: 13px;
+      color: var(--ink-2);
+      padding: 0 6px;
+      transition: color 200ms ease;
+    }
+    .nav-login:hover { color: var(--ink); }
+    @media (max-width: 760px) {
+      .nav-login { display: none; }
+    }
 
     /* Mobile menu trigger (hidden on desktop) + Full-Screen Swiss Drawer */
     .menu-btn {
@@ -1472,7 +1497,8 @@
             <path d="M8 2a6 6 0 0 1 0 12V2Z" fill="currentColor" />
           </svg>
         </button>
-        <button class="nav-cta" id="openAccess">申请内测</button>
+        <a class="nav-login" href="https://app.kanon.hk/login">登录</a>
+        <a class="nav-cta-solid" href="https://app.kanon.hk/register">免费注册</a>
         <button class="menu-btn" id="mobileMenuBtn" aria-label="打开导航菜单" aria-expanded="false">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" id="menuIconSvg" aria-hidden="true">
             <path d="M2.5 5.2h11M2.5 10.8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />
@@ -1492,9 +1518,13 @@
       <a class="mobile-nav-link" href="#film"><span>品牌宣传片</span><span class="m-idx num">05</span></a>
     </nav>
     <div class="mobile-drawer-foot">
-      <button class="btn-hero-primary" id="mobileAccessBtn" style="width:100%; justify-content:center;">申请私密内测</button>
-      <div class="num" style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-3);">
-        <span>kanon.hk</span>
+      <a class="btn-hero-primary" href="https://app.kanon.hk/register" style="width:100%; justify-content:center;">+86 手机号免费注册</a>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+        <a class="btn-hero-secondary" href="https://app.kanon.hk/login" style="justify-content:center;">账号登录</a>
+        <a class="btn-hero-secondary" href="https://app.kanon.hk/demo" style="justify-content:center;">免登体验</a>
+      </div>
+      <div class="num" style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-3); margin-top:14px;">
+        <span>kanon.hk · app.kanon.hk</span>
         <span>jensencuda@gmail.com</span>
       </div>
     </div>
@@ -1518,11 +1548,14 @@
         <p class="hero-cn">在噪音里，谱出自己的确定性。</p>
         <p class="hero-sub">面向深度个人价值投资者与买方投研机构的投资逻辑操作系统。</p>
         <div class="hero-actions">
-          <a href="#instrument" class="btn-hero-primary">
-            <span>体验核心工作台</span>
+          <a href="https://app.kanon.hk/register" class="btn-hero-primary">
+            <span>立即进入工作台</span>
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M8 3.2v9.6M4.2 9.2 8 13l3.8-3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3.2 8h9.6M9.2 4.2 13 8l-3.8 3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
+          </a>
+          <a href="https://app.kanon.hk/demo" class="btn-hero-secondary">
+            <span>在线免登体验</span>
           </a>
           <a href="#film" class="btn-hero-secondary" id="heroPlayJump">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -1568,7 +1601,10 @@
     <div class="wrap">
       <div class="section-head reveal">
         <h2 class="display-h2 serif">Pure <em>Precision</em>.</h2>
-        <p class="head-note">为严谨基本面研究打造的核心工作台。</p>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
+          <p class="head-note">为严谨基本面研究打造的核心工作台。</p>
+          <a href="https://app.kanon.hk/demo" class="nav-cta" style="font-size:12.5px; height:32px; padding:0 14px;">在完整工作台中亲自推演 →</a>
+        </div>
       </div>
 
       <div class="inst-bar">
@@ -1997,12 +2033,13 @@
     <div class="wrap">
       <h2 class="serif reveal">Compose your <em>own</em><br/>conviction.</h2>
       <div class="closing-cta-wrap reveal">
-        <button class="btn-hero-primary" id="closingAccess">申请私密内测</button>
-        <a href="mailto:jensencuda@gmail.com" class="btn-hero-secondary num">jensencuda@gmail.com</a>
+        <a href="https://app.kanon.hk/register" class="btn-hero-primary">免费注册个人空间</a>
+        <a href="https://app.kanon.hk/login" class="btn-hero-secondary">已有账号登录</a>
+        <button class="btn-hero-secondary" id="closingAccess">机构部署预约</button>
       </div>
 
       <div class="colophon num">
-        <span>KANON · 卡农 &nbsp;·&nbsp; <a href="https://kanon.hk" style="color:var(--ink);">kanon.hk</a> &nbsp;—&nbsp; BY CAIUS LU</span>
+        <span>KANON · 卡农 &nbsp;·&nbsp; <a href="https://kanon.hk" style="color:var(--ink);">kanon.hk</a> &nbsp;·&nbsp; <a href="https://app.kanon.hk" style="color:var(--ink);">app.kanon.hk</a> &nbsp;—&nbsp; BY CAIUS LU</span>
         <button class="mail" id="copyMailBtn" title="点击复制邮箱">jensencuda@gmail.com</button>
       </div>
     </div>
@@ -2630,10 +2667,10 @@
 
       const openM = () => { setDrawer(false); modal.classList.add("open"); };
       const closeM = () => { setDrawer(false); modal.classList.remove("open"); };
-      document.getElementById("openAccess").addEventListener("click", openM);
-      document.getElementById("closingAccess").addEventListener("click", openM);
-      document.getElementById("mobileAccessBtn").addEventListener("click", openM);
-      document.getElementById("closeModal").addEventListener("click", closeM);
+      document.getElementById("openAccess")?.addEventListener("click", openM);
+      document.getElementById("closingAccess")?.addEventListener("click", openM);
+      document.getElementById("mobileAccessBtn")?.addEventListener("click", openM);
+      document.getElementById("closeModal")?.addEventListener("click", closeM);
       modal.addEventListener("click", (e) => { if (e.target === modal) closeM(); });
       window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeM(); });
 

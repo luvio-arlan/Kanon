@@ -13,6 +13,7 @@ import {
   listQuarterlyReviews,
   listTheses,
 } from "@kanon/core/db";
+import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
@@ -51,10 +52,13 @@ async function buildSingleTickerContext(
 
 export async function GET(request: Request) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get("ticker")?.trim().toUpperCase();
   const db = await getKanonDb();
-  const theses = await listTheses(db);
+  const theses = await listTheses(db, auth.user.id);
 
   if (ticker) {
     const match = theses.find((t) => t.ticker.toUpperCase() === ticker);

@@ -1,5 +1,6 @@
 import { CreateThesisInputSchema } from "@kanon/core";
 import { createThesis, getKanonDb, listGlossaryTerms, listTheses } from "@kanon/core/db";
+import { requireWorkspaceContext } from "../_lib/auth-session";
 import {
   formatZodError,
   isUniqueConstraintError,
@@ -12,13 +13,22 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const db = await getKanonDb();
-  const [theses, glossary] = await Promise.all([listTheses(db), listGlossaryTerms(db)]);
+  const [theses, glossary] = await Promise.all([
+    listTheses(db, auth.user.id),
+    listGlossaryTerms(db),
+  ]);
   return jsonOk({ theses, glossary }, startedAt);
 }
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
 
@@ -29,7 +39,7 @@ export async function POST(request: Request) {
 
   try {
     const db = await getKanonDb();
-    const thesis = await createThesis(db, parsed.data);
+    const thesis = await createThesis(db, parsed.data, auth.user.id);
     return jsonOk({ thesis }, startedAt, 201);
   } catch (err) {
     if (isUniqueConstraintError(err)) {

@@ -97,38 +97,41 @@ function buildMoreItems(
 function TopbarMenus(props: TopbarMenuProps) {
   const { theme, toggleTheme } = useTheme();
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-1.5">
       <button
         type="button"
         onClick={props.onOpenAgent}
-        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-accent-coral/45 bg-accent-coral-soft px-2.5 text-xs font-medium text-ink-primary transition-all duration-150 hover:border-accent-coral/80 active:scale-[0.97]"
+        aria-label="打开投研 Agent"
+        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-control border border-accent-coral/40 bg-accent-coral-soft px-2.5 text-xs font-medium leading-none text-ink-primary shadow-button transition-[transform,border-color,background-color] duration-150 hover:border-accent-coral/80 active:scale-[0.975]"
       >
-        <IconSparkles size={14} stroke={1.5} className="text-accent-coral" />
+        <IconSparkles size={14} stroke={1.5} className="shrink-0 text-accent-coral" />
         <span className="hidden sm:inline">投研 Agent</span>
         <kbd className="hidden font-mono text-xs text-ink-secondary md:inline">⌘J</kbd>
       </button>
       <button
         type="button"
         onClick={props.onOpenCommand}
-        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-hairline bg-surface px-2.5 text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
+        aria-label="打开指令搜索面板"
+        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-control border border-hairline bg-surface px-2.5 text-xs leading-none text-ink-secondary shadow-button transition-[transform,border-color,color,background-color] duration-150 hover:border-strong hover:bg-muted/50 hover:text-ink-primary active:scale-[0.975]"
       >
-        <IconSearch size={14} stroke={1.5} />
-        <kbd className="font-mono text-xs text-ink-muted">⌘K</kbd>
+        <IconSearch size={14} stroke={1.5} className="shrink-0" />
+        <kbd className="hidden font-mono text-xs text-ink-muted sm:inline">⌘K</kbd>
       </button>
       <ActionMenu
         ariaLabel="导出研究档案"
         items={buildExportItems(props.thesisId)}
+        triggerClassName="shrink-0 whitespace-nowrap"
         trigger={
           <>
             <span>导出</span>
-            <IconChevronDown size={13} stroke={1.5} />
+            <IconChevronDown size={13} stroke={1.5} className="shrink-0" />
           </>
         }
       />
       <ActionMenu
         ariaLabel="更多画布设置"
         items={buildMoreItems(props, theme, toggleTheme)}
-        triggerClassName="w-8 px-0"
+        triggerClassName="h-8 w-8 shrink-0 px-0"
         trigger={<IconDots size={15} stroke={1.5} />}
       />
     </div>
@@ -161,27 +164,27 @@ function TopbarBreadcrumb({
   const router = useRouter();
   const ratio = thesis.valuation.riskRewardRatio;
   return (
-    <div className="flex min-w-0 items-center gap-2.5 text-sm">
+    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm sm:gap-2.5">
       <Link
         href="/"
-        className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted transition-colors hover:text-ink-primary"
+        className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-ink-muted transition-colors hover:text-ink-primary"
       >
         <IconArrowLeft size={14} stroke={1.5} />
         <span className="hidden sm:inline">驾驶舱</span>
       </Link>
-      <span aria-hidden="true" className="text-ink-muted/60">
+      <span aria-hidden="true" className="shrink-0 text-ink-muted/60">
         /
       </span>
       <KanonMark size={15} className="hidden shrink-0 sm:block" />
       <ActionMenu
         ariaLabel="快速切换标的"
         items={buildSwitcherItems(thesis.id, allTheses, router.push)}
-        triggerClassName="border-transparent bg-transparent px-1.5 hover:bg-muted/70"
+        triggerClassName="min-w-0 max-w-[155px] border-transparent bg-transparent px-1.5 hover:bg-muted/70 sm:max-w-none"
         trigger={
-          <span className="inline-flex items-center gap-1.5">
+          <span className="inline-flex min-w-0 items-center gap-1.5">
             <span className="truncate font-semibold text-ink-primary">{thesis.companyName}</span>
-            <span className="font-mono text-xs text-ink-muted">{thesis.ticker}</span>
-            <IconChevronDown size={13} stroke={1.5} className="text-ink-muted" />
+            <span className="shrink-0 font-mono text-xs text-ink-muted">{thesis.ticker}</span>
+            <IconChevronDown size={13} stroke={1.5} className="shrink-0 text-ink-muted" />
           </span>
         }
       />
@@ -213,7 +216,7 @@ export function CanvasTopbar(props: {
 }) {
   return (
     <header className="no-print kanon-topbar-glass sticky top-0 z-30 border-b border-hairline">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-6 sm:px-10">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-10">
         <TopbarBreadcrumb thesis={props.thesis} allTheses={props.allTheses} />
         <TopbarMenus
           thesisId={props.thesis.id}

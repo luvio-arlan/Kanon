@@ -80,9 +80,19 @@ export async function markAgentProposalApplied(
   db: KanonDb,
   runId: string,
   proposalId: string,
+  userId?: string,
 ): Promise<string[] | null> {
-  const [row] = await db.select().from(agentRunsTable).where(eq(agentRunsTable.id, runId));
+  const [row] = await db
+    .select({
+      id: agentRunsTable.id,
+      appliedProposalIds: agentRunsTable.appliedProposalIds,
+      ownerId: thesesTable.userId,
+    })
+    .from(agentRunsTable)
+    .innerJoin(thesesTable, eq(agentRunsTable.thesisId, thesesTable.id))
+    .where(eq(agentRunsTable.id, runId));
   if (!row) return null;
+  if (userId && row.ownerId !== userId) return null;
   const existing = row.appliedProposalIds ?? [];
   const next = existing.includes(proposalId) ? existing : [...existing, proposalId];
   await db
@@ -167,16 +177,17 @@ export async function createQuarterlyReview(
   db: KanonDb,
   thesisId: string,
   rawInput: CreateQuarterlyReviewInput,
+  userId?: string,
 ): Promise<{ thesis: ThesisDetail; review: QuarterlyReview } | null> {
   const parsed = CreateQuarterlyReviewSchema.parse(rawInput);
   return runInTransaction(db, async (tx) => {
-    const existing = await getThesisById(tx, thesisId);
+    const existing = await getThesisById(tx, thesisId, userId);
     if (!existing) return null;
     if (parsed.applyStatusUpdates) {
       await applyVerdictStatuses(tx, existing, parsed.hypothesisVerdicts);
     }
     const review = await insertQuarterlyReviewRow(tx, existing, parsed);
-    const updated = await getThesisById(tx, thesisId);
+    const updated = await getThesisById(tx, thesisId, userId);
     if (!updated) return null;
     await recordThesisRevision(
       tx,

@@ -4,7 +4,15 @@ import {
   ByokProviderSchema,
   streamResearchAgent,
 } from "@kanon/ai";
-import { getKanonDb, getSecSnapshot, getThesisById, saveAgentRun } from "@kanon/core/db";
+import {
+  getKanonDb,
+  getSecSnapshot,
+  getThesisById,
+  listQuarterlyReviews,
+  listThesisRevisions,
+  saveAgentRun,
+} from "@kanon/core/db";
+import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, readJsonBody } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +30,8 @@ function createAgentSseStream(params: {
   db: Awaited<ReturnType<typeof getKanonDb>>;
   thesis: NonNullable<Awaited<ReturnType<typeof getThesisById>>>;
   secSnapshot: Awaited<ReturnType<typeof getSecSnapshot>>;
+  reviews: Awaited<ReturnType<typeof listQuarterlyReviews>>;
+  revisions: Awaited<ReturnType<typeof listThesisRevisions>>;
   byok: ByokCredentials | undefined;
 }) {
   const encoder = new TextEncoder();
@@ -58,6 +68,9 @@ function createAgentSseStream(params: {
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
 
@@ -67,12 +80,23 @@ export async function POST(request: Request) {
   }
 
   const db = await getKanonDb();
-  const thesis = await getThesisById(db, parsed.data.thesisId);
+  const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
   if (!thesis) {
     return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   }
-  const secSnapshot = await getSecSnapshot(db, thesis.ticker);
-  const stream = createAgentSseStream({ db, thesis, secSnapshot, byok: parseByokHeaders(request) });
+  const [secSnapshot, reviews, revisions] = await Promise.all([
+    getSecSnapshot(db, thesis.ticker),
+    listQuarterlyReviews(db, thesis.id),
+    listThesisRevisions(db, thesis.id),
+  ]);
+  const stream = createAgentSseStream({
+    db,
+    thesis,
+    secSnapshot,
+    reviews,
+    revisions,
+    byok: parseByokHeaders(request),
+  });
 
   return new Response(stream, {
     headers: {

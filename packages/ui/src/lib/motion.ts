@@ -2,13 +2,13 @@ import type { Transition, Variants } from "framer-motion";
 
 export const KANON_SPRING = {
   type: "spring",
-  stiffness: 440,
-  damping: 36,
-  mass: 0.78,
+  stiffness: 480,
+  damping: 38,
+  mass: 0.72,
 } as const satisfies Transition;
 
 export const KANON_TRANSITION_FAST = {
-  duration: 0.16,
+  duration: 0.15,
   ease: [0.22, 1, 0.36, 1],
 } as const satisfies Transition;
 
@@ -17,19 +17,33 @@ export const KANON_STAGGER_CONTAINER: Variants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.04,
-      delayChildren: 0.015,
+      staggerChildren: 0.035,
+      delayChildren: 0.01,
     },
   },
 };
 
 export const KANON_FADE_UP_ITEM: Variants = {
-  hidden: { opacity: 0, y: 8, scale: 0.985 },
+  hidden: { opacity: 0, y: 8, scale: 0.988 },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
     transition: KANON_SPRING,
+  },
+};
+
+export const KANON_LENS_VARIANTS: Variants = {
+  enter: { opacity: 0, y: 4 },
+  center: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.15, ease: [0.22, 1, 0.36, 1] },
+  },
+  exit: {
+    opacity: 0,
+    y: -3,
+    transition: { duration: 0.1, ease: [0.22, 1, 0.36, 1] },
   },
 };
 

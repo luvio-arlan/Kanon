@@ -46,8 +46,15 @@ export function formatZodError(
 }
 
 export function isUniqueConstraintError(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const record = err as { code?: unknown; message?: unknown };
-  if (record.code === "23505") return true;
-  return typeof record.message === "string" && record.message.toLowerCase().includes("unique");
+  let current: unknown = err;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const record = current as { code?: unknown; message?: unknown; cause?: unknown };
+    if (record.code === "23505") return true;
+    if (typeof record.message === "string") {
+      const msg = record.message.toLowerCase();
+      if (msg.includes("unique") || msg.includes("duplicate key")) return true;
+    }
+    current = record.cause;
+  }
+  return false;
 }

@@ -19,7 +19,8 @@ import {
   listThesisRevisions,
   listThesisSummaries,
 } from "@kanon/core/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getServerAuthContext } from "@/app/api/_lib/auth-session";
 import { ResearchCanvasShell } from "@/features/thesis";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,10 @@ function hydrateCopilotOutputs(rows: readonly SavedCopilotOutput[]) {
 
 export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
   const { id } = await params;
+  const auth = await getServerAuthContext();
+  if (!auth.user) {
+    redirect(`/login?next=${encodeURIComponent(`/thesis/${id}`)}`);
+  }
   const db = await getKanonDb();
   const [
     thesis,
@@ -60,9 +65,9 @@ export default async function ThesisCanvasPage({ params }: ThesisPageProps) {
     latestAgentRun,
     inboundCrossChecks,
   ] = await Promise.all([
-    getThesisById(db, id),
+    getThesisById(db, id, auth.user.id),
     listGlossaryTerms(db),
-    listThesisSummaries(db),
+    listThesisSummaries(db, auth.user.id),
     listCopilotOutputs(db, id),
     listThesisRevisions(db, id),
     listQuarterlyReviews(db, id),

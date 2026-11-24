@@ -3,8 +3,10 @@ import {
   analyzeSecQuality,
   calculateImpliedExpectations,
   calculateResearchReadiness,
+  type QuarterlyReview,
   type SecSnapshot,
   type ThesisDetail,
+  type ThesisRevision,
 } from "@kanon/core";
 import { generateObject, type LanguageModel } from "ai";
 import { z } from "zod";
@@ -18,7 +20,7 @@ import {
   type AgentTraceStep,
 } from "./types";
 
-const MAX_AGENT_STEPS = 5;
+const MAX_AGENT_STEPS = 6;
 
 const IcSynthesisSchema = z.object({
   verdict: z.string().min(8),
@@ -114,9 +116,30 @@ async function resolveIcSynthesis(params: {
   };
 }
 
+function executeToolStep(
+  tool: (typeof RESEARCH_AGENT_TOOLS)[number],
+  stepIndex: number,
+  ctx: Parameters<(typeof RESEARCH_AGENT_TOOLS)[number]["execute"]>[0],
+) {
+  const started = performance.now();
+  const out = tool.execute(ctx);
+  const trace: AgentTraceStep = {
+    stepIndex,
+    toolName: tool.name,
+    label: tool.label,
+    status: "done",
+    durationMs: Math.max(1, Math.round(performance.now() - started)),
+    finding: out.finding,
+    citation: out.citation,
+  };
+  return { trace, proposal: out.proposal };
+}
+
 export async function* streamResearchAgent(params: {
   thesis: ThesisDetail;
   secSnapshot: SecSnapshot | null;
+  reviews?: readonly QuarterlyReview[];
+  revisions?: readonly ThesisRevision[];
   byok?: ByokCredentials;
 }): AsyncGenerator<AgentStreamEvent> {
   const traces: AgentTraceStep[] = [];
@@ -128,19 +151,9 @@ export async function* streamResearchAgent(params: {
     if (!tool) continue;
     const stepIndex = i + 1;
     yield { type: "trace_start", stepIndex, toolName: tool.name, label: tool.label };
-    const started = performance.now();
-    const out = tool.execute({ thesis: params.thesis, secSnapshot: params.secSnapshot });
-    const trace: AgentTraceStep = {
-      stepIndex,
-      toolName: tool.name,
-      label: tool.label,
-      status: "done",
-      durationMs: Math.max(1, Math.round(performance.now() - started)),
-      finding: out.finding,
-      citation: out.citation,
-    };
+    const { trace, proposal } = executeToolStep(tool, stepIndex, params);
     traces.push(trace);
-    if (out.proposal) proposals.push(out.proposal);
+    if (proposal) proposals.push(proposal);
     yield { type: "trace_done", trace };
   }
 

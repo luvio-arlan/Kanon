@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryKanonDb } from "../db/client";
-import { getSecSnapshot, listTheses } from "../db/repositories/thesis-queries";
+import { getSecSnapshot } from "../db/repositories/discipline-mutations";
+import { listTheses } from "../db/repositories/thesis-queries";
 import {
   calculateImpliedExpectations,
   matchProbabilityPreset,

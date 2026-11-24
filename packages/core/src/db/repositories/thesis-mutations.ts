@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import { eq } from "drizzle-orm";
+import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
 import { roundTo } from "../../math/valuation-scenarios";
 import {
   type CreateThesisInput,
@@ -81,11 +83,13 @@ function buildStarterValuation(thesisId: string, price: number, latestSecEps?: n
 
 function buildNewThesisRow(
   id: string,
+  userId: string,
   indexOrder: number,
   parsed: ReturnType<typeof CreateThesisInputSchema.parse>,
 ) {
   return {
     id,
+    userId,
     indexOrder,
     ticker: parsed.ticker,
     companyName: parsed.companyName,
@@ -115,22 +119,26 @@ function buildNewThesisRow(
 export async function createThesis(
   db: KanonDb,
   rawInput: CreateThesisInput,
+  userId: string = DEFAULT_WORKSPACE_USER_ID,
 ): Promise<ThesisDetail> {
   const parsed = CreateThesisInputSchema.parse(rawInput);
   const slug = parsed.ticker.toLowerCase().replace(/[^a-z0-9]/g, "");
   const id = `thesis-${slug}-${crypto.randomUUID().slice(0, 6)}`;
 
   return runInTransaction(db, async (tx) => {
-    const existing = await tx.select({ indexOrder: thesesTable.indexOrder }).from(thesesTable);
+    const existing = await tx
+      .select({ indexOrder: thesesTable.indexOrder })
+      .from(thesesTable)
+      .where(eq(thesesTable.userId, userId));
     const nextOrder = existing.reduce((max, row) => Math.max(max, row.indexOrder), 0) + 1;
 
-    await tx.insert(thesesTable).values(buildNewThesisRow(id, nextOrder, parsed));
+    await tx.insert(thesesTable).values(buildNewThesisRow(id, userId, nextOrder, parsed));
     await tx.insert(hypothesesTable).values(buildStarterHypotheses(id, parsed.companyName));
     await tx
       .insert(valuationScenariosTable)
       .values(buildStarterValuation(id, parsed.currentPrice, parsed.latestSecEps));
 
-    const created = await getThesisById(tx, id);
+    const created = await getThesisById(tx, id, userId);
     if (!created) {
       throw new Error(`Failed to hydrate newly created thesis "${id}".`);
     }
@@ -162,16 +170,17 @@ export async function updateThesisStep(
   db: KanonDb,
   thesisId: string,
   rawInput: UpdateThesisStepInput,
+  userId?: string,
 ): Promise<ThesisDetail | null> {
   const parsed = UpdateThesisStepSchema.parse(rawInput);
   const now = new Date();
 
   return runInTransaction(db, async (tx) => {
-    const existing = await getThesisById(tx, thesisId);
+    const existing = await getThesisById(tx, thesisId, userId);
     if (!existing) return null;
 
     const summary = await dispatchStepWrite(tx, thesisId, parsed, now);
-    const updated = await getThesisById(tx, thesisId);
+    const updated = await getThesisById(tx, thesisId, userId);
     if (updated) {
       await recordThesisRevision(tx, updated, parsed.step, summary);
     }

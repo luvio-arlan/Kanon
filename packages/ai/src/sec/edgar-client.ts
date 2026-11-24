@@ -11,7 +11,7 @@ import { extractQuarterlyHistory } from "./edgar-quarterlies";
 export { formatUsdCompact };
 
 const SEC_USER_AGENT = "KANON-Investment-Thesis-OS/1.0 (research@kanon.local)";
-const SUPPORTED_FORMS = new Set(["10-K", "10-Q", "20-F"]);
+const SUPPORTED_FORMS = new Set(["10-K", "10-Q", "20-F", "8-K", "DEF 14A"]);
 
 const KNOWN_CIK_MAP: Record<string, string> = {
   MU: "0000723125",
@@ -141,7 +141,7 @@ function extractRecentFilings(cik: string, data: SecSubmissionsResponse): SecFil
   if (!recent?.form || !recent.filingDate || !recent.accessionNumber) return [];
   const cikNumeric = String(Number(cik));
   const items: SecFilingItem[] = [];
-  for (let i = 0; i < recent.form.length && items.length < 6; i += 1) {
+  for (let i = 0; i < recent.form.length && items.length < 8; i += 1) {
     const item = buildFilingItem(cik, cikNumeric, recent, i);
     if (item) items.push(item);
   }

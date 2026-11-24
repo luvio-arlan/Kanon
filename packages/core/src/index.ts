@@ -54,6 +54,7 @@ export {
   ThesisArchiveImportResponseSchema,
   ThesisMutationResponseSchema,
 } from "./contracts/api-contracts";
+export * from "./contracts/auth-contracts";
 export {
   formatGoogleDocHtml,
   formatPortfolioCsv,
@@ -61,6 +62,11 @@ export {
   formatThesisMarkdown,
   type ThesisExportExtras,
 } from "./export/formatters";
+export {
+  calculateHurdleLadder,
+  type HurdleLadderReport,
+  type HurdleRung,
+} from "./math/hurdle-ladder";
 export {
   calculateImpliedExpectations,
   type ImpliedExpectations,
@@ -77,6 +83,12 @@ export {
   suggestKellyCappedWeight,
 } from "./math/portfolio-analytics";
 export {
+  calculatePortfolioStress,
+  type PortfolioStressReport,
+  type PortfolioStressScenario,
+  type PositionSizingRow,
+} from "./math/portfolio-stress";
+export {
   calculateResearchReadiness,
   type ResearchReadiness,
   type StepReadinessItem,
@@ -88,6 +100,7 @@ export {
 } from "./math/sec-analytics";
 export {
   analyzeSecForensics,
+  type ForensicGrade,
   type ForensicRedFlag,
   type SecForensicReport,
 } from "./math/sec-forensics";

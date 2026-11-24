@@ -6,8 +6,19 @@ import { calculateSensitivityMatrix } from "../math/sensitivity-matrix";
 import { createMemoryKanonDb, getDbHealthStats, type KanonDb } from "./client";
 import { KANON_MIGRATIONS } from "./migrations";
 import { importThesisArchive } from "./repositories/archive-importer";
+import {
+  authenticateUser,
+  getSessionUser,
+  registerUser,
+  revokeSession,
+} from "./repositories/auth-store";
 import { listCopilotOutputs, upsertCopilotOutput } from "./repositories/copilot-store";
-import { addDisciplineEntry, deleteThesis } from "./repositories/discipline-mutations";
+import {
+  addDisciplineEntry,
+  deleteThesis,
+  getSecSnapshot,
+  listGlossaryTerms,
+} from "./repositories/discipline-mutations";
 import {
   createQuarterlyReview,
   getLatestAgentRun,
@@ -18,13 +29,7 @@ import {
 } from "./repositories/review-and-agent-store";
 import { listThesisRevisions } from "./repositories/revision-queries";
 import { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
-import {
-  getSecSnapshot,
-  getThesisById,
-  listGlossaryTerms,
-  listTheses,
-  listThesisSummaries,
-} from "./repositories/thesis-queries";
+import { getThesisById, listTheses, listThesisSummaries } from "./repositories/thesis-queries";
 import * as schema from "./schema";
 
 describe("KANON PostgreSQL Repository & DDL Parity", () => {
@@ -242,5 +247,44 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     expect(imported.thesis.ticker).toBe("MU2");
     expect(imported.thesis.hypotheses.length).toBe(mu.hypotheses.length);
     await deleteThesis(db, imported.thesis.id);
+  });
+
+  it("registers +86 accounts, isolates theses across users, and manages sessions", async () => {
+    const regA = await registerUser(db, {
+      phone: "138 1111 2222",
+      displayName: "测试研究员A",
+      password: "Kanon2026!",
+      confirmPassword: "Kanon2026!",
+      seedStarterWorkspace: true,
+    });
+    expect(regA.user.phoneE164).toBe("+8613811112222");
+    const thesesA = await listTheses(db, regA.user.id);
+    expect(thesesA.map((t) => t.ticker)).toEqual(["MU", "NVDA"]);
+
+    const customA = await createThesis(
+      db,
+      { ticker: "TSM", companyName: "台积电", sectorTag: "晶圆代工", currentPrice: 195 },
+      regA.user.id,
+    );
+
+    const regB = await registerUser(db, {
+      phone: "+86 139 3333 4444",
+      password: "Kanon2026!",
+      confirmPassword: "Kanon2026!",
+      seedStarterWorkspace: false,
+    });
+    expect(await listTheses(db, regB.user.id)).toHaveLength(0);
+    expect(await getThesisById(db, customA.id, regB.user.id)).toBeNull();
+    expect(await deleteThesis(db, customA.id, regB.user.id)).toBe(false);
+
+    const authOk = await authenticateUser(db, { phone: "13811112222", password: "Kanon2026!" });
+    expect(authOk?.user.id).toBe(regA.user.id);
+    expect(
+      await authenticateUser(db, { phone: "13811112222", password: "WrongPassword1" }),
+    ).toBeNull();
+
+    expect((await getSessionUser(db, regA.sessionToken))?.id).toBe(regA.user.id);
+    await revokeSession(db, regA.sessionToken);
+    expect(await getSessionUser(db, regA.sessionToken)).toBeNull();
   });
 });

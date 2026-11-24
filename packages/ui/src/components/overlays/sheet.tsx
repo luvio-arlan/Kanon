@@ -44,12 +44,12 @@ export function Sheet({
               type="button"
               onClick={() => onOpenChange(false)}
               aria-label="关闭抽屉"
-              className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-control border border-hairline bg-surface text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
+              className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-control border border-hairline bg-surface text-ink-secondary shadow-button transition-[transform,border-color,color,background-color] duration-150 hover:border-strong hover:bg-muted/60 hover:text-ink-primary active:scale-95"
             >
               <IconX size={16} stroke={1.5} />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+          <div className="kanon-scroll-thin flex-1 overflow-y-auto px-6 py-5">{children}</div>
           {footer ? (
             <div className="shrink-0 border-t border-hairline bg-surface-elevated px-6 py-4">
               {footer}

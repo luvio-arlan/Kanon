@@ -43,7 +43,7 @@ export function SegmentedTabs<T extends string>({
             aria-selected={active}
             onClick={() => onChange(item.id)}
             className={cn(
-              "relative cursor-pointer rounded-pill px-3.5 py-1.5 text-xs font-medium transition-colors",
+              "relative inline-flex h-7 cursor-pointer items-center justify-center whitespace-nowrap rounded-pill px-3 text-xs font-medium leading-none transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
               active ? "text-ink-primary" : "text-ink-secondary hover:text-ink-primary",
             )}
           >
@@ -51,7 +51,7 @@ export function SegmentedTabs<T extends string>({
               <motion.span
                 layoutId={layoutId}
                 transition={KANON_SPRING}
-                className="absolute inset-0 rounded-pill bg-surface shadow-card"
+                className="absolute inset-0 rounded-pill border border-hairline bg-surface shadow-pill-active"
               />
             ) : null}
             <span className="relative z-10 inline-flex items-center gap-1.5">

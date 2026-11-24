@@ -76,7 +76,7 @@ export function ReadinessRing({
         radius={radius}
         circumference={circumference}
         dashOffset={circumference * (1 - clamped / 100)}
-        complete={clamped >= 100}
+        complete={clamped >= 85}
       />
       {label ? (
         <span className="font-mono text-xs text-ink-secondary tabular-nums">{label}</span>

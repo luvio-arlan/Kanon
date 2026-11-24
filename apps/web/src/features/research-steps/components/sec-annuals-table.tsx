@@ -7,25 +7,24 @@ import {
   type SecQualitySummary,
   type SecQuarterlyFinancial,
 } from "@kanon/core";
-import { Badge, Card, type SecChartDatum, SecFinancialChart, SegmentedTabs } from "@kanon/ui";
+import {
+  Badge,
+  Card,
+  KANON_LENS_VARIANTS,
+  type SecChartDatum,
+  SecFinancialChart,
+  SegmentedTabs,
+} from "@kanon/ui";
+import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
+import { formatCompact } from "../lib/forensic-cells";
 import { SecForensicsView, SecQuarterliesTable } from "./sec-forensics-views";
 
 type DisplayMode = "table" | "quarters" | "chart" | "forensics";
 
-function formatCompactMoney(value: number | null): string {
-  if (value === null) return "—";
-  const abs = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(0)}M`;
-  return `${sign}$${abs.toFixed(0)}`;
-}
-
 function formatSignedEps(value: number | null): string {
   if (value === null) return "—";
-  const sign = value < 0 ? "-" : "";
-  return `${sign}$${Math.abs(value).toFixed(2)}`;
+  return `${value < 0 ? "-" : ""}$${Math.abs(value).toFixed(2)}`;
 }
 
 function toChartData(annuals: readonly SecAnnualFinancial[]): SecChartDatum[] {
@@ -83,14 +82,12 @@ function SecAnnualRow({ row }: { row: SecAnnualFinancial }) {
   return (
     <tr className="border-t border-hairline">
       <td className="px-5 py-2.5 font-semibold text-ink-primary">{row.fiscalYear}</td>
-      <td className="px-3 py-2.5 text-right text-ink-primary">{formatCompactMoney(row.revenue)}</td>
+      <td className="px-3 py-2.5 text-right text-ink-primary">{formatCompact(row.revenue)}</td>
       <td className="px-3 py-2.5 text-right text-ink-primary">
         {row.grossMarginPct !== null ? `${row.grossMarginPct.toFixed(1)}%` : "—"}
       </td>
-      <td className={`px-3 py-2.5 text-right ${netClass}`}>{formatCompactMoney(row.netIncome)}</td>
-      <td className={`px-3 py-2.5 text-right ${fcfClass}`}>
-        {formatCompactMoney(row.freeCashFlow)}
-      </td>
+      <td className={`px-3 py-2.5 text-right ${netClass}`}>{formatCompact(row.netIncome)}</td>
+      <td className={`px-3 py-2.5 text-right ${fcfClass}`}>{formatCompact(row.freeCashFlow)}</td>
       <td className="px-5 py-2.5 text-right font-medium text-ink-primary">
         {formatSignedEps(row.dilutedEps)}
       </td>
@@ -135,10 +132,29 @@ function SecTabContent({
   chartData: SecChartDatum[];
   forensics: ReturnType<typeof analyzeSecForensics>;
 }) {
-  if (mode === "chart") return <SecFinancialChart data={chartData} />;
-  if (mode === "quarters") return <SecQuarterliesTable quarterlies={quarterlies} />;
-  if (mode === "forensics" && forensics) return <SecForensicsView report={forensics} />;
-  return <SecTableGrid annuals={annuals} />;
+  const inner =
+    mode === "chart" ? (
+      <SecFinancialChart data={chartData} />
+    ) : mode === "quarters" ? (
+      <SecQuarterliesTable quarterlies={quarterlies} />
+    ) : mode === "forensics" && forensics ? (
+      <SecForensicsView report={forensics} />
+    ) : (
+      <SecTableGrid annuals={annuals} />
+    );
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={mode}
+        variants={KANON_LENS_VARIANTS}
+        initial="enter"
+        animate="center"
+        exit="exit"
+      >
+        {inner}
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 function SecTableHeader(props: {

@@ -1,8 +1,17 @@
 "use client";
 
 import type { AgentBriefing, AgentProposal, AgentTraceStep } from "@kanon/core";
-import { Badge, Button, ReadinessRing, Sheet } from "@kanon/ui";
-import { IconCheck, IconLoader2, IconPlayerPlay, IconSparkles } from "@tabler/icons-react";
+import { Badge, Button, KANON_TRANSITION_FAST, Sheet } from "@kanon/ui";
+import {
+  IconCheck,
+  IconChecks,
+  IconLoader2,
+  IconPlayerPlay,
+  IconSparkles,
+} from "@tabler/icons-react";
+import { motion } from "framer-motion";
+import { useState } from "react";
+import { AgentBriefingCard } from "./agent-briefing-card";
 
 export interface AgentResearchSheetProps {
   open: boolean;
@@ -28,7 +37,12 @@ const TARGET_LABELS: Record<AgentProposal["target"], string> = {
 
 function TraceStepItem({ step }: { step: AgentTraceStep }) {
   return (
-    <div className="rounded-control border border-hairline bg-surface p-3.5">
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={KANON_TRANSITION_FAST}
+      className="rounded-control border border-hairline bg-surface p-3.5"
+    >
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="inline-flex items-center gap-2 font-medium text-ink-primary">
           {step.status === "running" ? (
@@ -50,50 +64,7 @@ function TraceStepItem({ step }: { step: AgentTraceStep }) {
       {step.citation ? (
         <div className="mt-1.5 font-mono text-xs text-ink-muted">溯源：{step.citation}</div>
       ) : null}
-    </div>
-  );
-}
-
-function IcBriefingSummary({ briefing }: { briefing: AgentBriefing }) {
-  return (
-    <div className="space-y-3 rounded-card border border-hairline bg-titanium-subtle p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-ink-muted">
-            <span>多角色投委会综合判定</span>
-            <Badge variant={briefing.engine === "vercel-ai-sdk" ? "pass" : "default"}>
-              {briefing.engine === "vercel-ai-sdk" ? "BYOK 模型综合" : "确定性引擎"}
-            </Badge>
-            <Badge variant="titanium">已持久化留痕</Badge>
-          </div>
-          <div className="mt-1 text-sm font-semibold text-ink-primary">{briefing.verdict}</div>
-        </div>
-        <ReadinessRing
-          scorePct={briefing.convictionScore}
-          size={34}
-          label={`${briefing.convictionScore}`}
-        />
-      </div>
-      {briefing.fallbackReason ? (
-        <div className="rounded-control bg-status-warn-soft px-3 py-1.5 text-xs text-status-warn">
-          {briefing.fallbackReason}
-        </div>
-      ) : null}
-      <div className="space-y-2 border-t border-hairline pt-3 text-xs leading-relaxed">
-        <div>
-          <span className="font-semibold text-ink-primary">多头预期差：</span>
-          <span className="text-ink-secondary">{briefing.bullSynthesis}</span>
-        </div>
-        <div>
-          <span className="font-semibold text-ink-primary">法证空头反演：</span>
-          <span className="text-ink-secondary">{briefing.bearCritique}</span>
-        </div>
-        <div>
-          <span className="font-semibold text-ink-primary">财务质量体检：</span>
-          <span className="text-ink-secondary">{briefing.accountingCheck}</span>
-        </div>
-      </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -154,8 +125,8 @@ function AgentEmptyState({ onRun }: { onRun: () => Promise<void> }) {
         启动多角色投委会深度审计 Agent
       </h3>
       <p className="mt-1.5 text-xs leading-relaxed text-ink-secondary">
-        依次调用 SEC 14 项法证排雷、Reverse-DCF 压力测试、假设盲区、产业链分歧与仓位纪律 5
-        大工具，持久化留痕并生成可对比 Diff 的人机共审提案。
+        依次调用 SEC 法证排雷、Reverse-DCF 压力测试、假设盲区、产业链分歧、仓位纪律与季度漂移 6
+        大工具，开展多角色投委会辩论并生成人机共审 Diff 提案。
       </p>
       <div className="mt-4">
         <Button variant="primary" size="md" onClick={() => void onRun()}>
@@ -163,6 +134,52 @@ function AgentEmptyState({ onRun }: { onRun: () => Promise<void> }) {
           <span>开始多步深度审计</span>
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ProposalsSection({
+  proposals,
+  appliedIds,
+  onApply,
+}: {
+  proposals: readonly AgentProposal[];
+  appliedIds: readonly string[];
+  onApply: (proposal: AgentProposal) => Promise<void>;
+}) {
+  const [batching, setBatching] = useState(false);
+  const pending = proposals.filter((p) => !appliedIds.includes(p.id));
+  const applyAll = async () => {
+    setBatching(true);
+    try {
+      for (const prop of pending) {
+        await onApply(prop);
+      }
+    } finally {
+      setBatching(false);
+    }
+  };
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold text-ink-muted">
+          人机共审 Diff 提案（HITL · 采纳后实时回写）
+        </div>
+        {pending.length >= 2 ? (
+          <Button variant="titanium" size="sm" loading={batching} onClick={() => void applyAll()}>
+            {!batching ? <IconChecks size={13} stroke={1.5} /> : null}
+            <span>一键采纳全部 ({pending.length})</span>
+          </Button>
+        ) : null}
+      </div>
+      {proposals.map((prop) => (
+        <ProposalCard
+          key={prop.id}
+          proposal={prop}
+          applied={appliedIds.includes(prop.id)}
+          onApply={() => onApply(prop)}
+        />
+      ))}
     </div>
   );
 }
@@ -175,27 +192,19 @@ function SheetBody(props: AgentResearchSheetProps) {
     <div className="space-y-5">
       <div className="space-y-2.5">
         <div className="text-xs font-semibold text-ink-muted">
-          实时工具调用轨迹（SSE Live Trace）
+          实时工具调用轨迹（6-Tool SSE Live Trace）
         </div>
         {props.traces.map((step) => (
           <TraceStepItem key={step.stepIndex} step={step} />
         ))}
       </div>
-      {props.briefing ? <IcBriefingSummary briefing={props.briefing} /> : null}
+      {props.briefing ? <AgentBriefingCard briefing={props.briefing} /> : null}
       {props.briefing && props.briefing.proposals.length > 0 ? (
-        <div className="space-y-2.5">
-          <div className="text-xs font-semibold text-ink-muted">
-            人机共审 Diff 提案（HITL · 采纳后实时回写并持久记录）
-          </div>
-          {props.briefing.proposals.map((prop) => (
-            <ProposalCard
-              key={prop.id}
-              proposal={prop}
-              applied={props.appliedIds.includes(prop.id)}
-              onApply={() => props.onApplyProposal(prop)}
-            />
-          ))}
-        </div>
+        <ProposalsSection
+          proposals={props.briefing.proposals}
+          appliedIds={props.appliedIds}
+          onApply={props.onApplyProposal}
+        />
       ) : null}
     </div>
   );
@@ -207,7 +216,7 @@ export function AgentResearchSheet(props: AgentResearchSheetProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       title={`投委会 Agent · ${props.companyName} (${props.ticker})`}
-      subtitle="证据优先 · 5 工具轨迹 · 多角色辩论 · 人机共审 Diff 写入"
+      subtitle="证据优先 · 6 工具轨迹 · 四角色投委会辩论 · 人机共审 Diff 写入"
       footer={
         <div className="flex items-center justify-between gap-2">
           {props.traces.length > 0 || props.running ? (

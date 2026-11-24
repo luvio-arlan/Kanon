@@ -8,6 +8,7 @@ import {
 import { cn, KANON_SPRING, ReadinessRing, RollingNumber } from "@kanon/ui";
 import { IconCheck } from "@tabler/icons-react";
 import { motion } from "framer-motion";
+import { useMemo } from "react";
 
 export type StepId = 1 | 2 | 3 | 4 | 5;
 
@@ -43,7 +44,7 @@ function StepRailItem({
         <motion.span
           layoutId="canvas-step-rail-bg"
           transition={KANON_SPRING}
-          className="absolute inset-0 rounded-control bg-muted/75"
+          className="absolute inset-0 rounded-control border border-hairline bg-surface shadow-pill-active"
         />
       ) : null}
       {active ? (
@@ -68,7 +69,7 @@ function StepRailItem({
 
 function PeripheralAnchorSummary({ thesis }: { thesis: ThesisDetail }) {
   const { valuation } = thesis;
-  const exp = calculateImpliedExpectations({ summary: valuation });
+  const exp = useMemo(() => calculateImpliedExpectations({ summary: valuation }), [valuation]);
   return (
     <div className="rounded-control border border-hairline bg-surface/80 p-3.5 font-mono text-xs tabular-nums">
       <div className="flex items-center justify-between text-ink-muted">
@@ -112,18 +113,29 @@ export function StepRail({
   thesis: ThesisDetail;
   onSelect: (step: StepId) => void;
 }) {
-  const readiness = calculateResearchReadiness(thesis);
+  const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
 
   return (
     <aside className="no-print space-y-5 lg:sticky lg:top-20 lg:self-start">
-      <div className="flex items-center justify-between px-3">
-        <div>
-          <div className="text-xs font-medium text-ink-secondary">研究成熟度</div>
-          <div className="mt-0.5 font-mono text-xs text-ink-muted tabular-nums">
-            已完成 {readiness.completedCount}/5 步
+      <div className="space-y-2.5 px-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-medium text-ink-secondary">研究成熟度</div>
+            <div className="mt-0.5 font-mono text-xs text-ink-muted tabular-nums">
+              已完成 {readiness.completedCount}/5 步
+            </div>
           </div>
+          <ReadinessRing scorePct={readiness.scorePct} size={28} />
         </div>
-        <ReadinessRing scorePct={readiness.scorePct} size={28} />
+        <div className="h-1 w-full overflow-hidden rounded-pill bg-muted">
+          <div
+            className={cn(
+              "h-full rounded-pill transition-[width] duration-300",
+              readiness.scorePct >= 100 ? "bg-status-pass" : "bg-accent-coral",
+            )}
+            style={{ width: `${readiness.scorePct}%` }}
+          />
+        </div>
       </div>
       <nav aria-label="五步研究进度" className="space-y-0.5">
         {STEPS.map((step, idx) => (

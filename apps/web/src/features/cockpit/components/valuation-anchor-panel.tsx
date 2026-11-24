@@ -84,8 +84,8 @@ function TargetHeadline({
       ? `赔率 ${valuation.riskRewardRatio.toFixed(2)}×`
       : "无下行保底";
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 whitespace-nowrap text-xs text-ink-muted">
         <span>{valuation.horizonYears} 年中性目标价</span>
         <span aria-hidden="true">·</span>
         <span className="font-mono tabular-nums">CAGR {valuation.base.cagrPct.toFixed(1)}%</span>
@@ -98,9 +98,9 @@ function TargetHeadline({
           value={valuation.base.targetPrice}
           prefix="$"
           decimals={1}
-          className="text-[36px] font-semibold leading-none tracking-[-0.03em] text-ink-primary"
+          className="text-[32px] font-semibold leading-none tracking-[-0.03em] text-ink-primary sm:text-[36px]"
         />
-        <Badge variant={badgeVariant} className="font-mono tabular-nums">
+        <Badge variant={badgeVariant} className="whitespace-nowrap font-mono tabular-nums">
           <RollingNumber
             value={valuation.upsidePct}
             suffix="%"
@@ -120,14 +120,14 @@ export function ValuationAnchorPanel({ valuation, priceHistory }: ValuationAncho
   const expectations = calculateImpliedExpectations({ summary: valuation });
 
   return (
-    <div className="px-7 pb-6">
-      <div className="flex items-end justify-between gap-4">
+    <div className="px-5 pb-6 sm:px-7">
+      <div className="flex items-end justify-between gap-3 sm:gap-4">
         <TargetHeadline
           valuation={valuation}
           badgeVariant={zone.badgeVariant}
           belowHurdle={expectations.isBelowHurdle15}
         />
-        <div className="w-32 shrink-0 sm:w-40">
+        <div className="hidden w-32 shrink-0 sm:block sm:w-40">
           <ValuationSparkline
             data={[...priceHistory]}
             tone={zone.sparkTone}

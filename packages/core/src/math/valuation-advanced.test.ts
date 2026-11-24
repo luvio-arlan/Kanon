@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { calculateHurdleLadder } from "./hurdle-ladder";
+import { calculatePortfolioStress } from "./portfolio-stress";
 import { analyzeSecForensics } from "./sec-forensics";
 import {
   calculateEvOwnerFcfValuation,
@@ -6,7 +8,7 @@ import {
   calculateTrueReverseDcf,
   calculateTsrDecomposition,
 } from "./valuation-advanced";
-import { checkScenarioMonotonicity } from "./valuation-scenarios";
+import { calculateValuationScenarios, checkScenarioMonotonicity } from "./valuation-scenarios";
 
 describe("KANON v4 Advanced Financial Math & Forensics Golden Suite", () => {
   it("computes Top-Down EPS with revenue compounding, margin, and share buybacks", () => {
@@ -128,6 +130,35 @@ describe("KANON v4 Advanced Financial Math & Forensics Golden Suite", () => {
     expect(report?.redFlags.map((f) => f.id)).toContain("negative-owner-fcf");
     expect(report?.redFlags.map((f) => f.id)).toContain("share-dilution");
     expect(report?.redFlags.map((f) => f.id)).toContain("wc-存货");
+    expect(report?.roiicPct).not.toBeNull();
+    expect(report?.sloanAccrualPct).not.toBeNull();
+    expect(report?.ruleOf40Score).not.toBeNull();
+    expect(report?.forensicScore).toBeLessThan(65);
+    expect(["watch", "caution"]).toContain(report?.forensicGrade);
+  });
+
+  it("computes IRR hurdle ladder and Kelly breakeven win rate", () => {
+    const summary = calculateValuationScenarios({
+      currentPrice: 100,
+      horizonYears: 3,
+      bear: { eps: 5, peMultiple: 14 },
+      base: { eps: 8, peMultiple: 20 },
+      bull: { eps: 10, peMultiple: 24 },
+    });
+    const ladder = calculateHurdleLadder(summary);
+    expect(ladder.rungs).toHaveLength(4);
+    expect(ladder.rungs[0]?.met).toBe(true);
+    expect(ladder.rungs[1]?.met).toBe(true);
+    expect(ladder.rungs[2]?.met).toBe(false);
+    expect(ladder.kellyBreakevenWinRatePct).toBeCloseTo(33.3, 1);
+    expect(ladder.expectedValueReturnPct).toBe(57.5);
+  });
+
+  it("computes 4-regime portfolio stress scenarios and HHI concentration", () => {
+    const stress = calculatePortfolioStress([]);
+    expect(stress.allocatedWeightPct).toBe(0);
+    expect(stress.cashBufferPct).toBe(100);
+    expect(stress.scenarios).toHaveLength(4);
   });
 
   it("checks scenario monotonicity cleanly", () => {

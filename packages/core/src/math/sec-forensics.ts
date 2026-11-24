@@ -1,5 +1,15 @@
 import type { SecAnnualFinancial, SecQuarterlyFinancial } from "../schemas/research";
+import {
+  computeIncrementalRoic,
+  computeOcfToNetIncome,
+  computeRuleOf40,
+  computeSloanAccrualPct,
+  type ForensicGrade,
+  scoreForensicQuality,
+} from "./sec-forensics-metrics";
 import { roundTo } from "./valuation-scenarios";
+
+export type { ForensicGrade };
 
 export interface ForensicRedFlag {
   id: string;
@@ -23,6 +33,13 @@ export interface SecForensicReport {
   latestQuarterLabel: string | null;
   latestQuarterRevYoYPct: number | null;
   latestQuarterGmYoYBps: number | null;
+  roiicPct: number | null;
+  sloanAccrualPct: number | null;
+  ruleOf40Score: number | null;
+  ocfToNetIncomePct: number | null;
+  forensicScore: number;
+  forensicGrade: ForensicGrade;
+  forensicGradeLabel: string;
   redFlags: ForensicRedFlag[];
 }
 
@@ -100,7 +117,7 @@ function checkWorkingCapitalFlag(
   );
 }
 
-function detectForensicFlags(params: {
+function buildRedFlags(params: {
   annuals: readonly SecAnnualFinancial[];
   latest: SecAnnualFinancial;
   ownerFcf: number | null;
@@ -108,6 +125,7 @@ function detectForensicFlags(params: {
   shareChangeCagrPct: number | null;
   debtToEquityPct: number | null;
   netCash: number | null;
+  sloanAccrualPct: number | null;
 }): ForensicRedFlag[] {
   const flags: ForensicRedFlag[] = [];
   if ((params.sbcPctOfOcf ?? 0) >= 25) {
@@ -147,6 +165,19 @@ function detectForensicFlags(params: {
   return flags;
 }
 
+function detectForensicFlags(params: Parameters<typeof buildRedFlags>[0]): ForensicRedFlag[] {
+  const flags = buildRedFlags(params);
+  if ((params.sloanAccrualPct ?? 0) >= 10) {
+    flags.push({
+      id: "accrual-anomaly",
+      severity: "warn",
+      label: "Sloan 应计项占比偏高",
+      detail: `净利与经营现金流差额占营收 ${params.sloanAccrualPct}%，盈利现金含金量偏弱，建议核查收入确认政策。`,
+    });
+  }
+  return flags;
+}
+
 export function analyzeSecForensics(
   annuals: readonly SecAnnualFinancial[],
   quarterlies: readonly SecQuarterlyFinancial[] = [],
@@ -156,6 +187,10 @@ export function analyzeSecForensics(
   const ret = computeReturnMetrics(latest);
   const sbc = computeSbcAndShares(annuals, latest);
   const latestQ = quarterlies[quarterlies.length - 1];
+  const roiicPct = computeIncrementalRoic(annuals);
+  const sloanAccrualPct = computeSloanAccrualPct(latest);
+  const ruleOf40Score = computeRuleOf40(annuals);
+  const ocfToNetIncomePct = computeOcfToNetIncome(latest);
   const redFlags = detectForensicFlags({
     annuals,
     latest,
@@ -164,6 +199,16 @@ export function analyzeSecForensics(
     shareChangeCagrPct: sbc.shareChangeCagrPct,
     debtToEquityPct: ret.debtToEquityPct,
     netCash: ret.netCash,
+    sloanAccrualPct,
+  });
+  const failCount = redFlags.filter((f) => f.severity === "fail").length;
+  const scored = scoreForensicQuality({
+    roicPct: ret.roicPct,
+    ownerFcfConversionPct: sbc.ownerFcfConversionPct,
+    sloanAccrualPct,
+    netCash: ret.netCash,
+    redFlagCount: redFlags.length,
+    failFlagCount: failCount,
   });
 
   return {
@@ -173,6 +218,13 @@ export function analyzeSecForensics(
     latestQuarterLabel: latestQ?.periodLabel ?? null,
     latestQuarterRevYoYPct: latestQ?.revenueYoYPct ?? null,
     latestQuarterGmYoYBps: latestQ?.grossMarginYoYBps ?? null,
+    roiicPct,
+    sloanAccrualPct,
+    ruleOf40Score,
+    ocfToNetIncomePct,
+    forensicScore: scored.score,
+    forensicGrade: scored.grade,
+    forensicGradeLabel: scored.label,
     redFlags,
   };
 }

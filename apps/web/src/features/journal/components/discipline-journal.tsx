@@ -8,7 +8,7 @@ import type {
   ThesisDetail,
   ThesisRevision,
 } from "@kanon/core";
-import { Button, KANON_TRANSITION_FAST, SegmentedTabs } from "@kanon/ui";
+import { Button, KANON_LENS_VARIANTS, KANON_TRANSITION_FAST, SegmentedTabs } from "@kanon/ui";
 import { IconPlus } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
@@ -116,6 +116,28 @@ function Step5TabContent(
   return <LedgerPanel {...props} />;
 }
 
+function Step5AnimatedTab(
+  props: DisciplineJournalProps & {
+    tab: Step5Tab;
+    composerOpen: boolean;
+    onCloseComposer: () => void;
+  },
+) {
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={props.tab}
+        variants={KANON_LENS_VARIANTS}
+        initial="enter"
+        animate="center"
+        exit="exit"
+      >
+        <Step5TabContent {...props} />
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export function DisciplineJournal(props: DisciplineJournalProps) {
   const [tab, setTab] = useState<Step5Tab>("ledger");
   const [composerOpen, setComposerOpen] = useState(
@@ -148,7 +170,7 @@ export function DisciplineJournal(props: DisciplineJournalProps) {
           </Button>
         ) : null}
       </div>
-      <Step5TabContent
+      <Step5AnimatedTab
         {...props}
         tab={tab}
         composerOpen={composerOpen}

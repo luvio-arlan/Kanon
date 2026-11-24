@@ -10,6 +10,7 @@ import {
 } from "@kanon/core";
 import { Badge, Card, cn, RollingNumber } from "@kanon/ui";
 import { useState } from "react";
+import { HurdleLadderCard } from "./hurdle-ladder-card";
 
 const HURDLE_OPTIONS = [12, 15, 20] as const;
 const TERMINAL_MULTIPLES = [15, 20, 25, 30] as const;
@@ -225,15 +226,18 @@ export function ValuationReverseDcfPanel({
 }) {
   const quality = analyzeSecQuality(annuals);
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <ReverseDcfCard
-        currentPrice={summary.currentPrice}
-        horizonYears={summary.horizonYears}
-        trailingEps={trailingEps}
-        historicalCagrPct={quality?.revenueCagrPct ?? null}
-        defaultMultiple={summary.base.peMultiple}
-      />
-      <TsrDecompositionCard summary={summary} trailingEps={trailingEps} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ReverseDcfCard
+          currentPrice={summary.currentPrice}
+          horizonYears={summary.horizonYears}
+          trailingEps={trailingEps}
+          historicalCagrPct={quality?.revenueCagrPct ?? null}
+          defaultMultiple={summary.base.peMultiple}
+        />
+        <TsrDecompositionCard summary={summary} trailingEps={trailingEps} />
+      </div>
+      <HurdleLadderCard summary={summary} />
     </div>
   );
 }

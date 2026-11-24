@@ -1,13 +1,23 @@
 "use client";
 
-import { calculatePortfolioAnalytics, type GlossaryTerm, type ThesisDetail } from "@kanon/core";
-import { CommandMenu, KANON_STAGGER_CONTAINER } from "@kanon/ui";
-import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import {
+  calculatePortfolioAnalytics,
+  type GlossaryTerm,
+  type PublicUser,
+  type ThesisDetail,
+} from "@kanon/core";
+import { CommandMenu, KANON_LENS_VARIANTS, KANON_STAGGER_CONTAINER } from "@kanon/ui";
+import { AnimatePresence, motion } from "framer-motion";
+import { useMemo } from "react";
 import { AiSettingsModal, readByokConfig } from "@/features/ai-settings";
-import { AttentionRadarStrip, CompareThesesSheet, ImportArchiveModal } from "@/features/portfolio";
-import { apiRefreshClosingPrices } from "../lib/cockpit-api";
+import {
+  AttentionRadarStrip,
+  CompareThesesSheet,
+  ImportArchiveModal,
+  PortfolioStressSheet,
+} from "@/features/portfolio";
 import { useCockpitState } from "../lib/cockpit-state";
+import { usePortfolioOverlayState } from "../lib/use-portfolio-overlays";
 import { CockpitHeader, type CockpitViewMode } from "./cockpit-header";
 import { CockpitTopbar } from "./cockpit-topbar";
 import { DisciplineFooterStrip } from "./discipline-footer-strip";
@@ -19,46 +29,24 @@ import { ThesisPreviewSheet } from "./thesis-preview-sheet";
 export interface CockpitShellProps {
   initialTheses: ThesisDetail[];
   glossary: readonly GlossaryTerm[];
+  currentUser: PublicUser;
+  isDemo: boolean;
 }
 
-function ThesisCollectionView({
+function CardsGrid({
   theses,
-  viewMode,
-  compareIds,
-  onToggleCompare,
-  onOpenCompare,
   onQuickInspect,
 }: {
   theses: readonly ThesisDetail[];
-  viewMode: CockpitViewMode;
-  compareIds: readonly string[];
-  onToggleCompare: (id: string) => void;
-  onOpenCompare: () => void;
   onQuickInspect: (thesis: ThesisDetail) => void;
 }) {
-  if (theses.length === 0) {
-    return (
-      <div className="rounded-card border border-hairline bg-surface p-14 text-center shadow-card">
-        <p className="text-sm text-ink-secondary">当前筛选条件下暂无标的，按 N 或 ⌘K 随时新建。</p>
-      </div>
-    );
-  }
-  if (viewMode === "table") {
-    return (
-      <PortfolioComparisonTable
-        theses={theses}
-        selectedIds={compareIds}
-        onToggleCompare={onToggleCompare}
-        onOpenCompare={onOpenCompare}
-        onQuickInspect={onQuickInspect}
-      />
-    );
-  }
   return (
     <motion.section
+      key="cards-view"
       variants={KANON_STAGGER_CONTAINER}
       initial="hidden"
       animate="visible"
+      exit={{ opacity: 0, transition: { duration: 0.1 } }}
       aria-label="跟踪标的列表"
       className="grid grid-cols-1 items-start gap-7 lg:grid-cols-2"
     >
@@ -69,53 +57,44 @@ function ThesisCollectionView({
   );
 }
 
-function usePortfolioOverlayState(ui: ReturnType<typeof useCockpitState>) {
-  const [refreshingPrices, setRefreshingPrices] = useState(false);
-  const [compareIds, setCompareIds] = useState<string[]>([]);
-  const [compareOpen, setCompareOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const compareTheses = useMemo(
-    () => ui.theses.filter((t) => compareIds.includes(t.id)),
-    [ui.theses, compareIds],
+function ThesisCollectionView(props: {
+  theses: readonly ThesisDetail[];
+  viewMode: CockpitViewMode;
+  compareIds: readonly string[];
+  onToggleCompare: (id: string) => void;
+  onOpenCompare: () => void;
+  onQuickInspect: (thesis: ThesisDetail) => void;
+}) {
+  if (props.theses.length === 0) {
+    return (
+      <div className="rounded-card border border-hairline bg-surface p-14 text-center shadow-card">
+        <p className="text-sm text-ink-secondary">当前筛选条件下暂无标的，按 N 或 ⌘K 随时新建。</p>
+      </div>
+    );
+  }
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      {props.viewMode === "table" ? (
+        <motion.div
+          key="table-view"
+          variants={KANON_LENS_VARIANTS}
+          initial="enter"
+          animate="center"
+          exit="exit"
+        >
+          <PortfolioComparisonTable
+            theses={props.theses}
+            selectedIds={props.compareIds}
+            onToggleCompare={props.onToggleCompare}
+            onOpenCompare={props.onOpenCompare}
+            onQuickInspect={props.onQuickInspect}
+          />
+        </motion.div>
+      ) : (
+        <CardsGrid theses={props.theses} onQuickInspect={props.onQuickInspect} />
+      )}
+    </AnimatePresence>
   );
-  const toggleCompare = (id: string) =>
-    setCompareIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 3 ? [...prev, id] : prev,
-    );
-  const refreshPrices = async () => {
-    setRefreshingPrices(true);
-    try {
-      const updated = await apiRefreshClosingPrices();
-      if (updated) ui.setTheses(updated);
-    } finally {
-      setRefreshingPrices(false);
-    }
-  };
-  const onCreated = (created: ThesisDetail) => {
-    ui.setTheses((p) => [...p, created]);
-    ui.router.push(`/thesis/${created.id}`);
-  };
-  const onImported = (imp: ThesisDetail, mode: "create_copy" | "overwrite") =>
-    ui.setTheses((p) =>
-      mode === "overwrite" ? p.map((t) => (t.id === imp.id ? imp : t)) : [...p, imp],
-    );
-  return {
-    refreshingPrices,
-    compareIds,
-    compareOpen,
-    setCompareOpen,
-    compareTheses,
-    toggleCompare,
-    clearCompare: () => {
-      setCompareIds([]);
-      setCompareOpen(false);
-    },
-    importOpen,
-    setImportOpen,
-    refreshPrices,
-    onCreated,
-    onImported,
-  };
 }
 
 function CockpitOverlays({
@@ -158,6 +137,12 @@ function CockpitOverlays({
         onOpenChange={ext.setImportOpen}
         onImported={ext.onImported}
       />
+      <PortfolioStressSheet
+        open={ext.stressOpen}
+        theses={ui.theses}
+        onOpenChange={ext.setStressOpen}
+        onInspectThesis={ui.setPreviewThesis}
+      />
     </>
   );
 }
@@ -185,7 +170,7 @@ function CockpitMainBody({
         onSortChange={ui.setSortBy}
         onQueryChange={ui.setQuery}
       />
-      <div className="-mt-4 mb-6">
+      <div className="mb-6">
         <AttentionRadarStrip
           analytics={analytics}
           onFocusBuyZone={() => {
@@ -193,6 +178,7 @@ function CockpitMainBody({
             ui.setSortBy("margin");
           }}
           onFocusWarnings={() => ui.setFilter("attention")}
+          onOpenStressTest={() => ext.setStressOpen(true)}
         />
       </div>
       <ThesisCollectionView
@@ -208,7 +194,7 @@ function CockpitMainBody({
   );
 }
 
-export function CockpitShell({ initialTheses, glossary }: CockpitShellProps) {
+export function CockpitShell({ initialTheses, glossary, currentUser, isDemo }: CockpitShellProps) {
   const ui = useCockpitState(initialTheses, glossary);
   const ext = usePortfolioOverlayState(ui);
   const analytics = useMemo(() => calculatePortfolioAnalytics(ui.theses), [ui.theses]);
@@ -216,6 +202,8 @@ export function CockpitShell({ initialTheses, glossary }: CockpitShellProps) {
   return (
     <div className="kanon-ambient-canvas min-h-dvh">
       <CockpitTopbar
+        currentUser={currentUser}
+        isDemo={isDemo}
         hasByok={ui.hasByok}
         refreshingPrices={ext.refreshingPrices}
         onRefreshPrices={() => void ext.refreshPrices()}
