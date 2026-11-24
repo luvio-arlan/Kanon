@@ -22,11 +22,20 @@ export {
 } from "./components/agent/agent-thinking";
 export { ComposerLoader, type ComposerLoaderProps } from "./components/agent/composer-loader";
 export {
+  MarketSessionBadge,
+  type MarketSessionBadgeProps,
+  type MarketSessionKind,
+} from "./components/data-display/market-session-badge";
+export {
   ProgressBar,
   type ProgressBarProps,
   type ProgressSize,
   type ProgressTone,
 } from "./components/data-display/progress-bar";
+export {
+  RangePositionBar,
+  type RangePositionBarProps,
+} from "./components/data-display/range-position-bar";
 export { ReadinessRing, type ReadinessRingProps } from "./components/data-display/readiness-ring";
 export { RollingNumber, type RollingNumberProps } from "./components/data-display/rolling-number";
 export {

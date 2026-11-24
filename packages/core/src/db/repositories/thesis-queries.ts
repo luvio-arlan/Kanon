@@ -5,6 +5,7 @@ import type {
   BusinessFilter,
   CrossCheck,
   DisciplineEntry,
+  ThesisCatalyst,
   ThesisDetail,
   ThesisSummary,
 } from "../../schemas/research";
@@ -15,11 +16,13 @@ import {
   disciplineEntriesTable,
   hypothesesTable,
   thesesTable,
+  thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
 
 type ThesisRow = typeof thesesTable.$inferSelect;
 type HypothesisRow = typeof hypothesesTable.$inferSelect;
+type CatalystRow = typeof thesisCatalystsTable.$inferSelect;
 type CrossCheckRow = typeof crossChecksTable.$inferSelect;
 type ValuationRow = typeof valuationScenariosTable.$inferSelect;
 type DisciplineRow = typeof disciplineEntriesTable.$inferSelect;
@@ -36,39 +39,38 @@ function normalizeFilter(raw: BusinessFilter): BusinessFilter {
 
 function normalizeHypotheses(rows: HypothesisRow[]): Hypothesis[] {
   const sorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
-  const fallback = (idx: number): Hypothesis => ({
-    id: `placeholder-h-${idx}`,
-    title: "待补充核心可证伪假设",
-    metricLabel: "核心观测指标",
-    threshold: "待设定红线",
-    status: "watching",
-    note: "请在 Step 2 补充量化观测口径与证伪条件。",
-  });
   const result = sorted.slice(0, 5).map(({ thesisId: _, sortOrder: __, ...rest }) => rest);
   while (result.length < 3) {
-    result.push(fallback(result.length + 1));
+    result.push({
+      id: `placeholder-h-${result.length + 1}`,
+      title: "待补充核心可证伪假设",
+      metricLabel: "核心观测指标",
+      threshold: "待设定红线",
+      status: "watching",
+      note: "请在 Step 2 补充量化观测口径与证伪条件。",
+    });
   }
   return result;
 }
 
-export function buildValuationInput(row: ThesisRow, valuationRow: ValuationRow | undefined) {
+export function buildValuationInput(row: ThesisRow, val: ValuationRow | undefined) {
   return {
     currentPrice: row.currentPrice,
     horizonYears: row.horizonYears,
     bear: {
-      eps: valuationRow?.bearEps ?? 1,
-      peMultiple: valuationRow?.bearPe ?? 15,
-      probability: valuationRow?.bearProb ?? 0.25,
+      eps: val?.bearEps ?? 1,
+      peMultiple: val?.bearPe ?? 15,
+      probability: val?.bearProb ?? 0.25,
     },
     base: {
-      eps: valuationRow?.baseEps ?? 2,
-      peMultiple: valuationRow?.basePe ?? 20,
-      probability: valuationRow?.baseProb ?? 0.5,
+      eps: val?.baseEps ?? 2,
+      peMultiple: val?.basePe ?? 20,
+      probability: val?.baseProb ?? 0.5,
     },
     bull: {
-      eps: valuationRow?.bullEps ?? 3,
-      peMultiple: valuationRow?.bullPe ?? 25,
-      probability: valuationRow?.bullProb ?? 0.25,
+      eps: val?.bullEps ?? 3,
+      peMultiple: val?.bullPe ?? 25,
+      probability: val?.bullProb ?? 0.25,
     },
   };
 }
@@ -86,18 +88,13 @@ function groupByThesisId<T extends { thesisId: string }>(rows: readonly T[]): Ma
 export function hydrateThesis(params: {
   row: ThesisRow;
   hypotheses: HypothesisRow[];
+  catalysts?: CatalystRow[];
   crossChecks: CrossCheckRow[];
   valuationRow: ValuationRow | undefined;
   disciplineRows: DisciplineRow[];
 }): ThesisDetail {
-  const { row, hypotheses, crossChecks, valuationRow, disciplineRows } = params;
+  const { row, hypotheses, catalysts = [], crossChecks, valuationRow, disciplineRows } = params;
   const valInput = buildValuationInput(row, valuationRow);
-  const formattedChecks: CrossCheck[] = crossChecks.map(
-    ({ thesisId: _, createdAt: __, ...rest }) => rest,
-  );
-  const formattedDiscipline: DisciplineEntry[] = disciplineRows.map(
-    ({ thesisId: _, createdAt, ...rest }) => ({ ...rest, createdAt: createdAt.toISOString() }),
-  );
   return {
     id: row.id,
     indexLabel: String(row.indexOrder).padStart(2, "0"),
@@ -116,7 +113,8 @@ export function hydrateThesis(params: {
     status: row.status,
     businessFilter: normalizeFilter(row.businessFilter),
     hypotheses: normalizeHypotheses(hypotheses),
-    crossChecks: formattedChecks,
+    catalysts: catalysts.map(({ thesisId: _, createdAt: __, ...rest }): ThesisCatalyst => rest),
+    crossChecks: crossChecks.map(({ thesisId: _, createdAt: __, ...rest }): CrossCheck => rest),
     valuationInput: valInput,
     valuationModelMode: valuationRow?.modelMode ?? "pe",
     valuationDriverInputs: valuationRow?.driverInputs ?? null,
@@ -125,35 +123,44 @@ export function hydrateThesis(params: {
       { label: "起点", price: row.currentPrice * 0.92 },
       { label: "现价", price: row.currentPrice },
     ],
-    disciplineEntries: formattedDiscipline,
+    disciplineEntries: disciplineRows.map(
+      ({ thesisId: _, createdAt, ...rest }): DisciplineEntry => ({
+        ...rest,
+        createdAt: createdAt.toISOString(),
+      }),
+    ),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
 
 async function loadThesisChildren(db: KanonDb, thesisIds: readonly string[]) {
-  const [hyps, checks, vals, disc] = await Promise.all([
+  const ids = [...thesisIds];
+  const [hyps, cats, checks, vals, disc] = await Promise.all([
     db
       .select()
       .from(hypothesesTable)
-      .where(inArray(hypothesesTable.thesisId, [...thesisIds]))
+      .where(inArray(hypothesesTable.thesisId, ids))
       .orderBy(asc(hypothesesTable.sortOrder)),
     db
       .select()
-      .from(crossChecksTable)
-      .where(inArray(crossChecksTable.thesisId, [...thesisIds]))
-      .orderBy(asc(crossChecksTable.createdAt)),
+      .from(thesisCatalystsTable)
+      .where(inArray(thesisCatalystsTable.thesisId, ids))
+      .orderBy(asc(thesisCatalystsTable.createdAt)),
     db
       .select()
-      .from(valuationScenariosTable)
-      .where(inArray(valuationScenariosTable.thesisId, [...thesisIds])),
+      .from(crossChecksTable)
+      .where(inArray(crossChecksTable.thesisId, ids))
+      .orderBy(asc(crossChecksTable.createdAt)),
+    db.select().from(valuationScenariosTable).where(inArray(valuationScenariosTable.thesisId, ids)),
     db
       .select()
       .from(disciplineEntriesTable)
-      .where(inArray(disciplineEntriesTable.thesisId, [...thesisIds]))
+      .where(inArray(disciplineEntriesTable.thesisId, ids))
       .orderBy(desc(disciplineEntriesTable.createdAt)),
   ]);
   return {
     hypMap: groupByThesisId(hyps),
+    catMap: groupByThesisId(cats),
     checkMap: groupByThesisId(checks),
     discMap: groupByThesisId(disc),
     valMap: new Map(vals.map((v) => [v.thesisId, v])),
@@ -170,20 +177,34 @@ export async function listTheses(
     .where(eq(thesesTable.userId, userId))
     .orderBy(asc(thesesTable.indexOrder));
   if (rows.length === 0) return [];
-
-  const { hypMap, checkMap, discMap, valMap } = await loadThesisChildren(
+  const children = await loadThesisChildren(
     db,
-    rows.map((row) => row.id),
+    rows.map((r) => r.id),
   );
   return rows.map((row) =>
     hydrateThesis({
       row,
-      hypotheses: hypMap.get(row.id) ?? [],
-      crossChecks: checkMap.get(row.id) ?? [],
-      valuationRow: valMap.get(row.id),
-      disciplineRows: discMap.get(row.id) ?? [],
+      hypotheses: children.hypMap.get(row.id) ?? [],
+      catalysts: children.catMap.get(row.id) ?? [],
+      crossChecks: children.checkMap.get(row.id) ?? [],
+      valuationRow: children.valMap.get(row.id),
+      disciplineRows: children.discMap.get(row.id) ?? [],
     }),
   );
+}
+
+function mapRowToSummary(row: ThesisRow, valMap: Map<string, ValuationRow>): ThesisSummary {
+  const val = calculateValuationScenarios(buildValuationInput(row, valMap.get(row.id)));
+  return {
+    id: row.id,
+    indexLabel: String(row.indexOrder).padStart(2, "0"),
+    ticker: row.ticker,
+    companyName: row.companyName,
+    sectorTag: row.sectorTag,
+    status: row.status,
+    baseTargetPrice: val.base.targetPrice,
+    riskRewardRatio: val.riskRewardRatio,
+  };
 }
 
 export async function listThesisSummaries(
@@ -196,31 +217,13 @@ export async function listThesisSummaries(
     .where(eq(thesesTable.userId, userId))
     .orderBy(asc(thesesTable.indexOrder));
   if (rows.length === 0) return [];
-
+  const ids = rows.map((r) => r.id);
   const vals = await db
     .select()
     .from(valuationScenariosTable)
-    .where(
-      inArray(
-        valuationScenariosTable.thesisId,
-        rows.map((row) => row.id),
-      ),
-    );
+    .where(inArray(valuationScenariosTable.thesisId, ids));
   const valMap = new Map(vals.map((v) => [v.thesisId, v]));
-
-  return rows.map((row) => {
-    const val = calculateValuationScenarios(buildValuationInput(row, valMap.get(row.id)));
-    return {
-      id: row.id,
-      indexLabel: String(row.indexOrder).padStart(2, "0"),
-      ticker: row.ticker,
-      companyName: row.companyName,
-      sectorTag: row.sectorTag,
-      status: row.status,
-      baseTargetPrice: val.base.targetPrice,
-      riskRewardRatio: val.riskRewardRatio,
-    };
-  });
+  return rows.map((row) => mapRowToSummary(row, valMap));
 }
 
 export async function getThesisById(
@@ -233,13 +236,13 @@ export async function getThesisById(
     : eq(thesesTable.id, id);
   const [row] = await db.select().from(thesesTable).where(whereClause);
   if (!row) return null;
-
-  const { hypMap, checkMap, discMap, valMap } = await loadThesisChildren(db, [id]);
+  const children = await loadThesisChildren(db, [id]);
   return hydrateThesis({
     row,
-    hypotheses: hypMap.get(id) ?? [],
-    crossChecks: checkMap.get(id) ?? [],
-    valuationRow: valMap.get(id),
-    disciplineRows: discMap.get(id) ?? [],
+    hypotheses: children.hypMap.get(id) ?? [],
+    catalysts: children.catMap.get(id) ?? [],
+    crossChecks: children.checkMap.get(id) ?? [],
+    valuationRow: children.valMap.get(id),
+    disciplineRows: children.discMap.get(id) ?? [],
   });
 }

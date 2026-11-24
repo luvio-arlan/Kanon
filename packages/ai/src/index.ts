@@ -20,10 +20,17 @@ export {
   runThesisCopilot,
 } from "./copilot/run-copilot";
 export {
+  clearMarketQuoteCache,
   fetchMarketClosingQuote,
   fetchMarketClosingQuotes,
+  fetchMarketQuote,
+  fetchMarketQuotes,
+  fetchMarketSparkline,
+  type MarketAdapterCredentials,
   type MarketQuoteResult,
   type MarketQuoteSource,
+  type MarketSnapshotResult,
+  testMarketProviderConnection,
 } from "./market/quote-client";
 export { parseStructuredOutput, type StructuredParseResult } from "./parse-structured";
 export {

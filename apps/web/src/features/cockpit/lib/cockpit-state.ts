@@ -25,7 +25,7 @@ function matchesFilter(thesis: ThesisDetail, filter: CockpitFilter, query: strin
   if (filter === "archived") return thesis.status === "archived_veto";
   if (thesis.status === "archived_veto") return false;
   if (filter === "attractive") return thesis.valuation.convictionZone === "attractive";
-  if (filter === "attention") return thesis.hypotheses.some((h) => h.status !== "validated");
+  if (filter === "attention") return thesis.hypotheses.some((h) => h.status === "warning");
   return true;
 }
 
@@ -42,7 +42,7 @@ function computeFilterCounts(theses: readonly ThesisDetail[], query: string): Co
     }
     all += 1;
     if (t.valuation.convictionZone === "attractive") attractive += 1;
-    if (t.hypotheses.some((h) => h.status !== "validated")) attention += 1;
+    if (t.hypotheses.some((h) => h.status === "warning")) attention += 1;
   }
   return { all, attractive, attention, archived };
 }

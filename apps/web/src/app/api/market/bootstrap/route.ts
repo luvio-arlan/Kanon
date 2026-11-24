@@ -1,7 +1,8 @@
-import { fetchMarketClosingQuote, fetchSecEdgarSnapshot } from "@kanon/ai";
-import { MarketBootstrapResponseSchema } from "@kanon/core";
+import { fetchMarketQuote, fetchMarketSparkline, fetchSecEdgarSnapshot } from "@kanon/ai";
+import { MarketBootstrapResponseSchema, type MarketQuoteSnapshot } from "@kanon/core";
 import { getKanonDb, getSecSnapshot, upsertSecSnapshot } from "@kanon/core/db";
 import { jsonError, jsonOk } from "../../_lib/http";
+import { parseMarketHeaders } from "../../_lib/market-headers";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +17,20 @@ function latestAnnualEps(annuals: ReadonlyArray<{ dilutedEps: number | null }>):
 function buildBootstrapNotice(
   years: number,
   latestEps: number | null,
-  currentPrice: number | null,
+  quote: MarketQuoteSnapshot | null,
 ) {
   const parts: string[] = [];
   if (years > 0) parts.push(`已匹配 ${years} 年 SEC 财务`);
   if (latestEps !== null) parts.push(`最新 EPS $${latestEps.toFixed(2)}`);
-  if (currentPrice !== null) parts.push(`收盘参考价 $${currentPrice.toFixed(2)}`);
+  if (quote) {
+    const ext =
+      quote.sessionState === "PRE" && quote.preMarketPrice
+        ? `（盘前 $${quote.preMarketPrice.toFixed(2)}）`
+        : quote.sessionState === "POST" && quote.postMarketPrice
+          ? `（盘后 $${quote.postMarketPrice.toFixed(2)}）`
+          : "";
+    parts.push(`现价 $${quote.regularPrice.toFixed(2)}${ext}`);
+  }
   return parts.length > 0
     ? parts.join(" · ")
     : "未自动检索到外部数据，请手动补全公司名称与当前参考价。";
@@ -35,14 +44,15 @@ export async function GET(request: Request) {
   }
 
   const db = await getKanonDb();
-  const [secLive, quoteRes, secCached] = await Promise.all([
+  const [secLive, quoteRes, secCached, sparkline] = await Promise.all([
     fetchSecEdgarSnapshot(rawTicker),
-    fetchMarketClosingQuote(rawTicker),
+    fetchMarketQuote(rawTicker, { creds: parseMarketHeaders(request) }),
     getSecSnapshot(db, rawTicker),
+    fetchMarketSparkline(rawTicker),
   ]);
   const snapshot = secLive.ok ? await upsertSecSnapshot(db, secLive.data) : secCached;
-  const companyName = snapshot?.entityName || (quoteRes.ok ? (quoteRes.companyName ?? "") : "");
-  const currentPrice = quoteRes.ok ? quoteRes.price : null;
+  const quote = quoteRes.ok ? quoteRes.quote : null;
+  const companyName = snapshot?.entityName || quote?.companyName || "";
   const latestEps = latestAnnualEps(snapshot?.annuals ?? []);
   const years = snapshot?.annuals.length ?? 0;
 
@@ -50,12 +60,14 @@ export async function GET(request: Request) {
     MarketBootstrapResponseSchema.parse({
       ticker: rawTicker,
       companyName,
-      currentPrice,
-      priceSource: quoteRes.ok ? quoteRes.source : "none",
+      currentPrice: quote?.effectivePrice ?? null,
+      priceSource: quote?.source ?? "none",
       latestEps,
       secYearsCovered: years,
       secCached: Boolean(snapshot),
-      notice: buildBootstrapNotice(years, latestEps, currentPrice),
+      notice: buildBootstrapNotice(years, latestEps, quote),
+      quote,
+      sparkline: sparkline.length >= 2 ? sparkline : undefined,
     }),
     startedAt,
   );

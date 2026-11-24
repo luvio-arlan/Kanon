@@ -82,8 +82,10 @@
     --shimmer-highlight: rgba(17, 17, 19, 0.08);
     --shadow-overlay:
       0 28px 72px -18px rgba(17, 17, 19, 0.2), 0 4px 18px -4px rgba(17, 17, 19, 0.07);
-    --radius-card: 20px;
+    --radius-card: 18px;
+    --radius-panel: 14px;
     --radius-control: 10px;
+    --radius-badge: 6px;
     --radius-pill: 9999px;
     --type-display: clamp(1.85rem, 2.5vw, 2.25rem);
     --type-kpi: clamp(2rem, 3vw, 2.45rem);

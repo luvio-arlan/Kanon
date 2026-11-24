@@ -8,10 +8,11 @@ import {
   type AgentTraceStep,
   type CrossCheck,
   type SavedAgentRun,
+  type ThesisCatalyst,
 } from "@kanon/core";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { buildByokHeaders } from "@/features/ai-settings";
+import { buildByokHeaders, buildMarketHeaders } from "@/features/ai-settings";
 import { parseValidatedSseLine } from "@/shared/lib/kanon-fetch";
 import { apiMarkAgentApplied } from "./canvas-api";
 import type { useResearchCanvas } from "./use-research-canvas";
@@ -91,7 +92,11 @@ export function useResearchAgent(thesisId: string, initialRun: SavedAgentRun | n
     try {
       const res = await fetch("/api/ai/agent", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...buildByokHeaders() },
+        headers: {
+          "Content-Type": "application/json",
+          ...buildByokHeaders(),
+          ...buildMarketHeaders(),
+        },
         body: JSON.stringify({ thesisId }),
       });
       if (!res.ok || !res.body) {
@@ -117,6 +122,20 @@ export function useResearchAgent(thesisId: string, initialRun: SavedAgentRun | n
   );
 
   return { running, traces, briefing, appliedIds, runAgent, markApplied };
+}
+
+function buildCatalystFromProposal(proposal: AgentProposal): ThesisCatalyst {
+  return {
+    id: `cat-agent-${Date.now().toString(36).slice(-5)}`,
+    title: proposal.title.slice(0, 120),
+    dateLabel: proposal.meta?.catalystDateLabel ?? "下一季财报",
+    category: proposal.meta?.catalystCategory ?? "earnings",
+    impact: "high",
+    direction: "bullish",
+    status: "upcoming",
+    verificationMetric: proposal.meta?.catalystMetric ?? "核心业绩与毛利率指引",
+    note: proposal.content.slice(0, 380),
+  };
 }
 
 function buildCrossCheckFromProposal(proposal: AgentProposal): CrossCheck {
@@ -153,16 +172,16 @@ async function applyBusinessFilterProposal(
   );
 }
 
-export async function applyAgentProposal(params: {
-  proposal: AgentProposal;
-  ctrl: ReturnType<typeof useResearchCanvas>;
-  onPromoteExitRule: (rule: string) => void;
-  onApplied: (id: string) => Promise<void>;
-}) {
-  const { proposal, ctrl, onPromoteExitRule, onApplied } = params;
+async function dispatchAgentProposal(
+  proposal: AgentProposal,
+  ctrl: ReturnType<typeof useResearchCanvas>,
+  onPromoteExitRule: (rule: string) => void,
+) {
   if (proposal.target === "exit_rule") {
     onPromoteExitRule(proposal.content);
-  } else if (proposal.target === "hypothesis_update") {
+    return;
+  }
+  if (proposal.target === "hypothesis_update") {
     const idx = proposal.meta?.hypothesisIndex ?? 0;
     const nextHyps = ctrl.thesis.hypotheses.map((h, i) =>
       i === idx
@@ -173,14 +192,30 @@ export async function applyAgentProposal(params: {
       { step: "hypotheses", hypotheses: nextHyps },
       `已采纳并更新假设：${proposal.title}`,
     );
-  } else if (proposal.target === "cross_check_draft") {
+    return;
+  }
+  if (proposal.target === "catalyst_draft") {
+    const nextCatalysts = [...ctrl.thesis.catalysts, buildCatalystFromProposal(proposal)];
+    await ctrl.patchStep({ step: "catalysts", catalysts: nextCatalysts }, "已增补催化剂日程节点");
+    return;
+  }
+  if (proposal.target === "cross_check_draft") {
     const nextChecks = [...ctrl.thesis.crossChecks, buildCrossCheckFromProposal(proposal)];
     await ctrl.patchStep(
       { step: "cross_checks", crossChecks: nextChecks },
       "已增补产业链交叉验证条目",
     );
-  } else {
-    await applyBusinessFilterProposal(proposal, ctrl);
+    return;
   }
-  await onApplied(proposal.id);
+  await applyBusinessFilterProposal(proposal, ctrl);
+}
+
+export async function applyAgentProposal(params: {
+  proposal: AgentProposal;
+  ctrl: ReturnType<typeof useResearchCanvas>;
+  onPromoteExitRule: (rule: string) => void;
+  onApplied: (id: string) => Promise<void>;
+}) {
+  await dispatchAgentProposal(params.proposal, params.ctrl, params.onPromoteExitRule);
+  await params.onApplied(params.proposal.id);
 }

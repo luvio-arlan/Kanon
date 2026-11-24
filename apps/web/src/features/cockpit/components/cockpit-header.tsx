@@ -1,14 +1,19 @@
 "use client";
 
-import type { PortfolioAnalytics, ThesisDetail } from "@kanon/core";
+import type {
+  MarketDataSource,
+  MarketQuoteSnapshot,
+  PortfolioAnalytics,
+  ThesisDetail,
+} from "@kanon/core";
 import { ActionMenu, Button, SearchField } from "@kanon/ui";
 import { IconCheck, IconChevronDown, IconPlus } from "@tabler/icons-react";
 import type { RefObject } from "react";
-import { AttentionRadarStrip } from "@/features/portfolio";
+import { AttentionRadarStrip, LiveMarketStrip } from "@/features/portfolio";
 import { PortfolioTelemetryStrip } from "./portfolio-telemetry-strip";
 
 export type CockpitFilter = "all" | "attractive" | "attention" | "archived";
-export type CockpitViewMode = "cards" | "table";
+export type CockpitViewMode = "cards" | "table" | "catalysts" | "comps";
 export type CockpitSortBy = "index" | "odds" | "cagr" | "margin";
 
 export interface CockpitFilterCounts {
@@ -32,6 +37,14 @@ export interface CockpitHeaderProps {
   onFocusBuyZone: () => void;
   onFocusWarnings: () => void;
   onOpenStressTest: () => void;
+  liveQuotes: Readonly<Record<string, MarketQuoteSnapshot>>;
+  activeMarketSource: MarketDataSource | "none";
+  loadingQuotes: boolean;
+  calibratingPrices: boolean;
+  onRefreshQuotes: () => void;
+  onCalibratePrices: () => void;
+  onOpenMarketSettings: () => void;
+  onSelectThesis: (thesis: ThesisDetail) => void;
 }
 
 const SORT_OPTIONS: ReadonlyArray<{ id: CockpitSortBy; label: string }> = [
@@ -43,6 +56,8 @@ const SORT_OPTIONS: ReadonlyArray<{ id: CockpitSortBy; label: string }> = [
 
 const VIEW_TITLES: Record<string, { zh: string; en: string }> = {
   matrix: { zh: "横向赔率矩阵", en: "Comparison" },
+  catalysts: { zh: "催化剂日程", en: "Catalysts" },
+  comps: { zh: "同业预期横评", en: "Peer Comps" },
   all: { zh: "研究总览", en: "Convictions" },
   attractive: { zh: "高赔率机会", en: "Asymmetry" },
   attention: { zh: "假设预警", en: "Vigilance" },
@@ -107,7 +122,12 @@ function MastheadActions(props: CockpitHeaderProps) {
 }
 
 function EditorialMasthead(props: CockpitHeaderProps) {
-  const titleKey = props.viewMode === "table" ? "matrix" : props.filter;
+  const titleKey =
+    props.viewMode === "table"
+      ? "matrix"
+      : props.viewMode === "catalysts" || props.viewMode === "comps"
+        ? props.viewMode
+        : props.filter;
   const meta = VIEW_TITLES[titleKey] ?? { zh: "研究总览", en: "Convictions" };
 
   return (
@@ -134,8 +154,19 @@ function EditorialMasthead(props: CockpitHeaderProps) {
 
 export function CockpitHeader(props: CockpitHeaderProps) {
   return (
-    <section className="space-y-5">
+    <section className="space-y-4">
       <EditorialMasthead {...props} />
+      <LiveMarketStrip
+        theses={props.theses}
+        quotes={props.liveQuotes}
+        activeSource={props.activeMarketSource}
+        loadingQuotes={props.loadingQuotes}
+        calibrating={props.calibratingPrices}
+        onRefreshQuotes={props.onRefreshQuotes}
+        onCalibratePrices={props.onCalibratePrices}
+        onOpenMarketSettings={props.onOpenMarketSettings}
+        onSelectThesis={props.onSelectThesis}
+      />
       <PortfolioTelemetryStrip
         analytics={props.analytics}
         theses={props.theses}

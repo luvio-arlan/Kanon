@@ -5,6 +5,7 @@ import {
   ThesisDetailSchema,
   ThesisRevisionSchema,
 } from "../schemas/research";
+import { SparklinePointSchema } from "../schemas/thesis";
 import {
   AgentBriefingSchema,
   CopilotEngineModeSchema,
@@ -12,6 +13,7 @@ import {
   InvestmentMemoSchema,
   RedTeamReportSchema,
 } from "./ai-contracts";
+import { MarketQuoteSnapshotSchema } from "./market-contracts";
 
 export const ApiErrorResponseSchema = z.object({
   error: z.string().min(1),
@@ -41,11 +43,13 @@ export const MarketBootstrapResponseSchema = z.object({
   ticker: z.string().min(1),
   companyName: z.string(),
   currentPrice: z.number().nullable(),
-  priceSource: z.enum(["fmp", "yahoo", "cached", "none"]),
+  priceSource: z.enum(["fmp", "yahoo", "finnhub", "polygon", "cached", "none"]),
   latestEps: z.number().nullable(),
   secYearsCovered: z.number().int().nonnegative(),
   secCached: z.boolean(),
   notice: z.string(),
+  quote: MarketQuoteSnapshotSchema.nullable().optional(),
+  sparkline: z.array(SparklinePointSchema).optional(),
 });
 export type MarketBootstrapResponse = z.infer<typeof MarketBootstrapResponseSchema>;
 
@@ -54,6 +58,8 @@ export const RefreshPricesResponseSchema = z.object({
   updatedCount: z.number().int().nonnegative(),
   skippedTickers: z.array(z.string()),
   notice: z.string(),
+  sessionMode: z.enum(["regular", "extended"]).optional(),
+  quotes: z.record(z.string(), MarketQuoteSnapshotSchema).optional(),
 });
 export type RefreshPricesResponse = z.infer<typeof RefreshPricesResponseSchema>;
 

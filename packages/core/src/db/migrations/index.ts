@@ -2,6 +2,7 @@ import { KANON_POSTGRES_DDL as BASELINE_SQL } from "./0001-baseline";
 import { KANON_V4_MIGRATION_SQL } from "./0002-v4-institutional";
 import { KANON_ACCOUNTS_MIGRATION_SQL } from "./0003-accounts-auth";
 import { KANON_PERF_INDEXES_SQL } from "./0004-perf-indexes";
+import { KANON_CATALYSTS_MIGRATION_SQL } from "./0005-catalysts";
 
 export interface KanonMigration {
   id: string;
@@ -39,6 +40,11 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     id: "0004_perf_indexes",
     description: "Expand-only lookup indexes on hot thesis child tables and cross-check links",
     sql: KANON_PERF_INDEXES_SQL,
+  },
+  {
+    id: "0005_catalysts",
+    description: "Expand-only institutional catalyst & event tracking table for theses",
+    sql: KANON_CATALYSTS_MIGRATION_SQL,
   },
 ];
 

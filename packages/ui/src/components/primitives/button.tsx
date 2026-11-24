@@ -27,10 +27,12 @@ export const buttonVariants = tv({
         "bg-surface text-status-fail border border-status-fail/35 hover:border-status-fail/70 hover:bg-status-fail-soft shadow-button",
     },
     size: {
+      xs: "h-8 gap-1.5 px-2.5 text-xs",
       sm: "h-9 gap-1.5 px-3.5 text-sm",
       md: "h-10 gap-2 px-4 text-sm",
       lg: "h-11 gap-2 px-5 text-sm",
       icon: "h-9 w-9 p-0",
+      "icon-sm": "h-8 w-8 p-0",
     },
   },
   defaultVariants: {

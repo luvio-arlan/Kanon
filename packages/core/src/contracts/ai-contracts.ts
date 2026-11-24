@@ -73,6 +73,7 @@ export const AgentProposalTargetSchema = z.enum([
   "exit_rule",
   "hypothesis_update",
   "cross_check_draft",
+  "catalyst_draft",
 ]);
 export type AgentProposalTarget = z.infer<typeof AgentProposalTargetSchema>;
 
@@ -91,6 +92,11 @@ export const AgentProposalSchema = z.object({
       peerCompany: z.string().optional(),
       peerRole: z.enum(["upstream", "downstream", "competitor", "primary"]).optional(),
       topic: z.string().optional(),
+      catalystCategory: z
+        .enum(["earnings", "product", "capital", "regulatory", "macro"])
+        .optional(),
+      catalystDateLabel: z.string().optional(),
+      catalystMetric: z.string().optional(),
     })
     .optional(),
 });
@@ -117,7 +123,7 @@ export const AgentBriefingSchema = z.object({
   bearCritique: z.string().min(8),
   accountingCheck: z.string().min(8),
   traces: z.array(AgentTraceStepSchema),
-  proposals: z.array(AgentProposalSchema).max(6),
+  proposals: z.array(AgentProposalSchema).max(8),
 });
 export type AgentBriefing = z.infer<typeof AgentBriefingSchema>;
 

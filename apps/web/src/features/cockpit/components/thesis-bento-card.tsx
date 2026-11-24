@@ -3,10 +3,19 @@
 import {
   calculateResearchReadiness,
   type Hypothesis,
+  type MarketQuoteSnapshot,
   type ResearchReadiness,
   type ThesisDetail,
 } from "@kanon/core";
-import { Badge, Card, cn, KANON_CARD_HOVER, ReadinessRing } from "@kanon/ui";
+import {
+  Badge,
+  Button,
+  buttonVariants,
+  Card,
+  cn,
+  KANON_CARD_HOVER,
+  ReadinessRing,
+} from "@kanon/ui";
 import { IconArrowRight, IconArrowUpRight } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -15,6 +24,7 @@ import { ValuationAnchorPanel } from "./valuation-anchor-panel";
 
 export interface ThesisBentoCardProps {
   thesis: ThesisDetail;
+  liveQuote?: MarketQuoteSnapshot;
   onQuickInspect: (thesis: ThesisDetail) => void;
 }
 
@@ -72,13 +82,18 @@ function CardIdentityHeader({
         >
           {thesis.companyName}
         </Link>
-        <span className="rounded-md border border-hairline bg-titanium px-2.5 py-0.5 font-mono text-xs font-semibold tracking-[0.06em] text-ink-primary tabular-nums">
+        <span className="rounded-badge border border-hairline bg-titanium px-2.5 py-0.5 font-mono text-xs font-semibold tracking-[0.06em] text-ink-primary tabular-nums">
           {thesis.ticker}
         </span>
         {thesis.currentWeightPct > 0 ? (
-          <span className="rounded-md border border-hairline bg-muted/75 px-2 py-0.5 font-mono text-xs text-ink-secondary tabular-nums">
+          <span className="rounded-badge border border-hairline bg-muted/75 px-2 py-0.5 font-mono text-xs text-ink-secondary tabular-nums">
             仓位 {thesis.currentWeightPct}%
           </span>
+        ) : null}
+        {thesis.catalysts.some((c) => c.status === "upcoming") ? (
+          <Badge variant="default" className="font-mono">
+            催化 {thesis.catalysts.filter((c) => c.status === "upcoming").length}
+          </Badge>
         ) : null}
         {thesis.status === "archived_veto" ? <Badge variant="fail">已否决</Badge> : null}
       </div>
@@ -155,22 +170,15 @@ function CardActionFooter({
         onClick={() => onQuickInspect(thesis)}
       />
       <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onQuickInspect(thesis)}
-          className="inline-flex h-9 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-control border border-hairline bg-surface px-3 text-sm font-medium text-ink-secondary shadow-button transition-colors hover:border-strong hover:text-ink-primary"
-        >
+        <Button variant="outline" size="xs" onClick={() => onQuickInspect(thesis)}>
           速览
-        </button>
-        <Link
-          href={next.href}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-control border border-strong/80 bg-surface px-3.5 text-sm font-medium text-ink-primary shadow-button transition-colors hover:border-ink-primary hover:bg-ink-primary hover:text-ink-inverse"
-        >
+        </Button>
+        <Link href={next.href} className={buttonVariants({ variant: "titanium", size: "xs" })}>
           <span>{next.label}</span>
           {next.isContinue ? (
-            <IconArrowRight size={15} stroke={1.5} className="shrink-0" />
+            <IconArrowRight size={14} stroke={1.5} className="shrink-0" />
           ) : (
-            <IconArrowUpRight size={15} stroke={1.5} className="shrink-0" />
+            <IconArrowUpRight size={14} stroke={1.5} className="shrink-0" />
           )}
         </Link>
       </div>
@@ -178,7 +186,7 @@ function CardActionFooter({
   );
 }
 
-export function ThesisBentoCard({ thesis, onQuickInspect }: ThesisBentoCardProps) {
+export function ThesisBentoCard({ thesis, liveQuote, onQuickInspect }: ThesisBentoCardProps) {
   const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
   const next = resolveNextStepHref(thesis.id, readiness);
 
@@ -190,7 +198,11 @@ export function ThesisBentoCard({ thesis, onQuickInspect }: ThesisBentoCardProps
           className="h-[2px] w-full origin-left scale-x-0 bg-accent-coral transition-transform duration-200 group-hover:scale-x-100"
         />
         <CardIdentityHeader thesis={thesis} readiness={readiness} targetHref={next.href} />
-        <ValuationAnchorPanel valuation={thesis.valuation} priceHistory={thesis.priceHistory} />
+        <ValuationAnchorPanel
+          valuation={thesis.valuation}
+          priceHistory={thesis.priceHistory}
+          liveQuote={liveQuote}
+        />
         <ThesisInsightExcerpt thesis={thesis} />
         <CardActionFooter thesis={thesis} readiness={readiness} onQuickInspect={onQuickInspect} />
       </Card>

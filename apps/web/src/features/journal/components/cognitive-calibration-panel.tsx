@@ -1,0 +1,147 @@
+"use client";
+
+import {
+  calculateCognitiveCalibration,
+  type DisciplineAlphaRow,
+  type QuarterlyReview,
+  type ThesisDetail,
+} from "@kanon/core";
+import { Badge, Card, RollingNumber, StatCard } from "@kanon/ui";
+import { IconBrain, IconChartDots3, IconMoodSmile, IconShieldCheck } from "@tabler/icons-react";
+import { useMemo } from "react";
+
+const ACTION_LABEL: Record<DisciplineAlphaRow["action"], string> = {
+  buy: "首次建仓",
+  add: "纪律加仓",
+  trim: "分批减仓",
+  hold: "耐心持有",
+  pass: "果断放弃",
+};
+
+function AlphaAuditTable({ rows }: { rows: readonly DisciplineAlphaRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <Card className="p-6 text-center text-sm text-ink-muted">
+        暂无交易留痕样本，完成首次纪律记录后将自动追踪决策锚点相对现价的认知 Alpha。
+      </Card>
+    );
+  }
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
+        <span className="text-sm font-semibold text-ink-primary">历史决策锚点 Alpha 回测</span>
+        <span className="font-mono text-xs text-ink-muted">对照最新参考价</span>
+      </div>
+      <div className="divide-y divide-hairline">
+        {rows.map((row) => (
+          <div
+            key={row.id}
+            className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm"
+          >
+            <div className="flex items-center gap-2.5">
+              <Badge variant="titanium">{ACTION_LABEL[row.action]}</Badge>
+              <span className="font-mono text-xs text-ink-secondary tabular-nums">
+                锚点 ${row.priceAnchor.toFixed(2)} → 现价 ${row.currentPrice.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 font-mono text-xs tabular-nums">
+              <span className={row.deltaPct >= 0 ? "text-status-pass" : "text-accent-coral"}>
+                {row.deltaPct > 0 ? "+" : ""}
+                {row.deltaPct.toFixed(1)}%
+              </span>
+              <Badge variant={row.favorable ? "pass" : "warn"}>
+                {row.favorable ? "方向一致" : "待复盘"}
+              </Badge>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function buildCalibrationCards(report: ReturnType<typeof calculateCognitiveCalibration>) {
+  const favDelta =
+    report.favorableDecisionRatePct !== null
+      ? `顺向 ${report.favorableDecisionRatePct}%`
+      : "待验证";
+  const retDelta =
+    report.avgEntryReturnPct !== null
+      ? `建仓 ${report.avgEntryReturnPct > 0 ? "+" : ""}${report.avgEntryReturnPct}%`
+      : "等待季报";
+  return [
+    {
+      label: "认知校准分",
+      icon: <IconBrain size={16} stroke={1.5} />,
+      value: <RollingNumber value={report.calibrationScore} decimals={0} />,
+      caption: "综合纪律与复盘一致率",
+      delta: report.calibrationLabel,
+      deltaTone: (report.calibrationScore >= 78 ? "pass" : "neutral") as "pass" | "neutral",
+    },
+    {
+      label: "零杠杆守约率",
+      icon: <IconShieldCheck size={16} stroke={1.5} />,
+      value: <RollingNumber value={report.zeroLeverageCompliancePct} suffix="%" decimals={0} />,
+      caption: "契约级铁律执行",
+      delta: "0.00×",
+      deltaTone: "pass" as const,
+    },
+    {
+      label: "冷静决策占比",
+      icon: <IconMoodSmile size={16} stroke={1.5} />,
+      value: <RollingNumber value={report.calmDecisionPct} suffix="%" decimals={0} />,
+      caption: `共 ${report.decisionCount} 笔留痕`,
+      delta: favDelta,
+      deltaTone: (report.calmDecisionPct >= 80 ? "pass" : "warn") as "pass" | "warn",
+    },
+    {
+      label: "季报假设强化率",
+      icon: <IconChartDots3 size={16} stroke={1.5} />,
+      value:
+        report.strengthenedRatePct !== null ? (
+          <RollingNumber value={report.strengthenedRatePct} suffix="%" decimals={0} />
+        ) : (
+          <span>—</span>
+        ),
+      caption: `共 ${report.quarterlyVerdictCount} 条季报裁决`,
+      delta: retDelta,
+      deltaTone: ((report.avgEntryReturnPct ?? 0) >= 0 ? "pass" : "warn") as "pass" | "warn",
+    },
+  ];
+}
+
+function CalibrationStatsGrid({
+  report,
+}: {
+  report: ReturnType<typeof calculateCognitiveCalibration>;
+}) {
+  const items = buildCalibrationCards(report);
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {items.map((item) => (
+        <StatCard key={item.label} {...item} />
+      ))}
+    </div>
+  );
+}
+
+export function CognitiveCalibrationPanel({
+  thesis,
+  reviews,
+  livePrice,
+}: {
+  thesis: ThesisDetail;
+  reviews: readonly QuarterlyReview[];
+  livePrice?: number | null;
+}) {
+  const report = useMemo(
+    () => calculateCognitiveCalibration(thesis, reviews, livePrice),
+    [thesis, reviews, livePrice],
+  );
+  return (
+    <div className="space-y-5">
+      <CalibrationStatsGrid report={report} />
+      <AlphaAuditTable rows={report.entryAlphaRows} />
+    </div>
+  );
+}

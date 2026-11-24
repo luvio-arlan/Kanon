@@ -124,7 +124,9 @@
     var(--font-kanon-serif), "Instrument Serif", "Songti SC", "Noto Serif SC", Georgia, serif;
   --font-mono: var(--font-kanon-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --radius-card: var(--radius-card);
+  --radius-panel: var(--radius-panel);
   --radius-control: var(--radius-control);
+  --radius-badge: var(--radius-badge);
   --radius-pill: var(--radius-pill);
   --shadow-card: var(--shadow-card);
   --shadow-card-hover: var(--shadow-card-hover);

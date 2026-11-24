@@ -59,6 +59,30 @@ export const SEED_THESIS_RECORDS: readonly SeedThesisRecord[] = [
         note: "持续追踪海力士与三星未来两个季度的洁净室扩产节奏与 CapEx 指引。",
       },
     ],
+    catalysts: [
+      {
+        id: "mu-cat-1",
+        title: "FY26 季报 HBM3E 12Hi 出货与综合毛利率跨越 45%",
+        dateLabel: "2026-12 季报",
+        category: "earnings",
+        impact: "high",
+        direction: "bullish",
+        status: "upcoming",
+        verificationMetric: "单季 Non-GAAP 毛利率 > 45% 且 HBM 季度营收环比加速",
+        note: "若毛利率突破周期均值上方，有望触发估值中枢从周期股向 AI 基础设施重估。",
+      },
+      {
+        id: "mu-cat-2",
+        title: "HBM4 逻辑底座与台积电协同认证进度",
+        dateLabel: "2027 Q1",
+        category: "product",
+        impact: "high",
+        direction: "binary",
+        status: "upcoming",
+        verificationMetric: "获得主力 GPU 平台量产导入确认",
+        note: "决定 2027–2028 年高带宽内存定价权与份额延续性。",
+      },
+    ],
     crossChecks: [
       {
         id: "mu-cc-1",

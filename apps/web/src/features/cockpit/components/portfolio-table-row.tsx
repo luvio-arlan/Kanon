@@ -5,7 +5,7 @@ import {
   calculateResearchReadiness,
   type ThesisDetail,
 } from "@kanon/core";
-import { Badge, cn, ReadinessRing } from "@kanon/ui";
+import { Badge, Button, buttonVariants, cn, ReadinessRing } from "@kanon/ui";
 import { IconArrowUpRight, IconCheck } from "@tabler/icons-react";
 import Link from "next/link";
 
@@ -109,19 +109,15 @@ function RowActionsCell({
   return (
     <td className="whitespace-nowrap px-4 py-3.5 text-right">
       <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-        <button
-          type="button"
-          onClick={() => onQuickInspect(thesis)}
-          className="h-8 cursor-pointer whitespace-nowrap rounded-control border border-hairline bg-surface px-2.5 text-xs font-medium text-ink-secondary shadow-button transition-colors hover:border-strong hover:text-ink-primary"
-        >
+        <Button variant="outline" size="xs" onClick={() => onQuickInspect(thesis)}>
           速览
-        </button>
+        </Button>
         <Link
           href={`/thesis/${thesis.id}`}
-          className="inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-control bg-titanium px-2.5 text-xs font-medium text-ink-primary transition-colors hover:bg-titanium-subtle"
+          className={buttonVariants({ variant: "titanium", size: "xs" })}
         >
           <span>进入</span>
-          <IconArrowUpRight size={14} stroke={1.5} />
+          <IconArrowUpRight size={13} stroke={1.5} />
         </Link>
       </div>
     </td>

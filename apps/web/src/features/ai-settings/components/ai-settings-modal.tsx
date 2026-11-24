@@ -2,14 +2,20 @@
 
 import type { ByokProvider } from "@kanon/ai";
 import { SettingsDialogShell, type SettingsNavTab } from "@kanon/ui";
-import { IconAdjustmentsHorizontal, IconDatabaseExport, IconSparkles } from "@tabler/icons-react";
+import {
+  IconActivity,
+  IconAdjustmentsHorizontal,
+  IconDatabaseExport,
+  IconSparkles,
+} from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { readByokConfig, writeByokConfig } from "../lib/byok-storage";
 import { EngineSettingsPane } from "./settings-engine-pane";
+import { MarketSettingsPane } from "./settings-market-pane";
 import { DataArchivePane, GeneralSettingsPane, type SettingsThesisContext } from "./settings-panes";
 
-type SettingsTabId = "general" | "data" | "engine";
+type SettingsTabId = "general" | "market" | "data" | "engine";
 
 export interface AiSettingsModalProps {
   open: boolean;
@@ -28,12 +34,14 @@ const TABS: readonly SettingsNavTab<SettingsTabId>[] = [
     label: "常规与纪律",
     icon: <IconAdjustmentsHorizontal size={17} stroke={1.5} />,
   },
+  { id: "market", label: "行情接口", icon: <IconActivity size={17} stroke={1.5} /> },
   { id: "data", label: "数据与归档", icon: <IconDatabaseExport size={17} stroke={1.5} /> },
   { id: "engine", label: "投研引擎", icon: <IconSparkles size={17} stroke={1.5} /> },
 ];
 
 const TITLES: Record<SettingsTabId, string> = {
   general: "常规与投研纪律",
+  market: "实时盘前/盘后行情接口",
   data: "数据导入与归档",
   engine: "智能投研引擎",
 };
@@ -56,6 +64,9 @@ function SettingsTabBody(p: {
         onRefreshPrices={p.props.onRefreshPrices}
       />
     );
+  }
+  if (p.tab === "market") {
+    return <MarketSettingsPane onChanged={p.props.onChanged} />;
   }
   if (p.tab === "data") {
     return (

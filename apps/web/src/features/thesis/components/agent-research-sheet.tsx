@@ -25,6 +25,7 @@ const TARGET_LABELS: Record<AgentProposal["target"], string> = {
   key_debate: "Step 1 · 核心争论",
   pre_mortem: "Step 1 · 事前验尸",
   hypothesis_update: "Step 2 · 核心假设",
+  catalyst_draft: "Step 2 · 催化剂日程",
   cross_check_draft: "Step 3 · 产业链互证",
   exit_rule: "Step 5 · 离场红线",
 };
@@ -83,7 +84,7 @@ function AgentEmptyState({ onRun }: { onRun: () => Promise<void> }) {
         </div>
         <h3 className="mt-3 text-sm font-semibold text-ink-primary">启动投委会深度审计 Agent</h3>
         <p className="mt-1.5 text-xs leading-relaxed text-ink-secondary">
-          自动执行 SEC 法证排雷、Reverse-DCF 压力测试、假设盲区与产业链分歧 6
+          自动执行 SEC 法证排雷、Reverse-DCF 压力测试、实时盘前/盘后买点校准、催化剂与价值陷阱审计 8
           步工具调用，输出可一键采纳的修订提案。
         </p>
         <div className="mt-4">
@@ -166,7 +167,7 @@ export function AgentResearchSheet(props: AgentResearchSheetProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       title={`投委会 Agent · ${props.companyName} (${props.ticker})`}
-      subtitle="6 步工具溯源 · 四角色投委会辩论 · 人机共审提案"
+      subtitle="8 步工具溯源 · 实时盘前/盘后校准 · 四角色投委会辩论"
       footer={
         <div className="flex items-center justify-between gap-2">
           {props.traces.length > 0 || props.running ? (

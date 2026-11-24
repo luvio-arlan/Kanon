@@ -20,6 +20,7 @@ function mergeBootstrapInfo(prev: NewThesisDraft, info: MarketBootstrapResponse)
     sectorTag: prev.sectorTag.trim() || "美股深度跟踪",
     currentPrice: info.currentPrice !== null ? String(info.currentPrice) : prev.currentPrice,
     latestSecEps: info.latestEps ?? prev.latestSecEps,
+    priceHistory: info.sparkline ?? prev.priceHistory,
   };
 }
 

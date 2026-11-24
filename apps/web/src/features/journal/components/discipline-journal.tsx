@@ -12,6 +12,7 @@ import { Button, KANON_LENS_VARIANTS, KANON_TRANSITION_FAST, SegmentedTabs } fro
 import { IconChevronUp, IconPlus } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
+import { CognitiveCalibrationPanel } from "./cognitive-calibration-panel";
 import { DecisionComposerCard } from "./discipline-composer";
 import { DisciplineTimeline } from "./discipline-timeline";
 import { InvestmentMemoCard } from "./investment-memo-card";
@@ -20,6 +21,7 @@ import { RevisionTimeline } from "./revision-timeline";
 
 export interface DisciplineJournalProps {
   thesis: ThesisDetail;
+  livePrice?: number | null;
   revisions: readonly ThesisRevision[];
   reviews: readonly QuarterlyReview[];
   submitting: boolean;
@@ -33,7 +35,7 @@ export interface DisciplineJournalProps {
   onGenerateMemo: () => Promise<void>;
 }
 
-type Step5Tab = "ledger" | "reviews" | "memo" | "revisions";
+type Step5Tab = "ledger" | "reviews" | "calibration" | "memo" | "revisions";
 
 function Step5Header() {
   return (
@@ -106,6 +108,15 @@ function Step5TabContent(
       />
     );
   }
+  if (props.tab === "calibration") {
+    return (
+      <CognitiveCalibrationPanel
+        thesis={props.thesis}
+        reviews={props.reviews}
+        livePrice={props.livePrice}
+      />
+    );
+  }
   if (props.tab === "memo") {
     return (
       <InvestmentMemoCard
@@ -162,6 +173,7 @@ export function DisciplineJournal(props: DisciplineJournalProps) {
           items={[
             { id: "ledger", label: "交易纪律台账", count: props.thesis.disciplineEntries.length },
             { id: "reviews", label: "季度复盘", count: props.reviews.length },
+            { id: "calibration", label: "认知校准" },
             { id: "memo", label: "投研备忘录" },
             { id: "revisions", label: "演进日志", count: props.revisions.length },
           ]}

@@ -30,7 +30,7 @@ export function DialogModal({
       <Modal.Container placement="center" size="lg" className="kanon-dialog-container">
         <Modal.Dialog
           className={cn(
-            "kanon-dialog-panel w-[min(92vw,560px)] max-w-[min(92vw,560px)] rounded-[22px] border border-strong bg-surface-elevated p-6 shadow-overlay sm:p-7",
+            "kanon-dialog-panel w-[min(92vw,560px)] max-w-[min(92vw,560px)] rounded-card border border-strong bg-surface-elevated p-6 shadow-overlay sm:p-7",
             className,
           )}
         >

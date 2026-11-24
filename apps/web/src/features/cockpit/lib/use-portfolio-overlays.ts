@@ -1,6 +1,6 @@
 "use client";
 
-import type { ThesisDetail } from "@kanon/core";
+import type { MarketQuoteSnapshot, ThesisDetail } from "@kanon/core";
 import { useMemo, useState } from "react";
 import { apiRefreshClosingPrices } from "./cockpit-api";
 import type { useCockpitState } from "./cockpit-state";
@@ -10,8 +10,31 @@ function toggleCompareList(prev: string[], id: string): string[] {
   return prev.length < 3 ? [...prev, id] : prev;
 }
 
-export function usePortfolioOverlayState(ui: ReturnType<typeof useCockpitState>) {
+function usePriceRefreshAction(
+  setTheses: ReturnType<typeof useCockpitState>["setTheses"],
+  onMergeQuotes?: (next: Record<string, MarketQuoteSnapshot>) => void,
+) {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
+  const refreshPrices = async () => {
+    setRefreshingPrices(true);
+    try {
+      const result = await apiRefreshClosingPrices("extended");
+      if (result) {
+        setTheses(result.theses);
+        if (result.quotes) onMergeQuotes?.(result.quotes);
+      }
+    } finally {
+      setRefreshingPrices(false);
+    }
+  };
+  return { refreshingPrices, refreshPrices };
+}
+
+export function usePortfolioOverlayState(
+  ui: ReturnType<typeof useCockpitState>,
+  onMergeQuotes?: (next: Record<string, MarketQuoteSnapshot>) => void,
+) {
+  const { refreshingPrices, refreshPrices } = usePriceRefreshAction(ui.setTheses, onMergeQuotes);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -24,15 +47,6 @@ export function usePortfolioOverlayState(ui: ReturnType<typeof useCockpitState>)
   const clearCompare = () => {
     setCompareIds([]);
     setCompareOpen(false);
-  };
-  const refreshPrices = async () => {
-    setRefreshingPrices(true);
-    try {
-      const updated = await apiRefreshClosingPrices();
-      if (updated) ui.setTheses(updated);
-    } finally {
-      setRefreshingPrices(false);
-    }
   };
   const onCreated = (created: ThesisDetail) => {
     ui.setTheses((p) => [...p, created]);

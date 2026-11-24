@@ -5,6 +5,7 @@ import {
   disciplineEntriesTable,
   hypothesesTable,
   thesesTable,
+  thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
 import { SEED_THESIS_RECORDS } from "../seeds/seed-theses";
@@ -44,42 +45,55 @@ function buildThesisValues(userId: string, scopedId: string, item: SeedThesisRec
   };
 }
 
-function collectStarterChildren(userId: string, idMap: Map<string, string>) {
-  const hypotheses: (typeof hypothesesTable.$inferInsert)[] = [];
-  const crossChecks: (typeof crossChecksTable.$inferInsert)[] = [];
-  const valuations: (typeof valuationScenariosTable.$inferInsert)[] = [];
-  const disciplines: (typeof disciplineEntriesTable.$inferInsert)[] = [];
+function mapRecordChildren(
+  userId: string,
+  scopedId: string,
+  item: SeedThesisRecord,
+  idMap: Map<string, string>,
+) {
+  return {
+    hypotheses: item.hypotheses.map((h, sortOrder) => ({
+      ...h,
+      id: buildUserScopedId(userId, h.id),
+      thesisId: scopedId,
+      sortOrder,
+    })),
+    catalysts: (item.catalysts ?? []).map((cat) => ({
+      ...cat,
+      id: buildUserScopedId(userId, cat.id),
+      thesisId: scopedId,
+    })),
+    crossChecks: item.crossChecks.map((cc) => ({
+      ...cc,
+      id: buildUserScopedId(userId, cc.id),
+      thesisId: scopedId,
+      linkedThesisId: mapLinkedId(cc.linkedThesisId, idMap),
+    })),
+    valuation: { thesisId: scopedId, ...item.valuationInput },
+    disciplines: item.disciplineEntries.map((entry) => ({
+      ...entry,
+      id: buildUserScopedId(userId, entry.id),
+      thesisId: scopedId,
+    })),
+  };
+}
 
-  for (const item of SEED_THESIS_RECORDS) {
-    const scopedId = idMap.get(item.id) ?? buildUserScopedId(userId, item.id);
-    for (let idx = 0; idx < item.hypotheses.length; idx += 1) {
-      const h = item.hypotheses[idx];
-      if (!h) continue;
-      hypotheses.push({
-        ...h,
-        id: buildUserScopedId(userId, h.id),
-        thesisId: scopedId,
-        sortOrder: idx,
-      });
-    }
-    for (const cc of item.crossChecks) {
-      crossChecks.push({
-        ...cc,
-        id: buildUserScopedId(userId, cc.id),
-        thesisId: scopedId,
-        linkedThesisId: mapLinkedId(cc.linkedThesisId, idMap),
-      });
-    }
-    valuations.push({ thesisId: scopedId, ...item.valuationInput });
-    for (const entry of item.disciplineEntries) {
-      disciplines.push({
-        ...entry,
-        id: buildUserScopedId(userId, entry.id),
-        thesisId: scopedId,
-      });
-    }
-  }
-  return { hypotheses, crossChecks, valuations, disciplines };
+function collectStarterChildren(userId: string, idMap: Map<string, string>) {
+  const mapped = SEED_THESIS_RECORDS.map((item) =>
+    mapRecordChildren(
+      userId,
+      idMap.get(item.id) ?? buildUserScopedId(userId, item.id),
+      item,
+      idMap,
+    ),
+  );
+  return {
+    hypotheses: mapped.flatMap((m) => m.hypotheses),
+    catalysts: mapped.flatMap((m) => m.catalysts),
+    crossChecks: mapped.flatMap((m) => m.crossChecks),
+    valuations: mapped.map((m) => m.valuation),
+    disciplines: mapped.flatMap((m) => m.disciplines),
+  };
 }
 
 export async function provisionStarterWorkspaceForUser(tx: KanonDb, userId: string): Promise<void> {
@@ -102,6 +116,9 @@ export async function provisionStarterWorkspaceForUser(tx: KanonDb, userId: stri
   await Promise.all([
     children.hypotheses.length > 0
       ? tx.insert(hypothesesTable).values(children.hypotheses).onConflictDoNothing()
+      : Promise.resolve(),
+    children.catalysts.length > 0
+      ? tx.insert(thesisCatalystsTable).values(children.catalysts).onConflictDoNothing()
       : Promise.resolve(),
     children.crossChecks.length > 0
       ? tx.insert(crossChecksTable).values(children.crossChecks).onConflictDoNothing()

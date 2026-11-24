@@ -3,6 +3,7 @@ import {
   analyzeSecQuality,
   calculateImpliedExpectations,
   calculateResearchReadiness,
+  type MarketQuoteSnapshot,
   type QuarterlyReview,
   type SecSnapshot,
   type ThesisDetail,
@@ -20,7 +21,7 @@ import {
   type AgentTraceStep,
 } from "./types";
 
-const MAX_AGENT_STEPS = 6;
+const MAX_AGENT_STEPS = 8;
 
 const IcSynthesisSchema = z.object({
   verdict: z.string().min(8),
@@ -140,6 +141,7 @@ export async function* streamResearchAgent(params: {
   secSnapshot: SecSnapshot | null;
   reviews?: readonly QuarterlyReview[];
   revisions?: readonly ThesisRevision[];
+  marketQuote?: MarketQuoteSnapshot | null;
   byok?: ByokCredentials;
 }): AsyncGenerator<AgentStreamEvent> {
   const traces: AgentTraceStep[] = [];
@@ -169,7 +171,7 @@ export async function* streamResearchAgent(params: {
     ...synth,
     convictionScore: computeConvictionScore(params.thesis, params.secSnapshot),
     traces,
-    proposals: proposals.slice(0, 6),
+    proposals: proposals.slice(0, 8),
   });
   yield { type: "briefing_ready", briefing };
 }

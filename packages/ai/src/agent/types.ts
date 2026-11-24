@@ -11,3 +11,9 @@ export {
   type AgentTraceStep,
   AgentTraceStepSchema,
 } from "@kanon/core";
+
+export interface ResearchToolOutput {
+  finding: string;
+  citation: string;
+  proposal?: import("@kanon/core").AgentProposal;
+}

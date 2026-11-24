@@ -2,7 +2,13 @@ import { eq } from "drizzle-orm";
 import { roundTo } from "../../math/valuation-scenarios";
 import type { UpdateThesisStepInput } from "../../schemas/research";
 import type { KanonDb } from "../client";
-import { crossChecksTable, hypothesesTable, thesesTable, valuationScenariosTable } from "../schema";
+import {
+  crossChecksTable,
+  hypothesesTable,
+  thesesTable,
+  thesisCatalystsTable,
+  valuationScenariosTable,
+} from "../schema";
 
 export async function writeBusinessFilterStep(
   tx: KanonDb,
@@ -41,6 +47,26 @@ export async function writeHypothesesStep(
     .where(eq(thesesTable.id, thesisId));
   const validated = parsed.hypotheses.filter((h) => h.status === "validated").length;
   return `更新 ${parsed.hypotheses.length} 条可证伪核心假设（已验证 ${validated}/${parsed.hypotheses.length}）`;
+}
+
+export async function writeCatalystsStep(
+  tx: KanonDb,
+  thesisId: string,
+  parsed: Extract<UpdateThesisStepInput, { step: "catalysts" }>,
+  now: Date,
+): Promise<string> {
+  await tx.delete(thesisCatalystsTable).where(eq(thesisCatalystsTable.thesisId, thesisId));
+  if (parsed.catalysts.length > 0) {
+    await tx
+      .insert(thesisCatalystsTable)
+      .values(parsed.catalysts.map((item) => ({ ...item, thesisId })));
+  }
+  await tx
+    .update(thesesTable)
+    .set({ lastReviewedLabel: "刚刚更新 · 催化剂日程", updatedAt: now })
+    .where(eq(thesesTable.id, thesisId));
+  const upcoming = parsed.catalysts.filter((c) => c.status === "upcoming").length;
+  return `更新催化剂日程（待验证 ${upcoming}/${parsed.catalysts.length} 项）`;
 }
 
 export async function writeCrossChecksStep(

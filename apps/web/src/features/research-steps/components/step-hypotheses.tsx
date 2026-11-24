@@ -1,12 +1,31 @@
 "use client";
 
-import type { GlossaryTerm, Hypothesis, RedTeamReport, ThesisDetail } from "@kanon/core";
-import { AgentThinking, Button, ComposerLoader, ProgressBar } from "@kanon/ui";
+import type {
+  GlossaryTerm,
+  Hypothesis,
+  RedTeamReport,
+  ThesisCatalyst,
+  ThesisDetail,
+} from "@kanon/core";
+import {
+  AgentThinking,
+  Button,
+  ComposerLoader,
+  KANON_LENS_VARIANTS,
+  ProgressBar,
+  SegmentedTabs,
+} from "@kanon/ui";
 import { IconCheck, IconDeviceFloppy, IconFlame, IconPlus } from "@tabler/icons-react";
+import { motion } from "framer-motion";
+import { useState } from "react";
 import { DraftStatusBar } from "@/shared/components/draft-status-bar";
 import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
+import { buildExtraHypothesis, isHypothesisArray, swapHypotheses } from "../lib/hypothesis-helpers";
+import { CatalystLedgerSection } from "./catalysts/catalyst-ledger-section";
 import { HypothesisEditorCard } from "./hypothesis-editor-card";
 import { RedTeamResultCard } from "./red-team-result-card";
+
+type StepTwoLens = "hypotheses" | "catalysts";
 
 export interface StepHypothesesProps {
   thesis: ThesisDetail;
@@ -16,35 +35,9 @@ export interface StepHypothesesProps {
   redTeam: RedTeamReport | null;
   onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
   onSave: (hypotheses: Hypothesis[]) => Promise<void>;
+  onSaveCatalysts: (catalysts: ThesisCatalyst[]) => Promise<void>;
   onRunRedTeam: () => Promise<void>;
   onPromoteRedTeamRule?: (rule: string) => void;
-}
-
-function isHypothesisArray(val: unknown): val is Hypothesis[] {
-  return Array.isArray(val) && val.length >= 3 && val.length <= 5;
-}
-
-function buildExtraHypothesis(thesisId: string, nextNum: number): Hypothesis {
-  return {
-    id: `${thesisId}-h${nextNum}-${Date.now().toString(36).slice(-4)}`,
-    title: "补充核心增长引擎或竞争格局假设",
-    metricLabel: "分部收入 / 份额",
-    threshold: "待设定量化红线",
-    status: "watching",
-    note: "记录未来 2–4 个季度用于验证该前提的一阶财报指标。",
-  };
-}
-
-function swapItems(prev: Hypothesis[], idx: number, delta: -1 | 1): Hypothesis[] {
-  const target = idx + delta;
-  if (target < 0 || target >= prev.length) return prev;
-  const copy = [...prev];
-  const moved = copy[idx];
-  const swapped = copy[target];
-  if (!moved || !swapped) return prev;
-  copy[idx] = swapped;
-  copy[target] = moved;
-  return copy;
 }
 
 function StepTwoHeader({
@@ -67,9 +60,9 @@ function StepTwoHeader({
         </div>
         <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
           <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary">
-            核心假设拆解
+            核心假设与催化剂
           </h1>
-          <span className="kanon-serif-italic text-2xl">Core Hypotheses</span>
+          <span className="kanon-serif-italic text-2xl">Hypotheses & Catalysts</span>
         </div>
       </div>
       <Button variant="coral" size="md" loading={loading} onClick={onRun}>
@@ -80,7 +73,7 @@ function StepTwoHeader({
   );
 }
 
-function StepTwoFooter(props: {
+function StepTwoFooter(p: {
   count: number;
   saving: boolean;
   onAdd: () => void;
@@ -88,52 +81,108 @@ function StepTwoFooter(props: {
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-      {props.count < 5 ? (
-        <Button variant="outline" size="md" onClick={props.onAdd}>
+      {p.count < 5 ? (
+        <Button variant="outline" size="md" onClick={p.onAdd}>
           <IconPlus size={15} stroke={1.5} />
-          <span>增补第 {props.count + 1} 条假设</span>
+          <span>增补第 {p.count + 1} 条假设</span>
         </Button>
       ) : (
         <span className="font-mono text-xs text-ink-muted">5 / 5 核心假设</span>
       )}
-      <Button variant="primary" size="lg" disabled={props.saving} onClick={props.onSave}>
-        {props.saving ? (
+      <Button variant="primary" size="lg" disabled={p.saving} onClick={p.onSave}>
+        {p.saving ? (
           <IconCheck size={16} stroke={1.5} />
         ) : (
           <IconDeviceFloppy size={16} stroke={1.5} />
         )}
-        <span>{props.saving ? "保存中..." : `保存 ${props.count} 条核心假设`}</span>
+        <span>{p.saving ? "保存中..." : `保存 ${p.count} 条核心假设`}</span>
       </Button>
     </div>
   );
 }
 
-function HypothesisListSection(props: {
-  items: readonly Hypothesis[];
-  glossary: readonly GlossaryTerm[];
-  onChange: (idx: number, next: Hypothesis) => void;
-  onMove: (idx: number, delta: -1 | 1) => void;
-  onRemove: (idx: number) => void;
+function HypothesesLensBody(p: {
+  props: StepHypothesesProps;
+  draft: Hypothesis[];
+  setDraft: React.Dispatch<React.SetStateAction<Hypothesis[]>>;
+  onAdd: () => void;
+  onSave: () => void;
+}) {
+  const { props, draft, setDraft } = p;
+  return (
+    <>
+      <div className="space-y-4">
+        {draft.map((item, idx) => (
+          <HypothesisEditorCard
+            key={item.id}
+            index={idx}
+            total={draft.length}
+            item={item}
+            glossary={props.glossary}
+            onChange={(n) => setDraft((prev) => prev.map((it, i) => (i === idx ? n : it)))}
+            onMove={(delta) => setDraft((prev) => swapHypotheses(prev, idx, delta))}
+            onRemove={
+              draft.length > 3
+                ? () => setDraft((prev) => prev.filter((_, i) => i !== idx))
+                : undefined
+            }
+          />
+        ))}
+      </div>
+      {props.redTeamLoading ? (
+        <ComposerLoader active radius={18}>
+          <div className="space-y-2.5 rounded-card border border-hairline bg-surface p-4 shadow-card">
+            <AgentThinking variant="stars" label="红队空头正在反演核心假设盲区" />
+            <ProgressBar indeterminate tone="accent" size="sm" />
+          </div>
+        </ComposerLoader>
+      ) : null}
+      {props.redTeam ? (
+        <RedTeamResultCard report={props.redTeam} onPromoteRule={props.onPromoteRedTeamRule} />
+      ) : null}
+      <StepTwoFooter count={draft.length} saving={props.saving} onAdd={p.onAdd} onSave={p.onSave} />
+    </>
+  );
+}
+
+function StepTwoStage(p: {
+  lens: StepTwoLens;
+  props: StepHypothesesProps;
+  draft: Hypothesis[];
+  setDraft: React.Dispatch<React.SetStateAction<Hypothesis[]>>;
+  onAdd: () => void;
+  onSave: () => void;
 }) {
   return (
-    <div className="space-y-4">
-      {props.items.map((item, idx) => (
-        <HypothesisEditorCard
-          key={item.id}
-          index={idx}
-          total={props.items.length}
-          item={item}
-          glossary={props.glossary}
-          onChange={(n) => props.onChange(idx, n)}
-          onMove={(delta) => props.onMove(idx, delta)}
-          onRemove={props.items.length > 3 ? () => props.onRemove(idx) : undefined}
+    <motion.div
+      key={p.lens}
+      variants={KANON_LENS_VARIANTS}
+      initial="enter"
+      animate="center"
+      className="min-h-[360px] space-y-6"
+    >
+      {p.lens === "catalysts" ? (
+        <CatalystLedgerSection
+          thesisId={p.props.thesis.id}
+          serverCatalysts={p.props.thesis.catalysts}
+          saving={p.props.saving}
+          onSave={p.props.onSaveCatalysts}
         />
-      ))}
-    </div>
+      ) : (
+        <HypothesesLensBody
+          props={p.props}
+          draft={p.draft}
+          setDraft={p.setDraft}
+          onAdd={p.onAdd}
+          onSave={p.onSave}
+        />
+      )}
+    </motion.div>
   );
 }
 
 export function StepHypotheses(props: StepHypothesesProps) {
+  const [lens, setLens] = useState<StepTwoLens>("hypotheses");
   const d = useThesisStepDraft({
     storageKey: `kanon-draft:${props.thesis.id}:step2`,
     serverValue: props.thesis.hypotheses,
@@ -154,27 +203,20 @@ export function StepHypotheses(props: StepHypothesesProps) {
         loading={props.redTeamLoading}
         onRun={props.onRunRedTeam}
       />
-      <HypothesisListSection
-        items={d.draft}
-        glossary={props.glossary}
-        onChange={(idx, n) => d.setDraft((prev) => prev.map((it, i) => (i === idx ? n : it)))}
-        onMove={(idx, delta) => d.setDraft((prev) => swapItems(prev, idx, delta))}
-        onRemove={(idx) => d.setDraft((prev) => prev.filter((_, i) => i !== idx))}
+      <SegmentedTabs
+        layoutId="step2-lens-tabs"
+        value={lens}
+        onChange={setLens}
+        items={[
+          { id: "hypotheses", label: "核心可证伪假设", count: d.draft.length },
+          { id: "catalysts", label: "催化剂与重估日程", count: props.thesis.catalysts.length },
+        ]}
       />
-      {props.redTeamLoading ? (
-        <ComposerLoader active radius={20}>
-          <div className="space-y-2.5 rounded-card border border-hairline bg-surface p-4 shadow-card">
-            <AgentThinking variant="stars" label="红队空头正在反演核心假设盲区" />
-            <ProgressBar indeterminate tone="accent" size="sm" />
-          </div>
-        </ComposerLoader>
-      ) : null}
-      {props.redTeam ? (
-        <RedTeamResultCard report={props.redTeam} onPromoteRule={props.onPromoteRedTeamRule} />
-      ) : null}
-      <StepTwoFooter
-        count={d.draft.length}
-        saving={props.saving}
+      <StepTwoStage
+        lens={lens}
+        props={props}
+        draft={d.draft}
+        setDraft={d.setDraft}
         onAdd={addExtra}
         onSave={() => void d.save()}
       />

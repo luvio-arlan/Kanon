@@ -4,14 +4,16 @@ import {
   type ConvictionZone,
   calculateImpliedExpectations,
   calculatePriceMarkerPosition,
+  type MarketQuoteSnapshot,
   type SparklinePoint,
   type ValuationScenarioSummary,
 } from "@kanon/core";
-import { Badge, RollingNumber, ValuationSparkline } from "@kanon/ui";
+import { Badge, MarketSessionBadge, RollingNumber, ValuationSparkline } from "@kanon/ui";
 
 export interface ValuationAnchorPanelProps {
   valuation: ValuationScenarioSummary;
   priceHistory: readonly SparklinePoint[];
+  liveQuote?: MarketQuoteSnapshot;
 }
 
 const ZONE_STYLE: Record<
@@ -120,7 +122,38 @@ function TargetHeadline({
   );
 }
 
-export function ValuationAnchorPanel({ valuation, priceHistory }: ValuationAnchorPanelProps) {
+function resolveExtendedPct(quote: MarketQuoteSnapshot): number | null {
+  if (quote.sessionState === "PRE" && quote.preMarketPrice !== null) {
+    return quote.preMarketChangePct;
+  }
+  if (quote.sessionState === "POST" && quote.postMarketPrice !== null) {
+    return quote.postMarketChangePct;
+  }
+  return quote.regularChangePct;
+}
+
+function LiveExtendedMeta({ quote }: { quote?: MarketQuoteSnapshot }) {
+  if (!quote) return null;
+  const pct = resolveExtendedPct(quote);
+  const pctText = pct !== null ? `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%` : null;
+  const pctTone = pct && pct > 0 ? "text-status-pass" : "text-accent-coral";
+  return (
+    <div className="mt-2.5 flex flex-wrap items-center gap-2 font-mono text-xs tabular-nums">
+      <MarketSessionBadge session={quote.sessionState} compact />
+      <span className="font-medium text-ink-primary">${quote.effectivePrice.toFixed(2)}</span>
+      {pctText ? <span className={pctTone}>{pctText}</span> : null}
+      {quote.fiftyTwoWeekPositionPct !== null ? (
+        <span className="text-ink-muted">· 52W {quote.fiftyTwoWeekPositionPct.toFixed(0)}%</span>
+      ) : null}
+    </div>
+  );
+}
+
+export function ValuationAnchorPanel({
+  valuation,
+  priceHistory,
+  liveQuote,
+}: ValuationAnchorPanelProps) {
   const zone = ZONE_STYLE[valuation.convictionZone];
   const exp = calculateImpliedExpectations({ summary: valuation });
 
@@ -141,6 +174,7 @@ export function ValuationAnchorPanel({ valuation, priceHistory }: ValuationAncho
           />
         </div>
       </div>
+      <LiveExtendedMeta quote={liveQuote} />
       <ScenarioRangeRail valuation={valuation} hurdle15={exp.hurdleEntry15} />
     </div>
   );

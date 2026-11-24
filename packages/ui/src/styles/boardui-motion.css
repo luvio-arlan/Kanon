@@ -112,7 +112,24 @@
   animation: spin 900ms linear infinite;
 }
 
+@keyframes kanon-session-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.36;
+  }
+}
+
+.kanon-session-dot {
+  animation: kanon-session-breathe 2.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .kanon-session-dot {
+    animation: none;
+  }
   .kanon-agent-shimmer-text {
     color: var(--kanon-agent-tone, var(--ink-secondary));
     background-image: none;

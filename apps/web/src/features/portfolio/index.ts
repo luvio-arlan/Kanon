@@ -1,5 +1,8 @@
 export { AttentionRadarStrip } from "./components/attention-radar-strip";
+export { CatalystCalendarBoard } from "./components/catalyst-calendar-board";
 export { CompareThesesSheet } from "./components/compare-theses-sheet";
 export { ImportArchiveModal } from "./components/import-archive-modal";
+export { LiveMarketStrip } from "./components/live-market-strip";
+export { PeerExpectationsMatrix } from "./components/peer-expectations-matrix";
 export { PortfolioStressSheet } from "./components/portfolio-stress-sheet";
 export { PositionEditorPanel } from "./components/position-editor-panel";

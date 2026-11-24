@@ -12,6 +12,8 @@ import {
 import {
   IconAlertTriangle,
   IconArchive,
+  IconCalendarEvent,
+  IconChartHistogram,
   IconLayoutGrid,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
@@ -112,6 +114,14 @@ const VIEW_DEFS: ReadonlyArray<{
     Icon: IconAlertTriangle,
   },
   { id: "matrix", label: "横向赔率矩阵", mode: "table", filter: "all", Icon: IconTable },
+  { id: "comps", label: "同业预期横评", mode: "comps", filter: "all", Icon: IconChartHistogram },
+  {
+    id: "catalysts",
+    label: "催化剂日程",
+    mode: "catalysts",
+    filter: "all",
+    Icon: IconCalendarEvent,
+  },
   {
     id: "archived",
     label: "已否决归档",
@@ -123,26 +133,38 @@ const VIEW_DEFS: ReadonlyArray<{
 ];
 
 function PrimaryViewsNav(p: CockpitSidebarProps) {
-  const isMatrix = p.viewMode === "table";
+  const upcomingCatalysts = p.theses
+    .filter((t) => t.status === "active")
+    .reduce((sum, t) => sum + t.catalysts.filter((c) => c.status === "upcoming").length, 0);
   const visible = VIEW_DEFS.filter((d) => d.id !== "archived" || p.filterCounts.archived > 0);
   return (
     <SidebarSection title="投研视图" collapsed={p.collapsed}>
-      {visible.map(({ id, label, mode, filter, countKey, Icon }) => (
-        <SidebarNavItem
-          key={id}
-          label={label}
-          icon={<Icon size={17} stroke={1.5} />}
-          badge={countKey ? p.filterCounts[countKey] : undefined}
-          active={mode === "table" ? isMatrix : !isMatrix && p.filter === filter}
-          collapsed={p.collapsed}
-          layoutId="cockpit-nav"
-          onClick={() => {
-            p.onSelectViewMode(mode);
-            p.onSelectFilter(filter);
-            p.onCloseMobile();
-          }}
-        />
-      ))}
+      {visible.map(({ id, label, mode, filter, countKey, Icon }) => {
+        const active =
+          mode === "cards" ? p.viewMode === "cards" && p.filter === filter : p.viewMode === mode;
+        const badge =
+          id === "catalysts"
+            ? upcomingCatalysts || undefined
+            : countKey
+              ? p.filterCounts[countKey]
+              : undefined;
+        return (
+          <SidebarNavItem
+            key={id}
+            label={label}
+            icon={<Icon size={17} stroke={1.5} />}
+            badge={badge}
+            active={active}
+            collapsed={p.collapsed}
+            layoutId="cockpit-nav"
+            onClick={() => {
+              p.onSelectViewMode(mode);
+              p.onSelectFilter(filter);
+              p.onCloseMobile();
+            }}
+          />
+        );
+      })}
     </SidebarSection>
   );
 }

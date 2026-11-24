@@ -118,9 +118,28 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     });
     expect(calibrated?.currentPrice).toBe(390);
 
+    const withCatalysts = await updateThesisStep(db, created.id, {
+      step: "catalysts",
+      catalysts: [
+        {
+          id: "msft-cat-1",
+          title: "Azure AI 季度增速验证",
+          dateLabel: "FY27 Q1",
+          category: "earnings",
+          impact: "high",
+          direction: "bullish",
+          status: "upcoming",
+          verificationMetric: "Azure 同比增速 > 34%",
+          note: "观察 AI 工作负载贡献占比",
+        },
+      ],
+    });
+    expect(withCatalysts?.catalysts).toHaveLength(1);
+    expect(withCatalysts?.catalysts[0]?.title).toContain("Azure");
+
     const revisions = await listThesisRevisions(db, created.id);
-    expect(revisions.length).toBeGreaterThanOrEqual(3);
-    expect(revisions[0]?.step).toBe("price_anchor");
+    expect(revisions.length).toBeGreaterThanOrEqual(4);
+    expect(revisions[0]?.step).toBe("catalysts");
 
     const health = await getDbHealthStats(db);
     expect(health.engine).toBe("pglite-embedded");

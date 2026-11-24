@@ -2,11 +2,14 @@ import {
   CreateThesisResponseSchema,
   type MarketBootstrapResponse,
   MarketBootstrapResponseSchema,
+  type MarketQuoteSnapshot,
   RefreshPricesResponseSchema,
+  type SparklinePoint,
   type ThesisDetail,
   ThesisMutationResponseSchema,
 } from "@kanon/core";
 import { toast } from "sonner";
+import { buildMarketHeaders } from "@/features/ai-settings";
 import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
 export interface NewThesisDraft {
@@ -16,6 +19,7 @@ export interface NewThesisDraft {
   currentPrice: string;
   convictionSummary: string;
   latestSecEps?: number;
+  priceHistory?: SparklinePoint[];
 }
 
 export const INSTITUTIONAL_THESIS_PRESETS: readonly NewThesisDraft[] = [
@@ -81,6 +85,7 @@ export async function apiCreateThesis(draft: NewThesisDraft): Promise<ThesisDeta
       currentPrice: priceNum,
       convictionSummary: draft.convictionSummary.trim() || undefined,
       latestSecEps: draft.latestSecEps,
+      priceHistory: draft.priceHistory,
     },
     fallbackError: "创建标的失败",
   });
@@ -101,7 +106,7 @@ export async function apiBootstrapTicker(ticker: string): Promise<MarketBootstra
   const res = await kanonFetch(
     `/api/market/bootstrap?ticker=${encodeURIComponent(clean)}`,
     MarketBootstrapResponseSchema,
-    { fallbackError: "自动识别美股档案失败，可继续手工填写" },
+    { headers: buildMarketHeaders(), fallbackError: "自动识别美股档案失败，可继续手工填写" },
   );
   if (!res.ok) {
     toast.error(res.error);
@@ -111,10 +116,14 @@ export async function apiBootstrapTicker(ticker: string): Promise<MarketBootstra
   return res.data;
 }
 
-export async function apiRefreshClosingPrices(): Promise<ThesisDetail[] | null> {
+export async function apiRefreshClosingPrices(
+  mode: "regular" | "extended" = "extended",
+): Promise<{ theses: ThesisDetail[]; quotes?: Record<string, MarketQuoteSnapshot> } | null> {
   const res = await kanonFetch("/api/market/refresh-prices", RefreshPricesResponseSchema, {
     method: "POST",
-    fallbackError: "收盘价校准失败，已保留原参考价",
+    headers: buildMarketHeaders(),
+    body: { mode },
+    fallbackError: "行情校准失败，已保留原参考价",
   });
   if (!res.ok) {
     toast.error(res.error);
@@ -122,7 +131,7 @@ export async function apiRefreshClosingPrices(): Promise<ThesisDetail[] | null> 
   }
   if (res.data.updatedCount > 0) toast.success(res.data.notice);
   else toast(res.data.notice);
-  return res.data.updatedTheses;
+  return { theses: res.data.updatedTheses, quotes: res.data.quotes };
 }
 
 export async function apiCalibratePriceAnchor(

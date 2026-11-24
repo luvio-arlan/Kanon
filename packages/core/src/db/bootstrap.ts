@@ -103,6 +103,31 @@ async function backfillBuySideFilters(db: KanonDb): Promise<void> {
   }
 }
 
+async function insertSeedChildren(db: KanonDb, item: (typeof SEED_THESIS_RECORDS)[number]) {
+  await db
+    .insert(schema.hypothesesTable)
+    .values(item.hypotheses.map((h, idx) => ({ ...h, thesisId: item.id, sortOrder: idx })))
+    .onConflictDoNothing();
+  await db
+    .insert(schema.crossChecksTable)
+    .values(item.crossChecks.map((cc) => ({ ...cc, thesisId: item.id })))
+    .onConflictDoNothing();
+  await db
+    .insert(schema.valuationScenariosTable)
+    .values({ thesisId: item.id, ...item.valuationInput })
+    .onConflictDoNothing();
+  await db
+    .insert(schema.disciplineEntriesTable)
+    .values(item.disciplineEntries.map((entry) => ({ ...entry, thesisId: item.id })))
+    .onConflictDoNothing();
+  if (item.catalysts && item.catalysts.length > 0) {
+    await db
+      .insert(schema.thesisCatalystsTable)
+      .values(item.catalysts.map((cat) => ({ ...cat, thesisId: item.id })))
+      .onConflictDoNothing();
+  }
+}
+
 async function insertSeedTheses(db: KanonDb): Promise<void> {
   for (const item of SEED_THESIS_RECORDS) {
     await db
@@ -126,25 +151,26 @@ async function insertSeedTheses(db: KanonDb): Promise<void> {
         lastReviewedLabel: item.lastReviewedLabel,
       })
       .onConflictDoNothing();
+    await insertSeedChildren(db, item);
+  }
+}
 
+async function backfillSeedCatalysts(db: KanonDb): Promise<void> {
+  const existing = await db
+    .select({ id: schema.thesisCatalystsTable.id })
+    .from(schema.thesisCatalystsTable)
+    .limit(1);
+  if (existing.length > 0) return;
+  for (const item of SEED_THESIS_RECORDS) {
+    if (!item.catalysts?.length) continue;
+    const [owner] = await db
+      .select({ id: schema.thesesTable.id })
+      .from(schema.thesesTable)
+      .where(eq(schema.thesesTable.id, item.id));
+    if (!owner) continue;
     await db
-      .insert(schema.hypothesesTable)
-      .values(item.hypotheses.map((h, idx) => ({ ...h, thesisId: item.id, sortOrder: idx })))
-      .onConflictDoNothing();
-
-    await db
-      .insert(schema.crossChecksTable)
-      .values(item.crossChecks.map((cc) => ({ ...cc, thesisId: item.id })))
-      .onConflictDoNothing();
-
-    await db
-      .insert(schema.valuationScenariosTable)
-      .values({ thesisId: item.id, ...item.valuationInput })
-      .onConflictDoNothing();
-
-    await db
-      .insert(schema.disciplineEntriesTable)
-      .values(item.disciplineEntries.map((entry) => ({ ...entry, thesisId: item.id })))
+      .insert(schema.thesisCatalystsTable)
+      .values(item.catalysts.map((cat) => ({ ...cat, thesisId: item.id })))
       .onConflictDoNothing();
   }
 }
@@ -168,4 +194,5 @@ export async function seedIfEmpty(db: KanonDb): Promise<void> {
   }
   await seedSecAndRevisions(db);
   await backfillBuySideFilters(db);
+  await backfillSeedCatalysts(db);
 }

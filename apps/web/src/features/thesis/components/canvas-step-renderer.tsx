@@ -103,6 +103,9 @@ function EarlySteps(p: EarlyStepsProps) {
             `${hypotheses.length} 条核心假设已保存`,
           )
         }
+        onSaveCatalysts={(catalysts) =>
+          p.ctrl.patchStep({ step: "catalysts", catalysts }, "催化剂日程已保存")
+        }
         onRunRedTeam={() => p.ctrl.runCopilot("red_team")}
         onPromoteRedTeamRule={p.onPromoteRule}
       />
@@ -114,12 +117,14 @@ function EarlySteps(p: EarlyStepsProps) {
 function LateSteps({
   step,
   ctrl,
+  livePrice,
   promotedRule,
   onDirtyChange,
   onClearPromoted,
 }: {
   step: 4 | 5;
   ctrl: CanvasController;
+  livePrice?: number | null;
   promotedRule: string | null;
   onDirtyChange: DirtyCallback;
   onClearPromoted: () => void;
@@ -141,6 +146,7 @@ function LateSteps({
   return (
     <DisciplineJournal
       thesis={ctrl.thesis}
+      livePrice={livePrice}
       revisions={ctrl.revisions}
       reviews={ctrl.reviews}
       submitting={ctrl.saving}
@@ -159,6 +165,7 @@ function LateSteps({
 export function CanvasStepRenderer(props: {
   step: StepId;
   ctrl: CanvasController;
+  livePrice?: number | null;
   allTheses: readonly ThesisSummary[];
   inboundCrossChecks: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
@@ -184,6 +191,7 @@ export function CanvasStepRenderer(props: {
     <LateSteps
       step={props.step as 4 | 5}
       ctrl={props.ctrl}
+      livePrice={props.livePrice}
       promotedRule={props.promotedRule}
       onDirtyChange={props.onDirtyChange}
       onClearPromoted={props.onClearPromoted}

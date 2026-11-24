@@ -13,6 +13,10 @@ import { DEFAULT_WORKSPACE_USER_ID, type UserRole } from "../contracts/auth-cont
 import type {
   Alignment,
   BusinessFilter,
+  CatalystCategory,
+  CatalystDirection,
+  CatalystImpact,
+  CatalystStatus,
   EmotionState,
   HypothesisVerdictItem,
   PeerRole,
@@ -207,6 +211,22 @@ export const agentRunsTable = pgTable("agent_runs", {
   fallbackReason: text("fallback_reason"),
   briefingJson: jsonb("briefing_json").$type<unknown>().notNull(),
   appliedProposalIds: jsonb("applied_proposal_ids").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const thesisCatalystsTable = pgTable("thesis_catalysts", {
+  id: text("id").primaryKey(),
+  thesisId: text("thesis_id")
+    .notNull()
+    .references(() => thesesTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  dateLabel: text("date_label").notNull(),
+  category: text("category").$type<CatalystCategory>().notNull(),
+  impact: text("impact").$type<CatalystImpact>().notNull(),
+  direction: text("direction").$type<CatalystDirection>().notNull(),
+  status: text("status").$type<CatalystStatus>().notNull().default("upcoming"),
+  verificationMetric: text("verification_metric").notNull(),
+  note: text("note").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

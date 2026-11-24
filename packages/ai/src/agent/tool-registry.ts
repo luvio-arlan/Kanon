@@ -4,25 +4,26 @@ import {
   calculateImpliedExpectations,
   calculateResearchReadiness,
   calculateTrueReverseDcf,
+  type MarketQuoteSnapshot,
   type QuarterlyReview,
   type SecSnapshot,
   type ThesisDetail,
   type ThesisRevision,
 } from "@kanon/core";
 import { runPortfolioDisciplineTool, runQuarterlyDriftTool } from "./drift-audit-tool";
-import type { AgentProposal } from "./types";
+import {
+  runCatalystValueTrapTool,
+  runLiveMarketRegimeTool,
+  runSupplyChainPeerTool,
+} from "./market-catalyst-tools";
+import type { AgentProposal, ResearchToolOutput } from "./types";
 
 export interface ResearchToolContext {
   thesis: ThesisDetail;
   secSnapshot: SecSnapshot | null;
   reviews?: readonly QuarterlyReview[];
   revisions?: readonly ThesisRevision[];
-}
-
-export interface ResearchToolOutput {
-  finding: string;
-  citation: string;
-  proposal?: AgentProposal;
+  marketQuote?: MarketQuoteSnapshot | null;
 }
 
 export interface ResearchToolSpec {
@@ -144,56 +145,6 @@ function runHypothesisAuditTool({ thesis }: ResearchToolContext): ResearchToolOu
   return { finding, citation, proposal };
 }
 
-function runSupplyChainPeerTool({ thesis }: ResearchToolContext): ResearchToolOutput {
-  const divergent = thesis.crossChecks.find((c) => c.alignment === "divergent");
-  const citation = `${thesis.ticker} Step 3 上下游产业链互证台账`;
-  if (thesis.crossChecks.length < 2) {
-    return {
-      finding: `当前仅有 ${thesis.crossChecks.length} 条产业链互证记录，样本偏少，存在单一信源偏误风险。`,
-      citation,
-      proposal: {
-        id: "prop-crosscheck-draft",
-        target: "cross_check_draft",
-        title: "增补关键上游/客户口径交叉验证条目",
-        beforePreview: `当前共 ${thesis.crossChecks.length} 条产业链互证`,
-        content: `核查 ${thesis.companyName} 核心上游供应商或头部云客户最新季报 CapEx 与库存指引，对照管理层在电话会中的需求表态。`,
-        rationale: "买方研究至少需 2 条以上独立产业链信源交叉印证，方能排除管理层乐观偏差。",
-        citation,
-        meta: {
-          peerCompany: "核心上下游伙伴（待填）",
-          peerRole: "upstream",
-          topic: "CapEx 与需求能见度",
-        },
-      },
-    };
-  }
-  if (divergent) {
-    const watchIdx = thesis.hypotheses.findIndex((h) => h.status !== "warning");
-    const targetIdx = Math.max(watchIdx, 0);
-    const target = thesis.hypotheses[targetIdx];
-    return {
-      finding: `检测到与「${divergent.peerCompany}」在「${divergent.topic}」存在口径分歧：${divergent.takeaway}`,
-      citation: `产业链分歧 · ${divergent.peerCompany} (${divergent.sourceAnchor})`,
-      proposal: target
-        ? {
-            id: "prop-hyp-warning",
-            target: "hypothesis_update",
-            title: `将假设 0${targetIdx + 1} 标记为预警并追加分歧证据`,
-            beforePreview: `[${target.status}] ${target.note}`,
-            content: `${target.note} [产业链分歧核验：${divergent.peerCompany} 在 ${divergent.topic} 提示「${divergent.takeaway}」，需下季重点复核]`,
-            rationale: "上下游出现实质性口径背离时，应前置下调假设置信度而非被动等待财报暴雷。",
-            citation: `${divergent.peerCompany} · ${divergent.sourceAnchor}`,
-            meta: { hypothesisIndex: targetIdx, hypothesisStatus: "warning" },
-          }
-        : undefined,
-    };
-  }
-  return {
-    finding: `已沉淀 ${thesis.crossChecks.length} 条产业链交叉验证且口径整体一致，支撑核心投资假设。`,
-    citation,
-  };
-}
-
 export const RESEARCH_AGENT_TOOLS: readonly ResearchToolSpec[] = [
   {
     name: "inspect_sec_forensics",
@@ -235,5 +186,18 @@ export const RESEARCH_AGENT_TOOLS: readonly ResearchToolSpec[] = [
         reviews: ctx.reviews ?? [],
         revisions: ctx.revisions ?? [],
       }),
+  },
+  {
+    name: "analyze_live_market_regime",
+    label: "对照实时盘前/盘后报价与 52 周分位校准买点",
+    description: "Compare live extended-hours price and 52W percentile against 15% buy hurdle.",
+    execute: (ctx) => runLiveMarketRegimeTool(ctx.thesis, ctx.marketQuote),
+  },
+  {
+    name: "audit_catalyst_and_value_trap",
+    label: "审计催化剂日程与价值陷阱排雷",
+    description:
+      "Check upcoming hard/soft catalysts to prevent value traps without rerating events.",
+    execute: (ctx) => runCatalystValueTrapTool(ctx.thesis),
   },
 ];

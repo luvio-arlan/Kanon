@@ -2,8 +2,10 @@ import {
   AgentRequestSchema,
   type ByokCredentials,
   ByokProviderSchema,
+  fetchMarketQuote,
   streamResearchAgent,
 } from "@kanon/ai";
+import type { MarketQuoteSnapshot } from "@kanon/core";
 import {
   getKanonDb,
   getSecSnapshot,
@@ -14,6 +16,7 @@ import {
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, readJsonBody } from "../../_lib/http";
+import { parseMarketHeaders } from "../../_lib/market-headers";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +35,7 @@ function createAgentSseStream(params: {
   secSnapshot: Awaited<ReturnType<typeof getSecSnapshot>>;
   reviews: Awaited<ReturnType<typeof listQuarterlyReviews>>;
   revisions: Awaited<ReturnType<typeof listThesisRevisions>>;
+  marketQuote: MarketQuoteSnapshot | null;
   byok: ByokCredentials | undefined;
 }) {
   const encoder = new TextEncoder();
@@ -84,10 +88,11 @@ export async function POST(request: Request) {
   if (!thesis) {
     return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   }
-  const [secSnapshot, reviews, revisions] = await Promise.all([
+  const [secSnapshot, reviews, revisions, quoteRes] = await Promise.all([
     getSecSnapshot(db, thesis.ticker),
     listQuarterlyReviews(db, thesis.id),
     listThesisRevisions(db, thesis.id),
+    fetchMarketQuote(thesis.ticker, { creds: parseMarketHeaders(request) }),
   ]);
   const stream = createAgentSseStream({
     db,
@@ -95,6 +100,7 @@ export async function POST(request: Request) {
     secSnapshot,
     reviews,
     revisions,
+    marketQuote: quoteRes.ok ? quoteRes.quote : null,
     byok: parseByokHeaders(request),
   });
 

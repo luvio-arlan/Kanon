@@ -37,7 +37,7 @@ export function SettingsCard({ children, className }: { children: ReactNode; cla
   return (
     <div
       className={cn(
-        "flex w-full flex-col rounded-2xl border border-hairline bg-muted/40 pl-4",
+        "flex w-full flex-col rounded-panel border border-hairline bg-muted/40 pl-4",
         className,
       )}
     >
@@ -125,7 +125,7 @@ export function SettingsDialogShell<T extends string>({
       <Modal.Container placement="center" size="lg" className="kanon-dialog-container">
         <Modal.Dialog
           aria-label="工作台设置"
-          className="kanon-dialog-panel flex h-[min(84vh,560px)] w-[min(94vw,820px)] max-w-[min(94vw,820px)] flex-row overflow-clip rounded-[24px] border border-strong bg-surface p-0 shadow-overlay focus:outline-none"
+          className="kanon-dialog-panel flex h-[min(86vh,590px)] w-[min(94vw,840px)] max-w-[min(94vw,840px)] flex-row overflow-clip rounded-card border border-strong bg-surface p-0 shadow-overlay focus:outline-none"
         >
           <SettingsNavRail tabs={tabs} activeTab={activeTab} onSelectTab={onSelectTab} />
           <div className="flex min-w-0 flex-1 flex-col bg-surface">

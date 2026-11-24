@@ -13,8 +13,10 @@ import {
   ValuationDriverInputsSchema,
   ValuationModelModeSchema,
 } from "./v4-extensions";
+import { ThesisCatalystSchema } from "./v5-institutional";
 
 export * from "./v4-extensions";
+export * from "./v5-institutional";
 
 export const FilterVerdictSchema = z.enum(["pass", "watch", "veto"]);
 export type FilterVerdict = z.infer<typeof FilterVerdictSchema>;
@@ -157,6 +159,7 @@ export const CreateThesisInputSchema = z.object({
   currentPrice: z.number().finite().positive(),
   convictionSummary: z.string().trim().min(1).max(280).optional(),
   latestSecEps: z.number().finite().positive().optional(),
+  priceHistory: z.array(SparklinePointSchema).min(2).max(12).optional(),
 });
 export type CreateThesisInput = z.input<typeof CreateThesisInputSchema>;
 
@@ -164,6 +167,7 @@ export const RevisionStepSchema = z.enum([
   "create",
   "business_filter",
   "hypotheses",
+  "catalysts",
   "cross_checks",
   "valuation",
   "price_anchor",
@@ -195,6 +199,7 @@ export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
     businessFilter: BusinessFilterSchema,
   }),
   z.object({ step: z.literal("hypotheses"), hypotheses: z.array(HypothesisSchema).min(3).max(5) }),
+  z.object({ step: z.literal("catalysts"), catalysts: z.array(ThesisCatalystSchema).max(12) }),
   z.object({ step: z.literal("cross_checks"), crossChecks: z.array(CrossCheckSchema).max(12) }),
   z.object({
     step: z.literal("valuation"),
@@ -226,6 +231,7 @@ export const ThesisDetailSchema = ThesisCardSchema.extend({
   targetMaxWeightPct: z.number().min(1).max(100).default(15),
   avgCostBasis: z.number().positive().nullable().default(null),
   businessFilter: BusinessFilterSchema,
+  catalysts: z.array(ThesisCatalystSchema).default([]),
   crossChecks: z.array(CrossCheckSchema),
   valuationInput: ValuationScenarioInputSchema,
   valuationModelMode: ValuationModelModeSchema.default("pe"),

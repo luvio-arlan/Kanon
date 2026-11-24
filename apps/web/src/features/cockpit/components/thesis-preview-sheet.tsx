@@ -2,6 +2,7 @@
 
 import {
   calculateImpliedExpectations,
+  type MarketQuoteSnapshot,
   type ThesisDetail,
   type ValuationCaseResult,
 } from "@kanon/core";
@@ -11,9 +12,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PositionEditorPanel } from "@/features/portfolio";
 import { apiCalibratePriceAnchor } from "../lib/cockpit-api";
+import { LiveQuoteSnapshotPanel } from "./overlays/live-quote-panel";
 
 export interface ThesisPreviewSheetProps {
   thesis: ThesisDetail | null;
+  liveQuote?: MarketQuoteSnapshot;
   onClose: () => void;
   onUpdated: (updated: ThesisDetail) => void;
 }
@@ -135,20 +138,23 @@ function HypothesesSection({ thesis }: { thesis: ThesisDetail }) {
 
 function SheetBody({
   thesis,
+  liveQuote,
   onUpdated,
 }: {
   thesis: ThesisDetail;
+  liveQuote?: MarketQuoteSnapshot;
   onUpdated: (updated: ThesisDetail) => void;
 }) {
   const { valuation } = thesis;
   return (
     <div className="space-y-5">
-      <div className="rounded-card bg-titanium-subtle p-4">
+      <div className="rounded-panel bg-titanium-subtle p-4">
         <div className="text-xs font-medium text-ink-muted">核心投资论点</div>
         <p className="mt-1.5 text-sm leading-relaxed text-ink-primary">
           {thesis.convictionSummary}
         </p>
       </div>
+      <LiveQuoteSnapshotPanel quote={liveQuote} />
       <QuickPriceCalibrator thesis={thesis} onUpdated={onUpdated} />
       <PositionEditorPanel thesis={thesis} onUpdated={onUpdated} />
       <ExpectationsStrip thesis={thesis} />
@@ -189,7 +195,12 @@ function SheetFooterActions({ thesis, onClose }: { thesis: ThesisDetail; onClose
   );
 }
 
-export function ThesisPreviewSheet({ thesis, onClose, onUpdated }: ThesisPreviewSheetProps) {
+export function ThesisPreviewSheet({
+  thesis,
+  liveQuote,
+  onClose,
+  onUpdated,
+}: ThesisPreviewSheetProps) {
   return (
     <Sheet
       open={thesis !== null}
@@ -200,7 +211,7 @@ export function ThesisPreviewSheet({ thesis, onClose, onUpdated }: ThesisPreview
       subtitle={thesis ? `${thesis.sectorTag} · 当前参考价 $${thesis.currentPrice.toFixed(2)}` : ""}
       footer={thesis ? <SheetFooterActions thesis={thesis} onClose={onClose} /> : undefined}
     >
-      {thesis ? <SheetBody thesis={thesis} onUpdated={onUpdated} /> : null}
+      {thesis ? <SheetBody thesis={thesis} liveQuote={liveQuote} onUpdated={onUpdated} /> : null}
     </Sheet>
   );
 }

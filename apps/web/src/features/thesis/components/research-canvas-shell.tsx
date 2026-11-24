@@ -19,8 +19,10 @@ import { readByokConfig } from "@/features/ai-settings";
 import { useCanvasChromeState } from "../hooks/use-canvas-chrome";
 import { applyAgentProposal, useResearchAgent } from "../hooks/use-research-agent";
 import { type InitialCopilotState, useResearchCanvas } from "../hooks/use-research-canvas";
+import { useThesisLiveQuote } from "../hooks/use-thesis-live-quote";
 import { AgentResearchSheet } from "./agent-research-sheet";
 import { ResearchSidebar, type StepId } from "./canvas-chrome";
+import { CanvasContextRibbon } from "./canvas-context-ribbon";
 import { CanvasOverlays, StepFooterNav, useCanvasShellActions } from "./canvas-footer-controls";
 import { CanvasStepRenderer } from "./canvas-step-renderer";
 
@@ -95,6 +97,7 @@ function useCanvasBindings(props: ResearchCanvasShellProps) {
     props.initialReviews,
   );
   const agent = useResearchAgent(ctrl.thesis.id, props.initialAgentRun);
+  const live = useThesisLiveQuote(ctrl.thesis.ticker);
   const actions = useCanvasShellActions({
     ctrl,
     allTheses: props.allTheses,
@@ -110,14 +113,37 @@ function useCanvasBindings(props: ResearchCanvasShellProps) {
     ui.setModal("agent", false);
     ui.jumpToStep(5);
   };
-  return { promotedRule, setPromotedRule, ui, ctrl, agent, actions, promoteRule };
+  return { promotedRule, setPromotedRule, ui, ctrl, agent, live, actions, promoteRule };
+}
+
+function StageTopBanner({ b }: { b: ReturnType<typeof useCanvasBindings> }) {
+  const { ui, ctrl, live } = b;
+  if (ui.focusMode) {
+    return (
+      <div className="no-print mb-6 flex justify-end">
+        <Button variant="outline" size="sm" onClick={ui.toggleFocus}>
+          <IconFocus2 size={15} stroke={1.5} />
+          <span>退出专注模式 (F)</span>
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <CanvasContextRibbon
+      thesis={ctrl.thesis}
+      activeStep={ui.nav.step}
+      liveQuote={live.quote}
+      onSelectStep={ui.jumpToStep}
+      onOpenAgent={() => ui.setModal("agent", true)}
+    />
+  );
 }
 
 function CanvasStageSection(p: {
   props: ResearchCanvasShellProps;
   b: ReturnType<typeof useCanvasBindings>;
 }) {
-  const { ui, ctrl, promotedRule, setPromotedRule, promoteRule } = p.b;
+  const { ui, ctrl, live, promotedRule, setPromotedRule, promoteRule } = p.b;
   return (
     <div
       className={cn(
@@ -125,14 +151,7 @@ function CanvasStageSection(p: {
         ui.focusMode ? "mx-auto max-w-4xl" : "max-w-[1440px]",
       )}
     >
-      {ui.focusMode ? (
-        <div className="no-print mb-6 flex justify-end">
-          <Button variant="outline" size="sm" onClick={ui.toggleFocus}>
-            <IconFocus2 size={15} stroke={1.5} />
-            <span>退出专注模式 (F)</span>
-          </Button>
-        </div>
-      ) : null}
+      <StageTopBanner b={p.b} />
       <section className="min-h-[540px] min-w-0">
         <motion.div
           key={ui.nav.step}
@@ -144,6 +163,7 @@ function CanvasStageSection(p: {
           <CanvasStepRenderer
             step={ui.nav.step}
             ctrl={ctrl}
+            livePrice={live.quote?.effectivePrice}
             allTheses={p.props.allTheses}
             inboundCrossChecks={p.props.inboundCrossChecks}
             glossary={p.props.glossary}

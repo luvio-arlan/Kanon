@@ -9,6 +9,7 @@ const STEP_LABELS: Record<RevisionStep, string> = {
   create: "建档立项",
   business_filter: "商业模式",
   hypotheses: "核心假设",
+  catalysts: "催化剂日程",
   cross_checks: "交叉验证",
   valuation: "三情景估值",
   price_anchor: "现价校准",

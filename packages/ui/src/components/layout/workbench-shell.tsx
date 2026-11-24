@@ -94,7 +94,7 @@ function DesktopSidebarFrame({ collapsed, content }: { collapsed: boolean; conte
         collapsed ? "w-[84px]" : "w-[276px]",
       )}
     >
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-[22px] border border-hairline bg-sidebar shadow-sidebar">
+      <div className="flex h-full w-full flex-col overflow-hidden rounded-card border border-hairline bg-sidebar shadow-sidebar">
         {content}
       </div>
     </aside>

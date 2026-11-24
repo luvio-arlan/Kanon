@@ -3,6 +3,7 @@ import type {
   CrossCheck,
   DisciplineEntry,
   PortfolioRole,
+  ThesisCatalyst,
   ThesisStatus,
 } from "../../schemas/research";
 import type { Hypothesis, SparklinePoint } from "../../schemas/thesis";
@@ -24,6 +25,7 @@ export interface SeedThesisRecord {
   lastReviewedLabel: string;
   businessFilter: BusinessFilter;
   hypotheses: [Hypothesis, Hypothesis, Hypothesis];
+  catalysts?: ThesisCatalyst[];
   crossChecks: CrossCheck[];
   valuationInput: {
     bearEps: number;

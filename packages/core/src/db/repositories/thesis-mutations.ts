@@ -15,6 +15,7 @@ import { recordThesisRevision } from "./revision-queries";
 import { getThesisById } from "./thesis-queries";
 import {
   writeBusinessFilterStep,
+  writeCatalystsStep,
   writeCrossChecksStep,
   writeHypothesesStep,
   writePortfolioStep,
@@ -57,7 +58,12 @@ function buildStarterHypotheses(thesisId: string, companyName: string) {
   ];
 }
 
-function buildStarterValuation(thesisId: string, price: number, latestSecEps?: number) {
+function buildStarterValuation(
+  thesisId: string,
+  price: number,
+  latestSecEps?: number,
+  priceHistory?: ReadonlyArray<{ label: string; price: number }>,
+) {
   const trailingEps = latestSecEps && latestSecEps > 0 ? latestSecEps : roundTo(price / 22, 2);
   const rawPe = Math.min(35, Math.max(12, Math.round(price / trailingEps)));
   const basePe = Math.min(32, Math.max(14, rawPe));
@@ -72,12 +78,15 @@ function buildStarterValuation(thesisId: string, price: number, latestSecEps?: n
     bullEps: roundTo(Math.max(1.2, trailingEps * 1.8), 2),
     bullPe: Math.min(42, basePe + 5),
     bullProb: 0.25,
-    priceHistory: [
-      { label: "6M前", price: roundTo(price * 0.88, 2) },
-      { label: "4M前", price: roundTo(price * 0.94, 2) },
-      { label: "2M前", price: roundTo(price * 0.97, 2) },
-      { label: "现价", price: roundTo(price, 2) },
-    ],
+    priceHistory:
+      priceHistory && priceHistory.length >= 2
+        ? [...priceHistory]
+        : [
+            { label: "6M前", price: roundTo(price * 0.88, 2) },
+            { label: "4M前", price: roundTo(price * 0.94, 2) },
+            { label: "2M前", price: roundTo(price * 0.97, 2) },
+            { label: "现价", price: roundTo(price, 2) },
+          ],
   };
 }
 
@@ -136,7 +145,9 @@ export async function createThesis(
     await tx.insert(hypothesesTable).values(buildStarterHypotheses(id, parsed.companyName));
     await tx
       .insert(valuationScenariosTable)
-      .values(buildStarterValuation(id, parsed.currentPrice, parsed.latestSecEps));
+      .values(
+        buildStarterValuation(id, parsed.currentPrice, parsed.latestSecEps, parsed.priceHistory),
+      );
 
     const created = await getThesisById(tx, id, userId);
     if (!created) {
@@ -160,6 +171,7 @@ async function dispatchStepWrite(
 ): Promise<string> {
   if (parsed.step === "business_filter") return writeBusinessFilterStep(tx, thesisId, parsed, now);
   if (parsed.step === "hypotheses") return writeHypothesesStep(tx, thesisId, parsed, now);
+  if (parsed.step === "catalysts") return writeCatalystsStep(tx, thesisId, parsed, now);
   if (parsed.step === "cross_checks") return writeCrossChecksStep(tx, thesisId, parsed, now);
   if (parsed.step === "price_anchor") return writePriceAnchorStep(tx, thesisId, parsed, now);
   if (parsed.step === "portfolio") return writePortfolioStep(tx, thesisId, parsed, now);
