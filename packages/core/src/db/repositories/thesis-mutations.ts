@@ -69,13 +69,13 @@ function buildStarterValuation(
   const basePe = Math.min(32, Math.max(14, rawPe));
   return {
     thesisId,
-    bearEps: roundTo(Math.max(0.5, trailingEps * 0.9), 2),
+    bearEps: roundTo(Math.max(0.05, trailingEps * 0.9), 2),
     bearPe: Math.max(10, basePe - 5),
     bearProb: 0.25,
-    baseEps: roundTo(Math.max(0.8, trailingEps * 1.38), 2),
+    baseEps: roundTo(Math.max(0.08, trailingEps * 1.38), 2),
     basePe,
     baseProb: 0.5,
-    bullEps: roundTo(Math.max(1.2, trailingEps * 1.8), 2),
+    bullEps: roundTo(Math.max(0.12, trailingEps * 1.8), 2),
     bullPe: Math.min(42, basePe + 5),
     bullProb: 0.25,
     priceHistory:

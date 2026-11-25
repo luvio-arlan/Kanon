@@ -1,7 +1,13 @@
 "use client";
 
-import { PROBABILITY_PRESETS, type ProbabilityPreset, type ValuationModelMode } from "@kanon/core";
+import {
+  MAX_VALUATION_PRICE,
+  PROBABILITY_PRESETS,
+  type ProbabilityPreset,
+  type ValuationModelMode,
+} from "@kanon/core";
 import { cn, Input } from "@kanon/ui";
+import { useState } from "react";
 import { CustomProbabilityPopover } from "./drivers/custom-probability-strip";
 
 const HORIZONS = [2, 3, 5] as const;
@@ -109,6 +115,18 @@ function CurrentPriceControl(p: {
   latestSecEps?: number | null;
   onPrice: (next: number) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [raw, setRaw] = useState(String(p.currentPrice));
+  const displayed = editing ? raw : String(p.currentPrice);
+
+  const handleChange = (text: string) => {
+    setRaw(text);
+    const parsed = Number(text);
+    if (Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_VALUATION_PRICE) {
+      p.onPrice(parsed);
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-3">
       <label htmlFor="kanon-current-price" className="text-sm font-medium text-ink-primary">
@@ -118,9 +136,15 @@ function CurrentPriceControl(p: {
         id="kanon-current-price"
         type="number"
         min={0.5}
+        max={MAX_VALUATION_PRICE}
         step={0.5}
-        value={p.currentPrice}
-        onChange={(e) => p.onPrice(Number(e.target.value) || 0)}
+        value={displayed}
+        onFocus={() => {
+          setRaw(String(p.currentPrice));
+          setEditing(true);
+        }}
+        onBlur={() => setEditing(false)}
+        onChange={(e) => handleChange(e.target.value)}
         className="w-28 font-mono tabular-nums"
       />
       {p.latestSecEps && p.latestSecEps > 0 ? (

@@ -2,6 +2,7 @@ import {
   type AgentAskResponse,
   AgentAskResponseSchema,
   analyzeSecForensics,
+  analyzeSecQuality,
   calculateImpliedExpectations,
   calculateTrueReverseDcf,
   type SecFilingReaderResponse,
@@ -21,6 +22,28 @@ const AskLlmSchema = z.object({
 const BUY_SELL_TRAP_RE =
   /(明天|下周|今天)?(能买吗|能卖吗|会涨吗|会跌吗|给个目标价|预测股价|几倍杠杆)/;
 
+function computeAskContext(thesis: ThesisDetail, secSnapshot: SecSnapshot | null) {
+  const annuals = secSnapshot?.annuals ?? [];
+  const quality = analyzeSecQuality(annuals);
+  const forensics = analyzeSecForensics(annuals, secSnapshot?.quarterlies ?? []);
+  const exp = calculateImpliedExpectations({
+    summary: thesis.valuation,
+    trailingEps: quality?.latestEps,
+  });
+  const baseEps =
+    quality?.latestEps && quality.latestEps > 0
+      ? quality.latestEps
+      : Math.max(0.5, thesis.currentPrice / 22);
+  const rdcf = calculateTrueReverseDcf({
+    currentPrice: thesis.currentPrice,
+    baseMetricPerShare: baseEps,
+    horizonYears: Math.max(3, thesis.horizonYears),
+    hurdleRatePct: 15,
+    terminalMultiple: thesis.valuation.base.peMultiple,
+  });
+  return { forensics, exp, rdcf };
+}
+
 function buildDeterministicAskResponse(params: {
   thesis: ThesisDetail;
   secSnapshot: SecSnapshot | null;
@@ -36,16 +59,7 @@ function buildDeterministicAskResponse(params: {
       citations: ["KANON 买方投研铁律 · Non-Goals"],
     };
   }
-  const annuals = secSnapshot?.annuals ?? [];
-  const forensics = analyzeSecForensics(annuals, secSnapshot?.quarterlies ?? []);
-  const exp = calculateImpliedExpectations({ summary: thesis.valuation });
-  const rdcf = calculateTrueReverseDcf({
-    currentPrice: thesis.currentPrice,
-    baseMetricPerShare: thesis.valuation.base.eps > 0 ? thesis.valuation.base.eps * 0.7 : 5,
-    horizonYears: Math.max(3, thesis.horizonYears),
-    hurdleRatePct: 15,
-    terminalMultiple: thesis.valuation.base.peMultiple,
-  });
+  const { forensics, exp, rdcf } = computeAskContext(thesis, secSnapshot);
   const hits = searchFilingExcerpts({
     query: `${question} ${thesis.ticker} ${thesis.businessFilter.keyDebate}`,
     filings: params.cachedFilings,
@@ -79,6 +93,9 @@ export async function askResearchIc(params: {
   byok?: ByokCredentials;
 }): Promise<AgentAskResponse> {
   const local = buildDeterministicAskResponse(params);
+  if (BUY_SELL_TRAP_RE.test(params.question)) {
+    return AgentAskResponseSchema.parse({ ...local, engine: "grounded-local" });
+  }
   const model = resolveByokModel(params.byok);
   if (!model) {
     return AgentAskResponseSchema.parse({ ...local, engine: "grounded-local" });

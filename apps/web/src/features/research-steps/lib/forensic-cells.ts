@@ -29,7 +29,8 @@ function pickTone(
   hit: "pass" | "warn",
   miss: ForensicCellTone,
 ): ForensicCellTone {
-  return cond(val ?? 0) ? hit : miss;
+  if (val === null) return "muted";
+  return cond(val) ? hit : miss;
 }
 
 function buildProfitabilityCells(report: SecForensicReport): ForensicCellSpec[] {

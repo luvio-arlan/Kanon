@@ -99,6 +99,39 @@ function KeywordSearchInput({
   );
 }
 
+function ParagraphItemCard(p: {
+  text: string;
+  keyword: string;
+  isSelected: boolean;
+  onDragSelect: () => void;
+  onSelectWhole: () => void;
+}) {
+  return (
+    <article
+      onMouseUp={p.onDragSelect}
+      className={cn(
+        "group block w-full select-text rounded-control border p-3.5 text-left text-sm leading-relaxed transition-colors",
+        p.isSelected
+          ? "border-accent-coral bg-accent-coral-soft/40 text-ink-primary"
+          : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
+      )}
+    >
+      <p className="cursor-text">
+        <HighlightedText text={p.text} keyword={p.keyword} />
+      </p>
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          onClick={p.onSelectWhole}
+          className="cursor-pointer text-xs font-medium text-ink-muted transition-colors hover:text-accent-coral"
+        >
+          {p.isSelected ? "已选整段" : "选取整段"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
 function ParagraphReader({
   paragraphs,
   selected,
@@ -114,15 +147,15 @@ function ParagraphReader({
   const kwLower = keyword.trim().toLowerCase();
   const filtered =
     kwLower.length >= 2 ? bySignal.filter((p) => p.text.toLowerCase().includes(kwLower)) : bySignal;
-  const handleSelectOrDrag = (paraText: string) => {
+  const handleSelectOrDrag = () => {
     const sel = window.getSelection()?.toString().trim();
-    onSelect(sel && sel.length >= 6 ? sel : paraText);
+    if (sel && sel.length >= 6) onSelect(sel);
   };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
-        <span>拖选任意原文词句，或点击整段直接选中摘录</span>
+        <span>拖选任意原文词句，或点击「选取整段」摘录</span>
         <Badge variant="titanium">
           命中 {filtered.length}/{paragraphs.length} 段
         </Badge>
@@ -130,19 +163,14 @@ function ParagraphReader({
       <KeywordSearchInput keyword={keyword} onChange={setKeyword} />
       <SignalCategoryPills category={category} onSelect={setCategory} />
       {filtered.map((para) => (
-        <button
+        <ParagraphItemCard
           key={para.id}
-          type="button"
-          onClick={() => handleSelectOrDrag(para.text)}
-          className={cn(
-            "block w-full cursor-pointer rounded-control border p-3.5 text-left text-sm leading-relaxed transition-colors",
-            selected === para.text
-              ? "border-accent-coral bg-accent-coral-soft/40 text-ink-primary"
-              : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
-          )}
-        >
-          <HighlightedText text={para.text} keyword={keyword} />
-        </button>
+          text={para.text}
+          keyword={keyword}
+          isSelected={selected === para.text}
+          onDragSelect={handleSelectOrDrag}
+          onSelectWhole={() => onSelect(para.text)}
+        />
       ))}
     </div>
   );

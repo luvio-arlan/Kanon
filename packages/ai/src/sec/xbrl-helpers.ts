@@ -5,6 +5,7 @@ export interface SecFactUnit {
   fp?: string;
   start?: string;
   end?: string;
+  filed?: string;
   frame?: string;
 }
 
@@ -39,7 +40,7 @@ export function diffDays(start?: string, end?: string): number | null {
 function isValidAnnualRow(
   row: SecFactUnit,
   kind: "flow" | "instant",
-): row is { val: number; fy: number; end?: string; frame?: string } {
+): row is { val: number; fy: number; end?: string; filed?: string; frame?: string } {
   const annualForm = row.form === "10-K" || row.form === "20-F";
   if (!annualForm || typeof row.val !== "number" || typeof row.fy !== "number") return false;
   if (kind === "instant") {
@@ -51,19 +52,33 @@ function isValidAnnualRow(
   return !row.fp || row.fp === "FY";
 }
 
+function resolvePeriodYear(row: { fy: number; end?: string; frame?: string }): number {
+  const frameMatch = row.frame ? /^CY(\d{4})$/.exec(row.frame) : null;
+  if (frameMatch?.[1]) return Number(frameMatch[1]);
+  if (row.end && /^\d{4}-\d{2}-\d{2}/.test(row.end)) {
+    const yr = Number(row.end.slice(0, 4));
+    const mo = Number(row.end.slice(5, 7));
+    return mo === 1 ? yr - 1 : yr;
+  }
+  return row.fy;
+}
+
 function indexAnnualRows(
   list: readonly SecFactUnit[],
   kind: "flow" | "instant",
 ): Map<number, number> {
-  const byYear = new Map<number, { end: string; hasFrame: boolean; val: number }>();
+  const byYear = new Map<number, { filed: string; filingFy: number; end: string; val: number }>();
   for (const row of list) {
     if (!isValidAnnualRow(row, kind)) continue;
+    const periodYr = resolvePeriodYear(row);
+    const filed = row.filed ?? "";
     const end = row.end ?? "";
-    const hasFrame = Boolean(row.frame && /^CY\d{4}$/.test(row.frame));
-    const prev = byYear.get(row.fy);
+    const prev = byYear.get(periodYr);
     const better =
-      !prev || (hasFrame && !prev.hasFrame) || (hasFrame === prev.hasFrame && end > prev.end);
-    if (better) byYear.set(row.fy, { end, hasFrame, val: row.val });
+      !prev ||
+      (filed && prev.filed ? filed > prev.filed : row.fy > prev.filingFy) ||
+      (filed === prev.filed && row.fy === prev.filingFy && end > prev.end);
+    if (better) byYear.set(periodYr, { filed, filingFy: row.fy, end, val: row.val });
   }
   return new Map([...byYear.entries()].map(([fy, v]) => [fy, v.val]));
 }
@@ -75,13 +90,16 @@ function collectFromNamespace(
   kind: "flow" | "instant",
 ): Map<number, number> {
   if (!ns) return new Map();
+  const merged = new Map<number, number>();
   for (const tag of tags) {
     const list = ns[tag]?.units?.[unitKey];
     if (!list) continue;
     const map = indexAnnualRows(list, kind);
-    if (map.size > 0) return map;
+    for (const [yr, val] of map.entries()) {
+      if (!merged.has(yr)) merged.set(yr, val);
+    }
   }
-  return new Map();
+  return merged;
 }
 
 export function collectAnnualMap(

@@ -18,9 +18,14 @@ import {
   thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
-import { upsertSecSnapshot } from "./discipline-mutations";
+import { getSecSnapshot, upsertSecSnapshot } from "./discipline-mutations";
 import { recordThesisRevision } from "./revision-queries";
 import { getThesisById } from "./thesis-queries";
+
+function safeImportDate(raw: string): Date {
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
 
 async function replacePrimaryChildren(tx: KanonDb, targetId: string, source: ThesisDetail) {
   await tx.delete(hypothesesTable).where(eq(hypothesesTable.thesisId, targetId));
@@ -64,7 +69,7 @@ async function replacePrimaryChildren(tx: KanonDb, targetId: string, source: The
         ...d,
         id: `${targetId}-disc-${idx + 1}-${crypto.randomUUID().slice(0, 4)}`,
         thesisId: targetId,
-        createdAt: new Date(d.createdAt),
+        createdAt: safeImportDate(d.createdAt),
       })),
     );
   }
@@ -82,7 +87,7 @@ async function restoreArchiveExtras(
         ...rev,
         id: `${targetId}-qrev-${idx + 1}-${crypto.randomUUID().slice(0, 4)}`,
         thesisId: targetId,
-        createdAt: new Date(rev.createdAt),
+        createdAt: safeImportDate(rev.createdAt),
       })),
     );
   }
@@ -95,7 +100,7 @@ async function restoreArchiveExtras(
         action: out.action,
         engine: out.engine,
         payload: out.payload,
-        updatedAt: new Date(out.updatedAt),
+        updatedAt: safeImportDate(out.updatedAt),
       })),
     );
   }
@@ -109,7 +114,7 @@ async function restoreArchiveExtras(
         fallbackReason: run.fallbackReason,
         briefingJson: run.briefing,
         appliedProposalIds: run.appliedProposalIds,
-        createdAt: new Date(run.createdAt),
+        createdAt: safeImportDate(run.createdAt),
       })),
     );
   }
@@ -206,7 +211,10 @@ export async function importThesisArchive(
   });
 
   if (parsed.archive.secSnapshot) {
-    await upsertSecSnapshot(db, parsed.archive.secSnapshot);
+    const existingSec = await getSecSnapshot(db, parsed.archive.secSnapshot.ticker);
+    if (existingSec?.source !== "sec-edgar-live") {
+      await upsertSecSnapshot(db, { ...parsed.archive.secSnapshot, source: "cached-seed" });
+    }
   }
   return result;
 }

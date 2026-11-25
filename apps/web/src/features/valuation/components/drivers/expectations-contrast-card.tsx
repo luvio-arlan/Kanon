@@ -38,6 +38,7 @@ export function ExpectationsContrastCard(props: {
   historicalCagrPct: number | null;
   impliedCagrPct: number;
   baseCagrPct: number;
+  isEpsBased?: boolean;
 }) {
   const values = [props.historicalCagrPct ?? 0, props.impliedCagrPct, props.baseCagrPct, 25];
   const maxScale = Math.max(...values.map((v) => Math.abs(v)), 10);
@@ -57,7 +58,7 @@ export function ExpectationsContrastCard(props: {
     },
     {
       id: "base",
-      label: "中性目标隐含年化 (Base CAGR)",
+      label: props.isEpsBased ? "中性 EPS 复合增速 (Base EPS CAGR)" : "中性目标年化 (Base CAGR)",
       valuePct: props.baseCagrPct,
       tone: "bg-status-pass",
     },

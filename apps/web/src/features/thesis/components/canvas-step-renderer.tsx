@@ -137,24 +137,21 @@ function EarlySteps(p: EarlyStepsProps) {
   return <StepThreeView {...p} />;
 }
 
-function LateSteps({
-  step,
-  ctrl,
-  livePrice,
-  promotedRule,
-  onSyncChange,
-  onClearPromoted,
-}: {
+interface LateStepsProps {
   step: 4 | 5;
   ctrl: CanvasController;
   livePrice?: number | null;
   promotedRule: string | null;
   onSyncChange: SyncCallback;
   onClearPromoted: () => void;
-}) {
+}
+
+function LateSteps(p: LateStepsProps) {
+  const { step, ctrl, livePrice, promotedRule, onSyncChange, onClearPromoted } = p;
   if (step === 4) {
     return (
       <ValuationWorkbench
+        key={ctrl.thesis.id}
         thesis={ctrl.thesis}
         secAnnuals={ctrl.secSnapshot?.annuals}
         latestSecEps={findLatestSecEps(ctrl.secSnapshot?.annuals)}

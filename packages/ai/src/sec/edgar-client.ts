@@ -62,6 +62,7 @@ const SecFactUnitSchema = z.object({
   fp: z.string().optional(),
   start: z.string().optional(),
   end: z.string().optional(),
+  filed: z.string().optional(),
   frame: z.string().optional(),
 });
 const SecNamespaceSchema = z.record(

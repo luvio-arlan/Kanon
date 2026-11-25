@@ -79,7 +79,11 @@ function ValuationMetricCells({ thesis }: { thesis: ThesisDetail }) {
         <div className="font-semibold text-ink-primary">
           ${valuation.base.targetPrice.toFixed(1)}
         </div>
-        <div className="text-xs text-status-pass">
+        <div
+          className={
+            valuation.upsidePct >= 0 ? "text-xs text-status-pass" : "text-xs text-status-fail"
+          }
+        >
           {valuation.upsidePct > 0 ? "+" : ""}
           {valuation.upsidePct.toFixed(1)}%
         </div>
@@ -93,7 +97,8 @@ function ValuationMetricCells({ thesis }: { thesis: ThesisDetail }) {
         </span>
       </td>
       <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm text-ink-secondary tabular-nums">
-        -{Math.max(0, valuation.downsidePct).toFixed(1)}%
+        {valuation.bear.returnPct > 0 ? "+" : ""}
+        {valuation.bear.returnPct.toFixed(1)}%
       </td>
     </>
   );

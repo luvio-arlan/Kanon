@@ -4,6 +4,7 @@ import {
   type ThesisDetail,
 } from "@kanon/core";
 import { describe, expect, it } from "vitest";
+import { sanitizeProviderBaseUrl } from "../copilot/run-copilot";
 import { askResearchIc } from "./ask-ic";
 import { searchFilingExcerpts } from "./filing-search-tool";
 import { isProposalGrounded, mergeGroundedProposals } from "./proposal-grounding";
@@ -197,5 +198,21 @@ describe("IC Agent v2: BM25 Filing Retrieval, Grounding & Ask IC", () => {
     expect(grounded.engine).toBe("grounded-local");
     expect(grounded.answer).toContain("75.1%");
     expect(grounded.citations.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("rejects zero-match BM25 noise and blocks private/metadata SSRF base URLs", () => {
+    const noHit = searchFilingExcerpts({
+      query: "quantum submarine uranium",
+      filings: [MOCK_FILING],
+    });
+    expect(noHit).toHaveLength(0);
+
+    expect(sanitizeProviderBaseUrl("https://100.100.100.200/latest")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://10.0.0.1/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://192.168.1.10/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://[::1]/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://api.deepseek.com/v1")).toBe(
+      "https://api.deepseek.com/v1",
+    );
   });
 });

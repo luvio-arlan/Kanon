@@ -53,15 +53,20 @@ function extractBalanceSheetMaps(facts: SecFactsPayload | undefined) {
   return {
     cash: collectAnnualMap(
       facts,
-      ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsAndShortTermInvestments"],
+      ["CashCashEquivalentsAndShortTermInvestments", "CashAndCashEquivalentsAtCarryingValue"],
       ["CashAndCashEquivalents"],
       "USD",
       "instant",
     ),
     debt: collectAnnualMap(
       facts,
-      ["LongTermDebtAndCapitalLeaseObligations", "LongTermDebt", "DebtCurrent"],
-      ["NoncurrentLiabilities", "Borrowings"],
+      [
+        "LongTermDebtAndCapitalLeaseObligations",
+        "LongTermDebt",
+        "LongTermDebtNoncurrent",
+        "DebtCurrent",
+      ],
+      ["Borrowings", "LongtermBorrowings"],
       "USD",
       "instant",
     ),
@@ -102,7 +107,7 @@ function extractIncomeCashMaps(facts: SecFactsPayload | undefined) {
     ),
     capex: collectAnnualMap(
       facts,
-      ["PaymentsToAcquirePropertyPlantAndEquipment"],
+      ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"],
       ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
     ),
     buybacks: collectAnnualMap(
@@ -139,7 +144,8 @@ function buildAnnualRow(
   bs: ReturnType<typeof extractBalanceSheetMaps>,
 ): SecAnnualFinancial {
   const r = readYearVal(ic.rev, fy);
-  const g = readYearVal(ic.gp, fy);
+  const cogs = readYearVal(ic.cogs, fy);
+  const g = readYearVal(ic.gp, fy) ?? (r !== null && cogs !== null ? r - cogs : null);
   const o = readYearVal(ic.ocf, fy);
   const c = readYearVal(ic.capex, fy);
   return {

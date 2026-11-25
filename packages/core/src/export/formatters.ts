@@ -9,10 +9,12 @@ export { formatGoogleDocHtml, type ThesisExportExtras };
 
 function escapeCsvCell(value: string | number): string {
   const raw = String(value);
-  if (/[",\n\r]/.test(raw)) {
-    return `"${raw.replaceAll('"', '""')}"`;
+  const formulaRisk = typeof value === "string" && (/^[=+@\t\r]/.test(raw) || /^-(?!\d)/.test(raw));
+  const safe = formulaRisk ? `'${raw}` : raw;
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replaceAll('"', '""')}"`;
   }
-  return raw;
+  return safe;
 }
 
 function formatExpectationsSection(thesis: ThesisDetail, extras?: ThesisExportExtras): string[] {
@@ -147,7 +149,7 @@ const PORTFOLIO_CSV_HEADER = [
   "中性空间(%)",
   "安全边际(%)",
   "15%买点($)",
-  "3年CAGR(%)",
+  "年化CAGR(%)",
   "赔率比",
   "已验证假设",
   "待验证催化剂",

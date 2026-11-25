@@ -30,8 +30,8 @@ export interface DisciplineJournalProps {
   redTeamExitSuggestion?: string;
   promotedExitRule?: string | null;
   onClearPromotedRule?: () => void;
-  onSubmitDiscipline: (entry: CreateDisciplineEntryInput) => Promise<void>;
-  onSubmitReview: (input: CreateQuarterlyReviewInput) => Promise<void>;
+  onSubmitDiscipline: (entry: CreateDisciplineEntryInput) => Promise<boolean>;
+  onSubmitReview: (input: CreateQuarterlyReviewInput) => Promise<boolean>;
   onGenerateMemo: () => Promise<void>;
 }
 
@@ -65,7 +65,7 @@ function LedgerPanel(
             transition={KANON_TRANSITION_FAST}
           >
             <DecisionComposerCard
-              defaultPrice={props.thesis.currentPrice}
+              defaultPrice={props.livePrice ?? props.thesis.currentPrice}
               initialExitRule={props.promotedExitRule}
               submitting={props.submitting}
               redTeamExitSuggestion={props.redTeamExitSuggestion}
@@ -78,7 +78,7 @@ function LedgerPanel(
       </AnimatePresence>
       <DisciplineTimeline
         entries={props.thesis.disciplineEntries}
-        currentPrice={props.thesis.currentPrice}
+        currentPrice={props.livePrice ?? props.thesis.currentPrice}
       />
     </div>
   );
@@ -147,30 +147,31 @@ function Step5AnimatedTab(
 
 export function DisciplineJournal(props: DisciplineJournalProps) {
   const [tab, setTab] = useState<Step5Tab>("ledger");
+  const [seenPromo, setSeenPromo] = useState<string | null>(props.promotedExitRule ?? null);
   const [composerOpen, setComposerOpen] = useState(
     props.thesis.disciplineEntries.length === 0 || Boolean(props.promotedExitRule),
   );
+  if (props.promotedExitRule && props.promotedExitRule !== seenPromo) {
+    setSeenPromo(props.promotedExitRule);
+    setTab("ledger");
+    setComposerOpen(true);
+  }
   const closeComposer = () => {
     setComposerOpen(false);
     props.onClearPromotedRule?.();
   };
-
+  const tabItems = [
+    { id: "ledger" as const, label: "交易纪律台账", count: props.thesis.disciplineEntries.length },
+    { id: "reviews" as const, label: "季度复盘", count: props.reviews.length },
+    { id: "calibration" as const, label: "认知校准" },
+    { id: "memo" as const, label: "投研备忘录" },
+    { id: "revisions" as const, label: "演进日志", count: props.revisions.length },
+  ];
   return (
     <div className="space-y-6">
       <Step5Header />
       <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <SegmentedTabs
-          layoutId="step5-mode-tabs"
-          value={tab}
-          onChange={setTab}
-          items={[
-            { id: "ledger", label: "交易纪律台账", count: props.thesis.disciplineEntries.length },
-            { id: "reviews", label: "季度复盘", count: props.reviews.length },
-            { id: "calibration", label: "认知校准" },
-            { id: "memo", label: "投研备忘录" },
-            { id: "revisions", label: "演进日志", count: props.revisions.length },
-          ]}
-        />
+        <SegmentedTabs layoutId="step5-mode-tabs" value={tab} onChange={setTab} items={tabItems} />
         {tab === "ledger" ? (
           <Button variant="primary" size="sm" onClick={() => setComposerOpen((v) => !v)}>
             {composerOpen ? (

@@ -1,6 +1,9 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
-import { calculateValuationScenarios } from "../../math/valuation-scenarios";
+import {
+  calculateValuationScenarios,
+  sanitizeValuationInput,
+} from "../../math/valuation-scenarios";
 import type {
   BusinessFilter,
   CrossCheck,
@@ -54,25 +57,23 @@ function normalizeHypotheses(rows: HypothesisRow[]): Hypothesis[] {
 }
 
 export function buildValuationInput(row: ThesisRow, val: ValuationRow | undefined) {
-  return {
+  const mk = (
+    eps: number | undefined,
+    pe: number | undefined,
+    prob: number | undefined,
+    d: [number, number, number],
+  ) => ({
+    eps: eps ?? d[0],
+    peMultiple: pe ?? d[1],
+    probability: prob ?? d[2],
+  });
+  return sanitizeValuationInput({
     currentPrice: row.currentPrice,
     horizonYears: row.horizonYears,
-    bear: {
-      eps: val?.bearEps ?? 1,
-      peMultiple: val?.bearPe ?? 15,
-      probability: val?.bearProb ?? 0.25,
-    },
-    base: {
-      eps: val?.baseEps ?? 2,
-      peMultiple: val?.basePe ?? 20,
-      probability: val?.baseProb ?? 0.5,
-    },
-    bull: {
-      eps: val?.bullEps ?? 3,
-      peMultiple: val?.bullPe ?? 25,
-      probability: val?.bullProb ?? 0.25,
-    },
-  };
+    bear: mk(val?.bearEps, val?.bearPe, val?.bearProb, [1, 15, 0.25]),
+    base: mk(val?.baseEps, val?.basePe, val?.baseProb, [2, 20, 0.5]),
+    bull: mk(val?.bullEps, val?.bullPe, val?.bullProb, [3, 25, 0.25]),
+  });
 }
 
 function groupByThesisId<T extends { thesisId: string }>(rows: readonly T[]): Map<string, T[]> {

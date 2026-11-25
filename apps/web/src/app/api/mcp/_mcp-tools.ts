@@ -34,7 +34,7 @@ async function handleThesisDossier(db: KanonDb, userId: string, tickerRaw: strin
     getSecSnapshot(db, match.ticker),
     listQuarterlyReviews(db, match.id),
     getLatestAgentRun(db, match.id),
-    listInboundCrossChecks(db, match.id),
+    listInboundCrossChecks(db, match.id, userId),
   ]);
   const secQuality = analyzeSecQuality(secSnapshot?.annuals ?? []);
   const secForensics = analyzeSecForensics(

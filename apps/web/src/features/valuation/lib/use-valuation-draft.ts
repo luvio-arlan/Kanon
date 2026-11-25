@@ -5,31 +5,26 @@ import {
   calculateValuationScenarios,
   matchProbabilityPreset,
   type ProbabilityPreset,
+  sanitizeValuationInput,
   type ThesisDetail,
   type ValuationDriverInputs,
   type ValuationModelMode,
 } from "@kanon/core";
 import { useCallback, useMemo } from "react";
 import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
+import {
+  type CaseKey,
+  type CaseMap,
+  type CasePair,
+  clampCasePatch,
+  isValuationDraft,
+  mapTargetsToCases,
+  normalizeProbTriplet,
+  type ValuationDraftState,
+  type ValuationSavePayload,
+} from "./valuation-draft-helpers";
 
-export type CaseKey = "bear" | "base" | "bull";
-export type CasePair = { eps: number; peMultiple: number; probability: number };
-export type CaseMap = Record<CaseKey, CasePair>;
-
-export interface ValuationDraftState {
-  currentPrice: number;
-  horizonYears: number;
-  modelMode: ValuationModelMode;
-  driverInputs: ValuationDriverInputs;
-  cases: CaseMap;
-}
-
-export type ValuationSavePayload = {
-  currentPrice: number;
-  horizonYears: number;
-  modelMode: ValuationModelMode;
-  driverInputs: ValuationDriverInputs | null;
-} & CaseMap;
+export type { CaseKey, CaseMap, CasePair, ValuationDraftState, ValuationSavePayload };
 
 function initialCasesFromThesis(thesis: ThesisDetail): CaseMap {
   const { bear, base, bull } = thesis.valuationInput;
@@ -40,39 +35,35 @@ function initialCasesFromThesis(thesis: ThesisDetail): CaseMap {
   };
 }
 
-function isValuationDraft(val: unknown): val is ValuationDraftState {
-  if (!val || typeof val !== "object") return false;
-  const rec = val as { currentPrice?: unknown; horizonYears?: unknown; cases?: unknown };
-  return (
-    typeof rec.currentPrice === "number" &&
-    typeof rec.horizonYears === "number" &&
-    Boolean(rec.cases && typeof rec.cases === "object")
-  );
-}
-
 function deriveMetrics(draft: ValuationDraftState) {
-  const safePrice = draft.currentPrice > 0 ? draft.currentPrice : 1;
-  const { horizonYears, cases } = draft;
-  const summary = calculateValuationScenarios({ currentPrice: safePrice, horizonYears, ...cases });
+  const safeInput = sanitizeValuationInput({
+    currentPrice: draft.currentPrice > 0 ? draft.currentPrice : 1,
+    horizonYears: draft.horizonYears,
+    ...draft.cases,
+  });
+  const summary = calculateValuationScenarios(safeInput);
   const matrix = calculateSensitivityMatrix({
-    currentPrice: safePrice,
-    horizonYears,
-    bearEps: cases.bear.eps,
-    baseEps: cases.base.eps,
-    bullEps: cases.bull.eps,
-    bearPe: cases.bear.peMultiple,
-    basePe: cases.base.peMultiple,
-    bullPe: cases.bull.peMultiple,
+    currentPrice: safeInput.currentPrice,
+    horizonYears: safeInput.horizonYears,
+    bearEps: safeInput.bear.eps,
+    baseEps: safeInput.base.eps,
+    bullEps: safeInput.bull.eps,
+    bearPe: safeInput.bear.peMultiple,
+    basePe: safeInput.base.peMultiple,
+    bullPe: safeInput.bull.peMultiple,
   });
   const activePreset = matchProbabilityPreset(
-    cases.bear.probability,
-    cases.base.probability,
-    cases.bull.probability,
+    summary.bear.probability,
+    summary.base.probability,
+    summary.bull.probability,
   );
   return { summary, matrix, activePreset };
 }
 
-function applyPresetToCases(cases: CaseMap, p: ProbabilityPreset): CaseMap {
+function applyPresetToCases(
+  cases: CaseMap,
+  p: Pick<ProbabilityPreset, "bear" | "base" | "bull">,
+): CaseMap {
   return {
     bear: { ...cases.bear, probability: p.bear },
     base: { ...cases.base, probability: p.base },
@@ -85,7 +76,16 @@ function useValuationPatchers(setDraft: React.Dispatch<React.SetStateAction<Valu
     (key: CaseKey, next: Partial<CasePair>) =>
       setDraft((prev) => ({
         ...prev,
-        cases: { ...prev.cases, [key]: { ...prev.cases[key], ...next } },
+        cases: { ...prev.cases, [key]: clampCasePatch(prev.cases[key], next) },
+      })),
+    [setDraft],
+  );
+  const applyEvTargetPrices = useCallback(
+    (targets: { bear: number; base: number; bull: number }) =>
+      setDraft((prev) => ({
+        ...prev,
+        modelMode: "ev_fcf",
+        cases: mapTargetsToCases(prev.cases, targets),
       })),
     [setDraft],
   );
@@ -104,26 +104,21 @@ function useValuationPatchers(setDraft: React.Dispatch<React.SetStateAction<Valu
     [setDraft],
   );
   const applyProbabilities = useCallback(
-    (bearRaw: number, baseRaw: number, bullRaw: number) => {
-      const b1 = Math.max(1, bearRaw);
-      const b2 = Math.max(1, baseRaw);
-      const b3 = Math.max(1, bullRaw);
-      const total = b1 + b2 + b3;
-      const bear = Math.round((b1 / total) * 100) / 100;
-      const base = Math.round((b2 / total) * 100) / 100;
-      const bull = Math.round((1 - bear - base) * 100) / 100;
+    (bearRaw: number, baseRaw: number, bullRaw: number) =>
       setDraft((prev) => ({
         ...prev,
-        cases: {
-          bear: { ...prev.cases.bear, probability: bear },
-          base: { ...prev.cases.base, probability: base },
-          bull: { ...prev.cases.bull, probability: bull },
-        },
-      }));
-    },
+        cases: applyPresetToCases(prev.cases, normalizeProbTriplet(bearRaw, baseRaw, bullRaw)),
+      })),
     [setDraft],
   );
-  return { patchCase, patchDrivers, setModelMode, applyPreset, applyProbabilities };
+  return {
+    patchCase,
+    applyEvTargetPrices,
+    patchDrivers,
+    setModelMode,
+    applyPreset,
+    applyProbabilities,
+  };
 }
 
 export function useValuationDraft(params: {
@@ -149,11 +144,7 @@ export function useValuationDraft(params: {
     storageKey: `kanon-draft:${thesis.id}:step4`,
     serverValue,
     serverVersion: thesis.updatedAt,
-    canSaveDraft: (val) =>
-      val.currentPrice > 0 &&
-      val.cases.bear.eps > 0 &&
-      val.cases.base.eps > 0 &&
-      val.cases.bull.eps > 0,
+    canSaveDraft: (val) => isValuationDraft(val),
     onSyncChange,
     validateStored: isValuationDraft,
     onSave: (val) =>

@@ -176,6 +176,7 @@ describe("Institutional v5 Math: Cognitive Calibration & Peer Comps", () => {
     expect(comps.rows[0]?.sessionState).toBe("PRE");
     expect(comps.rows[0]?.drawdownFrom52wHighPct).toBe(-30);
     expect(comps.rows[0]?.upcomingCatalysts).toBe(1);
-    expect(comps.medians.upsidePct).toBe(80);
+    expect(comps.rows[0]?.upsidePct).toBe(71.4);
+    expect(comps.medians.upsidePct).toBe(75.7);
   });
 });

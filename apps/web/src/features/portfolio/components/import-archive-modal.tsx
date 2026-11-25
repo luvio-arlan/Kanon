@@ -46,7 +46,10 @@ function ImportToolbar({
         type="file"
         accept=".json,application/json"
         className="hidden"
-        onChange={(e) => onFileSelected(e.target.files?.[0])}
+        onChange={(e) => {
+          onFileSelected(e.target.files?.[0]);
+          e.target.value = "";
+        }}
       />
       <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
         <IconUpload size={14} stroke={1.5} />

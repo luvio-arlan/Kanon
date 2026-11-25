@@ -32,7 +32,11 @@ function PeerMetricsCells({ row }: { row: PeerCompRow }) {
       </td>
       <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm tabular-nums">
         <div className="font-semibold text-ink-primary">${row.baseTargetPrice.toFixed(1)}</div>
-        <div className="text-xs text-status-pass">{formatPct(row.upsidePct, true)}</div>
+        <div
+          className={row.upsidePct >= 0 ? "text-xs text-status-pass" : "text-xs text-status-fail"}
+        >
+          {formatPct(row.upsidePct, true)}
+        </div>
       </td>
       <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm text-ink-primary tabular-nums">
         {row.baseCagrPct.toFixed(1)}%
@@ -110,7 +114,9 @@ function MediansFooterRow({ medians }: { medians: PeerCompsMedians }) {
       <td className="px-4 py-3 font-sans">组合中位数</td>
       <td className="px-3 py-3 text-right text-ink-muted">—</td>
       <td className="px-3 py-3 text-right text-ink-muted">—</td>
-      <td className="px-3 py-3 text-right text-status-pass">
+      <td
+        className={`px-3 py-3 text-right ${(medians.upsidePct ?? 0) >= 0 ? "text-status-pass" : "text-status-fail"}`}
+      >
         {formatPct(medians.upsidePct, true)}
       </td>
       <td className="px-3 py-3 text-right">{formatPct(medians.baseCagrPct)}</td>
@@ -151,7 +157,7 @@ export function PeerExpectationsMatrix({
               <th className="whitespace-nowrap px-4 py-3">标的与赛道</th>
               <th className="whitespace-nowrap px-3 py-3 text-right">实时价 / 买点</th>
               <th className="whitespace-nowrap px-3 py-3 text-right">距 52W 高</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">3Y 中性目标</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right">中性目标</th>
               <th className="whitespace-nowrap px-3 py-3 text-right">年化 CAGR</th>
               <th className="whitespace-nowrap px-3 py-3 text-right">安全边际</th>
               <th className="whitespace-nowrap px-3 py-3 text-right">赔率比</th>

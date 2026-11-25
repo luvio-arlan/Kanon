@@ -16,16 +16,20 @@ export const HypothesisSchema = z.object({
 });
 export type Hypothesis = z.infer<typeof HypothesisSchema>;
 
+export const MAX_VALUATION_PRICE = 1_000_000;
+export const MAX_VALUATION_EPS = 100_000;
+export const MAX_VALUATION_PE = 500;
+
 export const ValuationCaseInputSchema = z.object({
-  eps: z.number().finite().positive(),
-  peMultiple: z.number().finite().positive(),
+  eps: z.number().finite().positive().max(MAX_VALUATION_EPS),
+  peMultiple: z.number().finite().positive().max(MAX_VALUATION_PE),
   probability: z.number().finite().min(0).max(1).optional(),
 });
 export type ValuationCaseInput = z.infer<typeof ValuationCaseInputSchema>;
 
 export const ValuationScenarioInputSchema = z.object({
-  currentPrice: z.number().finite().positive(),
-  horizonYears: z.number().finite().positive().max(15).default(3),
+  currentPrice: z.number().finite().positive().max(MAX_VALUATION_PRICE),
+  horizonYears: z.number().int().min(1).max(15).default(3),
   bear: ValuationCaseInputSchema,
   base: ValuationCaseInputSchema,
   bull: ValuationCaseInputSchema,
@@ -68,11 +72,11 @@ export type SparklinePoint = z.infer<typeof SparklinePointSchema>;
 
 export const ThesisCardSchema = z.object({
   id: z.string().min(1),
-  indexLabel: z.string().regex(/^\d{2}$/),
+  indexLabel: z.string().regex(/^\d{2,}$/),
   ticker: z.string().min(1).max(10),
   companyName: z.string().min(1),
   sectorTag: z.string().min(1),
-  currentPrice: z.number().finite().positive(),
+  currentPrice: z.number().finite().positive().max(MAX_VALUATION_PRICE),
   lastReviewedAt: z.string().min(1),
   horizonLabel: z.string().min(1),
   convictionSummary: z.string().min(1),

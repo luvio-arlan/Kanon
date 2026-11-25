@@ -2,6 +2,7 @@
 
 import {
   analyzeSecQuality,
+  calculateImpliedExpectations,
   calculateTrueReverseDcf,
   type ReverseDcfResult,
   type SecAnnualFinancial,
@@ -88,25 +89,13 @@ function ReverseDcfMetrics({ r }: { r: ReverseDcfResult }) {
 }
 
 function ReverseDcfCard(props: {
-  currentPrice: number;
-  horizonYears: number;
-  trailingEps: number | null;
-  historicalCagrPct: number | null;
-  defaultMultiple: number;
+  result: ReverseDcfResult;
+  hurdle: number;
+  mult: number;
+  onHurdle: (v: number) => void;
+  onMult: (v: number) => void;
 }) {
-  const [hurdle, setHurdle] = useState<number>(15);
-  const [mult, setMult] = useState<number>(() => pickNearestMultiple(props.defaultMultiple));
-  const baseMetric =
-    props.trailingEps && props.trailingEps > 0 ? props.trailingEps : props.currentPrice / 22;
-  const r = calculateTrueReverseDcf({
-    currentPrice: props.currentPrice,
-    baseMetricPerShare: baseMetric,
-    horizonYears: Math.max(3, props.horizonYears),
-    hurdleRatePct: hurdle,
-    terminalMultiple: mult,
-    historicalCagrPct: props.historicalCagrPct,
-  });
-  const badge = VERDICT_META[r.verdict];
+  const badge = VERDICT_META[props.result.verdict];
   return (
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between gap-2">
@@ -119,19 +108,19 @@ function ReverseDcfCard(props: {
         <PillGroup
           label="目标年化折现率"
           options={HURDLE_OPTIONS}
-          value={hurdle}
+          value={props.hurdle}
           suffix="%"
-          onSelect={setHurdle}
+          onSelect={props.onHurdle}
         />
         <PillGroup
           label="终值合理倍数"
           options={TERMINAL_MULTIPLES}
-          value={mult}
+          value={props.mult}
           suffix="×"
-          onSelect={setMult}
+          onSelect={props.onMult}
         />
       </div>
-      <ReverseDcfMetrics r={r} />
+      <ReverseDcfMetrics r={props.result} />
     </Card>
   );
 }
@@ -145,32 +134,36 @@ export function ValuationReverseDcfPanel({
   annuals: readonly SecAnnualFinancial[];
   trailingEps: number | null;
 }) {
+  const [hurdle, setHurdle] = useState<number>(15);
+  const [mult, setMult] = useState<number>(() => pickNearestMultiple(summary.base.peMultiple));
   const quality = analyzeSecQuality(annuals);
+  const exp = calculateImpliedExpectations({ summary, trailingEps });
   const baseEps = trailingEps && trailingEps > 0 ? trailingEps : summary.currentPrice / 22;
   const implied = calculateTrueReverseDcf({
     currentPrice: summary.currentPrice,
     baseMetricPerShare: baseEps,
-    horizonYears: Math.max(3, summary.horizonYears),
-    hurdleRatePct: 15,
-    terminalMultiple: summary.base.peMultiple,
+    horizonYears: Math.max(2, summary.horizonYears),
+    hurdleRatePct: hurdle,
+    terminalMultiple: mult,
     historicalCagrPct: quality?.revenueCagrPct ?? null,
   });
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ReverseDcfCard
-          currentPrice={summary.currentPrice}
-          horizonYears={summary.horizonYears}
-          trailingEps={trailingEps}
-          historicalCagrPct={quality?.revenueCagrPct ?? null}
-          defaultMultiple={summary.base.peMultiple}
+          result={implied}
+          hurdle={hurdle}
+          mult={mult}
+          onHurdle={setHurdle}
+          onMult={setMult}
         />
         <TsrDecompositionCard summary={summary} trailingEps={trailingEps} />
       </div>
       <ExpectationsContrastCard
         historicalCagrPct={quality?.revenueCagrPct ?? null}
         impliedCagrPct={implied.requiredCagrPct}
-        baseCagrPct={summary.base.cagrPct}
+        baseCagrPct={exp.baseEpsCagrPct ?? summary.base.cagrPct}
+        isEpsBased={exp.baseEpsCagrPct !== null}
       />
       <HurdleLadderCard summary={summary} />
     </div>

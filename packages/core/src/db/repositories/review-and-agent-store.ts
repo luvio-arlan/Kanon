@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { type AgentBriefing, AgentBriefingSchema } from "../../contracts/ai-contracts";
 import type { SavedAgentRun } from "../../contracts/api-contracts";
 import {
@@ -225,7 +225,11 @@ export async function createQuarterlyReview(
 export async function listInboundCrossChecks(
   db: KanonDb,
   targetThesisId: string,
+  userId?: string,
 ): Promise<InboundCrossCheck[]> {
+  const whereClause = userId
+    ? and(eq(crossChecksTable.linkedThesisId, targetThesisId), eq(thesesTable.userId, userId))
+    : eq(crossChecksTable.linkedThesisId, targetThesisId);
   return db
     .select({
       id: crossChecksTable.id,
@@ -241,5 +245,5 @@ export async function listInboundCrossChecks(
     })
     .from(crossChecksTable)
     .innerJoin(thesesTable, eq(crossChecksTable.thesisId, thesesTable.id))
-    .where(eq(crossChecksTable.linkedThesisId, targetThesisId));
+    .where(whereClause);
 }

@@ -110,15 +110,17 @@ function computeHhi(weighted: readonly ThesisDetail[], totalWeight: number) {
 }
 
 function computeWeightedPnl(weighted: readonly ThesisDetail[]): number | null {
-  let wSum = 0;
-  let pnlAcc = 0;
+  let currentValueSum = 0;
+  let costBasisSum = 0;
   for (const t of weighted) {
-    if (typeof t.avgCostBasis === "number" && t.avgCostBasis > 0) {
-      wSum += t.currentWeightPct;
-      pnlAcc += t.currentWeightPct * (((t.currentPrice - t.avgCostBasis) / t.avgCostBasis) * 100);
+    if (typeof t.avgCostBasis === "number" && t.avgCostBasis > 0 && t.currentPrice > 0) {
+      currentValueSum += t.currentWeightPct;
+      costBasisSum += t.currentWeightPct * (t.avgCostBasis / t.currentPrice);
     }
   }
-  return wSum > 0 ? roundTo(pnlAcc / wSum, 1) : null;
+  return costBasisSum > 0
+    ? roundTo(((currentValueSum - costBasisSum) / costBasisSum) * 100, 1)
+    : null;
 }
 
 function computeSectorShockImpact(

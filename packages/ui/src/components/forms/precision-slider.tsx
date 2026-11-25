@@ -44,6 +44,14 @@ function NudgeButton({
   );
 }
 
+function resolveSliderBounds(value: number, min: number, max: number, step: number) {
+  const safeStep = Number.isFinite(step) && step > 0 ? step : 0.1;
+  const safeMin = Number.isFinite(min) ? min : 0;
+  const safeMax = Number.isFinite(max) && max > safeMin ? max : safeMin + safeStep * 10;
+  const safeVal = Number.isFinite(value) ? Math.min(safeMax, Math.max(safeMin, value)) : safeMin;
+  return { safeStep, safeMin, safeMax, safeVal };
+}
+
 export function PrecisionSlider({
   label,
   value,
@@ -54,14 +62,18 @@ export function PrecisionSlider({
   onChange,
   className,
 }: PrecisionSliderProps) {
+  const { safeStep, safeMin, safeMax, safeVal } = resolveSliderBounds(value, min, max, step);
+
   return (
     <Slider
-      value={value}
-      minValue={min}
-      maxValue={max}
-      step={step}
+      value={safeVal}
+      minValue={safeMin}
+      maxValue={safeMax}
+      step={safeStep}
       onChange={(next) => {
-        if (typeof next === "number") onChange(next);
+        if (typeof next === "number" && Number.isFinite(next)) {
+          onChange(Math.min(safeMax, Math.max(safeMin, next)));
+        }
       }}
       className={cn("w-full gap-2", className)}
     >
@@ -69,18 +81,18 @@ export function PrecisionSlider({
       <div className="flex items-center gap-1.5">
         <NudgeButton
           ariaLabel={`减少 ${label}`}
-          disabled={value <= min}
+          disabled={safeVal <= safeMin}
           kind="dec"
-          onClick={() => onChange(clampStep(value, -step, min, max, step))}
+          onClick={() => onChange(clampStep(safeVal, -safeStep, safeMin, safeMax, safeStep))}
         />
         <Slider.Output className="min-w-[46px] text-center font-mono text-sm font-semibold text-ink-primary tabular-nums">
           {displayValue}
         </Slider.Output>
         <NudgeButton
           ariaLabel={`增加 ${label}`}
-          disabled={value >= max}
+          disabled={safeVal >= safeMax}
           kind="inc"
-          onClick={() => onChange(clampStep(value, step, min, max, step))}
+          onClick={() => onChange(clampStep(safeVal, safeStep, safeMin, safeMax, safeStep))}
         />
       </div>
       <Slider.Track>

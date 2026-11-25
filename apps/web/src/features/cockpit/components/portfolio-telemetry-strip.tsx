@@ -40,7 +40,7 @@ function buildTelemetryCards(analytics: PortfolioAnalytics, onOpenStressTest: ()
       label: "平均安全边际",
       icon: <IconShieldCheck size={16} stroke={1.5} />,
       value: <MarginValue value={analytics.averageMarginOfSafetyPct} />,
-      caption: "三年中性",
+      caption: "中性基准",
       delta: cagrDelta,
       deltaTone: ((analytics.averageMarginOfSafetyPct ?? 0) >= 25 ? "pass" : "neutral") as
         | "pass"

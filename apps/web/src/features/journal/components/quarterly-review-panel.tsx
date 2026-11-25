@@ -10,7 +10,7 @@ export interface QuarterlyReviewPanelProps {
   thesis: ThesisDetail;
   reviews: readonly QuarterlyReview[];
   submitting: boolean;
-  onSubmitReview: (input: CreateQuarterlyReviewInput) => Promise<void>;
+  onSubmitReview: (input: CreateQuarterlyReviewInput) => Promise<boolean>;
 }
 
 function ReviewHistoryItem({ review }: { review: QuarterlyReview }) {

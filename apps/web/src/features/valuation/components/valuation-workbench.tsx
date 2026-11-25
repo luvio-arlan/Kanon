@@ -1,15 +1,24 @@
 "use client";
 
-import { checkScenarioMonotonicity, type SecAnnualFinancial, type ThesisDetail } from "@kanon/core";
+import {
+  checkScenarioMonotonicity,
+  type SecAnnualFinancial,
+  type ThesisDetail,
+  type ValuationModelMode,
+} from "@kanon/core";
 import { KANON_LENS_VARIANTS, SegmentedTabs } from "@kanon/ui";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
-import { useValuationDraft, type ValuationSavePayload } from "../lib/use-valuation-draft";
+import {
+  type CaseMap,
+  useValuationDraft,
+  type ValuationSavePayload,
+} from "../lib/use-valuation-draft";
 import { LiveOddsBanner } from "./live-odds-banner";
-import { computeEpsRange, ScenarioCardsGrid } from "./scenario-cards-grid";
+import { computeStableEpsRange, ScenarioCardsGrid } from "./scenario-cards-grid";
 import { SensitivityMatrixCard } from "./sensitivity-matrix-card";
 import { ValuationControlsBar } from "./valuation-controls-bar";
 import { ValuationDriversPanel } from "./valuation-drivers-panel";
@@ -52,11 +61,13 @@ function ValuationHeaderBar({
 }
 
 function ScenariosCoreSection({
-  thesis,
+  epsRange,
   d,
+  onExpandCeiling,
 }: {
-  thesis: ThesisDetail;
+  epsRange: { min: number; max: number; step: number };
   d: ReturnType<typeof useValuationDraft>;
+  onExpandCeiling: (eps: number) => void;
 }) {
   const mono = checkScenarioMonotonicity({
     bearTarget: d.summary.bear.targetPrice,
@@ -73,13 +84,14 @@ function ScenariosCoreSection({
       ) : null}
       <ScenarioCardsGrid
         cases={d.cases}
-        epsRange={computeEpsRange(Math.max(thesis.valuationInput.bull.eps, d.cases.bull.eps))}
+        epsRange={epsRange}
         summary={d.summary}
         onPatch={d.patchCase}
       />
       <SensitivityMatrixCard
         matrix={d.matrix}
         onSelectBaseCell={(eps, peMultiple) => {
+          onExpandCeiling(eps);
           d.patchCase("base", { eps, peMultiple });
           toast.success(`已锚定中性基准 EPS $${eps.toFixed(2)} × ${peMultiple}x`);
         }}
@@ -88,15 +100,36 @@ function ScenariosCoreSection({
   );
 }
 
-function ValuationLensBody(props: {
+interface LensBodyProps {
   lens: ValuationLens;
-  thesis: ThesisDetail;
+  epsRange: { min: number; max: number; step: number };
   secAnnuals: readonly SecAnnualFinancial[];
   latestSecEps: number | null;
   d: ReturnType<typeof useValuationDraft>;
+  onExpandCeiling: (eps: number) => void;
   onSwitchToScenarios: () => void;
-}) {
-  const { lens, thesis, secAnnuals, latestSecEps, d } = props;
+}
+
+function applyEvAnchor(
+  d: ReturnType<typeof useValuationDraft>,
+  targets: { bear: number; base: number; bull: number },
+  onExpandCeiling: (eps: number) => void,
+  onSwitchToScenarios: () => void,
+) {
+  const maxImplied = Math.max(
+    targets.bear / Math.max(1, d.cases.bear.peMultiple),
+    targets.base / Math.max(1, d.cases.base.peMultiple),
+    targets.bull / Math.max(1, d.cases.bull.peMultiple),
+  );
+  onExpandCeiling(maxImplied);
+  d.applyEvTargetPrices(targets);
+  onSwitchToScenarios();
+  toast.success(`已按 EV/FCF 锚定三情景（中性 $${targets.base.toFixed(1)}）`);
+}
+
+function ValuationLensBody(props: LensBodyProps) {
+  const { lens, epsRange, secAnnuals, latestSecEps, d, onExpandCeiling, onSwitchToScenarios } =
+    props;
   const content =
     lens === "drivers" ? (
       <ValuationDriversPanel
@@ -106,10 +139,12 @@ function ValuationLensBody(props: {
         driverInputs={d.driverInputs}
         onPatchDrivers={d.patchDrivers}
         onApplyBaseEps={(eps) => {
+          onExpandCeiling(eps);
           d.patchCase("base", { eps });
-          props.onSwitchToScenarios();
+          onSwitchToScenarios();
           toast.success(`已回填中性 EPS $${eps.toFixed(2)}`);
         }}
+        onApplyEvTargets={(t) => applyEvAnchor(d, t, onExpandCeiling, onSwitchToScenarios)}
       />
     ) : lens === "reverse" ? (
       <ValuationReverseDcfPanel
@@ -118,9 +153,8 @@ function ValuationLensBody(props: {
         trailingEps={latestSecEps}
       />
     ) : (
-      <ScenariosCoreSection thesis={thesis} d={d} />
+      <ScenariosCoreSection epsRange={epsRange} d={d} onExpandCeiling={onExpandCeiling} />
     );
-
   return (
     <motion.div
       key={lens}
@@ -134,6 +168,27 @@ function ValuationLensBody(props: {
   );
 }
 
+function useStableEpsBounds(
+  initialCases: CaseMap,
+  latestSecEps: number | null,
+  currentPrice: number,
+) {
+  const [pinnedCases] = useState<CaseMap>(() => initialCases);
+  const [ceiling, setCeiling] = useState(0);
+  const epsRange = useMemo(
+    () =>
+      computeStableEpsRange({
+        latestSecEps,
+        currentPrice,
+        initialCases: pinnedCases,
+        committedCeiling: ceiling,
+      }),
+    [latestSecEps, currentPrice, pinnedCases, ceiling],
+  );
+  const expandCeiling = (eps: number) => setCeiling((prev) => Math.max(eps, prev));
+  return { epsRange, expandCeiling };
+}
+
 export function ValuationWorkbench({
   thesis,
   secAnnuals = [],
@@ -143,7 +198,15 @@ export function ValuationWorkbench({
 }: ValuationWorkbenchProps) {
   const d = useValuationDraft({ thesis, onSyncChange, onSave });
   const [lens, setLens] = useState<ValuationLens>("scenarios");
-
+  const { epsRange, expandCeiling } = useStableEpsBounds(
+    d.cases,
+    latestSecEps,
+    thesis.currentPrice,
+  );
+  const handleModelMode = (mode: ValuationModelMode) => {
+    d.setModelMode(mode);
+    setLens(mode === "ev_fcf" ? "drivers" : "scenarios");
+  };
   return (
     <div className="space-y-6">
       <ValuationHeaderBar lens={lens} onLens={setLens} />
@@ -161,14 +224,15 @@ export function ValuationWorkbench({
         onHorizon={(horizonYears) => d.store.setDraft((prev) => ({ ...prev, horizonYears }))}
         onApplyPreset={d.applyPreset}
         onCustomProb={d.applyProbabilities}
-        onModelMode={d.setModelMode}
+        onModelMode={handleModelMode}
       />
       <ValuationLensBody
         lens={lens}
-        thesis={thesis}
+        epsRange={epsRange}
         secAnnuals={secAnnuals}
         latestSecEps={latestSecEps}
         d={d}
+        onExpandCeiling={expandCeiling}
         onSwitchToScenarios={() => setLens("scenarios")}
       />
     </div>

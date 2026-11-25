@@ -21,12 +21,13 @@ export const dynamic = "force-dynamic";
 async function buildSingleTickerContext(
   db: Awaited<ReturnType<typeof getKanonDb>>,
   thesis: Awaited<ReturnType<typeof listTheses>>[number],
+  userId: string,
 ) {
   const [secSnapshot, reviews, latestAgentRun, inboundCrossChecks] = await Promise.all([
     getSecSnapshot(db, thesis.ticker),
     listQuarterlyReviews(db, thesis.id),
     getLatestAgentRun(db, thesis.id),
-    listInboundCrossChecks(db, thesis.id),
+    listInboundCrossChecks(db, thesis.id, userId),
   ]);
   const secQuality = analyzeSecQuality(secSnapshot?.annuals ?? []);
   const secForensics = analyzeSecForensics(
@@ -65,7 +66,7 @@ export async function GET(request: Request) {
     if (!match) {
       return jsonError(`研究库中未找到代码为 ${ticker} 的标的。`, 404, startedAt, "NOT_FOUND");
     }
-    const payload = await buildSingleTickerContext(db, match);
+    const payload = await buildSingleTickerContext(db, match, auth.user.id);
     return jsonOk(payload, startedAt);
   }
 

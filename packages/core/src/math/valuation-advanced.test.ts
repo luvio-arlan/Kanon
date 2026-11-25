@@ -75,10 +75,9 @@ describe("KANON v4 Advanced Financial Math & Forensics Golden Suite", () => {
     expect(res.fundamentalGrowthPct).toBeCloseTo(20, 0);
     expect(res.multipleReRatePct).toBeGreaterThan(7);
     expect(res.capitalReturnPct).toBe(2);
-    expect(res.totalAnnualizedTsrPct).toBeCloseTo(
-      res.fundamentalGrowthPct + res.multipleReRatePct + 2,
-      1,
-    );
+    const expectedPriceCagr =
+      ((1 + res.fundamentalGrowthPct / 100) * (1 + res.multipleReRatePct / 100) - 1) * 100;
+    expect(res.totalAnnualizedTsrPct).toBeCloseTo(expectedPriceCagr + 2, 0);
   });
 
   it("detects forensic red flags on heavy SBC, dilution, and working capital divergence", () => {

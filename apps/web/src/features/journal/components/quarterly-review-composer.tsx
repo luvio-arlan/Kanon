@@ -38,7 +38,7 @@ function buildInitialVerdicts(thesis: ThesisDetail): HypothesisVerdictItem[] {
     hypothesisId: h.id,
     title: h.title,
     verdict: "unchanged",
-    evidence: h.note.trim() || `待补充本季针对「${h.title}」的财报核验`,
+    evidence: h.note.trim(),
   }));
 }
 
@@ -161,16 +161,10 @@ interface QuarterlyReviewComposerProps {
   submitting: boolean;
   canCollapse: boolean;
   onClose: () => void;
-  onSubmit: (input: CreateQuarterlyReviewInput) => Promise<void>;
+  onSubmit: (input: CreateQuarterlyReviewInput) => Promise<boolean | undefined>;
 }
 
-function ComposerActionBar({
-  canCollapse,
-  valid,
-  submitting,
-  onClose,
-  onSubmit,
-}: {
+function ComposerActionBar(p: {
   canCollapse: boolean;
   valid: boolean;
   submitting: boolean;
@@ -179,16 +173,28 @@ function ComposerActionBar({
 }) {
   return (
     <div className="flex items-center justify-end gap-2 border-t border-hairline pt-4">
-      {canCollapse ? (
-        <Button variant="ghost" size="sm" onClick={onClose}>
+      {p.canCollapse ? (
+        <Button variant="ghost" size="sm" onClick={p.onClose}>
           取消
         </Button>
       ) : null}
-      <Button variant="primary" size="md" disabled={!valid || submitting} onClick={onSubmit}>
+      <Button variant="primary" size="md" disabled={!p.valid || p.submitting} onClick={p.onSubmit}>
         <IconCheck size={14} stroke={1.5} />
-        <span>{submitting ? "归档中..." : "归档本季复盘"}</span>
+        <span>{p.submitting ? "归档中..." : "归档本季复盘"}</span>
       </Button>
     </div>
+  );
+}
+
+function isReviewDraftValid(
+  quarterLabel: string,
+  summary: string,
+  verdicts: readonly HypothesisVerdictItem[],
+) {
+  return (
+    quarterLabel.trim().length >= 2 &&
+    summary.trim().length >= 6 &&
+    verdicts.every((v) => v.evidence.trim().length > 0)
   );
 }
 
@@ -199,19 +205,16 @@ export function QuarterlyReviewComposer(props: QuarterlyReviewComposerProps) {
   const [verdicts, setVerdicts] = useState<HypothesisVerdictItem[]>(() =>
     buildInitialVerdicts(props.thesis),
   );
-  const valid =
-    quarterLabel.trim().length >= 2 &&
-    summary.trim().length >= 6 &&
-    verdicts.every((v) => v.evidence.trim().length > 0);
-
+  const valid = isReviewDraftValid(quarterLabel, summary, verdicts);
   async function handleSubmit() {
     if (!valid || props.submitting) return;
-    await props.onSubmit({
+    const ok = await props.onSubmit({
       quarterLabel: quarterLabel.trim(),
       summary: summary.trim(),
       hypothesisVerdicts: verdicts.map((v) => ({ ...v, evidence: v.evidence.trim() })),
       applyStatusUpdates: applyUpdates,
     });
+    if (ok === false) return;
     setSummary("");
     props.onClose();
   }
@@ -228,9 +231,7 @@ export function QuarterlyReviewComposer(props: QuarterlyReviewComposerProps) {
       />
       <ComposerVerdictList
         verdicts={verdicts}
-        onChangeAt={(idx, next) =>
-          setVerdicts((prev) => prev.map((v, i) => (i === idx ? next : v)))
-        }
+        onChangeAt={(idx, next) => setVerdicts((p) => p.map((v, i) => (i === idx ? next : v)))}
       />
       <ComposerActionBar
         canCollapse={props.canCollapse}

@@ -159,7 +159,7 @@ function TargetHeadline({
         </Badge>
       </div>
       <div className="mt-2 font-mono text-xs text-ink-secondary tabular-nums">
-        三年复合年化 {valuation.base.cagrPct.toFixed(1)}%
+        {valuation.horizonYears} 年复合年化 {valuation.base.cagrPct.toFixed(1)}%
       </div>
     </div>
   );

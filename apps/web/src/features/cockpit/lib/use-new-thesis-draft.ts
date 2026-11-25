@@ -13,14 +13,15 @@ const EMPTY_DRAFT: NewThesisDraft = {
 };
 
 function mergeBootstrapInfo(prev: NewThesisDraft, info: MarketBootstrapResponse): NewThesisDraft {
+  const sameTicker = prev.ticker.trim().toUpperCase() === info.ticker.toUpperCase();
   return {
     ...prev,
     ticker: info.ticker,
-    companyName: prev.companyName.trim() || info.companyName || info.ticker,
-    sectorTag: prev.sectorTag.trim() || "美股深度跟踪",
+    companyName: info.companyName || (sameTicker ? prev.companyName.trim() : "") || info.ticker,
+    sectorTag: (sameTicker ? prev.sectorTag.trim() : "") || "美股深度跟踪",
     currentPrice: info.currentPrice !== null ? String(info.currentPrice) : prev.currentPrice,
-    latestSecEps: info.latestEps ?? prev.latestSecEps,
-    priceHistory: info.sparkline ?? prev.priceHistory,
+    latestSecEps: info.latestEps ?? (sameTicker ? prev.latestSecEps : undefined),
+    priceHistory: info.sparkline ?? (sameTicker ? prev.priceHistory : undefined),
   };
 }
 

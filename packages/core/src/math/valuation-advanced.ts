@@ -18,16 +18,12 @@ export interface TopDownEpsResult {
 
 export function calculateTopDownEps(input: TopDownEpsInput): TopDownEpsResult {
   const years = Math.max(1, input.horizonYears);
-  const safeShares = Math.max(1, input.currentSharesM);
-  const projectedRevenueB = roundTo(
-    Math.max(0.01, input.currentRevenueB) * (1 + input.revenueCagrPct / 100) ** years,
-    2,
-  );
+  const safeShares = Math.max(0.01, input.currentSharesM);
+  const revFactor = Math.max(0.01, 1 + input.revenueCagrPct / 100);
+  const shareFactor = Math.max(0.01, 1 + input.annualShareChangePct / 100);
+  const projectedRevenueB = roundTo(Math.max(0.01, input.currentRevenueB) * revFactor ** years, 2);
   const projectedNetIncomeB = roundTo(projectedRevenueB * (input.targetNetMarginPct / 100), 2);
-  const projectedSharesM = roundTo(
-    Math.max(1, safeShares * (1 + input.annualShareChangePct / 100) ** years),
-    1,
-  );
+  const projectedSharesM = roundTo(Math.max(0.01, safeShares * shareFactor ** years), 1);
   const impliedEps = roundTo((projectedNetIncomeB * 1000) / projectedSharesM, 2);
   return { projectedRevenueB, projectedNetIncomeB, projectedSharesM, impliedEps };
 }
@@ -64,7 +60,7 @@ function evTargetPerShare(fcfB: number, mult: number, netCashB: number, sharesM:
 
 export function calculateEvOwnerFcfValuation(input: EvOwnerFcfInput): EvOwnerFcfResult {
   const price = Math.max(0.01, input.currentPrice);
-  const shares = Math.max(1, input.dilutedSharesM);
+  const shares = Math.max(0.01, input.dilutedSharesM);
   const years = Math.max(1, input.horizonYears);
   const netCashB = input.cashB - input.totalDebtB;
   const currentMarketCapB = roundTo((price * shares) / 1000, 2);
@@ -206,11 +202,10 @@ export function calculateTsrDecomposition(params: {
   const capitalReturnPct = roundTo(params.annualCapitalReturnPct ?? 0, 1);
   const validTrailing =
     typeof params.trailingEps === "number" && params.trailingEps > 0 ? params.trailingEps : null;
+  const safeForwardEps = Math.max(0.01, params.forwardEps);
+  const safeForwardPe = Math.max(0.1, params.forwardPe);
   if (!validTrailing) {
-    const priceCagr = roundTo(
-      ((params.forwardEps * params.forwardPe) / price) ** (1 / years) - 1,
-      4,
-    );
+    const priceCagr = roundTo(((safeForwardEps * safeForwardPe) / price) ** (1 / years) - 1, 4);
     const total = roundTo(priceCagr * 100 + capitalReturnPct, 1);
     return {
       fundamentalGrowthPct: roundTo(priceCagr * 100, 1),
@@ -220,14 +215,12 @@ export function calculateTsrDecomposition(params: {
     };
   }
   const currentPe = price / validTrailing;
-  const epsCagr = (params.forwardEps / validTrailing) ** (1 / years) - 1;
-  const peCagr = (params.forwardPe / currentPe) ** (1 / years) - 1;
+  const epsCagr = (safeForwardEps / validTrailing) ** (1 / years) - 1;
+  const peCagr = (safeForwardPe / currentPe) ** (1 / years) - 1;
   const fundamentalGrowthPct = roundTo(epsCagr * 100, 1);
   const multipleReRatePct = roundTo(peCagr * 100, 1);
-  const totalAnnualizedTsrPct = roundTo(
-    fundamentalGrowthPct + multipleReRatePct + capitalReturnPct,
-    1,
-  );
+  const compoundedPricePct = ((1 + epsCagr) * (1 + peCagr) - 1) * 100;
+  const totalAnnualizedTsrPct = roundTo(compoundedPricePct + capitalReturnPct, 1);
   return {
     fundamentalGrowthPct,
     multipleReRatePct,

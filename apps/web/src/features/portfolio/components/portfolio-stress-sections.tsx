@@ -49,11 +49,16 @@ export function StressKpiStrip({ report }: { report: PortfolioStressReport }) {
         delta={
           report.allocatedWeightPct === 0
             ? "待建仓"
-            : (report.portfolioRiskReward ?? 0) >= 2
+            : report.portfolioRiskReward === null || report.portfolioRiskReward >= 2
               ? "优选"
               : "均衡"
         }
-        deltaTone={(report.portfolioRiskReward ?? 0) >= 2 ? "pass" : "neutral"}
+        deltaTone={
+          report.allocatedWeightPct > 0 &&
+          (report.portfolioRiskReward === null || report.portfolioRiskReward >= 2)
+            ? "pass"
+            : "neutral"
+        }
       />
       <StatCard
         label="集中度 HHI"

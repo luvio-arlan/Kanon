@@ -5,6 +5,8 @@ import { Card, cn, KANON_LENS_VARIANTS, SegmentedTabs } from "@kanon/ui";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
+const MATRIX_SLOTS = ["bear", "low-mid", "base", "high-mid", "bull"] as const;
+
 type MatrixMetric = "price" | "cagr";
 interface HoverCoord {
   r: number;
@@ -89,11 +91,12 @@ function MatrixBodyRow(props: {
       >
         ${props.epsLabel?.toFixed(2)}
       </td>
-      {props.row.map((cell, colIdx) => {
-        const cellKey = `${cell.eps}-${cell.pe}`;
+      {MATRIX_SLOTS.map((slot, colIdx) => {
+        const cell = props.row[colIdx];
+        if (!cell) return null;
         return (
           <MatrixCellButton
-            key={cellKey}
+            key={slot}
             cell={cell}
             metric={props.metric}
             isCenter={props.rowIdx === 2 && colIdx === 2}
@@ -101,7 +104,7 @@ function MatrixBodyRow(props: {
               props.hovered !== null &&
               (props.hovered.r === props.rowIdx || props.hovered.c === colIdx)
             }
-            isFlashing={props.flashKey === cellKey}
+            isFlashing={props.flashKey === `${cell.eps}-${cell.pe}`}
             onEnter={() => props.onHover({ r: props.rowIdx, c: colIdx })}
             onSelect={
               props.onSelectCell ? () => props.onSelectCell?.(cell.eps, cell.pe) : undefined
@@ -118,15 +121,15 @@ function MatrixHeadRow({ peSteps, activeCol }: { peSteps: readonly number[]; act
     <thead>
       <tr>
         <th className="px-2 py-1.5 text-left font-sans font-medium text-ink-muted">EPS \ PE</th>
-        {peSteps.map((pe, colIdx) => (
+        {MATRIX_SLOTS.map((slot, colIdx) => (
           <th
-            key={pe}
+            key={slot}
             className={cn(
               "rounded-control px-2 py-1.5 text-center font-medium transition-colors",
               activeCol === colIdx ? "bg-muted text-ink-primary" : "text-ink-secondary",
             )}
           >
-            {pe}x
+            {peSteps[colIdx]}x
           </th>
         ))}
       </tr>
@@ -166,6 +169,42 @@ function MatrixHeader({
   );
 }
 
+function MatrixTable(p: {
+  matrix: SensitivityMatrix;
+  metric: MatrixMetric;
+  hovered: HoverCoord | null;
+  flashKey: string | null;
+  onHover: (c: HoverCoord | null) => void;
+  onSelect?: (eps: number, pe: number) => void;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[520px] border-separate border-spacing-1.5 font-mono text-xs tabular-nums">
+        <MatrixHeadRow peSteps={p.matrix.peSteps} activeCol={p.hovered?.c} />
+        <tbody>
+          {MATRIX_SLOTS.map((slot, rowIdx) => {
+            const row = p.matrix.rows[rowIdx];
+            if (!row) return null;
+            return (
+              <MatrixBodyRow
+                key={slot}
+                epsLabel={p.matrix.epsSteps[rowIdx]}
+                row={row}
+                rowIdx={rowIdx}
+                metric={p.metric}
+                hovered={p.hovered}
+                flashKey={p.flashKey}
+                onHover={p.onHover}
+                onSelectCell={p.onSelect}
+              />
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function SensitivityMatrixCard({
   matrix,
   onSelectBaseCell,
@@ -180,7 +219,6 @@ export function SensitivityMatrixCard({
   const caption = activeCell
     ? `EPS $${activeCell.eps.toFixed(2)} × ${activeCell.pe}x → $${activeCell.targetPrice.toFixed(1)} · CAGR ${activeCell.cagrPct.toFixed(1)}%`
     : null;
-
   const handleSelect = onSelectBaseCell
     ? (eps: number, pe: number) => {
         setFlashKey(`${eps}-${pe}`);
@@ -191,26 +229,14 @@ export function SensitivityMatrixCard({
   return (
     <Card className="overflow-hidden p-6 sm:p-7" onMouseLeave={() => setHovered(null)}>
       <MatrixHeader caption={caption} metric={metric} onMetric={setMetric} />
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] border-separate border-spacing-1.5 font-mono text-xs tabular-nums">
-          <MatrixHeadRow peSteps={matrix.peSteps} activeCol={hovered?.c} />
-          <tbody>
-            {matrix.rows.map((row, rowIdx) => (
-              <MatrixBodyRow
-                key={matrix.epsSteps[rowIdx]}
-                epsLabel={matrix.epsSteps[rowIdx]}
-                row={row}
-                rowIdx={rowIdx}
-                metric={metric}
-                hovered={hovered}
-                flashKey={flashKey}
-                onHover={setHovered}
-                onSelectCell={handleSelect}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <MatrixTable
+        matrix={matrix}
+        metric={metric}
+        hovered={hovered}
+        flashKey={flashKey}
+        onHover={setHovered}
+        onSelect={handleSelect}
+      />
     </Card>
   );
 }

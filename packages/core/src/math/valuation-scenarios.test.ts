@@ -4,6 +4,7 @@ import {
   calculatePriceMarkerPosition,
   calculateValuationScenarios,
   roundTo,
+  sanitizeValuationInput,
 } from "./valuation-scenarios";
 
 describe("roundTo", () => {
@@ -147,6 +148,30 @@ describe("calculateValuationScenarios", () => {
         bull: { eps: 10, peMultiple: 20 },
       }),
     ).toThrow();
+  });
+  it("rejects runaway out-of-bounds EPS/PE/price and heals corrupted inputs via sanitizeValuationInput", () => {
+    expect(() =>
+      calculateValuationScenarios({
+        currentPrice: 492.5,
+        horizonYears: 5,
+        bear: { eps: 50, peMultiple: 28 },
+        base: { eps: 1e31, peMultiple: 30 },
+        bull: { eps: 1e31, peMultiple: 35 },
+      }),
+    ).toThrow();
+
+    const healed = sanitizeValuationInput({
+      currentPrice: 492.5,
+      horizonYears: 5,
+      bear: { eps: 50, peMultiple: 28 },
+      base: { eps: 1.35e31, peMultiple: 30 },
+      bull: { eps: 1.13e31, peMultiple: 35 },
+    });
+    const summary = calculateValuationScenarios(healed);
+    expect(summary.bear.eps).toBe(50);
+    expect(summary.base.eps).toBeLessThan(1000);
+    expect(summary.bull.eps).toBeLessThan(1000);
+    expect(Number.isFinite(summary.base.targetPrice)).toBe(true);
   });
 });
 

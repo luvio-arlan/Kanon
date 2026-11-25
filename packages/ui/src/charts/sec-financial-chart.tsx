@@ -62,7 +62,9 @@ function SecTooltipCard({ active, payload }: ChartTooltipProps) {
         {item.dilutedEps !== null ? (
           <div className="flex items-center justify-between gap-4 border-t border-hairline pt-1">
             <span className="font-sans text-ink-muted">稀释 EPS</span>
-            <span className="text-ink-primary">${item.dilutedEps.toFixed(2)}</span>
+            <span className="text-ink-primary">
+              {item.dilutedEps < 0 ? "-" : ""}${Math.abs(item.dilutedEps).toFixed(2)}
+            </span>
           </div>
         ) : null}
       </div>

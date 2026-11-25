@@ -1,6 +1,9 @@
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import type { SavedAgentRun } from "../../contracts/api-contracts";
-import { calculateValuationScenarios } from "../../math/valuation-scenarios";
+import {
+  calculateValuationScenarios,
+  sanitizeValuationInput,
+} from "../../math/valuation-scenarios";
 import type {
   GlossaryTerm,
   InboundCrossCheck,
@@ -59,7 +62,7 @@ function buildSummaryValuationInput(
   row: typeof thesesTable.$inferSelect,
   val: ValuationScalarRow | undefined,
 ) {
-  return {
+  return sanitizeValuationInput({
     currentPrice: row.currentPrice,
     horizonYears: row.horizonYears,
     bear: {
@@ -77,7 +80,7 @@ function buildSummaryValuationInput(
       peMultiple: val?.bullPe ?? 25,
       probability: val?.bullProb ?? 0.25,
     },
-  };
+  });
 }
 
 function buildSummaries(
@@ -131,7 +134,7 @@ function fetchInitialWave(db: KanonDb, id: string, userId: string) {
     listThesisRevisions(db, id, 12),
     listQuarterlyReviews(db, id),
     getLatestAgentRun(db, id),
-    listInboundCrossChecks(db, id),
+    listInboundCrossChecks(db, id, userId),
   ]);
 }
 

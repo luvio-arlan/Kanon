@@ -12,7 +12,7 @@ import type {
   ThesisRevision,
   UpdateThesisStepInput,
 } from "@kanon/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   apiCreateQuarterlyReview,
   apiDeleteThesis,
@@ -75,6 +75,35 @@ function useCopilotRunner(thesisId: string, initialCopilot: InitialCopilotState)
   return { copilot, runCopilot };
 }
 
+function useSecondaryMutations(
+  thesis: ThesisDetail,
+  applyMutation: (res: ThesisMutationResult | null) => void,
+  setReviews: React.Dispatch<React.SetStateAction<QuarterlyReview[]>>,
+  setSecSnapshot: React.Dispatch<React.SetStateAction<SecSnapshot | null>>,
+  withFlag: ReturnType<typeof useBusyState>["withFlag"],
+) {
+  return {
+    submitDiscipline: async (entry: CreateDisciplineEntryInput): Promise<boolean> => {
+      const res = await withFlag("saving", () => apiPostDiscipline(thesis.id, entry));
+      if (!res) return false;
+      applyMutation(res);
+      return true;
+    },
+    submitQuarterlyReview: async (input: CreateQuarterlyReviewInput): Promise<boolean> => {
+      const res = await withFlag("saving", () => apiCreateQuarterlyReview(thesis.id, input));
+      if (!res) return false;
+      applyMutation({ thesis: res.thesis, revisions: res.revisions });
+      setReviews((prev) => [res.review, ...prev]);
+      return true;
+    },
+    syncSec: async () => {
+      const snap = await withFlag("secSyncing", () => apiSyncSec(thesis.ticker));
+      if (snap) setSecSnapshot(snap);
+    },
+    deleteCurrentThesis: () => withFlag("deleting", () => apiDeleteThesis(thesis.id)),
+  };
+}
+
 function useThesisMutations(
   thesis: ThesisDetail,
   setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>,
@@ -83,9 +112,12 @@ function useThesisMutations(
   setSecSnapshot: React.Dispatch<React.SetStateAction<SecSnapshot | null>>,
   withFlag: ReturnType<typeof useBusyState>["withFlag"],
 ) {
+  const latestUpdatedAtRef = useRef(thesis.updatedAt);
+  latestUpdatedAtRef.current = thesis.updatedAt;
   const applyMutation = useCallback(
     (res: ThesisMutationResult | null) => {
       if (!res) return;
+      latestUpdatedAtRef.current = res.thesis.updatedAt;
       setThesis(res.thesis);
       if (res.revisions) setRevisions(res.revisions);
       broadcastThesisSync(res.thesis, res.revisions);
@@ -100,30 +132,21 @@ function useThesisMutations(
     const run = () =>
       apiPatchStep(thesis.id, payload, okMessage, {
         ...options,
-        expectedUpdatedAt: thesis.updatedAt,
+        expectedUpdatedAt: latestUpdatedAtRef.current,
       });
     const out = options?.silent ? await run() : await withFlag("saving", run);
     if (out.kind !== "ok") return false;
     applyMutation({ thesis: out.thesis, revisions: out.revisions });
     return true;
   };
-  return {
+  const secondary = useSecondaryMutations(
+    thesis,
     applyMutation,
-    patchStep,
-    submitDiscipline: async (entry: CreateDisciplineEntryInput) =>
-      applyMutation(await withFlag("saving", () => apiPostDiscipline(thesis.id, entry))),
-    submitQuarterlyReview: async (input: CreateQuarterlyReviewInput) => {
-      const res = await withFlag("saving", () => apiCreateQuarterlyReview(thesis.id, input));
-      if (!res) return;
-      applyMutation({ thesis: res.thesis, revisions: res.revisions });
-      setReviews((prev) => [res.review, ...prev]);
-    },
-    syncSec: async () => {
-      const snap = await withFlag("secSyncing", () => apiSyncSec(thesis.ticker));
-      if (snap) setSecSnapshot(snap);
-    },
-    deleteCurrentThesis: () => withFlag("deleting", () => apiDeleteThesis(thesis.id)),
-  };
+    setReviews,
+    setSecSnapshot,
+    withFlag,
+  );
+  return { applyMutation, patchStep, ...secondary };
 }
 
 export function useResearchCanvas(

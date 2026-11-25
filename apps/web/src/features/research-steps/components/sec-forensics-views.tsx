@@ -134,7 +134,9 @@ function QuarterlyRow({ q }: { q: SecQuarterlyFinancial }) {
       <td className="px-3 py-2.5 text-right text-ink-primary">{formatPct(q.grossMarginPct)}</td>
       <td className={`px-3 py-2.5 text-right ${gmClass}`}>{gmDelta}</td>
       <td className="px-5 py-2.5 text-right font-medium text-ink-primary">
-        {q.dilutedEps !== null ? `$${q.dilutedEps.toFixed(2)}` : "—"}
+        {q.dilutedEps !== null
+          ? `${q.dilutedEps < 0 ? "-" : ""}$${Math.abs(q.dilutedEps).toFixed(2)}`
+          : "—"}
       </td>
     </tr>
   );

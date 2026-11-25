@@ -142,6 +142,7 @@ export {
   calculateValuationScenarios,
   checkScenarioMonotonicity,
   roundTo,
+  sanitizeValuationInput,
 } from "./math/valuation-scenarios";
 export {
   type Alignment,
@@ -214,6 +215,9 @@ export {
   HypothesisSchema,
   type HypothesisStatus,
   HypothesisStatusSchema,
+  MAX_VALUATION_EPS,
+  MAX_VALUATION_PE,
+  MAX_VALUATION_PRICE,
   type SparklinePoint,
   SparklinePointSchema,
   type ThesisCard,

@@ -134,10 +134,7 @@ export function useAutoSaveScheduler<T>(opts: AutoSaveSchedulerOptions<T>) {
       r.timer = null;
       void runPersistPass(r, flush);
     }, opts.debounceMs);
-    return () => {
-      if (r.timer) clearTimeout(r.timer);
-      r.timer = null;
-    };
+    return () => clearTimers(r);
   }, [
     opts.canSave,
     opts.debounceMs,

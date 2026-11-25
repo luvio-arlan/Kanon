@@ -91,7 +91,7 @@ export interface DecisionComposerCardProps {
   redTeamExitSuggestion?: string;
   canCollapse: boolean;
   onClose: () => void;
-  onSubmit: (entry: CreateDisciplineEntryInput) => Promise<void>;
+  onSubmit: (entry: CreateDisciplineEntryInput) => Promise<boolean | undefined>;
 }
 
 export function DecisionComposerCard(props: DecisionComposerCardProps) {
@@ -103,7 +103,8 @@ export function DecisionComposerCard(props: DecisionComposerCardProps) {
 
   async function handleSave() {
     if (blocked || !form.exitRule.trim()) return;
-    await props.onSubmit(toEntryPayload(form, props.defaultPrice));
+    const ok = await props.onSubmit(toEntryPayload(form, props.defaultPrice));
+    if (ok === false) return;
     patch({ exitRule: "", note: "" });
     props.onClose();
   }

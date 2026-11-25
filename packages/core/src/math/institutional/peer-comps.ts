@@ -3,7 +3,7 @@ import type { ThesisDetail } from "../../schemas/research";
 import { calculateImpliedExpectations } from "../implied-expectations";
 import { suggestKellyCappedWeight } from "../portfolio-analytics";
 import { calculateResearchReadiness } from "../research-readiness";
-import { roundTo } from "../valuation-scenarios";
+import { calculateValuationScenarios, roundTo } from "../valuation-scenarios";
 
 export interface PeerCompRow {
   thesisId: string;
@@ -55,10 +55,19 @@ function medianOf(values: readonly number[]): number | null {
 }
 
 function buildPeerRow(thesis: ThesisDetail, quote: MarketQuoteSnapshot | undefined): PeerCompRow {
-  const exp = calculateImpliedExpectations({ summary: thesis.valuation });
+  const livePrice =
+    quote?.effectivePrice && quote.effectivePrice > 0 ? quote.effectivePrice : thesis.currentPrice;
+  const activeVal =
+    Math.abs(livePrice - thesis.currentPrice) > 0.001
+      ? calculateValuationScenarios({ ...thesis.valuationInput, currentPrice: livePrice })
+      : thesis.valuation;
+  const exp = calculateImpliedExpectations({ summary: activeVal });
   const readiness = calculateResearchReadiness(thesis);
-  const kelly = suggestKellyCappedWeight(thesis);
-  const livePrice = quote?.effectivePrice ?? thesis.currentPrice;
+  const kelly = suggestKellyCappedWeight({
+    ...thesis,
+    currentPrice: livePrice,
+    valuation: activeVal,
+  });
   const drawdownFrom52wHighPct =
     quote?.fiftyTwoWeekHigh && quote.fiftyTwoWeekHigh > 0
       ? roundTo(((livePrice - quote.fiftyTwoWeekHigh) / quote.fiftyTwoWeekHigh) * 100, 1)
@@ -74,12 +83,12 @@ function buildPeerRow(thesis: ThesisDetail, quote: MarketQuoteSnapshot | undefin
     sessionState: quote?.sessionState ?? null,
     dayChangePct: quote?.regularChangePct ?? null,
     drawdownFrom52wHighPct,
-    baseTargetPrice: thesis.valuation.base.targetPrice,
-    upsidePct: thesis.valuation.upsidePct,
-    baseCagrPct: thesis.valuation.base.cagrPct,
+    baseTargetPrice: activeVal.base.targetPrice,
+    upsidePct: activeVal.upsidePct,
+    baseCagrPct: activeVal.base.cagrPct,
     marginOfSafetyPct: exp.marginOfSafetyPct,
-    riskRewardRatio: thesis.valuation.riskRewardRatio,
-    basePeMultiple: thesis.valuation.base.peMultiple,
+    riskRewardRatio: activeVal.riskRewardRatio,
+    basePeMultiple: activeVal.base.peMultiple,
     hurdleEntry15: exp.hurdleEntry15,
     belowHurdle15: livePrice <= exp.hurdleEntry15,
     readinessScore: readiness.scorePct,

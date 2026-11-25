@@ -33,14 +33,14 @@ function ScenarioMetricHeader({
           />
         </Badge>
       </div>
-      <div className="mt-4 flex items-baseline justify-between border-b border-hairline pb-4">
+      <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-hairline pb-4">
         <RollingNumber
           value={result.targetPrice}
           prefix="$"
           decimals={1}
-          className="text-4xl font-light tracking-[-0.04em] text-ink-primary"
+          className="min-w-0 truncate text-4xl font-light tracking-[-0.04em] text-ink-primary"
         />
-        <span className="font-mono text-sm text-ink-secondary tabular-nums">
+        <span className="shrink-0 font-mono text-sm text-ink-secondary tabular-nums">
           年化 <RollingNumber value={result.cagrPct} suffix="%" decimals={1} />
         </span>
       </div>
@@ -50,7 +50,7 @@ function ScenarioMetricHeader({
 
 export function ScenarioEditorCard(props: ScenarioEditorCardProps) {
   return (
-    <Card className="group flex flex-col justify-between p-6 focus-within:border-strong focus-within:shadow-card-hover">
+    <Card className="group flex min-w-0 flex-col justify-between overflow-hidden p-6 focus-within:border-strong focus-within:shadow-card-hover">
       <ScenarioMetricHeader label={props.label} tone={props.tone} result={props.result} />
       <div className="mt-4 space-y-4">
         <PrecisionSlider

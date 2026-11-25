@@ -23,20 +23,22 @@ export function RollingNumber({
   signDisplay = "auto",
   className,
 }: RollingNumberProps) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const compact = Math.abs(safeValue) >= 1_000_000;
+  const format = compact
+    ? { notation: "compact" as const, maximumSignificantDigits: 4, signDisplay }
+    : { minimumFractionDigits: decimals, maximumFractionDigits: decimals, signDisplay };
+
   return (
     <NumberFlow
-      value={Number.isFinite(value) ? value : 0}
+      value={safeValue}
       prefix={prefix}
       suffix={suffix}
       locales="en-US"
       transformTiming={FLOW_TIMING}
       spinTiming={FLOW_TIMING}
       opacityTiming={FLOW_OPACITY}
-      format={{
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-        signDisplay,
-      }}
+      format={format}
       className={cn("font-mono tabular-nums", className)}
     />
   );

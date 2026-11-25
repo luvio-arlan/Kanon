@@ -17,6 +17,7 @@ interface DriversPanelProps {
   driverInputs: ValuationDriverInputs;
   onPatchDrivers: (next: Partial<ValuationDriverInputs>) => void;
   onApplyBaseEps: (eps: number) => void;
+  onApplyEvTargets?: (targets: { bear: number; base: number; bull: number }) => void;
 }
 
 function deriveDefaults(latest: SecAnnualFinancial | null, price: number) {
@@ -176,6 +177,7 @@ export function ValuationDriversPanel(props: DriversPanelProps) {
         initialDebtB={defaults.debtB}
         driverInputs={dr}
         onPatchDrivers={props.onPatchDrivers}
+        onApplyEvTargets={props.onApplyEvTargets}
       />
     </div>
   );

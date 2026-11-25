@@ -16,17 +16,28 @@ export interface SensitivityMatrix {
 }
 
 function buildSteps(low: number, mid: number, high: number, decimals: number): number[] {
-  const safeLow = Math.max(0.5, low);
-  const safeHigh = Math.max(safeLow + 1, high);
-  const lowMid = roundTo((safeLow + mid) / 2, decimals);
-  const highMid = roundTo((mid + safeHigh) / 2, decimals);
-  return [
-    roundTo(safeLow, decimals),
-    lowMid,
-    roundTo(mid, decimals),
-    highMid,
-    roundTo(safeHigh, decimals),
+  const floor = decimals === 0 ? 1 : 0.05;
+  const stepUnit = decimals === 0 ? 1 : 0.01;
+  const sorted = [
+    Math.max(floor, Number.isFinite(low) ? low : floor),
+    Math.max(floor, Number.isFinite(mid) ? mid : floor),
+    Math.max(floor, Number.isFinite(high) ? high : floor),
+  ].sort((a, b) => a - b);
+  const safeLow = roundTo(sorted[0] ?? floor, decimals);
+  const safeMid = roundTo(Math.max(safeLow + stepUnit * 2, sorted[1] ?? safeLow), decimals);
+  const safeHigh = roundTo(Math.max(safeMid + stepUnit * 2, sorted[2] ?? safeMid), decimals);
+  const raw = [
+    safeLow,
+    roundTo((safeLow + safeMid) / 2, decimals),
+    safeMid,
+    roundTo((safeMid + safeHigh) / 2, decimals),
+    safeHigh,
   ];
+  return raw.reduce<number[]>((acc, val) => {
+    const prev = acc[acc.length - 1];
+    acc.push(prev !== undefined && val <= prev ? roundTo(prev + stepUnit, decimals) : val);
+    return acc;
+  }, []);
 }
 
 function classifyCell(returnPct: number): "margin" | "balanced" | "risk" {

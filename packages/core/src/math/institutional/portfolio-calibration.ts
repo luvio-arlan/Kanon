@@ -62,6 +62,10 @@ export interface PortfolioCalibrationReport {
   positionRows: PositionEfficiencyRow[];
 }
 
+function directionalDeltaPct(row: DisciplineAlphaRow): number {
+  return row.action === "trim" || row.action === "pass" ? -row.deltaPct : row.deltaPct;
+}
+
 function aggregateEmotions(rows: readonly DisciplineAlphaRow[]): EmotionAttributionRow[] {
   return EMOTION_ORDER.map((emotion) => {
     const subset = rows.filter((r) => r.emotion === emotion);
@@ -69,7 +73,7 @@ function aggregateEmotions(rows: readonly DisciplineAlphaRow[]): EmotionAttribut
     const avgDelta =
       subset.length === 0
         ? null
-        : roundTo(subset.reduce((s, r) => s + r.deltaPct, 0) / subset.length, 1);
+        : roundTo(subset.reduce((s, r) => s + directionalDeltaPct(r), 0) / subset.length, 1);
     return {
       emotion,
       label: EMOTION_LABELS[emotion],

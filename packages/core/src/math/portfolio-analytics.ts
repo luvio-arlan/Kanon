@@ -122,18 +122,21 @@ export function suggestKellyCappedWeight(thesis: ThesisDetail): KellyWeightSugge
   const odds = thesis.valuation.riskRewardRatio ?? 4;
   const readiness = calculateResearchReadiness(thesis).scorePct;
   const hasWarning = thesis.hypotheses.some((h) => h.status === "warning");
-  const pWin = Math.min(
-    0.72,
-    Math.max(0.42, 0.45 + (readiness / 100) * 0.25 - (hasWarning ? 0.1 : 0)),
-  );
+  const scenarioWinProb = thesis.valuation.base.probability + thesis.valuation.bull.probability;
+  const confidenceScale = 0.72 + (readiness / 100) * 0.28;
+  const pWin = Math.min(0.8, Math.max(0.25, scenarioWinProb * confidenceScale));
   const rawKelly = pWin - (1 - pWin) / Math.max(0.5, odds);
-  const halfKellyPct = Math.max(0, roundTo(rawKelly * 50, 0));
-  const boundedMax = Math.min(cap, Math.max(0, halfKellyPct));
+  if (rawKelly <= 0) {
+    return { minPct: 0, maxPct: 0, rationale: "当前赔率与胜率未达正凯利期望，建议 0% 观察。" };
+  }
+  const rawHalfPct = Math.max(0, roundTo(rawKelly * 50, 0));
+  const adjustedHalfPct = hasWarning ? Math.floor(rawHalfPct * 0.5) : rawHalfPct;
+  const boundedMax = Math.min(cap, Math.max(0, adjustedHalfPct));
   if (boundedMax < 2) {
     return {
       minPct: 0,
-      maxPct: Math.min(cap, 3),
-      rationale: "当前赔率或成熟度偏弱，仅宜作为观察名单或极小试探仓。",
+      maxPct: Math.min(cap, Math.max(1, boundedMax)),
+      rationale: "当前赔率或预警折扣后仓位偏低，仅宜观察或极小试探仓。",
     };
   }
   const minPct = Math.max(2, Math.floor(boundedMax * 0.55));
@@ -141,7 +144,7 @@ export function suggestKellyCappedWeight(thesis: ThesisDetail): KellyWeightSugge
   return {
     minPct: Math.min(minPct, boundedMax),
     maxPct: boundedMax,
-    rationale: `基于赔率 ${odds.toFixed(2)}× 与研究成熟度 ${readiness}% 测算${warnSuffix}`,
+    rationale: `基于赔率 ${odds.toFixed(2)}×、情景胜率 ${Math.round(scenarioWinProb * 100)}% 与成熟度 ${readiness}% 测算${warnSuffix}`,
   };
 }
 

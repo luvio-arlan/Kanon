@@ -5,6 +5,12 @@ import { Badge, Button, Card } from "@kanon/ui";
 import { IconCopy } from "@tabler/icons-react";
 import { toast } from "sonner";
 
+const IMPACT_CN: Record<string, string> = {
+  high: "高影响",
+  medium: "中影响",
+  low: "低影响",
+};
+
 function DigestListCard(props: {
   title: string;
   emptyText: string;
@@ -109,7 +115,7 @@ export function WeeklyDigestView({ digest }: { digest: WeeklyIcDigest }) {
           key: `${c.ticker}-${idx}`,
           code: c.ticker,
           title: c.title,
-          detail: `${c.dateLabel} · ${c.impact}`,
+          detail: `${c.dateLabel} · ${IMPACT_CN[c.impact] ?? c.impact}`,
         }))}
       />
       <DigestListCard

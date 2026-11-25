@@ -24,9 +24,14 @@ function OddsRangeLegend({
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-xs tabular-nums">
       <span className="text-ink-muted">
-        悲观 <RollingNumber value={summary.bear.targetPrice} prefix="$" decimals={1} />
-        （-
-        <RollingNumber value={Math.abs(summary.downsidePct)} suffix="%" decimals={1} />）
+        悲观 <RollingNumber value={summary.bear.targetPrice} prefix="$" decimals={1} />（
+        <RollingNumber
+          value={summary.bear.returnPct}
+          suffix="%"
+          decimals={1}
+          signDisplay="exceptZero"
+        />
+        ）
       </span>
       <span className="inline-flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-status-pass">
@@ -95,31 +100,31 @@ function OddsRangeTrack({
 function ExpectationsRow({ exp }: { exp: ImpliedExpectations }) {
   return (
     <div className="mt-6 grid grid-cols-2 gap-4 border-t border-hairline pt-5 font-mono tabular-nums sm:grid-cols-4">
-      <div>
+      <div className="min-w-0">
         <div className="font-sans text-xs text-ink-muted">相对中性安全边际</div>
-        <div className="mt-1 text-lg font-medium text-ink-primary">
+        <div className="mt-1 truncate text-lg font-medium text-ink-primary">
           <RollingNumber value={exp.marginOfSafetyPct} suffix="%" decimals={1} />
         </div>
       </div>
-      <div>
+      <div className="min-w-0">
         <div className="font-sans text-xs text-ink-muted">15% 年化安全买点</div>
         <div
-          className={`mt-1 text-lg font-medium ${exp.isBelowHurdle15 ? "text-status-pass" : "text-ink-primary"}`}
+          className={`mt-1 truncate text-lg font-medium ${exp.isBelowHurdle15 ? "text-status-pass" : "text-ink-primary"}`}
         >
           <RollingNumber value={exp.hurdleEntry15} prefix="$" decimals={1} />
         </div>
       </div>
-      <div>
+      <div className="min-w-0">
         <div className="font-sans text-xs text-ink-muted">20% 年化安全买点</div>
-        <div className="mt-1 text-lg font-medium text-ink-secondary">
+        <div className="mt-1 truncate text-lg font-medium text-ink-secondary">
           <RollingNumber value={exp.hurdleEntry20} prefix="$" decimals={1} />
         </div>
       </div>
-      <div>
+      <div className="min-w-0">
         <div className="font-sans text-xs text-ink-muted">
           {exp.impliedEpsCagrPct !== null ? "市场隐含 EPS 增速" : "现价隐含远期 EPS"}
         </div>
-        <div className="mt-1 text-lg font-medium text-ink-primary">
+        <div className="mt-1 truncate text-lg font-medium text-ink-primary">
           {exp.impliedEpsCagrPct !== null ? (
             <>
               <RollingNumber value={exp.impliedEpsCagrPct} suffix="%" decimals={1} />
@@ -159,7 +164,11 @@ function BannerHeadline({ summary }: { summary: ValuationScenarioSummary }) {
             suffix="%"
             decimals={1}
             signDisplay="exceptZero"
-            className="text-lg font-medium text-status-pass"
+            className={
+              summary.upsidePct >= 0
+                ? "text-lg font-medium text-status-pass"
+                : "text-lg font-medium text-status-fail"
+            }
           />
           <span className="font-mono text-sm text-ink-secondary tabular-nums">
             CAGR <RollingNumber value={summary.base.cagrPct} suffix="%" decimals={1} />

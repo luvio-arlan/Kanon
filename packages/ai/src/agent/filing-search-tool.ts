@@ -8,12 +8,25 @@ export interface FilingExcerptMatch {
   citation: string;
 }
 
-function tokenizeQuery(raw: string): string[] {
-  const tokens = raw
+function tokenizeText(raw: string): string[] {
+  const parts = raw
     .toLowerCase()
     .split(/[^a-z0-9\u4e00-\u9fff]+/i)
     .filter((t) => t.length >= 2);
-  return [...new Set(tokens)];
+  const tokens: string[] = [];
+  for (const part of parts) {
+    tokens.push(part);
+    if (/^[\u4e00-\u9fff]{3,}$/.test(part)) {
+      for (let i = 0; i < part.length - 1; i += 1) {
+        tokens.push(part.slice(i, i + 2));
+      }
+    }
+  }
+  return tokens;
+}
+
+function tokenizeQuery(raw: string): string[] {
+  return [...new Set(tokenizeText(raw))];
 }
 
 function appendFilingChunks(
@@ -49,7 +62,7 @@ function scoreBm25Lite(
   idfMap: ReadonlyMap<string, number>,
 ): number {
   const lower = text.toLowerCase();
-  const docTokens = tokenizeQuery(lower);
+  const docTokens = tokenizeText(lower);
   if (docTokens.length === 0) return 0;
   const freq = new Map<string, number>();
   for (const tok of docTokens) freq.set(tok, (freq.get(tok) ?? 0) + 1);
@@ -64,6 +77,7 @@ function scoreBm25Lite(
     const norm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * docTokens.length) / avgDocLen));
     score += idf * norm;
   }
+  if (score <= 0) return 0;
   return score + Math.min(2, countBuySideSignals(text) * 0.35);
 }
 
@@ -78,7 +92,7 @@ export function searchFilingExcerpts(params: {
   const terms = tokenizeQuery(params.query);
   if (terms.length === 0) return [];
 
-  const docLens = corpus.map((c) => Math.max(8, tokenizeQuery(c.text).length));
+  const docLens = corpus.map((c) => Math.max(8, tokenizeText(c.text).length));
   const avgLen = docLens.reduce((s, l) => s + l, 0) / corpus.length;
   const idfMap = new Map<string, number>();
   for (const q of terms) {

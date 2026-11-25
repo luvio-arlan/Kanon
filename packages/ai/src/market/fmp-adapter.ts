@@ -26,13 +26,14 @@ const FmpAftermarketItemSchema = z.object({
   price: z.number().finite().positive().optional(),
   askPrice: z.number().finite().positive().optional(),
   bidPrice: z.number().finite().positive().optional(),
+  timestamp: z.number().optional(),
 });
 
 async function tryFmpAftermarket(
   ticker: string,
   token: string,
   fetchImpl: typeof fetch,
-): Promise<number | null> {
+): Promise<{ price: number; timestamp?: number } | null> {
   try {
     const url = `https://financialmodelingprep.com/stable/aftermarket-trade?symbol=${encodeURIComponent(ticker)}&apikey=${encodeURIComponent(token)}`;
     const res = await fetchImpl(url, { signal: AbortSignal.timeout(3000) });
@@ -40,11 +41,23 @@ async function tryFmpAftermarket(
     const parsed = z.array(FmpAftermarketItemSchema).safeParse(await res.json());
     const item = parsed.success ? parsed.data[0] : undefined;
     const raw = item?.price ?? item?.bidPrice ?? item?.askPrice;
-    return raw ? roundTo(raw, 2) : null;
+    return raw ? { price: roundTo(raw, 2), timestamp: item?.timestamp } : null;
   } catch (err) {
     void err;
     return null;
   }
+}
+
+function resolveFreshAftermarket(
+  quoteTs: number | undefined,
+  after: { price: number; timestamp?: number } | null,
+): number | null {
+  if (!after) return null;
+  if (typeof quoteTs === "number" && typeof after.timestamp === "number") {
+    const afterSec = after.timestamp > 1e12 ? Math.floor(after.timestamp / 1000) : after.timestamp;
+    if (afterSec < quoteTs) return null;
+  }
+  return after.price;
 }
 
 function buildFmpExtended(
@@ -132,7 +145,12 @@ export const fmpAdapter: MarketDataAdapter = {
       if (!first) {
         return { ok: false, ticker, source: "fmp", reason: "FMP 未匹配到该代码" };
       }
-      return buildFmpSnapshot(ticker, first, afterPrice, latencyMs);
+      return buildFmpSnapshot(
+        ticker,
+        first,
+        resolveFreshAftermarket(first.timestamp, afterPrice),
+        latencyMs,
+      );
     } catch (err) {
       return {
         ok: false,

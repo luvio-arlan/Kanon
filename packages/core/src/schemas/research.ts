@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   HypothesisSchema,
+  MAX_VALUATION_EPS,
+  MAX_VALUATION_PRICE,
   SparklinePointSchema,
   ThesisCardSchema,
   ValuationScenarioInputSchema,
@@ -40,7 +42,7 @@ export type BusinessFilter = z.infer<typeof BusinessFilterSchema>;
 
 export const ThesisSummarySchema = z.object({
   id: z.string().min(1),
-  indexLabel: z.string().regex(/^\d{2}$/),
+  indexLabel: z.string().regex(/^\d{2,}$/),
   ticker: z.string().min(1),
   companyName: z.string().min(1),
   sectorTag: z.string().min(1),
@@ -157,9 +159,9 @@ export const CreateThesisInputSchema = z.object({
     .transform((v) => v.toUpperCase()),
   companyName: z.string().trim().min(1).max(60),
   sectorTag: z.string().trim().min(1).max(40),
-  currentPrice: z.number().finite().positive(),
+  currentPrice: z.number().finite().positive().max(MAX_VALUATION_PRICE),
   convictionSummary: z.string().trim().min(1).max(280).optional(),
-  latestSecEps: z.number().finite().positive().optional(),
+  latestSecEps: z.number().finite().positive().max(MAX_VALUATION_EPS).optional(),
   priceHistory: z.array(SparklinePointSchema).min(2).max(12).optional(),
 });
 export type CreateThesisInput = z.input<typeof CreateThesisInputSchema>;
@@ -211,7 +213,7 @@ export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
   }),
   z.object({
     step: z.literal("price_anchor"),
-    currentPrice: z.number().finite().positive(),
+    currentPrice: z.number().finite().positive().max(MAX_VALUATION_PRICE),
     label: z.string().trim().min(1).max(20).optional(),
   }),
   z.object({

@@ -152,7 +152,7 @@ export function buildGroundedInvestmentMemo(
   const ratio =
     thesis.valuation.riskRewardRatio !== null
       ? `${thesis.valuation.riskRewardRatio.toFixed(2)}×`
-      : "无明显下行保底";
+      : "∞（悲观情景高于现价）";
   const quality = analyzeSecQuality(secSnapshot?.annuals ?? []);
   const expectations = calculateImpliedExpectations({
     summary: thesis.valuation,

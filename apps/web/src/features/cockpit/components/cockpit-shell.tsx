@@ -58,6 +58,7 @@ interface MainStageProps {
   ext: ReturnType<typeof usePortfolioOverlayState>;
   market: LiveMarketQuotesState;
   analytics: ReturnType<typeof calculatePortfolioAnalytics>;
+  onOpenMarketSettings: () => void;
 }
 
 function ThesisCardsGrid({ ui, market }: Pick<MainStageProps, "ui" | "market">) {
@@ -90,9 +91,10 @@ function ThesisCardsGrid({ ui, market }: Pick<MainStageProps, "ui" | "market">) 
 }
 
 function renderCollectionBody({ ui, ext, market, analytics }: MainStageProps) {
-  if (ui.viewMode === "catalysts") return <CatalystCalendarBoard theses={ui.theses} />;
+  const searchedTheses = ui.query.trim() ? ui.visibleTheses : ui.theses;
+  if (ui.viewMode === "catalysts") return <CatalystCalendarBoard theses={searchedTheses} />;
   if (ui.viewMode === "comps") {
-    return <PeerExpectationsMatrix theses={ui.theses} liveQuotes={market.quotes} />;
+    return <PeerExpectationsMatrix theses={searchedTheses} liveQuotes={market.quotes} />;
   }
   if (ui.visibleTheses.length === 0) {
     return (
@@ -136,7 +138,7 @@ function ThesisCollectionView(p: MainStageProps) {
   );
 }
 
-function buildHeaderProps({ ui, ext, market, analytics }: MainStageProps) {
+function buildHeaderProps({ ui, ext, market, analytics, onOpenMarketSettings }: MainStageProps) {
   return {
     analytics,
     theses: ui.theses,
@@ -164,18 +166,9 @@ function buildHeaderProps({ ui, ext, market, analytics }: MainStageProps) {
     calibratingPrices: ext.refreshingPrices,
     onRefreshQuotes: () => void market.refresh(true),
     onCalibratePrices: () => void ext.refreshPrices(),
-    onOpenMarketSettings: () => ui.setModal("ai", true),
+    onOpenMarketSettings,
     onSelectThesis: ui.setPreviewThesis,
   };
-}
-
-function CockpitMainStage(p: MainStageProps) {
-  return (
-    <div className="w-full space-y-5 px-5 pb-10 pt-5 sm:px-8 lg:px-9 lg:pt-5">
-      <CockpitHeader {...buildHeaderProps(p)} />
-      <ThesisCollectionView {...p} />
-    </div>
-  );
 }
 
 function useCockpitRuntime(initialTheses: ThesisDetail[], glossary: readonly GlossaryTerm[]) {
@@ -195,50 +188,59 @@ function useCockpitRuntime(initialTheses: ThesisDetail[], glossary: readonly Glo
   return { ui, settingsTab, openSettings, market, ext, analytics };
 }
 
+function buildSidebarProps(
+  currentUser: PublicUser,
+  r: ReturnType<typeof useCockpitRuntime>,
+  s: { collapsed: boolean; onToggleCollapse: () => void; closeMobile: () => void },
+) {
+  return {
+    currentUser,
+    theses: r.ui.theses,
+    filter: r.ui.filter,
+    filterCounts: r.ui.filterCounts,
+    viewMode: r.ui.viewMode,
+    refreshingPrices: r.ext.refreshingPrices,
+    collapsed: s.collapsed,
+    onToggleCollapse: s.onToggleCollapse,
+    onCloseMobile: s.closeMobile,
+    onSelectFilter: r.ui.setFilter,
+    onSelectViewMode: r.ui.setViewMode,
+    onOpenCommand: () => r.ui.setModal("cmd", true),
+    onRefreshPrices: () => void r.ext.refreshPrices(),
+    onOpenStressTest: () => r.ext.setStressOpen(true),
+    onOpenCalibration: () => r.ext.setCalibrationOpen(true),
+    onOpenSettings: () => r.openSettings("general"),
+    onOpenAccountSettings: () => r.openSettings("account"),
+  };
+}
+
 export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitShellProps) {
-  const { ui, settingsTab, openSettings, market, ext, analytics } = useCockpitRuntime(
-    initialTheses,
-    glossary,
+  const r = useCockpitRuntime(initialTheses, glossary);
+  const mobileBtn = (
+    <Button variant="primary" size="sm" onClick={() => r.ui.setModal("create", true)}>
+      <IconPlus size={15} stroke={1.5} />
+      <span>新建</span>
+    </Button>
   );
   return (
     <>
       <WorkbenchShell
-        mobileActions={
-          <Button variant="primary" size="sm" onClick={() => ui.setModal("create", true)}>
-            <IconPlus size={15} stroke={1.5} />
-            <span>新建</span>
-          </Button>
-        }
-        sidebar={(s) => (
-          <CockpitSidebar
-            currentUser={currentUser}
-            theses={ui.theses}
-            filter={ui.filter}
-            filterCounts={ui.filterCounts}
-            viewMode={ui.viewMode}
-            refreshingPrices={ext.refreshingPrices}
-            collapsed={s.collapsed}
-            onToggleCollapse={s.onToggleCollapse}
-            onCloseMobile={s.closeMobile}
-            onSelectFilter={ui.setFilter}
-            onSelectViewMode={ui.setViewMode}
-            onOpenCommand={() => ui.setModal("cmd", true)}
-            onRefreshPrices={() => void ext.refreshPrices()}
-            onOpenStressTest={() => ext.setStressOpen(true)}
-            onOpenCalibration={() => ext.setCalibrationOpen(true)}
-            onOpenSettings={() => openSettings("general")}
-            onOpenAccountSettings={() => openSettings("account")}
-          />
-        )}
+        mobileActions={mobileBtn}
+        sidebar={(s) => <CockpitSidebar {...buildSidebarProps(currentUser, r, s)} />}
       >
-        <CockpitMainStage ui={ui} ext={ext} market={market} analytics={analytics} />
+        <div className="w-full space-y-5 px-5 pb-10 pt-5 sm:px-8 lg:px-9 lg:pt-5">
+          <CockpitHeader
+            {...buildHeaderProps({ ...r, onOpenMarketSettings: () => r.openSettings("market") })}
+          />
+          <ThesisCollectionView {...r} onOpenMarketSettings={() => r.openSettings("market")} />
+        </div>
       </WorkbenchShell>
       <CockpitOverlays
-        ui={ui}
-        ext={ext}
-        market={market}
+        ui={r.ui}
+        ext={r.ext}
+        market={r.market}
         currentUser={currentUser}
-        settingsTab={settingsTab}
+        settingsTab={r.settingsTab}
       />
     </>
   );

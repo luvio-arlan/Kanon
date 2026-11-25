@@ -5,7 +5,9 @@ import {
   type EvOwnerFcfResult,
   type ValuationDriverInputs,
 } from "@kanon/core";
-import { Badge, Card, Input } from "@kanon/ui";
+import { Badge, Button, Card, Input } from "@kanon/ui";
+import { IconArrowDownRight } from "@tabler/icons-react";
+import { useState } from "react";
 
 export function DriverNumInput(props: {
   label: string;
@@ -14,6 +16,18 @@ export function DriverNumInput(props: {
   onChange: (v: number) => void;
 }) {
   const inputId = `val-drv-${props.label}`;
+  const [editing, setEditing] = useState(false);
+  const [raw, setRaw] = useState(String(props.value));
+  const displayed = editing ? raw : String(props.value);
+
+  const handleChange = (text: string) => {
+    setRaw(text);
+    const trimmed = text.trim();
+    if (!trimmed || trimmed === "-" || trimmed === "." || trimmed === "-.") return;
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) props.onChange(parsed);
+  };
+
   return (
     <div className="space-y-1">
       <label htmlFor={inputId} className="block text-xs text-ink-muted">
@@ -23,8 +37,13 @@ export function DriverNumInput(props: {
         id={inputId}
         type="number"
         step={props.step ?? 0.5}
-        value={props.value}
-        onChange={(e) => props.onChange(Number(e.target.value) || 0)}
+        value={displayed}
+        onFocus={() => {
+          setRaw(String(props.value));
+          setEditing(true);
+        }}
+        onBlur={() => setEditing(false)}
+        onChange={(e) => handleChange(e.target.value)}
         className="font-mono tabular-nums"
       />
     </div>
@@ -99,6 +118,47 @@ function EvInputsGrid({
   );
 }
 
+function buildEvInputs(props: {
+  driverInputs: ValuationDriverInputs;
+  initialFcfB: number;
+  initialCashB: number;
+  initialDebtB: number;
+}): EvValues {
+  return {
+    baseFcfB: props.driverInputs.baseOwnerFcfB ?? props.initialFcfB,
+    baseMult: props.driverInputs.ownerFcfMultipleBase ?? 20,
+    cashB: props.driverInputs.cashB ?? props.initialCashB,
+    debtB: props.driverInputs.totalDebtB ?? props.initialDebtB,
+  };
+}
+
+function EvApplyFooter({
+  ev,
+  onApply,
+}: {
+  ev: EvOwnerFcfResult;
+  onApply: (targets: { bear: number; base: number; bull: number }) => void;
+}) {
+  return (
+    <div className="flex justify-end border-t border-hairline pt-3">
+      <Button
+        variant="titanium"
+        size="sm"
+        onClick={() =>
+          onApply({
+            bear: ev.bearTargetPrice,
+            base: ev.baseTargetPrice,
+            bull: ev.bullTargetPrice,
+          })
+        }
+      >
+        <IconArrowDownRight size={14} stroke={1.5} />
+        <span>按 EV/FCF 锚定三情景</span>
+      </Button>
+    </div>
+  );
+}
+
 export function EvOwnerFcfCard(props: {
   currentPrice: number;
   horizonYears: number;
@@ -108,13 +168,9 @@ export function EvOwnerFcfCard(props: {
   initialDebtB: number;
   driverInputs: ValuationDriverInputs;
   onPatchDrivers: (next: Partial<ValuationDriverInputs>) => void;
+  onApplyEvTargets?: (targets: { bear: number; base: number; bull: number }) => void;
 }) {
-  const f: EvValues = {
-    baseFcfB: props.driverInputs.baseOwnerFcfB ?? props.initialFcfB,
-    baseMult: props.driverInputs.ownerFcfMultipleBase ?? 20,
-    cashB: props.driverInputs.cashB ?? props.initialCashB,
-    debtB: props.driverInputs.totalDebtB ?? props.initialDebtB,
-  };
+  const f = buildEvInputs(props);
   const ev = calculateEvOwnerFcfValuation({
     currentPrice: props.currentPrice,
     dilutedSharesM: props.sharesM,
@@ -138,6 +194,7 @@ export function EvOwnerFcfCard(props: {
       </div>
       <EvInputsGrid f={f} onPatch={props.onPatchDrivers} />
       <EvSummaryGrid ev={ev} />
+      {props.onApplyEvTargets ? <EvApplyFooter ev={ev} onApply={props.onApplyEvTargets} /> : null}
     </Card>
   );
 }

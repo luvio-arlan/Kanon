@@ -1,6 +1,6 @@
 "use client";
 
-import type { ValuationScenarioSummary } from "@kanon/core";
+import { MAX_VALUATION_EPS, type ValuationScenarioSummary } from "@kanon/core";
 import type { CaseKey, CaseMap, CasePair } from "../lib/use-valuation-draft";
 import { ScenarioEditorCard } from "./scenario-editor-card";
 
@@ -11,10 +11,30 @@ const CASE_META = [
   { key: "bull" as const, label: "乐观", tone: "titanium" as const },
 ];
 
-export function computeEpsRange(initialEps: number) {
-  const max = Math.max(Math.ceil(initialEps * 2.4), 10);
-  const step = max >= 40 ? 0.5 : 0.1;
-  return { min: Math.max(0.5, Number((initialEps * 0.25).toFixed(1))), max, step };
+export function computeStableEpsRange(params: {
+  latestSecEps: number | null;
+  currentPrice: number;
+  initialCases: CaseMap;
+  committedCeiling?: number;
+}) {
+  const { latestSecEps, currentPrice, initialCases, committedCeiling = 0 } = params;
+  const fallbackAnchor = Math.max(1, Math.min(MAX_VALUATION_EPS / 5, currentPrice / 22));
+  const anchor =
+    latestSecEps && Number.isFinite(latestSecEps) && latestSecEps > 0
+      ? Math.min(MAX_VALUATION_EPS / 5, latestSecEps)
+      : fallbackAnchor;
+  const minInit = Math.min(initialCases.bear.eps, initialCases.base.eps, initialCases.bull.eps);
+  const maxInit = Math.max(
+    initialCases.bear.eps,
+    initialCases.base.eps,
+    initialCases.bull.eps,
+    committedCeiling,
+  );
+  const min = Math.max(0.1, Number(Math.min(anchor * 0.2, minInit * 0.5).toFixed(1)));
+  const rawMax = Math.max(10, Math.ceil(Math.max(anchor * 4.5, maxInit * 1.4)));
+  const max = Math.min(MAX_VALUATION_EPS, Math.max(min + 5, rawMax));
+  const step = max >= 200 ? 1 : max >= 40 ? 0.5 : 0.1;
+  return { min, max, step };
 }
 
 export function ScenarioCardsGrid({

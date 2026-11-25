@@ -47,6 +47,27 @@ export interface CopilotRunResult<TAction extends CopilotAction> {
 
 const DEFAULT_OPENAI_COMPATIBLE_BASE = "https://api.deepseek.com/v1";
 
+function isPrivateOrMetadataHost(host: string): boolean {
+  const bare = host.replace(/^\[|\]$/g, "").toLowerCase();
+  if (
+    bare === "0.0.0.0" ||
+    bare === "::1" ||
+    bare === "::" ||
+    bare.endsWith(".internal") ||
+    bare.endsWith(".local")
+  ) {
+    return true;
+  }
+  if (
+    /^(?:10\.|127\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(
+      bare,
+    )
+  ) {
+    return true;
+  }
+  return /^(?:fc|fd|fe[89ab]|::ffff:)/.test(bare);
+}
+
 export function sanitizeProviderBaseUrl(raw?: string): string | undefined {
   const trimmed = raw?.trim();
   if (!trimmed) return undefined;
@@ -54,11 +75,14 @@ export function sanitizeProviderBaseUrl(raw?: string): string | undefined {
     const parsed = new URL(trimmed);
     const host = parsed.hostname.toLowerCase();
     const isLocal = host === "localhost" || host === "127.0.0.1";
-    const isMetadata = host === "169.254.169.254" || host.endsWith(".internal");
-    if (isMetadata) return undefined;
-    if (parsed.protocol === "https:" || (parsed.protocol === "http:" && isLocal)) {
-      return parsed.toString().replace(/\/$/, "");
+    const allowLocal = process.env.NODE_ENV !== "production";
+    if (isLocal) {
+      return allowLocal && (parsed.protocol === "http:" || parsed.protocol === "https:")
+        ? parsed.toString().replace(/\/$/, "")
+        : undefined;
     }
+    if (isPrivateOrMetadataHost(host)) return undefined;
+    if (parsed.protocol === "https:") return parsed.toString().replace(/\/$/, "");
     return undefined;
   } catch (err) {
     void err;

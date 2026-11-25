@@ -69,7 +69,7 @@ function ValuationAnchorCard({ thesis }: { thesis: ThesisDetail }) {
     : "font-mono text-ink-secondary tabular-nums";
 
   return (
-    <div className="rounded-control border border-hairline bg-surface p-3 shadow-card">
+    <div className="overflow-hidden rounded-control border border-hairline bg-surface p-3 shadow-card">
       <AnchorHeadline
         horizonYears={valuation.horizonYears}
         targetPrice={valuation.base.targetPrice}

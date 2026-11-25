@@ -71,9 +71,17 @@ function collectQuarterMap(
   return us.size > 0 ? us : tryNs(facts?.["ifrs-full"], ifrsTags);
 }
 
+function priorYearQuarterLabel(label: string): string | null {
+  const m = /^(\d{4})\s+Q([1-4])$/.exec(label);
+  if (!m?.[1] || !m[2]) return null;
+  return `${Number(m[1]) - 1} Q${m[2]}`;
+}
+
 function enrichYoY(rows: SecQuarterlyFinancial[]): SecQuarterlyFinancial[] {
-  return rows.map((row, idx) => {
-    const prevYear = idx >= 4 ? rows[idx - 4] : undefined;
+  const byLabel = new Map(rows.map((r) => [r.periodLabel, r]));
+  return rows.map((row) => {
+    const prevKey = priorYearQuarterLabel(row.periodLabel);
+    const prevYear = prevKey ? byLabel.get(prevKey) : undefined;
     const revYoY =
       prevYear?.revenue && prevYear.revenue > 0 && row.revenue !== null
         ? roundTo(((row.revenue - prevYear.revenue) / prevYear.revenue) * 100, 1)
