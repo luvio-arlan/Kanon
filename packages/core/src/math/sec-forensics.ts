@@ -1,15 +1,19 @@
 import type { SecAnnualFinancial, SecQuarterlyFinancial } from "../schemas/research";
 import {
+  type CapitalAllocationProfile,
+  computeCapitalAllocation,
   computeIncrementalRoic,
   computeOcfToNetIncome,
   computeRuleOf40,
   computeSloanAccrualPct,
+  computeWorkingCapitalCycle,
   type ForensicGrade,
   scoreForensicQuality,
+  type WorkingCapitalCycle,
 } from "./sec-forensics-metrics";
 import { roundTo } from "./valuation-scenarios";
 
-export type { ForensicGrade };
+export type { CapitalAllocationProfile, ForensicGrade, WorkingCapitalCycle };
 
 export interface ForensicRedFlag {
   id: string;
@@ -40,6 +44,8 @@ export interface SecForensicReport {
   forensicScore: number;
   forensicGrade: ForensicGrade;
   forensicGradeLabel: string;
+  workingCapitalCycle: WorkingCapitalCycle;
+  capitalAllocation: CapitalAllocationProfile;
   redFlags: ForensicRedFlag[];
 }
 
@@ -187,10 +193,7 @@ export function analyzeSecForensics(
   const ret = computeReturnMetrics(latest);
   const sbc = computeSbcAndShares(annuals, latest);
   const latestQ = quarterlies[quarterlies.length - 1];
-  const roiicPct = computeIncrementalRoic(annuals);
   const sloanAccrualPct = computeSloanAccrualPct(latest);
-  const ruleOf40Score = computeRuleOf40(annuals);
-  const ocfToNetIncomePct = computeOcfToNetIncome(latest);
   const redFlags = detectForensicFlags({
     annuals,
     latest,
@@ -201,16 +204,14 @@ export function analyzeSecForensics(
     netCash: ret.netCash,
     sloanAccrualPct,
   });
-  const failCount = redFlags.filter((f) => f.severity === "fail").length;
   const scored = scoreForensicQuality({
     roicPct: ret.roicPct,
     ownerFcfConversionPct: sbc.ownerFcfConversionPct,
     sloanAccrualPct,
     netCash: ret.netCash,
     redFlagCount: redFlags.length,
-    failFlagCount: failCount,
+    failFlagCount: redFlags.filter((f) => f.severity === "fail").length,
   });
-
   return {
     latestFiscalYear: latest.fiscalYear,
     ...ret,
@@ -218,13 +219,15 @@ export function analyzeSecForensics(
     latestQuarterLabel: latestQ?.periodLabel ?? null,
     latestQuarterRevYoYPct: latestQ?.revenueYoYPct ?? null,
     latestQuarterGmYoYBps: latestQ?.grossMarginYoYBps ?? null,
-    roiicPct,
+    roiicPct: computeIncrementalRoic(annuals),
     sloanAccrualPct,
-    ruleOf40Score,
-    ocfToNetIncomePct,
+    ruleOf40Score: computeRuleOf40(annuals),
+    ocfToNetIncomePct: computeOcfToNetIncome(latest),
     forensicScore: scored.score,
     forensicGrade: scored.grade,
     forensicGradeLabel: scored.label,
+    workingCapitalCycle: computeWorkingCapitalCycle(latest),
+    capitalAllocation: computeCapitalAllocation(latest),
     redFlags,
   };
 }

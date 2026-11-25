@@ -5,6 +5,7 @@ import { KANON_PERF_INDEXES_SQL } from "./0004-perf-indexes";
 import { KANON_CATALYSTS_MIGRATION_SQL } from "./0005-catalysts";
 import { KANON_SECURITY_MCP_CACHE_SQL } from "./0006-security-mcp-cache";
 import { KANON_RATE_LIMIT_BUCKETS_SQL } from "./0007-rate-limit-buckets";
+import { KANON_SEC_FILING_DOCS_CACHE_SQL } from "./0008-sec-filing-docs-cache";
 
 export interface KanonMigration {
   id: string;
@@ -59,6 +60,11 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only persistent sliding/fixed-window rate limit buckets for serverless API",
     sql: KANON_RATE_LIMIT_BUCKETS_SQL,
+  },
+  {
+    id: "0008_sec_filing_docs_cache",
+    description: "Expand-only persistent parsed SEC filing sections & cross-quarter diffs cache",
+    sql: KANON_SEC_FILING_DOCS_CACHE_SQL,
   },
 ];
 

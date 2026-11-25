@@ -63,6 +63,11 @@ export {
 } from "./repositories/review-and-agent-store";
 export { listThesisRevisions, recordThesisRevision } from "./repositories/revision-queries";
 export {
+  getCachedSecFilingDoc,
+  listCachedSecFilingDocsByTicker,
+  upsertCachedSecFilingDoc,
+} from "./repositories/sec/filing-docs-cache-store";
+export {
   consumePersistentRateLimit,
   type RateLimitCheckResult,
 } from "./repositories/security/rate-limit-store";
@@ -85,6 +90,7 @@ export {
   marketQuotesCacheTable,
   quarterlyReviewsTable,
   rateLimitBucketsTable,
+  secFilingDocumentsCacheTable,
   secFilingsCacheTable,
   selectGlossaryRowSchema,
   selectThesisRowSchema,

@@ -51,6 +51,11 @@ import {
   saveAgentRun,
 } from "./repositories/review-and-agent-store";
 import { listThesisRevisions } from "./repositories/revision-queries";
+import {
+  getCachedSecFilingDoc,
+  listCachedSecFilingDocsByTicker,
+  upsertCachedSecFilingDoc,
+} from "./repositories/sec/filing-docs-cache-store";
 import { consumePersistentRateLimit } from "./repositories/security/rate-limit-store";
 import { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
 import { getThesisById, listTheses, listThesisSummaries } from "./repositories/thesis-queries";
@@ -555,6 +560,31 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     });
     expect(resetRes.allowed).toBe(true);
     expect(resetRes.count).toBe(1);
+
+    await upsertCachedSecFilingDoc(db, {
+      ticker: "NVDA",
+      form: "10-Q",
+      filingDate: "2026-08-28",
+      accessionNumber: "0001045810-26-000102",
+      documentUrl: "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000102/nvda.htm",
+      source: "sec-edgar-live",
+      sections: [
+        {
+          id: "mda",
+          heading: "MD&A",
+          category: "mda",
+          paragraphs: ["Data center revenue grew rapidly with resilient gross margins."],
+          signalHits: 2,
+        },
+      ],
+      fullExcerpt: "Data center revenue grew rapidly.",
+      diff: null,
+      notice: "live",
+    });
+    const cachedDoc = await getCachedSecFilingDoc(db, "0001045810-26-000102");
+    expect(cachedDoc?.cached).toBe(true);
+    expect(cachedDoc?.sections[0]?.heading).toBe("MD&A");
+    expect((await listCachedSecFilingDocsByTicker(db, "nvda", 3)).length).toBeGreaterThanOrEqual(1);
 
     await deleteThesis(db, target.id);
     await deleteThesis(db, importedV3.thesis.id);

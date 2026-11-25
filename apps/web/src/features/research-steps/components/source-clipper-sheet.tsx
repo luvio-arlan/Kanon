@@ -1,7 +1,8 @@
 "use client";
 
 import type { EarningsDigest, SecFilingItem } from "@kanon/core";
-import { Badge, cn, Sheet, Textarea } from "@kanon/ui";
+import { Badge, cn, Input, Sheet, Textarea } from "@kanon/ui";
+import { IconSearch } from "@tabler/icons-react";
 import { useState } from "react";
 import {
   buildParagraphItems,
@@ -25,11 +26,13 @@ export interface SourceClipperSheetProps {
   onClipExitRule?: (excerpt: string) => void;
 }
 
-function HighlightedText({ text }: { text: string }) {
+function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
+  const cleanKw = keyword.trim().toLowerCase();
   return (
     <>
-      {tokenizeSignals(text).map((tok) =>
-        tok.highlight ? (
+      {tokenizeSignals(text).map((tok) => {
+        const kwHit = cleanKw.length >= 2 && tok.text.toLowerCase().includes(cleanKw);
+        return tok.highlight || kwHit ? (
           <mark
             key={tok.id}
             className="rounded-badge bg-accent-coral-soft px-1 py-0.5 font-medium text-ink-primary"
@@ -38,8 +41,8 @@ function HighlightedText({ text }: { text: string }) {
           </mark>
         ) : (
           <span key={tok.id}>{tok.text}</span>
-        ),
-      )}
+        );
+      })}
     </>
   );
 }
@@ -72,6 +75,30 @@ function SignalCategoryPills({
   );
 }
 
+function KeywordSearchInput({
+  keyword,
+  onChange,
+}: {
+  keyword: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <IconSearch
+        size={14}
+        stroke={1.5}
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+      />
+      <Input
+        value={keyword}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="搜索原文关键词（如 Blackwell, margin, capex）…"
+        className="pl-8 text-xs"
+      />
+    </div>
+  );
+}
+
 function ParagraphReader({
   paragraphs,
   selected,
@@ -82,7 +109,11 @@ function ParagraphReader({
   onSelect: (text: string) => void;
 }) {
   const [category, setCategory] = useState<SignalCategory>("all");
-  const filtered = filterParagraphsBySignal(paragraphs, category);
+  const [keyword, setKeyword] = useState("");
+  const bySignal = filterParagraphsBySignal(paragraphs, category);
+  const kwLower = keyword.trim().toLowerCase();
+  const filtered =
+    kwLower.length >= 2 ? bySignal.filter((p) => p.text.toLowerCase().includes(kwLower)) : bySignal;
   const handleSelectOrDrag = (paraText: string) => {
     const sel = window.getSelection()?.toString().trim();
     onSelect(sel && sel.length >= 6 ? sel : paraText);
@@ -96,6 +127,7 @@ function ParagraphReader({
           命中 {filtered.length}/{paragraphs.length} 段
         </Badge>
       </div>
+      <KeywordSearchInput keyword={keyword} onChange={setKeyword} />
       <SignalCategoryPills category={category} onSelect={setCategory} />
       {filtered.map((para) => (
         <button
@@ -109,7 +141,7 @@ function ParagraphReader({
               : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
           )}
         >
-          <HighlightedText text={para.text} />
+          <HighlightedText text={para.text} keyword={keyword} />
         </button>
       ))}
     </div>
@@ -177,6 +209,7 @@ export function SourceClipperSheet(props: SourceClipperSheetProps) {
           props.onChangeSource(text);
           setAnchor(nextAnchor);
         }}
+        onSelectExcerpt={(snippet) => setSelected(snippet)}
       />
       {paragraphs.length > 0 ? (
         <ParagraphReader paragraphs={paragraphs} selected={selected} onSelect={setSelected} />

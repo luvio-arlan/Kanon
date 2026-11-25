@@ -16,6 +16,39 @@ export {
   type XbrlFactsNamespace,
 };
 
+function extractWorkingCapMaps(facts: SecFactsPayload | undefined) {
+  return {
+    inventory: collectAnnualMap(
+      facts,
+      ["InventoryNet", "InventoryFinishedGoods"],
+      ["Inventories"],
+      "USD",
+      "instant",
+    ),
+    receivables: collectAnnualMap(
+      facts,
+      ["AccountsReceivableNetCurrent", "ReceivablesNetCurrent"],
+      ["TradeAndOtherCurrentReceivables"],
+      "USD",
+      "instant",
+    ),
+    payables: collectAnnualMap(
+      facts,
+      ["AccountsPayableCurrent", "AccountsPayableAndAccruedLiabilitiesCurrent"],
+      ["TradeAndOtherCurrentPayables"],
+      "USD",
+      "instant",
+    ),
+    shares: collectAnnualMap(
+      facts,
+      ["WeightedAverageNumberOfDilutedSharesOutstanding", "CommonStockSharesOutstanding"],
+      ["AdjustedWeightedAverageShares"],
+      "shares",
+      "flow",
+    ),
+  };
+}
+
 function extractBalanceSheetMaps(facts: SecFactsPayload | undefined) {
   return {
     cash: collectAnnualMap(
@@ -42,27 +75,7 @@ function extractBalanceSheetMaps(facts: SecFactsPayload | undefined) {
       "USD",
       "instant",
     ),
-    inventory: collectAnnualMap(
-      facts,
-      ["InventoryNet", "InventoryFinishedGoods"],
-      ["Inventories"],
-      "USD",
-      "instant",
-    ),
-    receivables: collectAnnualMap(
-      facts,
-      ["AccountsReceivableNetCurrent", "ReceivablesNetCurrent"],
-      ["TradeAndOtherCurrentReceivables"],
-      "USD",
-      "instant",
-    ),
-    shares: collectAnnualMap(
-      facts,
-      ["WeightedAverageNumberOfDilutedSharesOutstanding", "CommonStockSharesOutstanding"],
-      ["AdjustedWeightedAverageShares"],
-      "shares",
-      "flow",
-    ),
+    ...extractWorkingCapMaps(facts),
   };
 }
 
@@ -74,6 +87,7 @@ function extractIncomeCashMaps(facts: SecFactsPayload | undefined) {
       ["Revenue"],
     ),
     gp: collectAnnualMap(facts, ["GrossProfit"], ["GrossProfit"]),
+    cogs: collectAnnualMap(facts, ["CostOfRevenue", "CostOfGoodsAndServicesSold"], ["CostOfSales"]),
     ebit: collectAnnualMap(facts, ["OperatingIncomeLoss"], ["ProfitLossFromOperatingActivities"]),
     rd: collectAnnualMap(
       facts,
@@ -90,6 +104,16 @@ function extractIncomeCashMaps(facts: SecFactsPayload | undefined) {
       facts,
       ["PaymentsToAcquirePropertyPlantAndEquipment"],
       ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
+    ),
+    buybacks: collectAnnualMap(
+      facts,
+      ["PaymentsForRepurchaseOfCommonStock"],
+      ["PurchaseOfTreasuryShares"],
+    ),
+    dividends: collectAnnualMap(
+      facts,
+      ["PaymentsOfDividends", "PaymentsOfDividendsCommonStock"],
+      ["DividendsPaid"],
     ),
     sbc: collectAnnualMap(
       facts,
@@ -137,6 +161,10 @@ function buildAnnualRow(
     stockholdersEquity: readYearVal(bs.equity, fy),
     inventory: readYearVal(bs.inventory, fy),
     accountsReceivable: readYearVal(bs.receivables, fy),
+    costOfRevenue: readYearVal(ic.cogs, fy),
+    accountsPayable: readYearVal(bs.payables, fy),
+    shareRepurchases: readYearVal(ic.buybacks, fy),
+    dividendsPaid: readYearVal(ic.dividends, fy),
   };
 }
 

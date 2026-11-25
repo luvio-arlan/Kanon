@@ -99,3 +99,77 @@ export function scoreForensicQuality(params: {
   const score = Math.max(15, Math.min(98, Math.round(raw)));
   return { score, ...classifyForensicGrade(score) };
 }
+
+export interface WorkingCapitalCycle {
+  dsoDays: number | null;
+  dioDays: number | null;
+  dpoDays: number | null;
+  cashConversionCycleDays: number | null;
+  nwcPctOfRevenue: number | null;
+}
+
+function resolveCogs(latest: SecAnnualFinancial): number | null {
+  if (typeof latest.costOfRevenue === "number" && latest.costOfRevenue > 0) {
+    return latest.costOfRevenue;
+  }
+  if (latest.revenue && latest.grossProfit !== null) {
+    return Math.max(1, latest.revenue - latest.grossProfit);
+  }
+  return null;
+}
+
+function turnoverDays(
+  balance: number | null | undefined,
+  flow: number | null | undefined,
+): number | null {
+  if (typeof balance !== "number" || typeof flow !== "number" || flow <= 0) return null;
+  return roundTo((balance / flow) * 365, 1);
+}
+
+function computeNwcPct(latest: SecAnnualFinancial): number | null {
+  const rev = latest.revenue;
+  if (!rev || rev <= 0) return null;
+  if (typeof latest.accountsReceivable !== "number" || typeof latest.accountsPayable !== "number") {
+    return null;
+  }
+  const nwc = latest.accountsReceivable + (latest.inventory ?? 0) - latest.accountsPayable;
+  return roundTo((nwc / rev) * 100, 1);
+}
+
+export function computeWorkingCapitalCycle(latest: SecAnnualFinancial): WorkingCapitalCycle {
+  const cogs = resolveCogs(latest);
+  const dsoDays = turnoverDays(latest.accountsReceivable, latest.revenue);
+  const dioDays = turnoverDays(latest.inventory, cogs);
+  const dpoDays = turnoverDays(latest.accountsPayable, cogs);
+  const cashConversionCycleDays =
+    dsoDays !== null && dioDays !== null && dpoDays !== null
+      ? roundTo(dsoDays + dioDays - dpoDays, 1)
+      : null;
+  return {
+    dsoDays,
+    dioDays,
+    dpoDays,
+    cashConversionCycleDays,
+    nwcPctOfRevenue: computeNwcPct(latest),
+  };
+}
+
+export interface CapitalAllocationProfile {
+  capexPctOfOcf: number | null;
+  buybackPctOfOcf: number | null;
+  dividendPctOfOcf: number | null;
+}
+
+export function computeCapitalAllocation(latest: SecAnnualFinancial): CapitalAllocationProfile {
+  const ocf = latest.operatingCashFlow;
+  if (typeof ocf !== "number" || ocf <= 0) {
+    return { capexPctOfOcf: null, buybackPctOfOcf: null, dividendPctOfOcf: null };
+  }
+  const pct = (val: number | null | undefined) =>
+    typeof val === "number" ? roundTo((Math.abs(val) / ocf) * 100, 1) : null;
+  return {
+    capexPctOfOcf: pct(latest.capex),
+    buybackPctOfOcf: pct(latest.shareRepurchases),
+    dividendPctOfOcf: pct(latest.dividendsPaid),
+  };
+}

@@ -5,6 +5,7 @@ import {
   calculateResearchReadiness,
   type MarketQuoteSnapshot,
   type QuarterlyReview,
+  type SecFilingReaderResponse,
   type SecSnapshot,
   type ThesisDetail,
   type ThesisRevision,
@@ -12,6 +13,11 @@ import {
 import { type LanguageModel, streamObject } from "ai";
 import { z } from "zod";
 import { type ByokCredentials, resolveByokModel } from "../copilot/run-copilot";
+import {
+  type LlmProposalDraft,
+  LlmProposalDraftSchema,
+  mergeGroundedProposals,
+} from "./proposal-grounding";
 import { RESEARCH_AGENT_TOOLS } from "./tool-registry";
 import {
   type AgentBriefing,
@@ -21,7 +27,7 @@ import {
   type AgentTraceStep,
 } from "./types";
 
-const MAX_AGENT_STEPS = 8;
+const MAX_AGENT_STEPS = 9;
 
 const IcSynthesisSchema = z.object({
   verdict: z.string().min(8),
@@ -29,6 +35,7 @@ const IcSynthesisSchema = z.object({
   bearCritique: z.string().min(12),
   bearRebuttal: z.string().min(10),
   accountingCheck: z.string().min(10),
+  customProposals: z.array(LlmProposalDraftSchema).max(3).optional(),
 });
 
 type IcSynthesisResult = z.infer<typeof IcSynthesisSchema>;
@@ -93,14 +100,19 @@ async function* streamLlmSynthesis(
   traces: readonly AgentTraceStep[],
 ): AsyncGenerator<
   AgentStreamEvent,
-  { engine: "vercel-ai-sdk" | "grounded-local"; fallbackReason?: string; synth: IcSynthesisResult }
+  {
+    engine: "vercel-ai-sdk" | "grounded-local";
+    fallbackReason?: string;
+    synth: IcSynthesisResult;
+    llmDrafts?: readonly LlmProposalDraft[];
+  }
 > {
   try {
     const stream = streamObject({
       model,
       schema: IcSynthesisSchema,
       system:
-        "你是 KANON 买方投委会（IC）多角色辩论引擎。严禁编造任何未提供的数字，必须依次输出：PM 综合判定、多头预期差、法证空头下行推演、空头针对多头核心假设的二次质询（bearRebuttal）、财务法证审阅结论（简体中文，克制严谨）。",
+        "你是 KANON 买方投委会（IC）多角色辩论引擎。严禁编造任何未提供的数字，必须依次输出：PM 综合判定、多头预期差、法证空头下行推演、空头针对多头核心假设的二次质询（bearRebuttal）、财务法证审阅结论，以及最多 3 条引用上述工具数字的 customProposals（简体中文，克制严谨）。",
       prompt: buildSynthesisPrompt(thesis, traces),
     });
     for await (const partial of stream.partialObjectStream) {
@@ -110,7 +122,11 @@ async function* streamLlmSynthesis(
       };
     }
     const finalObj = await stream.object;
-    return { engine: "vercel-ai-sdk", synth: finalObj };
+    return {
+      engine: "vercel-ai-sdk",
+      synth: finalObj,
+      llmDrafts: finalObj.customProposals,
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message.slice(0, 80) : "模型调用超时";
     return {
@@ -140,12 +156,51 @@ function executeToolStep(
   return { trace, proposal: out.proposal };
 }
 
+function finalizeBriefing(params: {
+  thesis: ThesisDetail;
+  secSnapshot: SecSnapshot | null;
+  traces: AgentTraceStep[];
+  proposals: AgentProposal[];
+  outcome: {
+    engine: "vercel-ai-sdk" | "grounded-local";
+    fallbackReason?: string;
+    synth: IcSynthesisResult;
+    llmDrafts?: readonly LlmProposalDraft[];
+  };
+}): AgentBriefing {
+  const evidenceCorpus = [
+    ...params.traces.map((t) => t.finding),
+    params.thesis.convictionSummary,
+    `$${params.thesis.currentPrice}`,
+  ].join("\n");
+  const finalProposals = mergeGroundedProposals({
+    llmDrafts: params.outcome.llmDrafts,
+    deterministic: params.proposals,
+    evidenceCorpus,
+  });
+  return AgentBriefingSchema.parse({
+    ticker: params.thesis.ticker,
+    engine: params.outcome.engine,
+    ...(params.outcome.fallbackReason ? { fallbackReason: params.outcome.fallbackReason } : {}),
+    verdict: params.outcome.synth.verdict,
+    bullSynthesis: params.outcome.synth.bullSynthesis,
+    bearCritique: params.outcome.synth.bearCritique,
+    bearRebuttal: params.outcome.synth.bearRebuttal,
+    accountingCheck: params.outcome.synth.accountingCheck,
+    convictionScore: computeConvictionScore(params.thesis, params.secSnapshot),
+    traces: params.traces,
+    proposals: finalProposals,
+  });
+}
+
 export async function* streamResearchAgent(params: {
   thesis: ThesisDetail;
   secSnapshot: SecSnapshot | null;
   reviews?: readonly QuarterlyReview[];
   revisions?: readonly ThesisRevision[];
   marketQuote?: MarketQuoteSnapshot | null;
+  cachedFilings?: readonly SecFilingReaderResponse[];
+  sourceText?: string;
   byok?: ByokCredentials;
 }): AsyncGenerator<AgentStreamEvent> {
   const traces: AgentTraceStep[] = [];
@@ -170,16 +225,16 @@ export async function* streamResearchAgent(params: {
         engine: "grounded-local" as const,
         fallbackReason: undefined,
         synth: buildLocalSynthesis(params.thesis, traces),
+        llmDrafts: undefined,
       };
-
-  const briefing: AgentBriefing = AgentBriefingSchema.parse({
-    ticker: params.thesis.ticker,
-    engine: outcome.engine,
-    ...(outcome.fallbackReason ? { fallbackReason: outcome.fallbackReason } : {}),
-    ...outcome.synth,
-    convictionScore: computeConvictionScore(params.thesis, params.secSnapshot),
-    traces,
-    proposals: proposals.slice(0, 8),
-  });
-  yield { type: "briefing_ready", briefing };
+  yield {
+    type: "briefing_ready",
+    briefing: finalizeBriefing({
+      thesis: params.thesis,
+      secSnapshot: params.secSnapshot,
+      traces,
+      proposals,
+      outcome,
+    }),
+  };
 }

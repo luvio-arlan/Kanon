@@ -34,6 +34,7 @@ export const SecFilingReaderResponseSchema = z.object({
   accessionNumber: z.string(),
   documentUrl: z.string(),
   source: z.enum(["sec-edgar-live", "cached-summary"]),
+  cached: z.boolean().optional(),
   sections: z.array(SecFilingSectionSchema),
   fullExcerpt: z.string(),
   diff: SecFilingDiffSchema.nullable(),

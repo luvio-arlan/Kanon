@@ -39,6 +39,7 @@ export {
   apiTokensTable,
   marketQuotesCacheTable,
   rateLimitBucketsTable,
+  secFilingDocumentsCacheTable,
   sessionsTable,
   usersTable,
 } from "./schema-extensions";

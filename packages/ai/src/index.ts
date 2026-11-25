@@ -1,3 +1,5 @@
+export { askResearchIc } from "./agent/ask-ic";
+export { type FilingExcerptMatch, searchFilingExcerpts } from "./agent/filing-search-tool";
 export { streamResearchAgent } from "./agent/run-research-agent";
 export { RESEARCH_AGENT_TOOLS, type ResearchToolSpec } from "./agent/tool-registry";
 export {

@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  AgentAskResponse,
   AgentBriefing,
   AgentPartialSynthesis,
   AgentProposal,
@@ -17,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { AgentAskPanel } from "./agent/agent-ask-panel";
 import { AgentHistoryBar } from "./agent/agent-history-bar";
 import { AgentBriefingCard, AgentStreamingCard } from "./agent-briefing-card";
 import { AgentTraceLogSection } from "./agent-trace-log";
@@ -26,6 +28,8 @@ export interface AgentResearchSheetProps {
   ticker: string;
   companyName: string;
   running: boolean;
+  asking: boolean;
+  askAnswer: AgentAskResponse | null;
   activeRunId: string | null;
   runsHistory: readonly SavedAgentRun[];
   traces: readonly AgentTraceStep[];
@@ -35,6 +39,7 @@ export interface AgentResearchSheetProps {
   onOpenChange: (open: boolean) => void;
   onRun: () => Promise<void>;
   onStop: () => void;
+  onAskIc: (question: string) => Promise<void>;
   onSelectRun: (runId: string) => void;
   onApplyProposals: (proposalIds: readonly string[]) => Promise<void>;
 }
@@ -193,6 +198,9 @@ function SheetBody(props: AgentResearchSheetProps) {
           appliedIds={props.appliedIds}
           onApplyProposals={props.onApplyProposals}
         />
+      ) : null}
+      {props.briefing ? (
+        <AgentAskPanel asking={props.asking} answer={props.askAnswer} onAsk={props.onAskIc} />
       ) : null}
       {props.traces.length > 0 ? (
         <AgentTraceLogSection traces={props.traces} running={false} collapsedByDefault />

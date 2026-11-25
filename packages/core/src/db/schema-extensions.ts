@@ -1,6 +1,7 @@
 import { integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import type { UserRole } from "../contracts/auth-contracts";
 import type { MarketDataSource, MarketQuoteSnapshot } from "../contracts/market-contracts";
+import type { SecFilingDiff, SecFilingSection } from "../contracts/sec-filing-contracts";
 
 export type ApiTokenScope = "read" | "read_write";
 
@@ -52,4 +53,15 @@ export const rateLimitBucketsTable = pgTable("rate_limit_buckets", {
   bucketKey: text("bucket_key").primaryKey(),
   count: integer("count").notNull().default(1),
   resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+});
+
+export const secFilingDocumentsCacheTable = pgTable("sec_filing_documents_cache", {
+  accessionNumber: text("accession_number").primaryKey(),
+  ticker: text("ticker").notNull(),
+  form: text("form").notNull(),
+  filingDate: text("filing_date").notNull(),
+  documentUrl: text("document_url").notNull(),
+  sectionsJson: jsonb("sections_json").$type<SecFilingSection[]>().notNull(),
+  diffJson: jsonb("diff_json").$type<SecFilingDiff | null>(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });

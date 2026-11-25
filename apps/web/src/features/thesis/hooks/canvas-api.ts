@@ -1,5 +1,7 @@
 import {
   AgentApplyResponseSchema,
+  type AgentAskResponse,
+  AgentAskResponseSchema,
   AgentRunsListResponseSchema,
   CopilotApiResponseSchema,
   type CreateDisciplineEntryInput,
@@ -180,4 +182,21 @@ export async function apiListAgentRuns(thesisId: string): Promise<SavedAgentRun[
     AgentRunsListResponseSchema,
   );
   return res.ok ? res.data.runs : [];
+}
+
+export async function apiAskResearchIc(
+  thesisId: string,
+  question: string,
+): Promise<AgentAskResponse | null> {
+  const res = await kanonFetch("/api/ai/agent/ask", AgentAskResponseSchema, {
+    method: "POST",
+    body: { thesisId, question },
+    headers: buildByokHeaders(),
+    fallbackError: "投委会质询失败，请重试",
+  });
+  if (!res.ok) {
+    toast.error(res.error);
+    return null;
+  }
+  return res.data;
 }

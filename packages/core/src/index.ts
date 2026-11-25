@@ -1,5 +1,9 @@
 export * from "./contracts/account-contracts";
 export {
+  type AgentAskRequest,
+  AgentAskRequestSchema,
+  type AgentAskResponse,
+  AgentAskResponseSchema,
   type AgentBriefing,
   AgentBriefingSchema,
   type AgentPartialSynthesis,
@@ -107,9 +111,11 @@ export {
 } from "./math/sec-analytics";
 export {
   analyzeSecForensics,
+  type CapitalAllocationProfile,
   type ForensicGrade,
   type ForensicRedFlag,
   type SecForensicReport,
+  type WorkingCapitalCycle,
 } from "./math/sec-forensics";
 export {
   calculateSensitivityMatrix,

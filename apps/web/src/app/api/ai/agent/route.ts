@@ -4,12 +4,17 @@ import {
   fetchMarketQuote,
   streamResearchAgent,
 } from "@kanon/ai";
-import { AgentRunsListResponseSchema, type MarketQuoteSnapshot } from "@kanon/core";
+import {
+  AgentRunsListResponseSchema,
+  type MarketQuoteSnapshot,
+  type SecFilingReaderResponse,
+} from "@kanon/core";
 import {
   getKanonDb,
   getSecSnapshot,
   getThesisById,
   listAgentRuns,
+  listCachedSecFilingDocsByTicker,
   listQuarterlyReviews,
   listThesisRevisions,
   saveAgentRun,
@@ -31,6 +36,8 @@ function createAgentSseStream(params: {
   reviews: Awaited<ReturnType<typeof listQuarterlyReviews>>;
   revisions: Awaited<ReturnType<typeof listThesisRevisions>>;
   marketQuote: MarketQuoteSnapshot | null;
+  cachedFilings: SecFilingReaderResponse[];
+  sourceText?: string;
   byok: ByokCredentials | undefined;
 }) {
   const encoder = new TextEncoder();
@@ -105,10 +112,11 @@ export async function POST(request: Request) {
   if (!thesis) {
     return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   }
-  const [secSnapshot, reviews, revisions, quoteRes] = await Promise.all([
+  const [secSnapshot, reviews, revisions, cachedFilings, quoteRes] = await Promise.all([
     getSecSnapshot(db, thesis.ticker),
     listQuarterlyReviews(db, thesis.id),
     listThesisRevisions(db, thesis.id),
+    listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
     fetchMarketQuote(thesis.ticker, { creds: parseMarketHeaders(request) }),
   ]);
   const stream = createAgentSseStream({
@@ -117,6 +125,8 @@ export async function POST(request: Request) {
     secSnapshot,
     reviews,
     revisions,
+    cachedFilings,
+    sourceText: parsed.data.sourceText,
     marketQuote: quoteRes.ok ? quoteRes.quote : null,
     byok: parseByokHeaders(request),
   });

@@ -38,9 +38,11 @@ function FactsGrid({ facts }: { facts: readonly SecFinancialFact[] }) {
 
 function FilingsRow({ filings }: { filings: readonly SecFilingItem[] }) {
   if (filings.length === 0) return null;
+  const primary = filings.filter((f) => f.form !== "4").slice(0, 4);
+  const insiders = filings.filter((f) => f.form === "4").slice(0, 2);
   return (
-    <div className="flex flex-wrap gap-2 border-t border-hairline px-6 py-3.5">
-      {filings.slice(0, 4).map((f) => (
+    <div className="flex flex-wrap items-center gap-2 border-t border-hairline px-6 py-3.5">
+      {primary.map((f) => (
         <a
           key={f.accessionNumber}
           href={f.documentUrl}
@@ -50,6 +52,19 @@ function FilingsRow({ filings }: { filings: readonly SecFilingItem[] }) {
         >
           <span className="font-mono">{f.form}</span>
           <span className="text-ink-muted tabular-nums">{f.filingDate}</span>
+          <IconExternalLink size={12} stroke={1.5} className="text-ink-muted" />
+        </a>
+      ))}
+      {insiders.map((f) => (
+        <a
+          key={f.accessionNumber}
+          href={f.documentUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-control border border-hairline bg-titanium-subtle/65 px-2.5 py-1.5 text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
+        >
+          <span className="font-mono font-medium">Form 4</span>
+          <span className="tabular-nums">{f.filingDate}</span>
           <IconExternalLink size={12} stroke={1.5} className="text-ink-muted" />
         </a>
       ))}

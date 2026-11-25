@@ -142,8 +142,24 @@ export type AgentPartialSynthesis = z.infer<typeof AgentPartialSynthesisSchema>;
 
 export const AgentRequestSchema = z.object({
   thesisId: z.string().min(1),
+  sourceText: z.string().max(16000).optional(),
 });
 export type AgentRequest = z.infer<typeof AgentRequestSchema>;
+
+export const AgentAskRequestSchema = z.object({
+  thesisId: z.string().min(1),
+  question: z.string().trim().min(4).max(400),
+  sourceText: z.string().max(12000).optional(),
+});
+export type AgentAskRequest = z.infer<typeof AgentAskRequestSchema>;
+
+export const AgentAskResponseSchema = z.object({
+  answer: z.string().min(8),
+  citations: z.array(z.string()).max(6),
+  engine: CopilotEngineModeSchema,
+  fallbackReason: z.string().optional(),
+});
+export type AgentAskResponse = z.infer<typeof AgentAskResponseSchema>;
 
 export const AgentStreamEventSchema = z.discriminatedUnion("type", [
   z.object({

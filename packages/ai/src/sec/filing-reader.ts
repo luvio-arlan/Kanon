@@ -9,8 +9,8 @@ import {
   extractSecKeySections,
   stripSecHtmlToParagraphs,
 } from "./filing-text-parser";
+import { fetchSecWithRetry } from "./sec-http";
 
-const SEC_USER_AGENT = "KANON-Investment-Thesis-OS/1.0 (research@kanon.local)";
 const ALLOWED_SEC_ARCHIVE_PREFIX = "https://www.sec.gov/Archives/edgar/data/";
 const MAX_FILING_BYTES = 1_400_000;
 
@@ -44,10 +44,11 @@ async function fetchSecDocumentHtml(
     return { ok: false, reason: "仅允许拉取 SEC EDGAR 官方 Archives 原文链接。" };
   }
   try {
-    const res = await fetchImpl(documentUrl, {
-      headers: { "User-Agent": SEC_USER_AGENT, Accept: "text/html,text/plain;q=0.9" },
-      signal: AbortSignal.timeout(9000),
-    });
+    const res = await fetchSecWithRetry(
+      documentUrl,
+      { accept: "text/html,text/plain;q=0.9", timeoutMs: 9000, maxRetries: 1 },
+      fetchImpl,
+    );
     if (!res.ok) {
       return { ok: false, reason: `SEC 原文接口返回状态 ${res.status}` };
     }

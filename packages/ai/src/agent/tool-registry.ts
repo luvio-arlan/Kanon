@@ -6,11 +6,13 @@ import {
   calculateTrueReverseDcf,
   type MarketQuoteSnapshot,
   type QuarterlyReview,
+  type SecFilingReaderResponse,
   type SecSnapshot,
   type ThesisDetail,
   type ThesisRevision,
 } from "@kanon/core";
 import { runPortfolioDisciplineTool, runQuarterlyDriftTool } from "./drift-audit-tool";
+import { runFilingExcerptsTool } from "./filing-search-tool";
 import {
   runCatalystValueTrapTool,
   runLiveMarketRegimeTool,
@@ -24,6 +26,8 @@ export interface ResearchToolContext {
   reviews?: readonly QuarterlyReview[];
   revisions?: readonly ThesisRevision[];
   marketQuote?: MarketQuoteSnapshot | null;
+  cachedFilings?: readonly SecFilingReaderResponse[];
+  sourceText?: string;
 }
 
 export interface ResearchToolSpec {
@@ -199,5 +203,17 @@ export const RESEARCH_AGENT_TOOLS: readonly ResearchToolSpec[] = [
     description:
       "Check upcoming hard/soft catalysts to prevent value traps without rerating events.",
     execute: (ctx) => runCatalystValueTrapTool(ctx.thesis),
+  },
+  {
+    name: "search_sec_filing_excerpts",
+    label: "BM25 检索 10-K/10-Q 与电话会一阶原文证据",
+    description:
+      "Retrieve grounded paragraphs from cached SEC filings and call transcripts matching core hypotheses.",
+    execute: (ctx) =>
+      runFilingExcerptsTool({
+        thesis: ctx.thesis,
+        cachedFilings: ctx.cachedFilings,
+        sourceText: ctx.sourceText,
+      }),
   },
 ];

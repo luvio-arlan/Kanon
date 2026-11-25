@@ -11,6 +11,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 
 const KNOWN_ROUTES = [
   "ai/agent/apply/route.ts",
+  "ai/agent/ask/route.ts",
   "ai/agent/route.ts",
   "ai/copilot/route.ts",
   "auth/login/route.ts",
@@ -343,6 +344,18 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
   const runsHistory = await fetchJson(`/api/ai/agent?thesisId=${nvdaId}`, {}, cookieA);
   assert.equal(runsHistory.status, 200);
   assert.ok(runsHistory.data.runs.length >= 1);
+
+  const askIc = await fetchJson(
+    "/api/ai/agent/ask",
+    {
+      method: "POST",
+      body: JSON.stringify({ thesisId: nvdaId, question: "当前隐含增速与安全买点是多少？" }),
+    },
+    cookieA,
+  );
+  assert.equal(askIc.status, 200);
+  assert.ok(askIc.data.answer.length > 10);
+  assert.ok(askIc.data.citations.length >= 1);
 
   const csv = await fetch(`${BASE}/api/export/portfolio`, { headers: { Cookie: cookieA } });
   assert.equal(csv.status, 200);

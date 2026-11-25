@@ -7,11 +7,12 @@ import {
   summarizeLatestFacts,
 } from "./edgar-annuals";
 import { extractQuarterlyHistory } from "./edgar-quarterlies";
+import { fetchSecWithRetry } from "./sec-http";
 
 export { formatUsdCompact };
 
-const SEC_USER_AGENT = "KANON-Investment-Thesis-OS/1.0 (research@kanon.local)";
-const SUPPORTED_FORMS = new Set(["10-K", "10-Q", "20-F", "8-K", "DEF 14A"]);
+const FINANCIAL_FORMS = new Set(["10-K", "10-Q", "20-F", "DEF 14A"]);
+const GOVERNANCE_FORMS = new Set(["8-K", "4"]);
 
 const KNOWN_CIK_MAP: Record<string, string> = {
   MU: "0000723125",
@@ -94,10 +95,11 @@ async function resolveCik(ticker: string, fetchImpl: typeof fetch): Promise<stri
     return dynamicCikCache.map.get(upper) ?? null;
   }
 
-  const res = await fetchImpl("https://www.sec.gov/files/company_tickers.json", {
-    headers: { "User-Agent": SEC_USER_AGENT },
-    signal: AbortSignal.timeout(6000),
-  });
+  const res = await fetchSecWithRetry(
+    "https://www.sec.gov/files/company_tickers.json",
+    { timeoutMs: 6000, maxRetries: 1 },
+    fetchImpl,
+  );
   if (!res.ok) return null;
   const rawTable: unknown = await res.json();
   const parsedTable = SecTickerTableSchema.safeParse(rawTable);
@@ -119,33 +121,85 @@ function buildFilingItem(
   index: number,
 ): SecFilingItem | null {
   const form = recent.form?.[index] ?? "";
-  if (!SUPPORTED_FORMS.has(form)) return null;
+  if (!FINANCIAL_FORMS.has(form) && !GOVERNANCE_FORMS.has(form)) return null;
   const accessionNumber = recent.accessionNumber?.[index] ?? "";
   const primaryDoc = recent.primaryDocument?.[index] ?? "";
   const accClean = accessionNumber.replaceAll("-", "");
   const documentUrl = primaryDoc
     ? `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${accClean}/${primaryDoc}`
     : `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik}&type=${form}`;
+  const defaultDesc = form === "4" ? "Form 4 内部人持股变动" : `${form} 官方披露原文`;
   return {
     form,
     filingDate: recent.filingDate?.[index] ?? "",
     reportDate: recent.reportDate?.[index] ?? "",
     accessionNumber,
     documentUrl,
-    description: recent.primaryDocDescription?.[index] || `${form} 官方披露原文`,
+    description: recent.primaryDocDescription?.[index] || defaultDesc,
   };
+}
+
+function pushFilingBucket(
+  item: SecFilingItem,
+  financial: SecFilingItem[],
+  governance: SecFilingItem[],
+) {
+  if (FINANCIAL_FORMS.has(item.form) && financial.length < 6) {
+    financial.push(item);
+    return;
+  }
+  if (GOVERNANCE_FORMS.has(item.form) && governance.length < 4) {
+    governance.push(item);
+  }
 }
 
 function extractRecentFilings(cik: string, data: SecSubmissionsResponse): SecFilingItem[] {
   const recent = data.filings?.recent;
   if (!recent?.form || !recent.filingDate || !recent.accessionNumber) return [];
   const cikNumeric = String(Number(cik));
-  const items: SecFilingItem[] = [];
-  for (let i = 0; i < recent.form.length && items.length < 8; i += 1) {
+  const financial: SecFilingItem[] = [];
+  const governance: SecFilingItem[] = [];
+  for (
+    let i = 0;
+    i < recent.form.length && (financial.length < 6 || governance.length < 4);
+    i += 1
+  ) {
     const item = buildFilingItem(cik, cikNumeric, recent, i);
-    if (item) items.push(item);
+    if (item) pushFilingBucket(item, financial, governance);
   }
-  return items;
+  return [...financial, ...governance].sort((a, b) => b.filingDate.localeCompare(a.filingDate));
+}
+
+async function buildSnapshotFromResponses(
+  upper: string,
+  cik: string,
+  subRes: Response,
+  factsRes: Response,
+): Promise<{ ok: true; data: SecSnapshot } | { ok: false; error: string }> {
+  if (!subRes.ok) {
+    return { ok: false, error: `SEC EDGAR 接口返回状态 ${subRes.status}，已保留本地缓存。` };
+  }
+  const subParsed = SecSubmissionsSchema.safeParse(await subRes.json());
+  if (!subParsed.success) {
+    return { ok: false, error: "SEC EDGAR 披露索引格式异常，已保留本地缓存。" };
+  }
+  const factsParsed = factsRes.ok ? SecCompanyFactsSchema.safeParse(await factsRes.json()) : null;
+  const factsPayload: SecFactsPayload | undefined = factsParsed?.success
+    ? factsParsed.data.facts
+    : undefined;
+  const annuals = extractAnnualHistory(factsPayload);
+  const snapshot = SecSnapshotSchema.parse({
+    ticker: upper,
+    cik,
+    entityName: subParsed.data.name ?? upper,
+    source: "sec-edgar-live",
+    fetchedAt: new Date().toISOString(),
+    filings: extractRecentFilings(cik, subParsed.data),
+    facts: summarizeLatestFacts(annuals),
+    annuals,
+    quarterlies: extractQuarterlyHistory(factsPayload),
+  });
+  return { ok: true, data: snapshot };
 }
 
 export async function fetchSecEdgarSnapshot(
@@ -156,43 +210,19 @@ export async function fetchSecEdgarSnapshot(
   try {
     const cik = await resolveCik(upper, fetchImpl);
     if (!cik) return { ok: false, error: `未在 SEC EDGAR 找到代码 ${upper} 对应的 CIK 编号。` };
-    const headers = { "User-Agent": SEC_USER_AGENT };
     const [subRes, factsRes] = await Promise.all([
-      fetchImpl(`https://data.sec.gov/submissions/CIK${cik}.json`, {
-        headers,
-        signal: AbortSignal.timeout(7000),
-      }),
-      fetchImpl(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`, {
-        headers,
-        signal: AbortSignal.timeout(7000),
-      }),
+      fetchSecWithRetry(
+        `https://data.sec.gov/submissions/CIK${cik}.json`,
+        { timeoutMs: 7000, maxRetries: 2 },
+        fetchImpl,
+      ),
+      fetchSecWithRetry(
+        `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`,
+        { timeoutMs: 7000, maxRetries: 2 },
+        fetchImpl,
+      ),
     ]);
-    if (!subRes.ok) {
-      return { ok: false, error: `SEC EDGAR 接口返回状态 ${subRes.status}，已保留本地缓存。` };
-    }
-    const subParsed = SecSubmissionsSchema.safeParse(await subRes.json());
-    if (!subParsed.success) {
-      return { ok: false, error: "SEC EDGAR 披露索引格式异常，已保留本地缓存。" };
-    }
-    const subJson = subParsed.data;
-    const factsParsed = factsRes.ok ? SecCompanyFactsSchema.safeParse(await factsRes.json()) : null;
-    const factsPayload: SecFactsPayload | undefined = factsParsed?.success
-      ? factsParsed.data.facts
-      : undefined;
-    const annuals = extractAnnualHistory(factsPayload);
-    const quarterlies = extractQuarterlyHistory(factsPayload);
-    const snapshot = SecSnapshotSchema.parse({
-      ticker: upper,
-      cik,
-      entityName: subJson.name ?? upper,
-      source: "sec-edgar-live",
-      fetchedAt: new Date().toISOString(),
-      filings: extractRecentFilings(cik, subJson),
-      facts: summarizeLatestFacts(annuals),
-      annuals,
-      quarterlies,
-    });
-    return { ok: true, data: snapshot };
+    return buildSnapshotFromResponses(upper, cik, subRes, factsRes);
   } catch (err) {
     const reason = err instanceof Error ? err.message.slice(0, 60) : "网络异常";
     return { ok: false, error: `SEC EDGAR 同步失败（${reason}），当前继续使用本地数据库缓存。` };

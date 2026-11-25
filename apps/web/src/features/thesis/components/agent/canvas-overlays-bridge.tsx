@@ -36,6 +36,8 @@ function AgentSheetBridge({
       ticker={ticker}
       companyName={companyName}
       running={agent.running}
+      asking={agent.asking}
+      askAnswer={agent.askAnswer}
       activeRunId={agent.runId}
       runsHistory={agent.runsHistory}
       traces={agent.traces}
@@ -45,6 +47,7 @@ function AgentSheetBridge({
       onOpenChange={onOpenChange}
       onRun={agent.runAgent}
       onStop={agent.stopAgent}
+      onAskIc={agent.askIc}
       onSelectRun={agent.selectRun}
       onApplyProposals={onApplyProposals}
     />

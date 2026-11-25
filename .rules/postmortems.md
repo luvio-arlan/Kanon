@@ -168,3 +168,9 @@
   2. Keep Step 4 driver inputs, Step 3 transcript drafts, and Archive v3 (`schemaVersion: "kanon-archive/v3"`) 100% lossless with round-trip Golden tests in `repository.test.ts`.
   3. Enforce `verifySameOrigin` on every `POST/PATCH/PUT/DELETE` route mechanically via `api-mutation-csrf-guard`, and back high-risk rate limits with Postgres `rate_limit_buckets` (`0007-rate-limit-buckets.ts`).
 - **Why / Gate**: Mechanically enforced by `api-mutation-csrf-guard` in `scripts/api-security-guards.mjs`, dynamic DDL parity + Archive v3 round-trip tests in `packages/core/src/db/repository.test.ts`, and `403`/`409` assertions in `scripts/verify-api-contracts.mjs`.
+
+### [2026-11-25] Cache Parsed SEC Filings in Postgres and Ground IC Agent Proposals Against Evidence
+
+- **Mistake**: Re-downloading multi-megabyte SEC EDGAR HTML documents on every Source Clipper open caused 3–8s latency and risked SEC rate-limits, while keeping Agent proposals purely template-based missed 10-K/10-Q paragraph evidence and unverified LLM figures risked numeric hallucinations.
+- **Correct Pattern**: Persist parsed SEC sections and cross-quarter diffs in `sec_filing_documents_cache` (`0008-sec-filing-docs-cache.ts`), use configurable `KANON_SEC_USER_AGENT` with bounded retry (`sec-http.ts`), retrieve filing paragraphs deterministically via BM25 (`search_sec_filing_excerpts`), and pass optional LLM proposals through `isProposalGrounded` figure verification before presentation.
+- **Why / Gate**: Enforced by `filing-search-tool.test.ts`, `sec-forensics-v2.test.ts`, `sec_filing_documents_cache` DDL parity in `repository.test.ts`, and `/api/ai/agent/ask` contract checks.

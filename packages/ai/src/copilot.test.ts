@@ -168,7 +168,10 @@ describe("packages/ai SEC EDGAR Multi-Year XBRL & Copilot Contracts", () => {
       const ready = events.find((e) => e.type === "briefing_ready");
       expect(ready?.type).toBe("briefing_ready");
       if (ready?.type === "briefing_ready") {
-        expect(ready.briefing.traces).toHaveLength(8);
+        expect(ready.briefing.traces).toHaveLength(9);
+        expect(ready.briefing.traces.some((t) => t.toolName === "search_sec_filing_excerpts")).toBe(
+          true,
+        );
         expect(ready.briefing.traces.some((t) => t.toolName === "analyze_live_market_regime")).toBe(
           true,
         );

@@ -62,6 +62,27 @@ function buildProfitabilityCells(report: SecForensicReport): ForensicCellSpec[] 
   ];
 }
 
+function buildGovernanceCells(report: SecForensicReport): ForensicCellSpec[] {
+  const ccc = report.workingCapitalCycle.cashConversionCycleDays;
+  const cap = report.capitalAllocation;
+  const cells: ForensicCellSpec[] = [];
+  if (ccc !== null) {
+    cells.push({
+      label: "现金转换周期 (CCC)",
+      value: `${ccc.toFixed(0)} 天`,
+      tone: pickTone(ccc, (n) => n <= 45, "pass", "primary"),
+    });
+  }
+  if (cap.capexPctOfOcf !== null) {
+    cells.push({
+      label: "资本配置（CapEx / 回购占 OCF）",
+      value: `${cap.capexPctOfOcf.toFixed(0)}% / ${(cap.buybackPctOfOcf ?? 0).toFixed(0)}%`,
+      tone: "muted",
+    });
+  }
+  return cells;
+}
+
 export function buildForensicCells(report: SecForensicReport): ForensicCellSpec[] {
   const shareVal =
     report.shareChangeCagrPct !== null
@@ -89,5 +110,6 @@ export function buildForensicCells(report: SecForensicReport): ForensicCellSpec[
       value: formatCompact(report.netCash),
       tone: pickTone(report.netCash, (n) => n >= 0, "pass", "muted"),
     },
+    ...buildGovernanceCells(report),
   ];
 }

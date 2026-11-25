@@ -1,5 +1,11 @@
 import { fetchSecEdgarSnapshot, fetchSecFilingReaderData } from "@kanon/ai";
-import { getKanonDb, getSecSnapshot, upsertSecSnapshot } from "@kanon/core/db";
+import {
+  getCachedSecFilingDoc,
+  getKanonDb,
+  getSecSnapshot,
+  upsertCachedSecFilingDoc,
+  upsertSecSnapshot,
+} from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { checkRateLimit } from "../../../_lib/request-guards";
@@ -11,6 +17,54 @@ const SEC_FILING_RATE_POLICY = {
   maxRequests: 25,
   windowMs: 60 * 1000,
 };
+
+function resolveTargetAccession(
+  filings: readonly { accessionNumber: string; form: string }[],
+  accessionNumber?: string,
+  form?: string,
+): string | null {
+  if (accessionNumber) return accessionNumber;
+  if (form) {
+    return (
+      filings.find((f) => f.form.toUpperCase() === form.toUpperCase())?.accessionNumber ?? null
+    );
+  }
+  const primary = filings.find((f) => f.form === "10-K" || f.form === "10-Q" || f.form === "20-F");
+  return primary?.accessionNumber ?? filings[0]?.accessionNumber ?? null;
+}
+
+async function loadFilingWithCache(params: {
+  db: Awaited<ReturnType<typeof getKanonDb>>;
+  cleanTicker: string;
+  accessionNumber?: string;
+  form?: string;
+  refresh: boolean;
+}) {
+  let snapshot = await getSecSnapshot(params.db, params.cleanTicker);
+  if (!snapshot) {
+    const liveSnap = await fetchSecEdgarSnapshot(params.cleanTicker);
+    if (liveSnap.ok) snapshot = await upsertSecSnapshot(params.db, liveSnap.data);
+  }
+  const targetAcc = resolveTargetAccession(
+    snapshot?.filings ?? [],
+    params.accessionNumber,
+    params.form,
+  );
+  if (targetAcc && !params.refresh) {
+    const cachedDoc = await getCachedSecFilingDoc(params.db, targetAcc);
+    if (cachedDoc) return cachedDoc;
+  }
+  const readerData = await fetchSecFilingReaderData({
+    ticker: params.cleanTicker,
+    snapshot,
+    accessionNumber: params.accessionNumber,
+    form: params.form,
+  });
+  if (readerData.source === "sec-edgar-live") {
+    await upsertCachedSecFilingDoc(params.db, readerData);
+  }
+  return readerData;
+}
 
 export async function GET(request: Request, context: { params: Promise<{ ticker: string }> }) {
   const startedAt = performance.now();
@@ -26,23 +80,13 @@ export async function GET(request: Request, context: { params: Promise<{ ticker:
   }
 
   const url = new URL(request.url);
-  const accessionNumber = url.searchParams.get("accession")?.trim() || undefined;
-  const form = url.searchParams.get("form")?.trim() || undefined;
-
   const db = await getKanonDb();
-  let snapshot = await getSecSnapshot(db, cleanTicker);
-  if (!snapshot) {
-    const liveSnap = await fetchSecEdgarSnapshot(cleanTicker);
-    if (liveSnap.ok) {
-      snapshot = await upsertSecSnapshot(db, liveSnap.data);
-    }
-  }
-
-  const readerData = await fetchSecFilingReaderData({
-    ticker: cleanTicker,
-    snapshot,
-    accessionNumber,
-    form,
+  const readerData = await loadFilingWithCache({
+    db,
+    cleanTicker,
+    accessionNumber: url.searchParams.get("accession")?.trim() || undefined,
+    form: url.searchParams.get("form")?.trim() || undefined,
+    refresh: url.searchParams.get("refresh") === "1",
   });
   return jsonOk(readerData, startedAt);
 }
