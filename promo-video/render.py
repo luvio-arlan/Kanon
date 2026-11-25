@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """
-KANON (卡农) — 15.0s 1080p 60fps Programmatic Video Renderer.
-Pure Python 3 stdlib (zero pip/npm dependencies).
-Drives headless Chrome via raw Chrome DevTools Protocol (CDP) WebSocket,
-steps `window.renderFrame(frame, 900)` deterministically for all 900 frames,
-pipes lossless PNG frames into FFmpeg alongside `soundtrack.wav`, and outputs:
-  - promo-video/kanon-launch-15s.mp4
-  - marketing/assets/kanon-launch-15s.mp4 (auto-synced for the website theater)
-  - promo-video/preview_stills/*.png (6 keyframe verification stills)
+KANON (卡农) — Multi-Edition Deterministic Luxury Brand Film Renderer.
+Pure Python 3 stdlib + headless Google Chrome (CDP) + FFmpeg.
+
+Outputs:
+  1. Website Flagship Cinema Cut (36s · 1920x1080 @ 60fps · 48kHz stereo):
+       - promo-video/kanon-brand-film.mp4
+       - marketing/assets/kanon-brand-film.mp4
+       - marketing/assets/film-poster.jpg (bespoke high-craft poster frame)
+  2. GitHub Showcase Cinema Cut (22s · 1920x1080 @ 60fps · 48kHz stereo):
+       - docs/assets/kanon-github-film.mp4
+       - docs/assets/film-preview.jpg (high-craft keyframe still)
+  3. GitHub Inline Autoplay Animated Reel (14s · 960x540 @ 20fps · 2-pass palette GIF < 8MB):
+       - docs/assets/kanon-github-reel.gif
+  4. QA Keyframe Stills across every act:
+       - promo-video/preview_stills/*.png
 """
 
 from __future__ import annotations
 
 import base64
-import functools
-import hashlib
 import http.server
 import json
 import os
@@ -28,21 +33,58 @@ import threading
 import time
 import urllib.request
 
-FPS = 60
-DURATION_SEC = 26
-TOTAL_FRAMES = FPS * DURATION_SEC  # 1560 frames exact
-WIDTH = 1920
-HEIGHT = 1080
-
-# Keyframe stills for visual QA across all 7 cinematic acts
-PREVIEW_FRAMES = {
-    90: "01_first_light_1.5s.png",
-    270: "02_conviction_composed_4.5s.png",
-    585: "03_workbench_showcase_9.75s.png",
-    840: "04_prism_refraction_14.0s.png",
-    1080: "05_matrix_3d_18.0s.png",
-    1260: "06_vault_lock_21.0s.png",
-    1490: "07_kanon_mark_24.8s.png",
+EDITIONS = {
+    "web": {
+        "fps": 60,
+        "duration": 36,
+        "width": 1920,
+        "height": 1080,
+        "scale": 1.0,
+        "audio": "soundtrack-web.wav",
+        "stills": {
+            135: "web_01_overture_2.25s.png",
+            390: "web_02_manifesto_6.50s.png",
+            630: "web_03_cockpit_dark_10.50s.png",
+            672: "web_04_cockpit_wipe_11.20s.png",
+            1085: "web_05_forensics_18.08s.png",
+            1445: "web_06_valuation_climax_24.08s.png",
+            1785: "web_07_ic_polyphony_29.75s.png",
+            1930: "web_08_vault_lock_32.16s.png",
+            2110: "web_09_finale_monogram_35.16s.png",
+        },
+        "poster_frame": 390,
+        "preview_frame": 1445,
+    },
+    "github": {
+        "fps": 60,
+        "duration": 22,
+        "width": 1920,
+        "height": 1080,
+        "scale": 1.0,
+        "audio": "soundtrack-github.wav",
+        "stills": {
+            115: "gh_01_manifesto_1.92s.png",
+            306: "gh_02_cockpit_wipe_5.10s.png",
+            580: "gh_03_forensics_9.66s.png",
+            830: "gh_04_valuation_13.83s.png",
+            1045: "gh_05_ic_approved_17.42s.png",
+            1150: "gh_06_vault_19.16s.png",
+            1285: "gh_07_finale_21.42s.png",
+        },
+        "poster_frame": None,
+        "preview_frame": 830,
+    },
+    "gif": {
+        "fps": 20,
+        "duration": 14,
+        "width": 1920,
+        "height": 1080,
+        "scale": 1.0,
+        "audio": None,
+        "stills": {},
+        "poster_frame": None,
+        "preview_frame": None,
+    },
 }
 
 
@@ -141,7 +183,7 @@ class MinimalCDPClient:
                 data = bytes(b ^ mask[i & 3] for i, b in enumerate(data))
             if opcode == 0x8:
                 raise RuntimeError("CDP WebSocket closed by browser")
-            if opcode == 0x9:  # Ping -> Pong
+            if opcode == 0x9:
                 self.sock.sendall(b"\x8a\x80\x00\x00\x00\x00")
                 continue
             chunks.append(data)
@@ -171,7 +213,6 @@ class MinimalCDPClient:
 
 def start_static_server(directory: str) -> tuple[http.server.ThreadingHTTPServer, int]:
     port = find_free_port()
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=directory)
 
     class QuietHandler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
@@ -201,70 +242,248 @@ def wait_for_cdp_ws(debug_port: int, timeout_s: float = 15.0) -> str:
     raise TimeoutError("Timed out waiting for Chrome DevTools Protocol endpoint")
 
 
-def main() -> None:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.dirname(base_dir)
-    audio_path = os.path.join(base_dir, "soundtrack.wav")
-    audio_script = os.path.join(base_dir, "audio_synth.py")
-    out_mp4 = os.path.join(base_dir, "kanon-brand-film.mp4")
-    marketing_mp4 = os.path.join(repo_root, "marketing", "assets", "kanon-brand-film.mp4")
+def png_to_jpg(png_bytes: bytes, out_jpg: str, quality: int = 92) -> None:
+    os.makedirs(os.path.dirname(os.path.abspath(out_jpg)), exist_ok=True)
+    proc = subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "image2pipe", "-vcodec", "png", "-i", "-",
+            "-frames:v", "1", "-q:v", str(max(2, round((100 - quality) / 3.2))), out_jpg,
+        ],
+        input=png_bytes,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=True,
+    )
+    _ = proc
+
+
+def render_edition(edition: str, repo_root: str, base_dir: str, http_port: int, cdp: MinimalCDPClient) -> None:
+    cfg = EDITIONS[edition]
+    fps = cfg["fps"]
+    total_frames = fps * cfg["duration"]
+    width = cfg["width"]
+    height = cfg["height"]
     stills_dir = os.path.join(base_dir, "preview_stills")
     os.makedirs(stills_dir, exist_ok=True)
 
-    # 1. Always re-synthesize soundtrack to stay locked to DURATION_SEC
-    print("[render] Synthesizing 24.0s stereo Canon soundtrack...")
-    subprocess.run([sys.executable, audio_script], check=True)
+    scene_url = f"http://127.0.0.1:{http_port}/promo-video/scene.html?edition={edition}"
+    print(f"\n[render:{edition}] Loading {scene_url} ({cfg['duration']}s @ {fps}fps = {total_frames} frames)...")
+    cdp.call("Page.navigate", {"url": scene_url})
 
-    # 2. Serve scene.html locally so fonts and assets resolve cleanly
-    server, http_port = start_static_server(base_dir)
+    # Wait for scene JS + all luxury photographs + Google Fonts
+    for _ in range(80):
+        res = cdp.call(
+            "Runtime.evaluate",
+            {
+                "expression": (
+                    "typeof window.renderFrame === 'function' && "
+                    "document.readyState === 'complete' && "
+                    "Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)"
+                )
+            },
+        )
+        if res.get("result", {}).get("value") is True:
+            break
+        time.sleep(0.12)
+
+    cdp.call(
+        "Runtime.evaluate",
+        {
+            "expression": "Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 4500))])",
+            "awaitPromise": True,
+        },
+    )
+    time.sleep(0.25)
+
+    # Set up output encoding pipeline
+    if edition == "gif":
+        tmp_mp4 = os.path.join(base_dir, "_tmp_gif_master.mp4")
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-f", "image2pipe", "-vcodec", "png", "-framerate", str(fps), "-i", "-",
+            "-vf", "scale=960:540:flags=lanczos",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "12", "-preset", "fast",
+            tmp_mp4,
+        ]
+        out_target = tmp_mp4
+    else:
+        audio_path = os.path.join(base_dir, cfg["audio"])
+        out_target = (
+            os.path.join(base_dir, "kanon-brand-film.mp4")
+            if edition == "web"
+            else os.path.join(repo_root, "docs", "assets", "kanon-github-film.mp4")
+        )
+        os.makedirs(os.path.dirname(out_target), exist_ok=True)
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-f", "image2pipe", "-vcodec", "png", "-framerate", str(fps), "-i", "-",
+            "-i", audio_path,
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-crf", "17", "-preset", "medium", "-profile:v", "high", "-level", "4.2",
+            "-c:a", "aac", "-b:a", "256k", "-ar", "48000",
+            "-shortest", "-movflags", "+faststart",
+            out_target,
+        ]
+
+    ffmpeg_proc = subprocess.Popen(
+        ffmpeg_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    assert ffmpeg_proc.stdin is not None
+    t0 = time.time()
+
+    for frame in range(total_frames):
+        cdp.call("Runtime.evaluate", {"expression": f"window.renderFrame({frame}, {total_frames})"})
+        shot = cdp.call("Page.captureScreenshot", {"format": "png", "optimizeForSpeed": True})
+        png_bytes = base64.b64decode(shot["data"])
+        ffmpeg_proc.stdin.write(png_bytes)
+
+        if frame in cfg["stills"]:
+            with open(os.path.join(stills_dir, cfg["stills"][frame]), "wb") as sf:
+                sf.write(png_bytes)
+        if cfg["poster_frame"] is not None and frame == cfg["poster_frame"]:
+            png_to_jpg(png_bytes, os.path.join(repo_root, "marketing", "assets", "film-poster.jpg"), quality=93)
+        if cfg["preview_frame"] is not None and frame == cfg["preview_frame"] and edition == "web":
+            png_to_jpg(png_bytes, os.path.join(repo_root, "docs", "assets", "film-preview.jpg"), quality=92)
+
+        if (frame + 1) % max(40, fps * 3) == 0 or frame == total_frames - 1:
+            elapsed = time.time() - t0
+            print(
+                f"[render:{edition}] Frame {frame + 1:4d}/{total_frames} "
+                f"({(frame + 1)/total_frames*100:5.1f}%) — {elapsed:5.1f}s ({(frame + 1)/max(0.01, elapsed):.1f} fps)"
+            )
+
+    ffmpeg_proc.stdin.close()
+    stderr_out = ffmpeg_proc.stderr.read().decode("utf-8", errors="replace") if ffmpeg_proc.stderr else ""
+    ret = ffmpeg_proc.wait()
+    if ret != 0:
+        raise RuntimeError(f"FFmpeg ({edition}) exited with {ret}:\n{stderr_out[-1200:]}")
+
+    if edition == "web":
+        marketing_mp4 = os.path.join(repo_root, "marketing", "assets", "kanon-brand-film.mp4")
+        shutil.copy2(out_target, marketing_mp4)
+        print(f"[render:web] Synced flagship film -> {marketing_mp4} ({os.path.getsize(marketing_mp4)/(1024*1024):.2f} MB)")
+    elif edition == "github":
+        print(f"[render:github] Wrote GitHub cinema film -> {out_target} ({os.path.getsize(out_target)/(1024*1024):.2f} MB)")
+    elif edition == "gif":
+        out_gif = os.path.join(repo_root, "docs", "assets", "kanon-github-reel.gif")
+        palette_png = os.path.join(base_dir, "_tmp_palette.png")
+        # 2-pass ultra-clean luxury palette GIF kept comfortably under GitHub's 10MB Camo proxy limit.
+        # Mild temporal denoise removes 3% film-grain shimmer that bloats GIF LZW while preserving razor UI text.
+        for gif_w, gif_fps, max_colors, bayer in [
+            (840, 14, 128, 5),
+            (760, 12, 112, 5),
+            (720, 11, 96, 5),
+            (680, 10, 80, 5),
+        ]:
+            vf_base = f"fps={gif_fps},scale={gif_w}:-1:flags=lanczos,hqdn3d=1.8:1.8:5:5"
+            subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", out_target,
+                    "-vf", f"{vf_base},palettegen=max_colors={max_colors}:stats_mode=diff",
+                    palette_png,
+                ],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
+            )
+            subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", out_target, "-i", palette_png,
+                    "-lavfi", f"{vf_base}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale={bayer}:diff_mode=rectangle",
+                    "-loop", "0", out_gif,
+                ],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
+            )
+            sz_mb = os.path.getsize(out_gif) / (1024 * 1024)
+            print(f"[render:gif] Encoded {gif_w}px @ {gif_fps}fps ({max_colors} colors) -> {sz_mb:.2f} MB")
+            if sz_mb <= 7.8:
+                break
+        for tmp_f in (out_target, palette_png):
+            if os.path.exists(tmp_f):
+                os.remove(tmp_f)
+
+
+def render_stills_only(edition: str, repo_root: str, base_dir: str, http_port: int, cdp: MinimalCDPClient) -> None:
+    cfg = EDITIONS[edition]
+    total_frames = cfg["fps"] * cfg["duration"]
+    stills_dir = os.path.join(base_dir, "preview_stills")
+    os.makedirs(stills_dir, exist_ok=True)
+    scene_url = f"http://127.0.0.1:{http_port}/promo-video/scene.html?edition={edition}"
+    cdp.call("Page.navigate", {"url": scene_url})
+    for _ in range(80):
+        res = cdp.call(
+            "Runtime.evaluate",
+            {
+                "expression": (
+                    "typeof window.renderFrame === 'function' && "
+                    "document.readyState === 'complete' && "
+                    "Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)"
+                )
+            },
+        )
+        if res.get("result", {}).get("value") is True:
+            break
+        time.sleep(0.12)
+    cdp.call(
+        "Runtime.evaluate",
+        {
+            "expression": "Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 4500))])",
+            "awaitPromise": True,
+        },
+    )
+    time.sleep(0.25)
+    for frame, name in sorted(cfg["stills"].items()):
+        cdp.call("Runtime.evaluate", {"expression": f"window.renderFrame({frame}, {total_frames})"})
+        shot = cdp.call("Page.captureScreenshot", {"format": "png", "optimizeForSpeed": True})
+        png_bytes = base64.b64decode(shot["data"])
+        with open(os.path.join(stills_dir, name), "wb") as sf:
+            sf.write(png_bytes)
+        print(f"[stills:{edition}] Saved {name} (frame {frame})")
+
+
+def main() -> None:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.dirname(base_dir)
+    audio_script = os.path.join(base_dir, "audio_synth.py")
+
+    args = sys.argv[1:]
+    stills_only = "--stills-only" in args
+    args = [a for a in args if a != "--stills-only"]
+    requested = args[0] if args else "all"
+    targets = ["web", "github", "gif"] if requested == "all" else [requested]
+
+    if not stills_only and ("web" in targets or "github" in targets):
+        audio_arg = "all" if ("web" in targets and "github" in targets) else ("web" if "web" in targets else "github")
+        print(f"[render] Synthesizing orchestral Canon soundtrack ({audio_arg})...")
+        subprocess.run([sys.executable, audio_script, audio_arg], check=True)
+
+    # Serve REPO ROOT so /marketing/assets/*.jpg and /promo-video/scene.html resolve cleanly
+    server, http_port = start_static_server(repo_root)
     debug_port = find_free_port()
     chrome_bin = find_chrome_binary()
     user_data_dir = tempfile.mkdtemp(prefix="kanon-cdp-")
 
-    chrome_cmd = [
-        chrome_bin,
-        "--headless=new",
-        f"--remote-debugging-port={debug_port}",
-        f"--user-data-dir={user_data_dir}",
-        f"--window-size={WIDTH},{HEIGHT}",
-        "--force-device-scale-factor=1",
-        "--hide-scrollbars",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--disable-background-timer-throttling",
-        "--disable-renderer-backgrounding",
-        "about:blank",
-    ]
     chrome_proc = subprocess.Popen(
-        chrome_cmd,
+        [
+            chrome_bin,
+            "--headless=new",
+            f"--remote-debugging-port={debug_port}",
+            f"--user-data-dir={user_data_dir}",
+            "--window-size=1920,1080",
+            "--force-device-scale-factor=1",
+            "--hide-scrollbars",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "about:blank",
+        ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
-    ffmpeg_cmd = [
-        "ffmpeg",
-        "-y",
-        "-f", "image2pipe",
-        "-vcodec", "png",
-        "-framerate", str(FPS),
-        "-i", "-",
-        "-i", audio_path,
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-crf", "15",
-        "-preset", "medium",
-        "-profile:v", "high",
-        "-level", "4.2",
-        "-c:a", "aac",
-        "-b:a", "256k",
-        "-ar", "48000",
-        "-shortest",
-        "-movflags", "+faststart",
-        out_mp4,
-    ]
-    ffmpeg_proc = None
     cdp = None
-
     try:
         ws_url = wait_for_cdp_ws(debug_port)
         cdp = MinimalCDPClient(ws_url)
@@ -272,84 +491,13 @@ def main() -> None:
         cdp.call("Runtime.enable")
         cdp.call(
             "Emulation.setDeviceMetricsOverride",
-            {
-                "width": WIDTH,
-                "height": HEIGHT,
-                "deviceScaleFactor": 1,
-                "mobile": False,
-            },
+            {"width": 1920, "height": 1080, "deviceScaleFactor": 1, "mobile": False},
         )
-        scene_url = f"http://127.0.0.1:{http_port}/scene.html"
-        print(f"[render] Loading {scene_url} in headless Chrome...")
-        cdp.call("Page.navigate", {"url": scene_url})
-
-        # Wait for window.renderFrame & webfonts
-        for _ in range(60):
-            res = cdp.call(
-                "Runtime.evaluate",
-                {"expression": "typeof window.renderFrame === 'function' && document.readyState === 'complete'"},
-            )
-            if res.get("result", {}).get("value") is True:
-                break
-            time.sleep(0.1)
-
-        # Wait up to 3.5s for Google Fonts (Instrument Serif / JetBrains Mono / Noto Sans SC)
-        cdp.call(
-            "Runtime.evaluate",
-            {
-                "expression": "Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3500))])",
-                "awaitPromise": True,
-            },
-        )
-        time.sleep(0.25)
-
-        ffmpeg_proc = subprocess.Popen(
-            ffmpeg_cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-        )
-
-        t0 = time.time()
-        print(f"[render] Rendering {TOTAL_FRAMES} deterministic frames ({WIDTH}x{HEIGHT} @ {FPS}fps)...")
-        for frame in range(TOTAL_FRAMES):
-            cdp.call(
-                "Runtime.evaluate",
-                {"expression": f"window.renderFrame({frame}, {TOTAL_FRAMES})"},
-            )
-            shot = cdp.call(
-                "Page.captureScreenshot",
-                {"format": "png", "optimizeForSpeed": True},
-            )
-            png_bytes = base64.b64decode(shot["data"])
-            assert ffmpeg_proc.stdin is not None
-            ffmpeg_proc.stdin.write(png_bytes)
-
-            if frame in PREVIEW_FRAMES:
-                still_path = os.path.join(stills_dir, PREVIEW_FRAMES[frame])
-                with open(still_path, "wb") as sf:
-                    sf.write(png_bytes)
-
-            if (frame + 1) % 150 == 0 or frame == TOTAL_FRAMES - 1:
-                elapsed = time.time() - t0
-                fps_eff = (frame + 1) / max(0.01, elapsed)
-                print(f"[render] Frame {frame + 1:3d}/{TOTAL_FRAMES} ({(frame + 1)/TOTAL_FRAMES*100:5.1f}%) — {elapsed:5.1f}s ({fps_eff:.1f} fps)")
-
-        assert ffmpeg_proc.stdin is not None
-        ffmpeg_proc.stdin.close()
-        stderr_out = ffmpeg_proc.stderr.read().decode("utf-8", errors="replace") if ffmpeg_proc.stderr else ""
-        ret = ffmpeg_proc.wait()
-        if ret != 0:
-            raise RuntimeError(f"FFmpeg exited with {ret}:\n{stderr_out[-1200:]}")
-
-        # Sync rendered MP4 into marketing/assets/ so the website Launch Film Theater works out of the box
-        if os.path.isdir(os.path.dirname(marketing_mp4)):
-            shutil.copy2(out_mp4, marketing_mp4)
-            print(f"[render] Synced launch film to {marketing_mp4}")
-
-        size_mb = os.path.getsize(out_mp4) / (1024 * 1024)
-        print(f"[render] DONE -> {out_mp4} ({size_mb:.2f} MB in {time.time() - t0:.1f}s)")
-
+        for ed in targets:
+            if stills_only:
+                render_stills_only(ed, repo_root, base_dir, http_port, cdp)
+            else:
+                render_edition(ed, repo_root, base_dir, http_port, cdp)
     finally:
         if cdp is not None:
             cdp.close()

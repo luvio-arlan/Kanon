@@ -12,9 +12,9 @@
   </p>
 
   <p>
-    面向顶级个人价值投资者与买方投研机构的 <strong>投资逻辑操作系统（Investment Thesis OS）</strong>。<br />
-    剥离跳动 K 线与算命式聊天框——以可插拔实时盘前/盘后行情、SEC XBRL 一阶与 BM25 原件检索、9 工具多角色 AI 投委会、<br />
-    双引擎估值赔率矩阵与零杠杆认知校准闭环，把听来的观点，炼成自己算出来的底气。
+    面向独立价值投资者与买方投研机构的 <strong>投资逻辑操作系统（Investment Thesis OS）</strong>。<br />
+    摒弃闪烁的分时报价与黑箱对话——以可插拔实时盘前/盘后行情、SEC EDGAR 官方 XBRL 与 BM25 原件溯源、9 工具多角色 AI 投委会、<br />
+    双引擎估值赔率矩阵与零杠杆认知校准闭环，构筑经得起证伪的基本面确定性。
   </p>
 
   <p>
@@ -22,7 +22,7 @@
     &nbsp;&nbsp;·&nbsp;&nbsp;
     <a href="https://app.kanon.hk"><strong>工作台 app.kanon.hk ↗</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
-    <a href="https://kanon.hk/#film"><strong>观看 26s 品牌影片 ▶</strong></a>
+    <a href="https://kanon.hk/#film"><strong>观看 36s 旗舰品牌影片 ▶</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
     <a href="./docs/PRD.md">产品白皮书 PRD</a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -41,24 +41,26 @@
 
 ---
 
-## Brand Film · 品牌宣传片（26s · 1080p · 60fps）
+## Brand Film · 品牌影片（1080p · 60fps · 48 kHz 管弦卡农原声）
 
 <div align="center">
   <a href="https://kanon.hk/#film">
     <img
-      alt="KANON Brand Film V6 — 26s 1080p 60fps"
-      src="./docs/assets/film-preview-v6.jpg"
+      alt="KANON Brand Film — Luxury Institutional Showcase Reel"
+      src="./docs/assets/kanon-github-reel.gif"
       width="100%"
     />
   </a>
   <p>
     <sub>
-      七幕叙事：<strong>噪音溶解 → 机械精密 → 立体买方工作台实时估值 → 四声部投委会复调 → 零杠杆地平线 → KANON 纪念碑</strong>，配以纯代码合成 48 kHz 立体声卡农原声。<br />
-      <a href="https://kanon.hk/#film"><strong>在官网全屏观看（含立体声原声）↗</strong></a>
+      八幕奢侈品级建筑光影与实景产品叙事：<strong>原色钛金静默序曲 → 建筑研究空间宣言 → 双主题买方驾驶舱光幕切换 → SEC EDGAR 10-K 原件双向溯源 → 双引擎估值与 3D 5×5 敏感度矩阵 → 四声部 AI 投委会人机签批 → 0.00× 零杠杆机械锁闭 → KANON 钛金徽标终幕</strong>。<br />
+      <a href="https://kanon.hk/#film"><strong>在官网全屏观看 36s 旗舰版（含 48 kHz 立体声管弦原声）↗</strong></a>
       &nbsp;&nbsp;·&nbsp;&nbsp;
-      <a href="./marketing/assets/kanon-brand-film.mp4">仓库原片 <code>kanon-brand-film.mp4</code></a>
+      <a href="./docs/assets/kanon-github-film.mp4">GitHub 精编版 <code>22s · 1080p60</code></a>
       &nbsp;&nbsp;·&nbsp;&nbsp;
-      <a href="./promo-video/">纯代码片源与合成器</a>
+      <a href="./marketing/assets/kanon-brand-film.mp4">官网旗舰原片 <code>36s · 1080p60</code></a>
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      <a href="./promo-video/">纯代码片源与管弦合成器</a>
     </sub>
   </p>
 </div>
@@ -115,13 +117,13 @@
 
 ## 为什么是 KANON（卡农）
 
-绝大多数金融终端都在精密地贩卖焦虑：闪烁的红绿 K 线、嘈杂的社区喊单、替你算命的聊天机器人。
+绝大多数金融终端都在精密地放大情绪波动：闪烁的分时行情、喧嚣的社交噪音、替人代劳的黑箱结论。
 
-**KANON** 取义 **Canon（第一性原理与准则）** 与 **卡农（层层递进的复调交叉印证）**，对齐顶级买方机构（Bipsync / VerityRMS / Expectations Investing）的投研闭环，只专注一件事：**帮你把一家好公司看透、算清赔率、守住纪律。**
+**KANON** 取义 **Canon（第一性原理与准则）** 与 **卡农（层层递进的复调交叉印证）**，对齐顶级买方机构（Bipsync / VerityRMS / Expectations Investing）的投研闭环，只专注一件事：**看透商业本质、算清盈亏赔率、恪守长期纪律。**
 
 - **不做** 实时盯盘 K 线终端或券商下单通道
-- **不做** 直接给出买卖建议的算命式聊天框
-- **不做** 打卡徽章游戏化与社交喊单广场
+- **不做** 直接输出买卖指令的黑箱对话工具
+- **不做** 打卡徽章游戏化与喧嚣的社交广场
 - **坚持** 零杠杆硬契约（`0.00×`）、SEC 原件溯源、可证伪追踪与人类终审主权（Human-in-the-Loop）
 
 ---
@@ -173,9 +175,9 @@ kanon/
 │   ├── ui/                # BoardUI × HeroUI v3 统一组件与 Swiss Titanium Token 系统（零业务依赖）
 │   ├── core/              # Drizzle PostgreSQL / PGlite · 扩展式迁移 · Zod 契约 · 金融纯函数内核
 │   └── ai/                # 多源可插拔行情引擎 · SEC EDGAR 解析 · Vercel AI SDK 9 工具 IC Agent
-├── marketing/             # 品牌官方网站源码（kanon.hk）与 V6 26s 品牌宣传片
-├── promo-video/           # 1080p 60fps 品牌片渲染脚本与纯代码立体声卡农合成器
-└── docs/                  # PRD 白皮书、v3–v6 架构蓝图与高清视觉素材
+├── marketing/             # 品牌官方网站源码（kanon.hk）与 36s 旗舰品牌影片
+├── promo-video/           # 1080p 60fps 双版本品牌片引擎与 48 kHz 管弦卡农合成器
+└── docs/                  # PRD 白皮书、架构蓝图、GitHub 22s 宣传片与 README 动态样片
 ```
 
 - **五层自动化门禁（`pnpm check`）**：`Biome` 代码与认知复杂度检查 + `TypeScript` 跨包严格类型校验 + `Dependency Cruiser` 架构防腐蚀 + `AST / Editorial / Optical` 审美与体量守门 + `Knip` 零死代码检测

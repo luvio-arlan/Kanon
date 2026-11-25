@@ -26,7 +26,8 @@ Thumbs.db
 
 # Generated video intermediate outputs (final published film lives in marketing/assets/)
 promo-video/preview_stills/
-promo-video/soundtrack.wav
+promo-video/*.wav
 promo-video/*.mp4
+promo-video/_tmp_*
 .vercel
 .env*
