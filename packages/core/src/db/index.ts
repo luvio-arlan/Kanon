@@ -79,7 +79,12 @@ export {
   type RateLimitCheckResult,
 } from "./repositories/security/rate-limit-store";
 export { loadThesisCanvasBootstrap } from "./repositories/thesis-canvas-bootstrap";
-export { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
+export {
+  type CheckedStepUpdateResult,
+  createThesis,
+  updateThesisStep,
+  updateThesisStepChecked,
+} from "./repositories/thesis-mutations";
 export {
   getThesisById,
   listTheses,

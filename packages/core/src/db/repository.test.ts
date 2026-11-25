@@ -57,7 +57,11 @@ import {
   upsertCachedSecFilingDoc,
 } from "./repositories/sec/filing-docs-cache-store";
 import { consumePersistentRateLimit } from "./repositories/security/rate-limit-store";
-import { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
+import {
+  createThesis,
+  updateThesisStep,
+  updateThesisStepChecked,
+} from "./repositories/thesis-mutations";
 import { getThesisById, listTheses, listThesisSummaries } from "./repositories/thesis-queries";
 import * as schema from "./schema";
 
@@ -619,6 +623,28 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     expect(cachedDoc?.cached).toBe(true);
     expect(cachedDoc?.sections[0]?.heading).toBe("MD&A");
     expect((await listCachedSecFilingDocsByTicker(db, "nvda", 3)).length).toBeGreaterThanOrEqual(1);
+
+    const staleCheck = await updateThesisStepChecked(
+      db,
+      target.id,
+      { step: "price_anchor", currentPrice: 205 },
+      undefined,
+      "2020-01-01T00:00:00.000Z",
+    );
+    expect(staleCheck.kind).toBe("conflict");
+
+    const okCheck = await updateThesisStepChecked(
+      db,
+      target.id,
+      { step: "price_anchor", currentPrice: 208 },
+      undefined,
+      atomicRes.thesis.updatedAt,
+    );
+    expect(okCheck.kind).toBe("ok");
+    if (okCheck.kind === "ok") {
+      expect(okCheck.thesis.currentPrice).toBe(208);
+      expect(okCheck.revisions.length).toBeGreaterThanOrEqual(1);
+    }
 
     await deleteThesis(db, target.id);
     await deleteThesis(db, importedV3.thesis.id);

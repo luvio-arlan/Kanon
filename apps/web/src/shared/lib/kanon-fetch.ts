@@ -49,6 +49,27 @@ function buildFetchError<T>(
   };
 }
 
+function createFetchTimeout(timeoutMs?: number) {
+  if (!timeoutMs) return { controller: null, clear: () => undefined };
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return { controller, clear: () => clearTimeout(id) };
+}
+
+async function decodeFetchResponse<T>(
+  res: Response,
+  schema: SafeParseSchema<T>,
+  fallback: string,
+): Promise<KanonFetchResult<T>> {
+  const rawJson: unknown = await res.json().catch(() => null);
+  if (!res.ok) return buildFetchError(rawJson, res.status, fallback);
+  const parsed = schema.safeParse(rawJson);
+  if (!parsed.success) {
+    return { ok: false, error: "服务端返回数据格式异常", status: res.status };
+  }
+  return { ok: true, data: parsed.data, status: res.status };
+}
+
 export async function kanonFetch<T>(
   url: string,
   schema: SafeParseSchema<T>,
@@ -57,9 +78,11 @@ export async function kanonFetch<T>(
     body?: unknown;
     headers?: Record<string, string>;
     fallbackError?: string;
+    timeoutMs?: number;
   },
 ): Promise<KanonFetchResult<T>> {
   const fallback = options?.fallbackError ?? "请求失败，请重试";
+  const timeout = createFetchTimeout(options?.timeoutMs);
   try {
     const hasBody = options?.body !== undefined;
     const res = await fetch(url, {
@@ -69,15 +92,15 @@ export async function kanonFetch<T>(
         ...options?.headers,
       },
       body: hasBody ? JSON.stringify(options?.body) : undefined,
+      signal: timeout.controller?.signal,
     });
-    const rawJson: unknown = await res.json().catch(() => null);
-    if (!res.ok) return buildFetchError(rawJson, res.status, fallback);
-    const parsed = schema.safeParse(rawJson);
-    if (!parsed.success) {
-      return { ok: false, error: "服务端返回数据格式异常", status: res.status };
-    }
-    return { ok: true, data: parsed.data, status: res.status };
+    return await decodeFetchResponse(res, schema, fallback);
   } catch (err) {
+    if (timeout.controller?.signal.aborted) {
+      return { ok: false, error: "请求超时，请点击重试", status: 408 };
+    }
     return { ok: false, error: err instanceof Error ? err.message : fallback, status: 0 };
+  } finally {
+    timeout.clear();
   }
 }

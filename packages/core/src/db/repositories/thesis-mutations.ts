@@ -1,17 +1,18 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
 import { roundTo } from "../../math/valuation-scenarios";
 import {
   type CreateThesisInput,
   CreateThesisInputSchema,
   type ThesisDetail,
+  type ThesisRevision,
   type UpdateThesisStepInput,
   UpdateThesisStepSchema,
 } from "../../schemas/research";
 import { type KanonDb, runInTransaction } from "../client";
 import { hypothesesTable, thesesTable, valuationScenariosTable } from "../schema";
-import { recordThesisRevision } from "./revision-queries";
+import { listThesisRevisions, recordThesisRevision } from "./revision-queries";
 import { getThesisById } from "./thesis-queries";
 import {
   writeBusinessFilterStep,
@@ -178,24 +179,64 @@ async function dispatchStepWrite(
   return writeValuationStep(tx, thesisId, parsed, now);
 }
 
+export type CheckedStepUpdateResult =
+  | { kind: "ok"; thesis: ThesisDetail; revisions: ThesisRevision[] }
+  | { kind: "not_found" }
+  | { kind: "conflict"; serverUpdatedAt: string };
+
+async function verifyStepRowAccess(
+  tx: KanonDb,
+  thesisId: string,
+  userId: string | undefined,
+  expectedUpdatedAt?: string | null,
+): Promise<{ ok: true } | { ok: false; result: CheckedStepUpdateResult }> {
+  const whereClause = userId
+    ? and(eq(thesesTable.id, thesisId), eq(thesesTable.userId, userId))
+    : eq(thesesTable.id, thesisId);
+  const [row] = await tx
+    .select({ id: thesesTable.id, updatedAt: thesesTable.updatedAt })
+    .from(thesesTable)
+    .where(whereClause);
+  if (!row) return { ok: false, result: { kind: "not_found" } };
+  if (expectedUpdatedAt) {
+    const diffMs = Math.abs(row.updatedAt.getTime() - new Date(expectedUpdatedAt).getTime());
+    if (Number.isFinite(diffMs) && diffMs > 1000) {
+      return {
+        ok: false,
+        result: { kind: "conflict", serverUpdatedAt: row.updatedAt.toISOString() },
+      };
+    }
+  }
+  return { ok: true };
+}
+
+export async function updateThesisStepChecked(
+  db: KanonDb,
+  thesisId: string,
+  rawInput: UpdateThesisStepInput,
+  userId?: string,
+  expectedUpdatedAt?: string | null,
+): Promise<CheckedStepUpdateResult> {
+  const parsed = UpdateThesisStepSchema.parse(rawInput);
+  const now = new Date();
+  return runInTransaction(db, async (tx) => {
+    const access = await verifyStepRowAccess(tx, thesisId, userId, expectedUpdatedAt);
+    if (!access.ok) return access.result;
+    const summary = await dispatchStepWrite(tx, thesisId, parsed, now);
+    const updated = await getThesisById(tx, thesisId, userId);
+    if (!updated) return { kind: "not_found" };
+    await recordThesisRevision(tx, updated, parsed.step, summary);
+    const revisions = await listThesisRevisions(tx, thesisId);
+    return { kind: "ok", thesis: updated, revisions };
+  });
+}
+
 export async function updateThesisStep(
   db: KanonDb,
   thesisId: string,
   rawInput: UpdateThesisStepInput,
   userId?: string,
 ): Promise<ThesisDetail | null> {
-  const parsed = UpdateThesisStepSchema.parse(rawInput);
-  const now = new Date();
-
-  return runInTransaction(db, async (tx) => {
-    const existing = await getThesisById(tx, thesisId, userId);
-    if (!existing) return null;
-
-    const summary = await dispatchStepWrite(tx, thesisId, parsed, now);
-    const updated = await getThesisById(tx, thesisId, userId);
-    if (updated) {
-      await recordThesisRevision(tx, updated, parsed.step, summary);
-    }
-    return updated;
-  });
+  const res = await updateThesisStepChecked(db, thesisId, rawInput, userId);
+  return res.kind === "ok" ? res.thesis : null;
 }

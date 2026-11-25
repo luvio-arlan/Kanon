@@ -21,11 +21,11 @@
 - **焦点轮廓层级纪律** `[css-layered-focus-visible]`：`packages/ui/src/styles/editorial.css` 的全局 `:focus-visible` 规则必须包在 `@layer base` 内，严禁无层级规则覆盖 Tailwind `focus-visible:outline-none` 导致点击 Tab 叠出双层橙框。
 - **0ms 即时切换 + 静默 URL 同步**：同域高频模式切换（如 `登录 ↔ 注册`、画布 `Step 1–5`）使用本地状态瞬切并保留已填公共字段（如手机号），用 `window.history.replaceState` 同步地址栏，杜绝跨路由网络往返、整屏白闪与外层舞台重播动画。
 - **禁止顶部闪烁进度条与装饰红条** `[no-route-progress-bar]`：严禁挂载全局顶部红条/加载条组件（`RouteProgressBar` / `NextTopLoader`），并禁止在顶栏胶囊底边、侧栏或卡片顶部叠放多余珊瑚红进度细条。
-- **用户无感自动保存**：五步画布（商业质量、核心假设、催化剂、交叉验证、三情景估值）均在编辑停顿后静默防抖自动保存并在切换步骤时自动刷新落盘；同一编辑会话 5 分钟内的同步骤修订在服务端合并为单条演进日志，严禁弹出刺眼的「未保存草稿横幅」「离开确认弹窗」或频繁成功 Toast，仅在顶栏保留静默微指示与失败重试入口。
+- **用户无感自动保存**：五步画布（商业质量、核心假设、催化剂、交叉验证、三情景估值）均在编辑停顿后静默防抖自动保存（采用键序无关规范比对 + 已落盘哈希去重 + 160ms 延迟微指示 + 15s 超时兜底）并在切换步骤时自动刷新落盘；同一编辑会话 5 分钟内的同步骤修订在服务端合并为单条演进日志，严禁弹出刺眼的「未保存草稿横幅」「离开确认弹窗」或频繁成功 Toast，顶栏同步状态锁定固定宽度槽位（零横向位移），仅在网络较慢或失败时轻声提示并提供重试入口。
 - **纸面细线写作网格与结论先行 Agent 抽屉**：多栏投研写作区（如预期差四象限、投资论点、假设编辑卡）采用 `1px` 细线分隔的纸面无框输入（`variant="editorial"`），悬停/聚焦时渐显示例与管理控件，杜绝白卡内套多层灰框输入框的廉价表单感；投委会 Agent 抽屉以「综合裁决 → 四角色细线辩论 → 修订提案 → 默认折叠的极简核验轨迹」结论先行编排，杜绝双层叠卡、刺眼亮绿进度条与毫秒级开发日志噪音。
 - **同心圆角几何系统** `[semantic-radius-only]` `[css-concentric-tokens-and-motion]`：所有嵌套圆角必须满足光学同心法则 `R_inner = max(6px, R_outer - padding)`，严禁在组件中散落裸 Tailwind 圆角（`rounded-sm/md/lg/xl/2xl/3xl`），统一消费 6 级语义圆角令牌：`rounded-card (20px)` → `rounded-panel (14px)` → `rounded-control (10px)` → `rounded-item (8px)` → `rounded-badge (6px)` → `rounded-pill`。
 - **统一阻尼曲线与入慢出快纪律** `[css-concentric-tokens-and-motion]`：交互过渡统一收敛到 `--ease-kanon (0.22, 1, 0.36, 1)`、`--ease-overlay (0.32, 0.72, 0, 1)` 与 `--ease-exit (0.4, 0, 1, 1)`；浮层退场时长严格短于入场，按压反馈采用纯色阶加深（禁止缩放抖动），所有关键帧动画必须挂载 `@media (prefers-reduced-motion: reduce)` 兜底。
-- **下拉菜单与控件精工标准** `[no-native-select]`：严禁使用浏览器原生 `<select>`；统一下拉采用 `@kanon/ui` `ActionMenu`（`rounded-panel` 面板 + `p-1.5` + `rounded-item` 选项、内置 `selected` 对齐勾选列、`.kanon-chevron` 旋转与 `data-placement` 方向原点）；表单输入采用微凹 `--shadow-input` 质感与 `resize-none`，杜绝卡内叠卡阴影与浏览器默认拖拽斜杠；分段器（`ButtonGroup`）采用内嵌托盘 + 仅选中项浮起白卡设计。
+- **下拉菜单与控件精工标准** `[no-native-select]`：严禁使用浏览器原生 `<select>`；统一下拉采用 `@kanon/ui` `ActionMenu`（`rounded-panel` 面板 + `p-1.5` + `rounded-item` 选项、内置 `selected` 对齐勾选列、`.kanon-chevron` 旋转与 `data-placement` 方向原点）；表单输入采用微凹 `--shadow-input` 质感与 `resize-none`，杜绝卡内叠卡阴影与浏览器默认拖拽斜杠；分段器（`ButtonGroup`）采用微凹托盘 + 仅选中项浮起白卡 + CSS Grid 隐形等宽占位（切换选中态、显隐状态圆点与字重加粗时严格 `0px` 横向抖动）。
 
 ## 3. 表单与密码边界纪律（Bounded Inputs & Auth Policy）
 

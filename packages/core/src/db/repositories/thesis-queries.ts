@@ -58,23 +58,22 @@ function normalizeHypotheses(rows: HypothesisRow[]): Hypothesis[] {
   return result;
 }
 
+function mkCase(
+  eps: number | undefined,
+  pe: number | undefined,
+  prob: number | undefined,
+  d: [number, number, number],
+) {
+  return { eps: eps ?? d[0], peMultiple: pe ?? d[1], probability: prob ?? d[2] };
+}
+
 export function buildValuationInput(row: ThesisRow, val: ValuationRow | undefined) {
-  const mk = (
-    eps: number | undefined,
-    pe: number | undefined,
-    prob: number | undefined,
-    d: [number, number, number],
-  ) => ({
-    eps: eps ?? d[0],
-    peMultiple: pe ?? d[1],
-    probability: prob ?? d[2],
-  });
   return sanitizeValuationInput({
     currentPrice: row.currentPrice,
     horizonYears: row.horizonYears,
-    bear: mk(val?.bearEps, val?.bearPe, val?.bearProb, [1, 15, 0.25]),
-    base: mk(val?.baseEps, val?.basePe, val?.baseProb, [2, 20, 0.5]),
-    bull: mk(val?.bullEps, val?.bullPe, val?.bullProb, [3, 25, 0.25]),
+    bear: mkCase(val?.bearEps, val?.bearPe, val?.bearProb, [1, 15, 0.25]),
+    base: mkCase(val?.baseEps, val?.basePe, val?.baseProb, [2, 20, 0.5]),
+    bull: mkCase(val?.bullEps, val?.bullPe, val?.bullProb, [3, 25, 0.25]),
   });
 }
 
@@ -201,8 +200,8 @@ export async function listTheses(
   return rows.map((row) => hydrateWithChildren(row, children));
 }
 
-function mapRowToSummary(row: ThesisRow, valMap: Map<string, ValuationRow>): ThesisSummary {
-  const val = calculateValuationScenarios(buildValuationInput(row, valMap.get(row.id)));
+function mapRowToSummary(row: ThesisRow, valRow: ValuationRow | undefined): ThesisSummary {
+  const val = calculateValuationScenarios(buildValuationInput(row, valRow));
   return {
     id: row.id,
     indexLabel: String(row.indexOrder).padStart(2, "0"),
@@ -231,7 +230,7 @@ export async function listThesisSummaries(
     .from(valuationScenariosTable)
     .where(inArray(valuationScenariosTable.thesisId, ids));
   const valMap = new Map(vals.map((v) => [v.thesisId, v]));
-  return rows.map((row) => mapRowToSummary(row, valMap));
+  return rows.map((row) => mapRowToSummary(row, valMap.get(row.id)));
 }
 
 export async function getThesisById(
@@ -239,11 +238,12 @@ export async function getThesisById(
   id: string,
   userId?: string,
 ): Promise<ThesisDetail | null> {
-  const whereClause = userId
+  const where = userId
     ? and(eq(thesesTable.id, id), eq(thesesTable.userId, userId))
     : eq(thesesTable.id, id);
-  const [row] = await db.select().from(thesesTable).where(whereClause);
-  if (!row) return null;
-  const children = await loadThesisChildren(db, [id]);
-  return hydrateWithChildren(row, children);
+  const [[row], children] = await Promise.all([
+    db.select().from(thesesTable).where(where),
+    loadThesisChildren(db, [id]),
+  ]);
+  return row ? hydrateWithChildren(row, children) : null;
 }

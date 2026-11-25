@@ -46,7 +46,7 @@ export function useThesisStepDraft<T>(options: UseThesisStepDraftOptions<T>) {
     serverVersion,
     isDirty,
     canSave: resolvedCanSave,
-    debounceMs: options.debounceMs ?? 650,
+    debounceMs: options.debounceMs ?? 350,
     onSave,
     onSyncChange,
   });
@@ -60,7 +60,10 @@ export function useThesisStepDraft<T>(options: UseThesisStepDraftOptions<T>) {
       scheduler.clearSelfSaveAck();
       return;
     }
-    if (!isDirty) setDraft(serverValue);
+    if (!isDirty) {
+      scheduler.resetSavedMarker();
+      setDraft(serverValue);
+    }
   }, [isDirty, scheduler, serverValue, serverVersion]);
 
   return { draft, setDraft, isDirty, save: scheduler.flush };

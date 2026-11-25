@@ -12,6 +12,7 @@ export function buildExtraHypothesis(thesisId: string, nextNum: number): Hypothe
     threshold: "待设定量化红线",
     status: "watching",
     note: "记录未来 2–4 个季度用于验证该前提的一阶财报指标。",
+    kpiRule: null,
   };
 }
 

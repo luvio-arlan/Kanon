@@ -150,6 +150,29 @@ function useThesisMutations(
   return { applyMutation, patchStep, ...secondary };
 }
 
+function useThesisBroadcastSync(
+  thesisId: string,
+  updatedAt: string,
+  setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>,
+  setRevisions: React.Dispatch<React.SetStateAction<ThesisRevision[]>>,
+) {
+  const updatedAtRef = useRef(updatedAt);
+  updatedAtRef.current = updatedAt;
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const ch = new BroadcastChannel(SYNC_CHANNEL_NAME);
+    ch.onmessage = (evt: MessageEvent<{ thesis?: ThesisDetail; revisions?: ThesisRevision[] }>) => {
+      if (!evt.data?.thesis || evt.data.thesis.id !== thesisId) return;
+      if (evt.data.thesis.updatedAt === updatedAtRef.current) return;
+      updatedAtRef.current = evt.data.thesis.updatedAt;
+      setThesis(evt.data.thesis);
+      if (evt.data.revisions) setRevisions(evt.data.revisions);
+    };
+    return () => ch.close();
+  }, [thesisId, setThesis, setRevisions]);
+}
+
 export function useResearchCanvas(
   initialThesis: ThesisDetail,
   initialSec: SecSnapshot | null,
@@ -173,18 +196,7 @@ export function useResearchCanvas(
     setSecSnapshot,
     withFlag,
   );
-
-  useEffect(() => {
-    if (typeof BroadcastChannel === "undefined") return;
-    const ch = new BroadcastChannel(SYNC_CHANNEL_NAME);
-    ch.onmessage = (evt: MessageEvent<{ thesis?: ThesisDetail; revisions?: ThesisRevision[] }>) => {
-      if (!evt.data?.thesis || evt.data.thesis.id !== thesis.id) return;
-      if (evt.data.thesis.updatedAt === thesis.updatedAt) return;
-      setThesis(evt.data.thesis);
-      if (evt.data.revisions) setRevisions(evt.data.revisions);
-    };
-    return () => ch.close();
-  }, [thesis.id, thesis.updatedAt]);
+  useThesisBroadcastSync(thesis.id, thesis.updatedAt, setThesis, setRevisions);
 
   return {
     thesis,

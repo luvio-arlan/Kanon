@@ -63,6 +63,7 @@ function useSeamlessNavigation(
     (step: StepId) => {
       if (step === nav.step) return;
       if (sync.flushRef.current) void sync.flushPending();
+      else sync.setSyncState("idle", null);
       setNav((prev) => ({ step, dir: step >= prev.step ? 1 : -1 }));
       syncCanvasStepUrl(currentId, step);
     },

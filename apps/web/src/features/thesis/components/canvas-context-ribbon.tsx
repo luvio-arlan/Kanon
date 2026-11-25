@@ -49,7 +49,7 @@ function RibbonPriceTelemetry({
       : "∞";
 
   return (
-    <div className="flex flex-wrap items-center gap-2 font-mono text-xs tabular-nums">
+    <div className="flex shrink-0 items-center gap-2 whitespace-nowrap font-mono text-xs tabular-nums">
       <span className="font-semibold text-ink-primary">{thesis.ticker}</span>
       {quote ? <MarketSessionBadge session={quote.sessionState} compact /> : null}
       <RollingNumber
@@ -69,97 +69,108 @@ function RibbonPriceTelemetry({
   );
 }
 
-function HorizontalStepPills({
-  completedSteps,
-  activeStep,
-  onSelectStep,
-}: {
+function StepPillButton(p: {
+  step: StepId;
+  label: string;
+  done: boolean;
+  active: boolean;
+  onSelect: (step: StepId) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={p.active}
+      onClick={() => p.onSelect(p.step)}
+      className={cn(
+        "relative inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-control px-2.5 text-xs font-medium transition-colors duration-150 ease-[var(--ease-kanon)]",
+        p.active
+          ? "text-ink-primary"
+          : "text-ink-secondary hover:bg-muted/70 hover:text-ink-primary",
+      )}
+    >
+      {p.active ? (
+        <motion.span
+          layoutId="canvas-ribbon-step-pill"
+          transition={KANON_TAB_TRANSITION}
+          className="pointer-events-none absolute inset-0 rounded-control border border-strong bg-surface shadow-pill-active"
+        />
+      ) : null}
+      <span className="relative z-10 inline-flex items-center gap-1">
+        <span className="inline-flex w-4 shrink-0 items-center justify-center">
+          {p.done ? (
+            <IconCheck size={12} stroke={1.5} className="text-status-pass" />
+          ) : (
+            <span className="font-mono text-ink-muted tabular-nums">0{p.step}</span>
+          )}
+        </span>
+        <span>{p.label}</span>
+      </span>
+    </button>
+  );
+}
+
+function HorizontalStepPills(p: {
   completedSteps: ReadonlyArray<boolean>;
   activeStep: StepId;
   onSelectStep: (step: StepId) => void;
 }) {
   return (
     <div className="hidden items-center gap-0.5 2xl:flex" role="tablist" aria-label="五步研究流程">
-      {STEP_SHORT.map((item, idx) => {
-        const done = completedSteps[idx] ?? false;
-        const active = item.step === activeStep;
-        return (
-          <button
-            key={item.step}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onSelectStep(item.step)}
-            className={cn(
-              "relative inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-control px-2.5 text-xs font-medium transition-colors duration-150 ease-[var(--ease-kanon)]",
-              active
-                ? "text-ink-primary"
-                : "text-ink-secondary hover:bg-muted/70 hover:text-ink-primary",
-            )}
-          >
-            {active ? (
-              <motion.span
-                layoutId="canvas-ribbon-step-pill"
-                transition={KANON_TAB_TRANSITION}
-                className="pointer-events-none absolute inset-0 rounded-control border border-strong bg-surface shadow-pill-active"
-              />
-            ) : null}
-            <span className="relative z-10 inline-flex items-center gap-1.5">
-              {done ? (
-                <IconCheck size={12} stroke={1.5} className="text-status-pass" />
-              ) : (
-                <span className="font-mono text-ink-muted">0{item.step}</span>
-              )}
-              <span>{item.label}</span>
-            </span>
-          </button>
-        );
-      })}
+      {STEP_SHORT.map((item, idx) => (
+        <StepPillButton
+          key={item.step}
+          step={item.step}
+          label={item.label}
+          done={p.completedSteps[idx] ?? false}
+          active={item.step === p.activeStep}
+          onSelect={p.onSelectStep}
+        />
+      ))}
     </div>
   );
 }
 
 function QuietSyncIndicator({ status, onRetry }: { status: AutoSaveStatus; onRetry: () => void }) {
   return (
-    <AnimatePresence initial={false}>
-      {status !== "idle" ? (
-        <motion.span
-          key={status}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={KANON_TRANSITION_FAST}
-          className="inline-flex items-center gap-1 pr-1 text-xs"
-        >
-          {status === "saving" ? (
-            <Spinner size="xs" decorative className="text-ink-muted" />
-          ) : status === "saved" ? (
-            <span className="inline-flex items-center gap-1 text-ink-muted">
-              <IconCheck size={12} stroke={1.5} className="text-status-pass" />
-              <span>已保存</span>
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={onRetry}
-              className="cursor-pointer font-medium text-accent-coral hover:underline"
-            >
-              重试保存
-            </button>
-          )}
-        </motion.span>
-      ) : null}
-    </AnimatePresence>
+    <span className="relative flex h-7 w-[72px] shrink-0 items-center justify-end pr-0.5">
+      <AnimatePresence initial={false}>
+        {status !== "idle" ? (
+          <motion.span
+            key={status}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={KANON_TRANSITION_FAST}
+            className="absolute inset-0 flex items-center justify-end whitespace-nowrap text-xs"
+          >
+            {status === "saving" ? (
+              <span className="inline-flex items-center gap-1.5 text-ink-muted">
+                <Spinner size="xs" decorative className="text-ink-muted" />
+                <span>保存中</span>
+              </span>
+            ) : status === "saved" ? (
+              <span className="inline-flex items-center gap-1 text-ink-muted">
+                <IconCheck size={12} stroke={1.5} className="text-status-pass" />
+                <span>已保存</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="cursor-pointer rounded-badge px-1.5 py-0.5 font-medium text-accent-coral transition-colors duration-150 hover:bg-accent-coral-soft"
+              >
+                重试保存
+              </button>
+            )}
+          </motion.span>
+        ) : null}
+      </AnimatePresence>
+    </span>
   );
 }
 
-function RibbonActions({
-  nextStep,
-  syncStatus,
-  onRetrySave,
-  onSelectStep,
-  onOpenAgent,
-}: {
+function RibbonActions(p: {
   nextStep: StepId | null;
   syncStatus: AutoSaveStatus;
   onRetrySave: () => void;
@@ -168,16 +179,16 @@ function RibbonActions({
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <QuietSyncIndicator status={syncStatus} onRetry={onRetrySave} />
-      <Button variant="titanium" size="xs" onClick={onOpenAgent}>
+      <QuietSyncIndicator status={p.syncStatus} onRetry={p.onRetrySave} />
+      <Button variant="titanium" size="xs" onClick={p.onOpenAgent}>
         <IconSparkles size={13} stroke={1.5} className="text-accent-coral" />
         <span>IC Agent</span>
       </Button>
-      {nextStep ? (
+      {p.nextStep ? (
         <Button
           variant="outline"
           size="xs"
-          onClick={() => onSelectStep(nextStep)}
+          onClick={() => p.nextStep && p.onSelectStep(p.nextStep)}
           className="group/next"
         >
           <span>下一步</span>

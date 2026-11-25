@@ -91,6 +91,7 @@ export function buildClippedCrossCheck(
     statement: excerpt,
     alignment: "aligned",
     takeaway: "来自原文精读器划词摘录，待与产业链上下游口径互证。",
+    linkedThesisId: null,
     hypothesisId: null,
   };
 }

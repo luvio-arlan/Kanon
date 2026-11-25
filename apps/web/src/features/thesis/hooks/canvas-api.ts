@@ -54,6 +54,7 @@ export async function apiPatchStep(
     method: "PATCH",
     body,
     fallbackError: "保存失败，请重试",
+    timeoutMs: 15_000,
   });
   if (!res.ok) {
     toast.error(res.error);

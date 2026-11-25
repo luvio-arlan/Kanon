@@ -24,15 +24,22 @@ const TONE_SELECTED: Record<ButtonGroupTone, string> = {
 export interface ButtonGroupProps {
   children: ReactNode;
   ariaLabel?: string;
+  equalWidth?: boolean;
   className?: string;
 }
 
-export function ButtonGroup({ children, ariaLabel, className }: ButtonGroupProps) {
+export function ButtonGroup({
+  children,
+  ariaLabel,
+  equalWidth = false,
+  className,
+}: ButtonGroupProps) {
   return (
     <fieldset
       aria-label={ariaLabel}
       className={cn(
-        "m-0 inline-flex items-center gap-0.5 rounded-control border border-hairline bg-muted/75 p-1",
+        "m-0 items-center gap-0.5 rounded-control border border-hairline bg-muted/80 p-1 shadow-input",
+        equalWidth ? "inline-grid auto-cols-fr grid-flow-col" : "inline-flex",
         className,
       )}
     >
@@ -63,25 +70,34 @@ export function ButtonGroupItem({
       type={type}
       aria-pressed={selected}
       className={cn(
-        "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-badge border font-medium leading-none select-none",
+        "inline-grid shrink-0 cursor-pointer place-items-center whitespace-nowrap rounded-badge border font-medium leading-none select-none",
         "transition-[background-color,border-color,color,box-shadow] duration-150 ease-[var(--ease-kanon)] motion-reduce:transition-none",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral/70",
         "disabled:cursor-not-allowed disabled:opacity-45",
         size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3.5 text-xs sm:text-[13px]",
         selected
           ? TONE_SELECTED[tone]
-          : "border-transparent bg-transparent text-ink-secondary hover:bg-surface/60 hover:text-ink-primary",
+          : "border-transparent bg-transparent text-ink-secondary hover:bg-surface/60 hover:text-ink-primary active:bg-surface/80",
         className,
       )}
       {...props}
     >
-      {showDot && selected ? (
-        <span
-          aria-hidden="true"
-          className={cn("h-1.5 w-1.5 shrink-0 rounded-pill", TONE_DOT[tone])}
-        />
-      ) : null}
-      <span>{children}</span>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none invisible col-start-1 row-start-1 inline-flex items-center justify-center gap-1.5 font-semibold"
+      >
+        {showDot ? <span className="h-1.5 w-1.5 shrink-0" /> : null}
+        <span>{children}</span>
+      </span>
+      <span className="col-start-1 row-start-1 inline-flex items-center justify-center gap-1.5">
+        {showDot && selected ? (
+          <span
+            aria-hidden="true"
+            className={cn("h-1.5 w-1.5 shrink-0 rounded-pill", TONE_DOT[tone])}
+          />
+        ) : null}
+        <span>{children}</span>
+      </span>
     </button>
   );
 }

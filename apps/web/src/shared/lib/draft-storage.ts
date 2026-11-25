@@ -1,5 +1,28 @@
+function canonicalizeDraft(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeDraft);
+  }
+  if (value && typeof value === "object") {
+    const rec = value as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(rec).sort()) {
+      const next = rec[key];
+      if (next !== undefined) {
+        sorted[key] = canonicalizeDraft(next);
+      }
+    }
+    return sorted;
+  }
+  return value;
+}
+
+export function stableDraftHash(value: unknown): string {
+  return JSON.stringify(canonicalizeDraft(value));
+}
+
 export function isDraftEqual(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  if (Object.is(a, b)) return true;
+  return stableDraftHash(a) === stableDraftHash(b);
 }
 
 interface StoredEnvelope {

@@ -63,7 +63,11 @@ function DimensionRow(props: {
           </div>
         </div>
       </div>
-      <ButtonGroup ariaLabel={`${props.title} 判定`} className="shrink-0 self-start lg:self-center">
+      <ButtonGroup
+        ariaLabel={`${props.title} 判定`}
+        equalWidth
+        className="shrink-0 self-start lg:self-center"
+      >
         {VERDICTS.map((opt) => (
           <ButtonGroupItem
             key={opt.id}
@@ -115,7 +119,7 @@ function StepOneMasthead({
               key={step}
               type="button"
               onClick={() => onJumpToStep(step)}
-              className="cursor-pointer rounded-pill border border-hairline bg-surface px-3 py-1 text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
+              className="cursor-pointer rounded-pill border border-hairline bg-surface px-3 py-1 text-ink-secondary transition-[border-color,color,background-color] duration-150 ease-[var(--ease-kanon)] hover:border-strong hover:text-ink-primary active:bg-muted/70"
             >
               {label}
             </button>
