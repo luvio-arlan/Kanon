@@ -6,6 +6,7 @@ import {
   calculatePriceMarkerPosition,
   type MarketQuoteSnapshot,
   type SparklinePoint,
+  type ValuationModelMode,
   type ValuationScenarioSummary,
 } from "@kanon/core";
 import { Badge, MarketSessionBadge, RollingNumber, ValuationSparkline } from "@kanon/ui";
@@ -15,6 +16,7 @@ export interface ValuationAnchorPanelProps {
   valuation: ValuationScenarioSummary;
   priceHistory: readonly SparklinePoint[];
   liveQuote?: MarketQuoteSnapshot;
+  modelMode?: ValuationModelMode;
 }
 
 const ZONE_STYLE: Record<
@@ -87,29 +89,57 @@ function ScenarioRangeRail({
   );
 }
 
+function TargetMetaRow({
+  horizonYears,
+  marginPct,
+  belowHurdle,
+  modelMode,
+}: {
+  horizonYears: number;
+  marginPct: number;
+  belowHurdle: boolean;
+  modelMode?: ValuationModelMode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
+      <span>{horizonYears} 年中性目标</span>
+      {modelMode === "ev_fcf" ? (
+        <span className="rounded-badge border border-hairline bg-titanium-subtle px-1.5 py-0.5 font-mono text-xs text-ink-secondary">
+          EV/FCF
+        </span>
+      ) : null}
+      <span aria-hidden="true">·</span>
+      <span className="font-mono tabular-nums">安全边际 {marginPct.toFixed(0)}%</span>
+      {belowHurdle ? (
+        <span className="font-mono font-medium text-status-pass">· 买点内</span>
+      ) : null}
+    </div>
+  );
+}
+
 function TargetHeadline({
   valuation,
   badgeVariant,
   marginPct,
   belowHurdle,
+  modelMode,
 }: {
   valuation: ValuationScenarioSummary;
   badgeVariant: "pass" | "titanium" | "warn";
   marginPct: number;
   belowHurdle: boolean;
+  modelMode?: ValuationModelMode;
 }) {
   const ratioText =
     valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞";
   return (
     <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
-        <span>{valuation.horizonYears} 年中性目标</span>
-        <span aria-hidden="true">·</span>
-        <span className="font-mono tabular-nums">安全边际 {marginPct.toFixed(0)}%</span>
-        {belowHurdle ? (
-          <span className="font-mono font-medium text-status-pass">· 买点内</span>
-        ) : null}
-      </div>
+      <TargetMetaRow
+        horizonYears={valuation.horizonYears}
+        marginPct={marginPct}
+        belowHurdle={belowHurdle}
+        modelMode={modelMode}
+      />
       <div className="mt-2 flex flex-wrap items-baseline gap-3">
         <RollingNumber
           value={valuation.base.targetPrice}
@@ -166,6 +196,7 @@ export function ValuationAnchorPanel({
   valuation,
   priceHistory,
   liveQuote,
+  modelMode,
 }: ValuationAnchorPanelProps) {
   const zone = ZONE_STYLE[valuation.convictionZone];
   const exp = useMemo(() => calculateImpliedExpectations({ summary: valuation }), [valuation]);
@@ -178,6 +209,7 @@ export function ValuationAnchorPanel({
           badgeVariant={zone.badgeVariant}
           marginPct={exp.marginOfSafetyPct}
           belowHurdle={exp.isBelowHurdle15}
+          modelMode={modelMode}
         />
         <div className="hidden w-36 shrink-0 sm:block">
           <ValuationSparkline

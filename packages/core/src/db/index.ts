@@ -25,6 +25,11 @@ export {
   revokeOtherUserSessions,
   updateUserProfile,
 } from "./repositories/account/profile-and-sessions";
+export {
+  type AtomicAgentApplyResult,
+  applyAgentProposalsAtomic,
+  listAgentRuns,
+} from "./repositories/agent/agent-apply-store";
 export { importThesisArchive } from "./repositories/archive-importer";
 export {
   authenticateUser,
@@ -57,6 +62,10 @@ export {
   saveAgentRun,
 } from "./repositories/review-and-agent-store";
 export { listThesisRevisions, recordThesisRevision } from "./repositories/revision-queries";
+export {
+  consumePersistentRateLimit,
+  type RateLimitCheckResult,
+} from "./repositories/security/rate-limit-store";
 export { loadThesisCanvasBootstrap } from "./repositories/thesis-canvas-bootstrap";
 export { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
 export {
@@ -75,6 +84,7 @@ export {
   insertThesisRowSchema,
   marketQuotesCacheTable,
   quarterlyReviewsTable,
+  rateLimitBucketsTable,
   secFilingsCacheTable,
   selectGlossaryRowSchema,
   selectThesisRowSchema,

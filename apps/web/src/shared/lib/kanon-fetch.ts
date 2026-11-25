@@ -10,7 +10,7 @@ export interface SafeParseSchema<T> {
 
 export type KanonFetchResult<T> =
   | { ok: true; data: T; status: number }
-  | { ok: false; error: string; status: number };
+  | { ok: false; error: string; status: number; code?: string };
 
 export function parseValidatedJson<T>(
   raw: string,
@@ -35,6 +35,20 @@ export function parseValidatedSseLine<T>(line: string, schema: SafeParseSchema<T
   return parsed.ok ? parsed.data : null;
 }
 
+function buildFetchError<T>(
+  rawJson: unknown,
+  status: number,
+  fallback: string,
+): KanonFetchResult<T> {
+  const errParsed = ApiErrorResponseSchema.safeParse(rawJson);
+  return {
+    ok: false,
+    error: errParsed.success ? errParsed.data.error : fallback,
+    status,
+    code: errParsed.success ? errParsed.data.code : undefined,
+  };
+}
+
 export async function kanonFetch<T>(
   url: string,
   schema: SafeParseSchema<T>,
@@ -57,14 +71,7 @@ export async function kanonFetch<T>(
       body: hasBody ? JSON.stringify(options?.body) : undefined,
     });
     const rawJson: unknown = await res.json().catch(() => null);
-    if (!res.ok) {
-      const errParsed = ApiErrorResponseSchema.safeParse(rawJson);
-      return {
-        ok: false,
-        error: errParsed.success ? errParsed.data.error : fallback,
-        status: res.status,
-      };
-    }
+    if (!res.ok) return buildFetchError(rawJson, res.status, fallback);
     const parsed = schema.safeParse(rawJson);
     if (!parsed.success) {
       return { ok: false, error: "服务端返回数据格式异常", status: res.status };

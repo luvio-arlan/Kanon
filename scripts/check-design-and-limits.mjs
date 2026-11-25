@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { checkApiMutationCsrfGuard } from "./api-security-guards.mjs";
 import { checkExtendedAstGuards } from "./ast-guard-rules.mjs";
 import {
   checkDocsEntryParity,
@@ -317,6 +318,7 @@ function main() {
   checkDocsEntryParity(ROOT, errors);
   checkMarketingOpticalGuards(ROOT, errors);
   checkEditorialUiHygiene(ROOT, errors);
+  checkApiMutationCsrfGuard(ROOT, errors);
   for (const filePath of files) {
     const relPath = path.relative(ROOT, filePath).split(path.sep).join("/");
     const content = fs.readFileSync(filePath, "utf8");

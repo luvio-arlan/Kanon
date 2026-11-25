@@ -156,3 +156,15 @@
   3. Present IC Agent as a conclusion-first single-layer hairline dossier (`Verdict Monolith` → `4-Role Debate` → `Proposals` → default-collapsed borderless `Audit Timeline`).
   4. Use borderless archival-paper inputs (`variant="editorial"`) inside `1px` hairline crosshair grids with hover/focus-revealed helper actions, and remove ornamental English subtitles, eyebrows, and verbose captions globally.
 - **Why / Gate**: Elevates KANON from form-heavy SaaS into a calm, frictionless Swiss Editorial institutional research canvas. Verified via `repository.test.ts` revision coalescing test, `pnpm check`, `pnpm test:api`, and live dual-theme visual QA.
+
+### [2026-11-25] Enforce Atomic Agent Batching, Full Archive v3 Parity, Mutation CSRF Guard & Serverless Rate Limits
+
+- **Mistake**:
+  1. Looping sequential client-side `patchStep` calls for multi-proposal Agent adoption read stale React closure state (`ctrl.thesis.businessFilter`), silently overwriting earlier proposals in the batch.
+  2. Persisting `valuationModelMode` / `driverInputs` only in schema/backend while leaving Step 4 UI panels on ephemeral `useState`, and omitting `catalysts` / `quarterlyReviews` / `agentRuns` from Archive JSON import/export caused silent data loss on reload or backup restore.
+  3. Applying `verifySameOrigin` selectively to only half of mutation routes and storing rate-limit buckets in volatile Serverless process memory left thesis mutations exposed to CSRF and reset rate limits across cold starts.
+- **Correct Pattern**:
+  1. Merge multi-proposal Agent writes inside one atomic DB transaction (`applyAgentProposalsAtomic`) returning hydrated thesis + revisions, and pair `expectedUpdatedAt` OCC (`409 CONFLICT`) with `BroadcastChannel` multi-tab sync.
+  2. Keep Step 4 driver inputs, Step 3 transcript drafts, and Archive v3 (`schemaVersion: "kanon-archive/v3"`) 100% lossless with round-trip Golden tests in `repository.test.ts`.
+  3. Enforce `verifySameOrigin` on every `POST/PATCH/PUT/DELETE` route mechanically via `api-mutation-csrf-guard`, and back high-risk rate limits with Postgres `rate_limit_buckets` (`0007-rate-limit-buckets.ts`).
+- **Why / Gate**: Mechanically enforced by `api-mutation-csrf-guard` in `scripts/api-security-guards.mjs`, dynamic DDL parity + Archive v3 round-trip tests in `packages/core/src/db/repository.test.ts`, and `403`/`409` assertions in `scripts/verify-api-contracts.mjs`.

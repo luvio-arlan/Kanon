@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
-import { type CaseMap, useValuationDraft } from "../lib/use-valuation-draft";
+import { useValuationDraft, type ValuationSavePayload } from "../lib/use-valuation-draft";
 import { LiveOddsBanner } from "./live-odds-banner";
 import { computeEpsRange, ScenarioCardsGrid } from "./scenario-cards-grid";
 import { SensitivityMatrixCard } from "./sensitivity-matrix-card";
@@ -22,7 +22,7 @@ export interface ValuationWorkbenchProps {
   secAnnuals?: readonly SecAnnualFinancial[];
   latestSecEps?: number | null;
   onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
-  onSave: (payload: { currentPrice: number; horizonYears: number } & CaseMap) => Promise<boolean>;
+  onSave: (payload: ValuationSavePayload) => Promise<boolean>;
 }
 
 function ValuationHeaderBar({
@@ -102,8 +102,9 @@ function ValuationLensBody(props: {
       <ValuationDriversPanel
         currentPrice={d.currentPrice}
         horizonYears={d.horizonYears}
-        basePe={d.cases.base.peMultiple}
         latestAnnual={secAnnuals[secAnnuals.length - 1] ?? null}
+        driverInputs={d.driverInputs}
+        onPatchDrivers={d.patchDrivers}
         onApplyBaseEps={(eps) => {
           d.patchCase("base", { eps });
           props.onSwitchToScenarios();
@@ -152,9 +153,11 @@ export function ValuationWorkbench({
         horizonYears={d.horizonYears}
         latestSecEps={latestSecEps}
         activePreset={d.activePreset}
+        modelMode={d.modelMode}
         onPrice={(currentPrice) => d.store.setDraft((prev) => ({ ...prev, currentPrice }))}
         onHorizon={(horizonYears) => d.store.setDraft((prev) => ({ ...prev, horizonYears }))}
         onApplyPreset={d.applyPreset}
+        onModelMode={d.setModelMode}
       />
       <ValuationLensBody
         lens={lens}

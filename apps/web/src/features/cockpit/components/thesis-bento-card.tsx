@@ -209,6 +209,7 @@ export const ThesisBentoCard = memo(function ThesisBentoCard({
           valuation={thesis.valuation}
           priceHistory={thesis.priceHistory}
           liveQuote={liveQuote}
+          modelMode={thesis.valuationModelMode}
         />
         <ThesisInsightExcerpt thesis={thesis} />
         <CardActionFooter thesis={thesis} readiness={readiness} onQuickInspect={onQuickInspect} />

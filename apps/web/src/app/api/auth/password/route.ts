@@ -2,7 +2,7 @@ import { ChangePasswordRequestSchema, ChangePasswordResponseSchema } from "@kano
 import { changeUserPassword, getKanonDb } from "@kanon/core/db";
 import { getRawSessionToken, requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
-import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
+import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
   if (originErr) return originErr;
-  const rateErr = checkRateLimit(request, PASSWORD_RATE_POLICY, startedAt);
+  const rateErr = await checkPersistentRateLimit(request, PASSWORD_RATE_POLICY, startedAt);
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;

@@ -12,7 +12,7 @@ import type {
   ThesisRevision,
   UpdateThesisStepInput,
 } from "@kanon/core";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   apiCreateQuarterlyReview,
   apiDeleteThesis,
@@ -33,6 +33,19 @@ export interface InitialCopilotState {
 
 export interface CopilotStates extends InitialCopilotState {
   busy: CopilotKind | null;
+}
+
+const SYNC_CHANNEL_NAME = "kanon-thesis-sync";
+
+function broadcastThesisSync(thesis: ThesisDetail, revisions?: ThesisRevision[]) {
+  if (typeof BroadcastChannel === "undefined") return;
+  try {
+    const ch = new BroadcastChannel(SYNC_CHANNEL_NAME);
+    ch.postMessage({ thesis, revisions });
+    ch.close();
+  } catch (err) {
+    void err;
+  }
 }
 
 function mergeCopilotResult(prev: CopilotStates, result: CopilotResult): CopilotStates {
@@ -70,36 +83,47 @@ function useThesisMutations(
   setSecSnapshot: React.Dispatch<React.SetStateAction<SecSnapshot | null>>,
   withFlag: ReturnType<typeof useBusyState>["withFlag"],
 ) {
-  const applyMutation = (res: ThesisMutationResult | null) => {
-    if (!res) return;
-    setThesis(res.thesis);
-    if (res.revisions) setRevisions(res.revisions);
-  };
+  const applyMutation = useCallback(
+    (res: ThesisMutationResult | null) => {
+      if (!res) return;
+      setThesis(res.thesis);
+      if (res.revisions) setRevisions(res.revisions);
+      broadcastThesisSync(res.thesis, res.revisions);
+    },
+    [setRevisions, setThesis],
+  );
   const patchStep = async (
     payload: UpdateThesisStepInput,
     okMessage?: string,
     options?: { silent?: boolean },
   ): Promise<boolean> => {
-    const run = () => apiPatchStep(thesis.id, payload, okMessage, options);
-    const res = options?.silent ? await run() : await withFlag("saving", run);
-    applyMutation(res);
-    return res !== null;
+    const run = () =>
+      apiPatchStep(thesis.id, payload, okMessage, {
+        ...options,
+        expectedUpdatedAt: thesis.updatedAt,
+      });
+    const out = options?.silent ? await run() : await withFlag("saving", run);
+    if (out.kind !== "ok") return false;
+    applyMutation({ thesis: out.thesis, revisions: out.revisions });
+    return true;
   };
-  const submitDiscipline = async (entry: CreateDisciplineEntryInput) =>
-    applyMutation(await withFlag("saving", () => apiPostDiscipline(thesis.id, entry)));
-  const submitQuarterlyReview = async (input: CreateQuarterlyReviewInput) => {
-    const res = await withFlag("saving", () => apiCreateQuarterlyReview(thesis.id, input));
-    if (!res) return;
-    setThesis(res.thesis);
-    setRevisions(res.revisions);
-    setReviews((prev) => [res.review, ...prev]);
+  return {
+    applyMutation,
+    patchStep,
+    submitDiscipline: async (entry: CreateDisciplineEntryInput) =>
+      applyMutation(await withFlag("saving", () => apiPostDiscipline(thesis.id, entry))),
+    submitQuarterlyReview: async (input: CreateQuarterlyReviewInput) => {
+      const res = await withFlag("saving", () => apiCreateQuarterlyReview(thesis.id, input));
+      if (!res) return;
+      applyMutation({ thesis: res.thesis, revisions: res.revisions });
+      setReviews((prev) => [res.review, ...prev]);
+    },
+    syncSec: async () => {
+      const snap = await withFlag("secSyncing", () => apiSyncSec(thesis.ticker));
+      if (snap) setSecSnapshot(snap);
+    },
+    deleteCurrentThesis: () => withFlag("deleting", () => apiDeleteThesis(thesis.id)),
   };
-  const syncSec = async () => {
-    const snap = await withFlag("secSyncing", () => apiSyncSec(thesis.ticker));
-    if (snap) setSecSnapshot(snap);
-  };
-  const deleteCurrentThesis = () => withFlag("deleting", () => apiDeleteThesis(thesis.id));
-  return { patchStep, submitDiscipline, submitQuarterlyReview, syncSec, deleteCurrentThesis };
 }
 
 export function useResearchCanvas(
@@ -123,5 +147,18 @@ export function useResearchCanvas(
     setSecSnapshot,
     withFlag,
   );
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const ch = new BroadcastChannel(SYNC_CHANNEL_NAME);
+    ch.onmessage = (evt: MessageEvent<{ thesis?: ThesisDetail; revisions?: ThesisRevision[] }>) => {
+      if (!evt.data?.thesis || evt.data.thesis.id !== thesis.id) return;
+      if (evt.data.thesis.updatedAt === thesis.updatedAt) return;
+      setThesis(evt.data.thesis);
+      if (evt.data.revisions) setRevisions(evt.data.revisions);
+    };
+    return () => ch.close();
+  }, [thesis.id, thesis.updatedAt]);
+
   return { thesis, revisions, reviews, secSnapshot, ...busy, copilot, runCopilot, ...actions };
 }

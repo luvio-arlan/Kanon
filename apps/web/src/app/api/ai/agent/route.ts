@@ -4,20 +4,21 @@ import {
   fetchMarketQuote,
   streamResearchAgent,
 } from "@kanon/ai";
-import type { MarketQuoteSnapshot } from "@kanon/core";
+import { AgentRunsListResponseSchema, type MarketQuoteSnapshot } from "@kanon/core";
 import {
   getKanonDb,
   getSecSnapshot,
   getThesisById,
+  listAgentRuns,
   listQuarterlyReviews,
   listThesisRevisions,
   saveAgentRun,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { parseByokHeaders } from "../../_lib/byok-headers";
-import { formatZodError, jsonError, readJsonBody } from "../../_lib/http";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
-import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
+import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -64,11 +65,29 @@ function createAgentSseStream(params: {
   });
 }
 
+export async function GET(request: Request) {
+  const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+
+  const thesisId = new URL(request.url).searchParams.get("thesisId")?.trim();
+  if (!thesisId) {
+    return jsonError("请提供研究标的 ID。", 400, startedAt, "INVALID");
+  }
+  const db = await getKanonDb();
+  const thesis = await getThesisById(db, thesisId, auth.user.id);
+  if (!thesis) {
+    return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
+  }
+  const runs = await listAgentRuns(db, thesisId, 5);
+  return jsonOk(AgentRunsListResponseSchema.parse({ runs }), startedAt);
+}
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
   if (originErr) return originErr;
-  const rateErr = checkRateLimit(request, AGENT_RATE_POLICY, startedAt);
+  const rateErr = await checkPersistentRateLimit(request, AGENT_RATE_POLICY, startedAt);
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;

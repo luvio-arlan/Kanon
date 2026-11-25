@@ -201,6 +201,48 @@ async function verifyCoreCrudAndDiscipline(cookieA, cookieB) {
   assert.equal(patchedPort.status, 200);
   assert.equal(patchedPort.data.thesis.currentWeightPct, 5);
 
+  const occConflict = await fetchJson(
+    `/api/theses/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        step: "price_anchor",
+        currentPrice: 181,
+        expectedUpdatedAt: "2020-01-01T00:00:00.000Z",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(occConflict.status, 409);
+
+  const patchedDrivers = await fetchJson(
+    `/api/theses/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        step: "valuation",
+        valuationInput: patchedPort.data.thesis.valuationInput,
+        modelMode: "ev_fcf",
+        driverInputs: { baseOwnerFcfB: 26, ownerFcfMultipleBase: 22, cashB: 9, totalDebtB: 60 },
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(patchedDrivers.status, 200);
+  assert.equal(patchedDrivers.data.thesis.valuationModelMode, "ev_fcf");
+  assert.equal(patchedDrivers.data.thesis.valuationDriverInputs?.baseOwnerFcfB, 26);
+
+  const thesisCsrfBlocked = await fetchJson(
+    `/api/theses/${id}`,
+    {
+      method: "PATCH",
+      headers: { Origin: "https://evil.example" },
+      body: JSON.stringify({ step: "price_anchor", currentPrice: 182 }),
+    },
+    cookieA,
+  );
+  assert.equal(thesisCsrfBlocked.status, 403);
+
   const blocked = await fetchJson(
     `/api/theses/${id}/discipline`,
     {
@@ -286,14 +328,21 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
   assert.ok(readyLine?.runId && readyLine.briefing.traces.length >= 6);
   assert.ok(typeof readyLine.briefing.bearRebuttal === "string");
 
-  const firstPropId = readyLine.briefing.proposals[0]?.id ?? "prop-test";
+  const propIds = readyLine.briefing.proposals.slice(0, 2).map((p) => p.id);
   const applied = await fetchJson(
     "/api/ai/agent/apply",
-    { method: "POST", body: JSON.stringify({ runId: readyLine.runId, proposalId: firstPropId }) },
+    { method: "POST", body: JSON.stringify({ runId: readyLine.runId, proposalIds: propIds }) },
     cookieA,
   );
   assert.equal(applied.status, 200);
-  assert.ok(applied.data.appliedProposalIds.includes(firstPropId));
+  for (const pid of propIds) {
+    assert.ok(applied.data.appliedProposalIds.includes(pid));
+  }
+  assert.ok(applied.data.thesis?.id === nvdaId);
+
+  const runsHistory = await fetchJson(`/api/ai/agent?thesisId=${nvdaId}`, {}, cookieA);
+  assert.equal(runsHistory.status, 200);
+  assert.ok(runsHistory.data.runs.length >= 1);
 
   const csv = await fetch(`${BASE}/api/export/portfolio`, { headers: { Cookie: cookieA } });
   assert.equal(csv.status, 200);

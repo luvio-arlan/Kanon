@@ -3,7 +3,7 @@ import { getKanonDb } from "@kanon/core/db";
 import { NextResponse } from "next/server";
 import { requireMcpAuthContext } from "../_lib/auth-session";
 import { apiHeaders, jsonOk, readJsonBody } from "../_lib/http";
-import { checkRateLimit } from "../_lib/request-guards";
+import { checkPersistentRateLimit } from "../_lib/request-guards";
 import {
   executeMcpToolCall,
   listMcpResources,
@@ -120,7 +120,7 @@ async function dispatchRpcMethod(params: {
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
-  const rateErr = checkRateLimit(request, MCP_RATE_POLICY, startedAt);
+  const rateErr = await checkPersistentRateLimit(request, MCP_RATE_POLICY, startedAt);
   if (rateErr) return rateErr;
   const auth = await requireMcpAuthContext(request, startedAt);
   if (!auth.ok) return auth.response;

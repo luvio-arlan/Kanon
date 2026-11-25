@@ -42,12 +42,15 @@ describe("KANON Export Formatters", () => {
     expect(csv).toContain("MU,美光科技");
     expect(csv).toContain("NVDA,英伟达");
     expect(csv).toContain("安全边际(%)");
+    expect(csv).toContain("仓位角色");
 
     const archive = JSON.parse(formatThesisArchiveJson(mu)) as {
       schemaVersion: string;
       expectations: { hurdleEntry15: number };
+      quarterlyReviews: unknown[];
     };
-    expect(archive.schemaVersion).toBe("kanon-archive/v2");
+    expect(archive.schemaVersion).toBe("kanon-archive/v3");
+    expect(Array.isArray(archive.quarterlyReviews)).toBe(true);
     expect(archive.expectations.hurdleEntry15).toBeGreaterThan(100);
   });
 });

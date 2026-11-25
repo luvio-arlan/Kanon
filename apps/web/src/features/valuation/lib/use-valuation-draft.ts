@@ -6,6 +6,8 @@ import {
   matchProbabilityPreset,
   type ProbabilityPreset,
   type ThesisDetail,
+  type ValuationDriverInputs,
+  type ValuationModelMode,
 } from "@kanon/core";
 import { useCallback, useMemo } from "react";
 import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
@@ -17,8 +19,17 @@ export type CaseMap = Record<CaseKey, CasePair>;
 export interface ValuationDraftState {
   currentPrice: number;
   horizonYears: number;
+  modelMode: ValuationModelMode;
+  driverInputs: ValuationDriverInputs;
   cases: CaseMap;
 }
+
+export type ValuationSavePayload = {
+  currentPrice: number;
+  horizonYears: number;
+  modelMode: ValuationModelMode;
+  driverInputs: ValuationDriverInputs | null;
+} & CaseMap;
 
 function initialCasesFromThesis(thesis: ThesisDetail): CaseMap {
   const { bear, base, bull } = thesis.valuationInput;
@@ -69,19 +80,47 @@ function applyPresetToCases(cases: CaseMap, p: ProbabilityPreset): CaseMap {
   };
 }
 
+function useValuationPatchers(setDraft: React.Dispatch<React.SetStateAction<ValuationDraftState>>) {
+  const patchCase = useCallback(
+    (key: CaseKey, next: Partial<CasePair>) =>
+      setDraft((prev) => ({
+        ...prev,
+        cases: { ...prev.cases, [key]: { ...prev.cases[key], ...next } },
+      })),
+    [setDraft],
+  );
+  const patchDrivers = useCallback(
+    (next: Partial<ValuationDriverInputs>) =>
+      setDraft((prev) => ({ ...prev, driverInputs: { ...prev.driverInputs, ...next } })),
+    [setDraft],
+  );
+  const setModelMode = useCallback(
+    (modelMode: ValuationModelMode) => setDraft((prev) => ({ ...prev, modelMode })),
+    [setDraft],
+  );
+  const applyPreset = useCallback(
+    (p: ProbabilityPreset) =>
+      setDraft((prev) => ({ ...prev, cases: applyPresetToCases(prev.cases, p) })),
+    [setDraft],
+  );
+  return { patchCase, patchDrivers, setModelMode, applyPreset };
+}
+
 export function useValuationDraft(params: {
   thesis: ThesisDetail;
   onSyncChange?: (
     status: import("@/shared/hooks/use-thesis-step-draft").AutoSaveStatus,
     flush: (() => Promise<void>) | null,
   ) => void;
-  onSave: (payload: { currentPrice: number; horizonYears: number } & CaseMap) => Promise<boolean>;
+  onSave: (payload: ValuationSavePayload) => Promise<boolean>;
 }) {
   const { thesis, onSyncChange, onSave } = params;
   const serverValue = useMemo<ValuationDraftState>(
     () => ({
       currentPrice: thesis.currentPrice,
       horizonYears: thesis.horizonYears,
+      modelMode: thesis.valuationModelMode ?? "pe",
+      driverInputs: thesis.valuationDriverInputs ?? {},
       cases: initialCasesFromThesis(thesis),
     }),
     [thesis],
@@ -101,21 +140,11 @@ export function useValuationDraft(params: {
       onSave({
         currentPrice: val.currentPrice > 0 ? val.currentPrice : 1,
         horizonYears: val.horizonYears,
+        modelMode: val.modelMode,
+        driverInputs: Object.keys(val.driverInputs).length > 0 ? val.driverInputs : null,
         ...val.cases,
       }),
   });
-  const patchCase = useCallback(
-    (key: CaseKey, next: Partial<CasePair>) =>
-      store.setDraft((prev) => ({
-        ...prev,
-        cases: { ...prev.cases, [key]: { ...prev.cases[key], ...next } },
-      })),
-    [store],
-  );
-  const applyPreset = useCallback(
-    (p: ProbabilityPreset) =>
-      store.setDraft((prev) => ({ ...prev, cases: applyPresetToCases(prev.cases, p) })),
-    [store],
-  );
-  return { store, ...store.draft, ...deriveMetrics(store.draft), patchCase, applyPreset };
+  const patchers = useValuationPatchers(store.setDraft);
+  return { store, ...store.draft, ...deriveMetrics(store.draft), ...patchers };
 }

@@ -1,4 +1,4 @@
-import { jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import type { UserRole } from "../contracts/auth-contracts";
 import type { MarketDataSource, MarketQuoteSnapshot } from "../contracts/market-contracts";
 
@@ -46,4 +46,10 @@ export const marketQuotesCacheTable = pgTable("market_quotes_cache", {
   payload: jsonb("payload").$type<MarketQuoteSnapshot>().notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const rateLimitBucketsTable = pgTable("rate_limit_buckets", {
+  bucketKey: text("bucket_key").primaryKey(),
+  count: integer("count").notNull().default(1),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
 });

@@ -5,11 +5,19 @@ import type {
   AgentPartialSynthesis,
   AgentProposal,
   AgentTraceStep,
+  SavedAgentRun,
 } from "@kanon/core";
 import { Badge, Button, cn, KANON_ROW_ITEM, KANON_ROW_STAGGER, KanonMark, Sheet } from "@kanon/ui";
-import { IconCheck, IconChecks, IconPlayerPlay, IconSparkles } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconChecks,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconSparkles,
+} from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { AgentHistoryBar } from "./agent/agent-history-bar";
 import { AgentBriefingCard, AgentStreamingCard } from "./agent-briefing-card";
 import { AgentTraceLogSection } from "./agent-trace-log";
 
@@ -18,13 +26,17 @@ export interface AgentResearchSheetProps {
   ticker: string;
   companyName: string;
   running: boolean;
+  activeRunId: string | null;
+  runsHistory: readonly SavedAgentRun[];
   traces: readonly AgentTraceStep[];
   partial?: AgentPartialSynthesis | null;
   briefing: AgentBriefing | null;
   appliedIds: readonly string[];
   onOpenChange: (open: boolean) => void;
   onRun: () => Promise<void>;
-  onApplyProposal: (proposal: AgentProposal) => Promise<void>;
+  onStop: () => void;
+  onSelectRun: (runId: string) => void;
+  onApplyProposals: (proposalIds: readonly string[]) => Promise<void>;
 }
 
 const TARGET_LABELS: Record<AgentProposal["target"], string> = {
@@ -109,18 +121,18 @@ function AgentEmptyState({ onRun }: { onRun: () => Promise<void> }) {
 function ProposalsSection({
   proposals,
   appliedIds,
-  onApply,
+  onApplyProposals,
 }: {
   proposals: readonly AgentProposal[];
   appliedIds: readonly string[];
-  onApply: (proposal: AgentProposal) => Promise<void>;
+  onApplyProposals: (proposalIds: readonly string[]) => Promise<void>;
 }) {
   const [batching, setBatching] = useState(false);
   const pending = proposals.filter((p) => !appliedIds.includes(p.id));
   const applyAll = async () => {
     setBatching(true);
     try {
-      for (const prop of pending) await onApply(prop);
+      await onApplyProposals(pending.map((p) => p.id));
     } finally {
       setBatching(false);
     }
@@ -147,7 +159,7 @@ function ProposalsSection({
             key={prop.id}
             proposal={prop}
             applied={appliedIds.includes(prop.id)}
-            onApply={() => onApply(prop)}
+            onApply={() => onApplyProposals([prop.id])}
           />
         ))}
       </div>
@@ -169,12 +181,17 @@ function SheetBody(props: AgentResearchSheetProps) {
   }
   return (
     <div className="space-y-4">
+      <AgentHistoryBar
+        runs={props.runsHistory}
+        activeRunId={props.activeRunId}
+        onSelect={props.onSelectRun}
+      />
       {props.briefing ? <AgentBriefingCard briefing={props.briefing} /> : null}
       {props.briefing && props.briefing.proposals.length > 0 ? (
         <ProposalsSection
           proposals={props.briefing.proposals}
           appliedIds={props.appliedIds}
-          onApply={props.onApplyProposal}
+          onApplyProposals={props.onApplyProposals}
         />
       ) : null}
       {props.traces.length > 0 ? (
@@ -193,15 +210,15 @@ export function AgentResearchSheet(props: AgentResearchSheetProps) {
       title={`投委会审计 · ${props.companyName}`}
       footer={
         <div className="flex items-center justify-between gap-2">
-          {hasRun ? (
-            <Button
-              variant="titanium"
-              size="sm"
-              loading={props.running}
-              onClick={() => void props.onRun()}
-            >
-              {!props.running ? <IconSparkles size={14} stroke={1.5} /> : null}
-              <span>{props.running ? "审计中" : "重新审计"}</span>
+          {props.running ? (
+            <Button variant="outline" size="sm" onClick={props.onStop}>
+              <IconPlayerStop size={14} stroke={1.5} />
+              <span>停止审计</span>
+            </Button>
+          ) : hasRun ? (
+            <Button variant="titanium" size="sm" onClick={() => void props.onRun()}>
+              <IconSparkles size={14} stroke={1.5} />
+              <span>重新审计</span>
             </Button>
           ) : (
             <span aria-hidden="true" />

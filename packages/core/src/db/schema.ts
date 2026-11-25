@@ -38,6 +38,7 @@ export {
   type ApiTokenScope,
   apiTokensTable,
   marketQuotesCacheTable,
+  rateLimitBucketsTable,
   sessionsTable,
   usersTable,
 } from "./schema-extensions";

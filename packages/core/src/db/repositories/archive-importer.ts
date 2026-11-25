@@ -8,17 +8,21 @@ import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
 import type { ThesisDetail } from "../../schemas/research";
 import { type KanonDb, runInTransaction } from "../client";
 import {
+  agentRunsTable,
+  copilotOutputsTable,
   crossChecksTable,
   disciplineEntriesTable,
   hypothesesTable,
+  quarterlyReviewsTable,
   thesesTable,
+  thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
 import { upsertSecSnapshot } from "./discipline-mutations";
 import { recordThesisRevision } from "./revision-queries";
 import { getThesisById } from "./thesis-queries";
 
-async function replaceChildRows(tx: KanonDb, targetId: string, source: ThesisDetail) {
+async function replacePrimaryChildren(tx: KanonDb, targetId: string, source: ThesisDetail) {
   await tx.delete(hypothesesTable).where(eq(hypothesesTable.thesisId, targetId));
   await tx.insert(hypothesesTable).values(
     source.hypotheses.map((h, idx) => ({
@@ -28,6 +32,16 @@ async function replaceChildRows(tx: KanonDb, targetId: string, source: ThesisDet
       sortOrder: idx,
     })),
   );
+  await tx.delete(thesisCatalystsTable).where(eq(thesisCatalystsTable.thesisId, targetId));
+  if (source.catalysts.length > 0) {
+    await tx.insert(thesisCatalystsTable).values(
+      source.catalysts.map((c, idx) => ({
+        ...c,
+        id: `${targetId}-cat-${idx + 1}-${crypto.randomUUID().slice(0, 4)}`,
+        thesisId: targetId,
+      })),
+    );
+  }
   await tx.delete(crossChecksTable).where(eq(crossChecksTable.thesisId, targetId));
   if (source.crossChecks.length > 0) {
     await tx.insert(crossChecksTable).values(
@@ -47,6 +61,51 @@ async function replaceChildRows(tx: KanonDb, targetId: string, source: ThesisDet
         id: `${targetId}-disc-${idx + 1}-${crypto.randomUUID().slice(0, 4)}`,
         thesisId: targetId,
         createdAt: new Date(d.createdAt),
+      })),
+    );
+  }
+}
+
+async function restoreArchiveExtras(
+  tx: KanonDb,
+  targetId: string,
+  archive: ThesisArchiveImportRequest["archive"],
+) {
+  if (archive.quarterlyReviews && archive.quarterlyReviews.length > 0) {
+    await tx.delete(quarterlyReviewsTable).where(eq(quarterlyReviewsTable.thesisId, targetId));
+    await tx.insert(quarterlyReviewsTable).values(
+      archive.quarterlyReviews.map((rev, idx) => ({
+        ...rev,
+        id: `${targetId}-qrev-${idx + 1}-${crypto.randomUUID().slice(0, 4)}`,
+        thesisId: targetId,
+        createdAt: new Date(rev.createdAt),
+      })),
+    );
+  }
+  if (archive.copilotOutputs && archive.copilotOutputs.length > 0) {
+    await tx.delete(copilotOutputsTable).where(eq(copilotOutputsTable.thesisId, targetId));
+    await tx.insert(copilotOutputsTable).values(
+      archive.copilotOutputs.map((out) => ({
+        id: `${targetId}:${out.action}`,
+        thesisId: targetId,
+        action: out.action,
+        engine: out.engine,
+        payload: out.payload,
+        updatedAt: new Date(out.updatedAt),
+      })),
+    );
+  }
+  if (archive.agentRuns && archive.agentRuns.length > 0) {
+    await tx.delete(agentRunsTable).where(eq(agentRunsTable.thesisId, targetId));
+    await tx.insert(agentRunsTable).values(
+      archive.agentRuns.map((run, idx) => ({
+        id: `${targetId}-run-${idx + 1}-${crypto.randomUUID().slice(0, 4)}`,
+        thesisId: targetId,
+        engine: run.engine,
+        fallbackReason: run.fallbackReason,
+        briefingJson: run.briefing,
+        appliedProposalIds: run.appliedProposalIds,
+        createdAt: new Date(run.createdAt),
       })),
     );
   }
@@ -128,8 +187,9 @@ export async function importThesisArchive(
   const result = await runInTransaction(db, async (tx) => {
     const now = new Date();
     const { targetId, appliedMode } = await resolveTargetRow(tx, userId, source, parsed.mode, now);
-    await replaceChildRows(tx, targetId, source);
+    await replacePrimaryChildren(tx, targetId, source);
     await upsertValuationFromSource(tx, targetId, source);
+    await restoreArchiveExtras(tx, targetId, parsed.archive);
     const hydrated = await getThesisById(tx, targetId, userId);
     if (!hydrated) throw new Error("Imported thesis hydration failed");
     await recordThesisRevision(

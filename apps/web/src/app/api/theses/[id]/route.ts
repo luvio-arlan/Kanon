@@ -7,8 +7,10 @@ import {
   listThesisRevisions,
   updateThesisStep,
 } from "@kanon/core/db";
+import { NextResponse } from "next/server";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
-import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
+import { apiHeaders, formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
+import { verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +36,39 @@ export async function GET(_request: Request, context: RouteContext) {
   return jsonOk({ thesis, secSnapshot, revisions }, startedAt);
 }
 
+function extractExpectedUpdatedAt(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const val = (raw as { expectedUpdatedAt?: unknown }).expectedUpdatedAt;
+  return typeof val === "string" && val.length > 0 ? val : null;
+}
+
+async function verifyExpectedUpdatedAt(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  id: string,
+  userId: string,
+  rawBody: unknown,
+  startedAt: number,
+): Promise<NextResponse | null> {
+  const expected = extractExpectedUpdatedAt(rawBody);
+  if (!expected) return null;
+  const existing = await getThesisById(db, id, userId);
+  if (!existing) return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
+  const diffMs = Math.abs(new Date(existing.updatedAt).getTime() - new Date(expected).getTime());
+  if (!Number.isFinite(diffMs) || diffMs <= 1000) return null;
+  return NextResponse.json(
+    {
+      error: "该档案已在其他标签页更新，请同步最新版本。",
+      code: "CONFLICT",
+      serverUpdatedAt: existing.updatedAt,
+    },
+    { status: 409, headers: apiHeaders(startedAt) },
+  );
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 
@@ -49,6 +82,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const db = await getKanonDb();
+  const conflictErr = await verifyExpectedUpdatedAt(db, id, auth.user.id, body.data, startedAt);
+  if (conflictErr) return conflictErr;
+
   const updated = await updateThesisStep(db, id, parsed.data, auth.user.id);
   if (!updated) {
     return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
@@ -57,8 +93,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   return jsonOk({ thesis: updated, revisions }, startedAt);
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 

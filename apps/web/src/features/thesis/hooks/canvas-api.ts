@@ -1,5 +1,6 @@
 import {
   AgentApplyResponseSchema,
+  AgentRunsListResponseSchema,
   CopilotApiResponseSchema,
   type CreateDisciplineEntryInput,
   type CreateQuarterlyReviewInput,
@@ -9,6 +10,7 @@ import {
   type QuarterlyReview,
   QuarterlyReviewCreateResponseSchema,
   type RedTeamReport,
+  type SavedAgentRun,
   type SecSnapshot,
   SecSyncResponseSchema,
   type ThesisDetail,
@@ -32,25 +34,33 @@ export interface ThesisMutationResult {
   revisions?: ThesisRevision[];
 }
 
+export type StepPatchOutcome =
+  | { kind: "ok"; thesis: ThesisDetail; revisions?: ThesisRevision[] }
+  | { kind: "conflict" }
+  | { kind: "error" };
+
 export async function apiPatchStep(
   thesisId: string,
   payload: UpdateThesisStepInput,
   okMessage?: string,
-  options?: { silent?: boolean },
-): Promise<ThesisMutationResult | null> {
+  options?: { silent?: boolean; expectedUpdatedAt?: string },
+): Promise<StepPatchOutcome> {
+  const body = options?.expectedUpdatedAt
+    ? { ...payload, expectedUpdatedAt: options.expectedUpdatedAt }
+    : payload;
   const res = await kanonFetch(`/api/theses/${thesisId}`, ThesisMutationResponseSchema, {
     method: "PATCH",
-    body: payload,
+    body,
     fallbackError: "保存失败，请重试",
   });
   if (!res.ok) {
     toast.error(res.error);
-    return null;
+    return res.status === 409 ? { kind: "conflict" } : { kind: "error" };
   }
   if (!options?.silent && okMessage) {
     toast.success(okMessage);
   }
-  return { thesis: res.data.thesis, revisions: res.data.revisions };
+  return { kind: "ok", thesis: res.data.thesis, revisions: res.data.revisions };
 }
 
 export async function apiPostDiscipline(
@@ -143,13 +153,31 @@ export async function apiCreateQuarterlyReview(
   return res.data;
 }
 
-export async function apiMarkAgentApplied(
+export async function apiApplyAgentProposals(
   runId: string,
-  proposalId: string,
-): Promise<string[] | null> {
+  proposalIds: readonly string[],
+): Promise<{
+  appliedProposalIds: string[];
+  thesis?: ThesisDetail;
+  revisions?: ThesisRevision[];
+  promotedExitRules?: string[];
+} | null> {
   const res = await kanonFetch("/api/ai/agent/apply", AgentApplyResponseSchema, {
     method: "POST",
-    body: { runId, proposalId },
+    body: { runId, proposalIds: [...proposalIds] },
+    fallbackError: "采纳修订提案失败",
   });
-  return res.ok ? res.data.appliedProposalIds : null;
+  if (!res.ok) {
+    toast.error(res.error);
+    return null;
+  }
+  return res.data;
+}
+
+export async function apiListAgentRuns(thesisId: string): Promise<SavedAgentRun[]> {
+  const res = await kanonFetch(
+    `/api/ai/agent?thesisId=${encodeURIComponent(thesisId)}`,
+    AgentRunsListResponseSchema,
+  );
+  return res.ok ? res.data.runs : [];
 }

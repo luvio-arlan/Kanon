@@ -1,8 +1,11 @@
 "use client";
 
-import { calculateEvOwnerFcfValuation, type EvOwnerFcfResult } from "@kanon/core";
+import {
+  calculateEvOwnerFcfValuation,
+  type EvOwnerFcfResult,
+  type ValuationDriverInputs,
+} from "@kanon/core";
 import { Badge, Card, Input } from "@kanon/ui";
-import { useState } from "react";
 
 export function DriverNumInput(props: {
   label: string;
@@ -55,36 +58,42 @@ function EvSummaryGrid({ ev }: { ev: EvOwnerFcfResult }) {
   );
 }
 
-interface EvDraft {
+interface EvValues {
   baseFcfB: number;
   baseMult: number;
   cashB: number;
   debtB: number;
 }
 
-function EvInputsGrid({ f, patch }: { f: EvDraft; patch: (p: Partial<EvDraft>) => void }) {
+function EvInputsGrid({
+  f,
+  onPatch,
+}: {
+  f: EvValues;
+  onPatch: (p: Partial<ValuationDriverInputs>) => void;
+}) {
   return (
     <div className="grid grid-cols-2 gap-3">
       <DriverNumInput
         label="中性远期 Owner FCF ($B)"
         value={f.baseFcfB}
-        onChange={(baseFcfB) => patch({ baseFcfB })}
+        onChange={(baseOwnerFcfB) => onPatch({ baseOwnerFcfB })}
       />
       <DriverNumInput
         label="合理 EV/FCF 倍数 (×)"
         value={f.baseMult}
         step={1}
-        onChange={(baseMult) => patch({ baseMult })}
+        onChange={(ownerFcfMultipleBase) => onPatch({ ownerFcfMultipleBase })}
       />
       <DriverNumInput
         label="账面现金 ($B)"
         value={f.cashB}
-        onChange={(cashB) => patch({ cashB })}
+        onChange={(cashB) => onPatch({ cashB })}
       />
       <DriverNumInput
         label="总有息负债 ($B)"
         value={f.debtB}
-        onChange={(debtB) => patch({ debtB })}
+        onChange={(totalDebtB) => onPatch({ totalDebtB })}
       />
     </div>
   );
@@ -97,13 +106,15 @@ export function EvOwnerFcfCard(props: {
   initialFcfB: number;
   initialCashB: number;
   initialDebtB: number;
+  driverInputs: ValuationDriverInputs;
+  onPatchDrivers: (next: Partial<ValuationDriverInputs>) => void;
 }) {
-  const [f, setF] = useState<EvDraft>({
-    baseFcfB: props.initialFcfB,
-    baseMult: 20,
-    cashB: props.initialCashB,
-    debtB: props.initialDebtB,
-  });
+  const f: EvValues = {
+    baseFcfB: props.driverInputs.baseOwnerFcfB ?? props.initialFcfB,
+    baseMult: props.driverInputs.ownerFcfMultipleBase ?? 20,
+    cashB: props.driverInputs.cashB ?? props.initialCashB,
+    debtB: props.driverInputs.totalDebtB ?? props.initialDebtB,
+  };
   const ev = calculateEvOwnerFcfValuation({
     currentPrice: props.currentPrice,
     dilutedSharesM: props.sharesM,
@@ -125,7 +136,7 @@ export function EvOwnerFcfCard(props: {
           EV ${ev.currentEvB}B
         </Badge>
       </div>
-      <EvInputsGrid f={f} patch={(p) => setF((prev) => ({ ...prev, ...p }))} />
+      <EvInputsGrid f={f} onPatch={props.onPatchDrivers} />
       <EvSummaryGrid ev={ev} />
     </Card>
   );

@@ -3,19 +3,16 @@
 import {
   type AgentBriefing,
   type AgentPartialSynthesis,
-  type AgentProposal,
   type AgentStreamEvent,
   AgentStreamEventSchema,
   type AgentTraceStep,
-  type CrossCheck,
   type SavedAgentRun,
-  type ThesisCatalyst,
 } from "@kanon/core";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { buildByokHeaders, buildMarketHeaders } from "@/features/ai-settings";
 import { parseValidatedSseLine } from "@/shared/lib/kanon-fetch";
-import { apiMarkAgentApplied } from "./canvas-api";
+import { apiApplyAgentProposals, apiListAgentRuns } from "./canvas-api";
 import type { useResearchCanvas } from "./use-research-canvas";
 
 function upsertTrace(list: AgentTraceStep[], next: AgentTraceStep): AgentTraceStep[] {
@@ -84,6 +81,93 @@ function dispatchAgentEvent(evt: AgentStreamEvent, setters: EventSetters) {
   if (evt.type === "error") toast.error(evt.message);
 }
 
+async function fetchAgentSse(thesisId: string, signal: AbortSignal, setters: EventSetters) {
+  const res = await fetch("/api/ai/agent", {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json", ...buildByokHeaders(), ...buildMarketHeaders() },
+    body: JSON.stringify({ thesisId }),
+  });
+  if (!res.ok || !res.body) {
+    toast.error("投研 Agent 启动失败，请重试");
+    return false;
+  }
+  await readEventStream(res.body.getReader(), (evt) => dispatchAgentEvent(evt, setters));
+  return true;
+}
+
+function useAgentRunner(params: {
+  thesisId: string;
+  setters: EventSetters;
+  setRunning: React.Dispatch<React.SetStateAction<boolean>>;
+  setAppliedIds: React.Dispatch<React.SetStateAction<string[]>>;
+  loadHistory: () => Promise<void>;
+}) {
+  const { thesisId, setters, setRunning, setAppliedIds, loadHistory } = params;
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const stopAgent = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setRunning(false);
+  }, [setRunning]);
+
+  const runAgent = useCallback(async () => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setRunning(true);
+    setters.setTraces([]);
+    setters.setPartial(null);
+    setters.setBriefing(null);
+    setAppliedIds([]);
+    try {
+      const ok = await fetchAgentSse(thesisId, ctrl.signal, setters);
+      if (ok) void loadHistory();
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
+        toast.error("投研 Agent 连接中断，请重试");
+      }
+    } finally {
+      if (abortRef.current === ctrl) abortRef.current = null;
+      setRunning(false);
+    }
+  }, [loadHistory, setAppliedIds, setRunning, setters, thesisId]);
+
+  return { runAgent, stopAgent };
+}
+
+function useAgentProposalApplier(
+  runId: string | null,
+  setAppliedIds: React.Dispatch<React.SetStateAction<string[]>>,
+  setRunsHistory: React.Dispatch<React.SetStateAction<SavedAgentRun[]>>,
+) {
+  return useCallback(
+    async (params: {
+      proposalIds: readonly string[];
+      ctrl: ReturnType<typeof useResearchCanvas>;
+      onPromoteExitRule: (rule: string) => void;
+    }) => {
+      if (!runId || params.proposalIds.length === 0) return;
+      const res = await apiApplyAgentProposals(runId, params.proposalIds);
+      if (!res) return;
+      setAppliedIds(res.appliedProposalIds);
+      setRunsHistory((prev) =>
+        prev.map((r) =>
+          r.id === runId ? { ...r, appliedProposalIds: res.appliedProposalIds } : r,
+        ),
+      );
+      if (res.thesis) {
+        params.ctrl.applyMutation({ thesis: res.thesis, revisions: res.revisions });
+        toast.success(`已人机共审采纳 ${params.proposalIds.length} 项修订提案`);
+      }
+      if (res.promotedExitRules?.[0]) params.onPromoteExitRule(res.promotedExitRules[0]);
+    },
+    [runId, setAppliedIds, setRunsHistory],
+  );
+}
+
 export function useResearchAgent(thesisId: string, initialRun: SavedAgentRun | null) {
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(initialRun?.id ?? null);
@@ -91,140 +175,45 @@ export function useResearchAgent(thesisId: string, initialRun: SavedAgentRun | n
   const [partial, setPartial] = useState<AgentPartialSynthesis | null>(null);
   const [briefing, setBriefing] = useState<AgentBriefing | null>(initialRun?.briefing ?? null);
   const [appliedIds, setAppliedIds] = useState<string[]>(initialRun?.appliedProposalIds ?? []);
+  const [runsHistory, setRunsHistory] = useState<SavedAgentRun[]>(initialRun ? [initialRun] : []);
 
-  const runAgent = useCallback(async () => {
-    setRunning(true);
-    setTraces([]);
-    setPartial(null);
-    setBriefing(null);
-    setAppliedIds([]);
-    try {
-      const res = await fetch("/api/ai/agent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...buildByokHeaders(),
-          ...buildMarketHeaders(),
-        },
-        body: JSON.stringify({ thesisId }),
-      });
-      if (!res.ok || !res.body) {
-        toast.error("投研 Agent 启动失败，请重试");
-        return;
-      }
-      await readEventStream(res.body.getReader(), (evt) =>
-        dispatchAgentEvent(evt, { setTraces, setPartial, setBriefing, setRunId }),
-      );
-    } finally {
-      setRunning(false);
-    }
+  const loadHistory = useCallback(async () => {
+    const runs = await apiListAgentRuns(thesisId);
+    if (runs.length > 0) setRunsHistory(runs);
   }, [thesisId]);
 
-  const markApplied = useCallback(
-    async (proposalId: string) => {
-      setAppliedIds((prev) => (prev.includes(proposalId) ? prev : [...prev, proposalId]));
-      if (runId) {
-        await apiMarkAgentApplied(runId, proposalId);
-      }
+  const selectRun = useCallback(
+    (targetRunId: string) => {
+      const match = runsHistory.find((r) => r.id === targetRunId);
+      if (!match) return;
+      setRunId(match.id);
+      setTraces(match.briefing.traces);
+      setBriefing(match.briefing);
+      setAppliedIds(match.appliedProposalIds);
+      setPartial(null);
     },
-    [runId],
+    [runsHistory],
   );
 
-  return { running, traces, partial, briefing, appliedIds, runAgent, markApplied };
-}
-
-function buildCatalystFromProposal(proposal: AgentProposal): ThesisCatalyst {
+  const { runAgent, stopAgent } = useAgentRunner({
+    thesisId,
+    setters: { setTraces, setPartial, setBriefing, setRunId },
+    setRunning,
+    setAppliedIds,
+    loadHistory,
+  });
   return {
-    id: `cat-agent-${Date.now().toString(36).slice(-5)}`,
-    title: proposal.title.slice(0, 120),
-    dateLabel: proposal.meta?.catalystDateLabel ?? "下一季财报",
-    category: proposal.meta?.catalystCategory ?? "earnings",
-    impact: "high",
-    direction: "bullish",
-    status: "upcoming",
-    verificationMetric: proposal.meta?.catalystMetric ?? "核心业绩与毛利率指引",
-    note: proposal.content.slice(0, 380),
+    running,
+    runId,
+    traces,
+    partial,
+    briefing,
+    appliedIds,
+    runsHistory,
+    runAgent,
+    stopAgent,
+    loadHistory,
+    selectRun,
+    applyProposals: useAgentProposalApplier(runId, setAppliedIds, setRunsHistory),
   };
-}
-
-function buildCrossCheckFromProposal(proposal: AgentProposal): CrossCheck {
-  return {
-    id: `cc-agent-${Date.now().toString(36).slice(-5)}`,
-    peerCompany: proposal.meta?.peerCompany ?? "产业链上下游伙伴",
-    peerRole: proposal.meta?.peerRole ?? "upstream",
-    topic: proposal.meta?.topic ?? proposal.title,
-    sourceAnchor: proposal.citation,
-    statement: proposal.content,
-    alignment: "pending",
-    takeaway: proposal.rationale,
-  };
-}
-
-async function applyBusinessFilterProposal(
-  proposal: AgentProposal,
-  ctrl: ReturnType<typeof useResearchCanvas>,
-) {
-  const fieldKey =
-    proposal.target === "variant_perception"
-      ? "variantPerception"
-      : proposal.target === "key_debate"
-        ? "keyDebate"
-        : "preMortem";
-  await ctrl.patchStep(
-    {
-      step: "business_filter",
-      status: ctrl.thesis.status,
-      convictionSummary: ctrl.thesis.convictionSummary,
-      businessFilter: { ...ctrl.thesis.businessFilter, [fieldKey]: proposal.content },
-    },
-    `已人机共审采纳并写入：${proposal.title}`,
-  );
-}
-
-async function dispatchAgentProposal(
-  proposal: AgentProposal,
-  ctrl: ReturnType<typeof useResearchCanvas>,
-  onPromoteExitRule: (rule: string) => void,
-) {
-  if (proposal.target === "exit_rule") {
-    onPromoteExitRule(proposal.content);
-    return;
-  }
-  if (proposal.target === "hypothesis_update") {
-    const idx = proposal.meta?.hypothesisIndex ?? 0;
-    const nextHyps = ctrl.thesis.hypotheses.map((h, i) =>
-      i === idx
-        ? { ...h, status: proposal.meta?.hypothesisStatus ?? h.status, note: proposal.content }
-        : h,
-    );
-    await ctrl.patchStep(
-      { step: "hypotheses", hypotheses: nextHyps },
-      `已采纳并更新假设：${proposal.title}`,
-    );
-    return;
-  }
-  if (proposal.target === "catalyst_draft") {
-    const nextCatalysts = [...ctrl.thesis.catalysts, buildCatalystFromProposal(proposal)];
-    await ctrl.patchStep({ step: "catalysts", catalysts: nextCatalysts }, "已增补催化剂日程节点");
-    return;
-  }
-  if (proposal.target === "cross_check_draft") {
-    const nextChecks = [...ctrl.thesis.crossChecks, buildCrossCheckFromProposal(proposal)];
-    await ctrl.patchStep(
-      { step: "cross_checks", crossChecks: nextChecks },
-      "已增补产业链交叉验证条目",
-    );
-    return;
-  }
-  await applyBusinessFilterProposal(proposal, ctrl);
-}
-
-export async function applyAgentProposal(params: {
-  proposal: AgentProposal;
-  ctrl: ReturnType<typeof useResearchCanvas>;
-  onPromoteExitRule: (rule: string) => void;
-  onApplied: (id: string) => Promise<void>;
-}) {
-  await dispatchAgentProposal(params.proposal, params.ctrl, params.onPromoteExitRule);
-  await params.onApplied(params.proposal.id);
 }

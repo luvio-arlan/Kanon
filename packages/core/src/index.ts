@@ -38,6 +38,7 @@ export {
 export {
   AgentApplyRequestSchema,
   AgentApplyResponseSchema,
+  AgentRunsListResponseSchema,
   type ApiErrorResponse,
   ApiErrorResponseSchema,
   type CopilotApiResponse,

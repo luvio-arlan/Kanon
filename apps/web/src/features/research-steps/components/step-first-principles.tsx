@@ -11,9 +11,10 @@ import type {
 } from "@kanon/core";
 import { AgentThinking, Button, Card, Textarea } from "@kanon/ui";
 import { IconScissors, IconSparkles } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { type AutoSaveStatus, useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
+import { clearStoredDraft, readStoredDraft, writeStoredDraft } from "@/shared/lib/draft-storage";
 import { buildClippedCrossCheck } from "../lib/cross-check-helpers";
 import { AddCrossCheckForm, CrossCheckItemCard, nextAlignment } from "./cross-check-editor";
 import { SecAnnualsTable } from "./sec-annuals-table";
@@ -172,9 +173,25 @@ function StepThreeEvidenceBody({
   );
 }
 
+function isNonEmptyString(val: unknown): val is string {
+  return typeof val === "string";
+}
+
+function useTranscriptDraft(thesisId: string) {
+  const transcriptKey = `kanon-transcript:${thesisId}`;
+  const [transcript, setTranscript] = useState(
+    () => readStoredDraft(transcriptKey, "v1", isNonEmptyString) ?? "",
+  );
+  useEffect(() => {
+    if (transcript.trim()) writeStoredDraft(transcriptKey, "v1", transcript);
+    else clearStoredDraft(transcriptKey);
+  }, [transcript, transcriptKey]);
+  return [transcript, setTranscript] as const;
+}
+
 export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
   const d = useStepThreeDraft(props);
-  const [transcript, setTranscript] = useState("");
+  const [transcript, setTranscript] = useTranscriptDraft(props.thesis.id);
   const [clipperOpen, setClipperOpen] = useState(false);
   const linkable = (props.allTheses ?? []).filter((t) => t.id !== props.thesis.id);
   const cycleCheck = (id: string) =>

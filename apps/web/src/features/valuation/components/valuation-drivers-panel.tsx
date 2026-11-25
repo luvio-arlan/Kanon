@@ -1,16 +1,21 @@
 "use client";
 
-import { calculateTopDownEps, type SecAnnualFinancial, type TopDownEpsResult } from "@kanon/core";
+import {
+  calculateTopDownEps,
+  type SecAnnualFinancial,
+  type TopDownEpsResult,
+  type ValuationDriverInputs,
+} from "@kanon/core";
 import { Button, Card, RollingNumber } from "@kanon/ui";
 import { IconArrowDownRight, IconCalculator } from "@tabler/icons-react";
-import { useState } from "react";
 import { DriverNumInput, EvOwnerFcfCard } from "./ev-owner-fcf-card";
 
 interface DriversPanelProps {
   currentPrice: number;
   horizonYears: number;
-  basePe: number;
   latestAnnual: SecAnnualFinancial | null;
+  driverInputs: ValuationDriverInputs;
+  onPatchDrivers: (next: Partial<ValuationDriverInputs>) => void;
   onApplyBaseEps: (eps: number) => void;
 }
 
@@ -63,7 +68,7 @@ function TopDownFooter({
   );
 }
 
-interface TopDownDraft {
+interface TopDownValues {
   revB: number;
   revCagr: number;
   netMargin: number;
@@ -73,35 +78,39 @@ interface TopDownDraft {
 
 function TopDownInputsGrid({
   d,
-  patch,
+  onPatch,
 }: {
-  d: TopDownDraft;
-  patch: (p: Partial<TopDownDraft>) => void;
+  d: TopDownValues;
+  onPatch: (p: Partial<ValuationDriverInputs>) => void;
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      <DriverNumInput label="基准年营收 ($B)" value={d.revB} onChange={(revB) => patch({ revB })} />
+      <DriverNumInput
+        label="基准年营收 ($B)"
+        value={d.revB}
+        onChange={(currentRevenueB) => onPatch({ currentRevenueB })}
+      />
       <DriverNumInput
         label="年化营收增速 (%)"
         value={d.revCagr}
         step={1}
-        onChange={(revCagr) => patch({ revCagr })}
+        onChange={(revenueCagrPct) => onPatch({ revenueCagrPct })}
       />
       <DriverNumInput
         label="目标净利率 (%)"
         value={d.netMargin}
-        onChange={(netMargin) => patch({ netMargin })}
+        onChange={(targetNetMarginPct) => onPatch({ targetNetMarginPct })}
       />
       <DriverNumInput
         label="稀释股本 (百万股)"
         value={d.sharesM}
         step={10}
-        onChange={(sharesM) => patch({ sharesM })}
+        onChange={(dilutedSharesM) => onPatch({ dilutedSharesM })}
       />
       <DriverNumInput
         label="年化股本变动 (%)"
         value={d.shareChange}
-        onChange={(shareChange) => patch({ shareChange })}
+        onChange={(annualShareChangePct) => onPatch({ annualShareChangePct })}
       />
     </div>
   );
@@ -109,26 +118,21 @@ function TopDownInputsGrid({
 
 function TopDownEpsCard({
   horizonYears,
-  defaults,
+  values,
+  onPatch,
   onApplyBaseEps,
 }: {
   horizonYears: number;
-  defaults: ReturnType<typeof deriveDefaults>;
+  values: TopDownValues;
+  onPatch: (next: Partial<ValuationDriverInputs>) => void;
   onApplyBaseEps: (eps: number) => void;
 }) {
-  const [d, setD] = useState<TopDownDraft>({
-    revB: defaults.revB,
-    revCagr: 18,
-    netMargin: defaults.marginPct,
-    sharesM: defaults.sharesM,
-    shareChange: -1,
-  });
   const res = calculateTopDownEps({
-    currentRevenueB: d.revB,
-    revenueCagrPct: d.revCagr,
-    targetNetMarginPct: d.netMargin,
-    currentSharesM: d.sharesM,
-    annualShareChangePct: d.shareChange,
+    currentRevenueB: values.revB,
+    revenueCagrPct: values.revCagr,
+    targetNetMarginPct: values.netMargin,
+    currentSharesM: values.sharesM,
+    annualShareChangePct: values.shareChange,
     horizonYears,
   });
   return (
@@ -139,7 +143,7 @@ function TopDownEpsCard({
           自上而下 EPS 拆解（{horizonYears} 年）
         </h3>
       </div>
-      <TopDownInputsGrid d={d} patch={(p) => setD((prev) => ({ ...prev, ...p }))} />
+      <TopDownInputsGrid d={values} onPatch={onPatch} />
       <TopDownFooter res={res} onApply={onApplyBaseEps} />
     </Card>
   );
@@ -147,20 +151,31 @@ function TopDownEpsCard({
 
 export function ValuationDriversPanel(props: DriversPanelProps) {
   const defaults = deriveDefaults(props.latestAnnual, props.currentPrice);
+  const dr = props.driverInputs;
+  const topDownValues: TopDownValues = {
+    revB: dr.currentRevenueB ?? defaults.revB,
+    revCagr: dr.revenueCagrPct ?? 18,
+    netMargin: dr.targetNetMarginPct ?? defaults.marginPct,
+    sharesM: dr.dilutedSharesM ?? defaults.sharesM,
+    shareChange: dr.annualShareChangePct ?? -1,
+  };
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <TopDownEpsCard
         horizonYears={props.horizonYears}
-        defaults={defaults}
+        values={topDownValues}
+        onPatch={props.onPatchDrivers}
         onApplyBaseEps={props.onApplyBaseEps}
       />
       <EvOwnerFcfCard
         currentPrice={props.currentPrice}
         horizonYears={props.horizonYears}
-        sharesM={defaults.sharesM}
+        sharesM={topDownValues.sharesM}
         initialFcfB={defaults.baseFcfB}
         initialCashB={defaults.cashB}
         initialDebtB={defaults.debtB}
+        driverInputs={dr}
+        onPatchDrivers={props.onPatchDrivers}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { KANON_ACCOUNTS_MIGRATION_SQL } from "./0003-accounts-auth";
 import { KANON_PERF_INDEXES_SQL } from "./0004-perf-indexes";
 import { KANON_CATALYSTS_MIGRATION_SQL } from "./0005-catalysts";
 import { KANON_SECURITY_MCP_CACHE_SQL } from "./0006-security-mcp-cache";
+import { KANON_RATE_LIMIT_BUCKETS_SQL } from "./0007-rate-limit-buckets";
 
 export interface KanonMigration {
   id: string;
@@ -52,6 +53,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only Personal Access Tokens (MCP) & serverless Postgres market quote cache",
     sql: KANON_SECURITY_MCP_CACHE_SQL,
+  },
+  {
+    id: "0007_rate_limit_buckets",
+    description:
+      "Expand-only persistent sliding/fixed-window rate limit buckets for serverless API",
+    sql: KANON_RATE_LIMIT_BUCKETS_SQL,
   },
 ];
 

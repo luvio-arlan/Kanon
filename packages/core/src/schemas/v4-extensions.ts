@@ -16,6 +16,9 @@ export const ValuationDriverInputsSchema = z.object({
   hurdleRatePct: z.number().finite().min(5).max(30).optional(),
   terminalMultiple: z.number().finite().min(5).max(50).optional(),
   ownerFcfMultipleBase: z.number().finite().min(5).max(60).optional(),
+  baseOwnerFcfB: z.number().finite().positive().optional(),
+  cashB: z.number().finite().nonnegative().optional(),
+  totalDebtB: z.number().finite().nonnegative().optional(),
 });
 export type ValuationDriverInputs = z.infer<typeof ValuationDriverInputsSchema>;
 

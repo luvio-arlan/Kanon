@@ -1,3 +1,4 @@
+import { consumePersistentRateLimit, getKanonDb } from "@kanon/core/db";
 import type { NextResponse } from "next/server";
 import { jsonError } from "./http";
 
@@ -73,23 +74,63 @@ export function checkRateLimit(
   return null;
 }
 
+export async function checkPersistentRateLimit(
+  request: Request,
+  policy: RateLimitPolicy,
+  startedAt: number,
+  extraKey?: string,
+): Promise<NextResponse | null> {
+  const ip = extractClientIp(request);
+  const bucketKey = extraKey ? `${policy.bucket}:${ip}:${extraKey}` : `${policy.bucket}:${ip}`;
+  try {
+    const db = await getKanonDb();
+    const res = await consumePersistentRateLimit(db, {
+      bucketKey,
+      maxRequests: policy.maxRequests,
+      windowMs: policy.windowMs,
+    });
+    if (res.allowed) return null;
+    const response = jsonError(
+      `请求过于频繁，请 ${res.retryAfterSec} 秒后再试。`,
+      429,
+      startedAt,
+      "RATE_LIMITED",
+    );
+    response.headers.set("Retry-After", String(res.retryAfterSec));
+    return response;
+  } catch (err) {
+    void err;
+    return checkRateLimit(request, policy, startedAt, extraKey);
+  }
+}
+
 export function verifySameOrigin(request: Request, startedAt: number): NextResponse | null {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
   if (request.headers.get("authorization")?.startsWith("Bearer ")) return null;
 
-  const origin = request.headers.get("origin")?.trim();
-  if (!origin) return null;
+  const secFetchSite = request.headers.get("sec-fetch-site")?.trim().toLowerCase();
+  if (secFetchSite === "cross-site") {
+    return jsonError(
+      "跨站请求来源校验未通过，请刷新页面后重试。",
+      403,
+      startedAt,
+      "ORIGIN_MISMATCH",
+    );
+  }
 
   const host = (
     request.headers.get("x-forwarded-host") ||
     request.headers.get("host") ||
     ""
   ).trim();
-  if (!host) return null;
+  const origin = request.headers.get("origin")?.trim();
+  const referer = request.headers.get("referer")?.trim();
+  const candidate = origin || referer;
+  if (!candidate || !host) return null;
 
   try {
-    const parsedOrigin = new URL(origin);
+    const parsedOrigin = new URL(candidate);
     if (parsedOrigin.host.toLowerCase() === host.toLowerCase()) {
       return null;
     }

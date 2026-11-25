@@ -159,8 +159,12 @@ function LateSteps({
         secAnnuals={ctrl.secSnapshot?.annuals}
         latestSecEps={findLatestSecEps(ctrl.secSnapshot?.annuals)}
         onSyncChange={onSyncChange}
-        onSave={(valuationInput) =>
-          ctrl.patchStep({ step: "valuation", valuationInput }, undefined, { silent: true })
+        onSave={({ modelMode, driverInputs, ...valuationInput }) =>
+          ctrl.patchStep(
+            { step: "valuation", valuationInput, modelMode, driverInputs },
+            undefined,
+            { silent: true },
+          )
         }
       />
     );

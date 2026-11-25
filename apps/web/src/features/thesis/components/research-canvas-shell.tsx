@@ -1,7 +1,6 @@
 "use client";
 
 import type {
-  AgentProposal,
   GlossaryTerm,
   InboundCrossCheck,
   QuarterlyReview,
@@ -14,23 +13,16 @@ import type {
 import { Button, cn, KANON_STEP_VARIANTS, WorkbenchShell } from "@kanon/ui";
 import { IconFocus2 } from "@tabler/icons-react";
 import { motion } from "framer-motion";
-import dynamic from "next/dynamic";
 import { useState } from "react";
-import { readByokConfig } from "@/features/ai-settings";
-import { useHasOpened } from "@/shared/hooks/use-has-opened";
 import { useCanvasChromeState } from "../hooks/use-canvas-chrome";
-import { applyAgentProposal, useResearchAgent } from "../hooks/use-research-agent";
+import { useResearchAgent } from "../hooks/use-research-agent";
 import { type InitialCopilotState, useResearchCanvas } from "../hooks/use-research-canvas";
 import { useThesisLiveQuote } from "../hooks/use-thesis-live-quote";
+import { CanvasOverlaysBridge } from "./agent/canvas-overlays-bridge";
 import { buildMobileChrome, ResearchSidebar, type StepId } from "./canvas-chrome";
 import { CanvasContextRibbon } from "./canvas-context-ribbon";
-import { CanvasOverlays, StepFooterNav, useCanvasShellActions } from "./canvas-footer-controls";
+import { StepFooterNav, useCanvasShellActions } from "./canvas-footer-controls";
 import { CanvasStepRenderer } from "./canvas-step-renderer";
-
-const AgentResearchSheet = dynamic(
-  () => import("./agent-research-sheet").then((m) => m.AgentResearchSheet),
-  { ssr: false },
-);
 
 export interface ResearchCanvasShellProps {
   initialThesis: ThesisDetail;
@@ -43,54 +35,6 @@ export interface ResearchCanvasShellProps {
   initialReviews: readonly QuarterlyReview[];
   initialAgentRun: SavedAgentRun | null;
   inboundCrossChecks: readonly InboundCrossCheck[];
-}
-
-function CanvasOverlaysBridge({
-  ctrl,
-  ui,
-  actions,
-  agent,
-  onApplyProposal,
-}: {
-  ctrl: ReturnType<typeof useResearchCanvas>;
-  ui: ReturnType<typeof useCanvasChromeState>;
-  actions: ReturnType<typeof useCanvasShellActions>;
-  agent: ReturnType<typeof useResearchAgent>;
-  onApplyProposal: (proposal: AgentProposal) => Promise<void>;
-}) {
-  const agentMounted = useHasOpened(ui.modals.agent);
-  return (
-    <>
-      <CanvasOverlays
-        thesis={ctrl.thesis}
-        deleting={ctrl.deleting}
-        commandOpen={ui.modals.cmd}
-        aiModalOpen={ui.modals.ai}
-        deleteOpen={ui.modals.del}
-        commandGroups={actions.commandGroups}
-        onCommandOpen={(o) => ui.setModal("cmd", o)}
-        onAiModalOpen={(o) => ui.setModal("ai", o)}
-        onDeleteOpen={(o) => ui.setModal("del", o)}
-        onByokChanged={() => ui.setHasByok(Boolean(readByokConfig()))}
-        onConfirmDelete={actions.handleConfirmDelete}
-      />
-      {agentMounted ? (
-        <AgentResearchSheet
-          open={ui.modals.agent}
-          ticker={ctrl.thesis.ticker}
-          companyName={ctrl.thesis.companyName}
-          running={agent.running}
-          traces={agent.traces}
-          partial={agent.partial}
-          briefing={agent.briefing}
-          appliedIds={agent.appliedIds}
-          onOpenChange={(o) => ui.setModal("agent", o)}
-          onRun={agent.runAgent}
-          onApplyProposal={onApplyProposal}
-        />
-      ) : null}
-    </>
-  );
 }
 
 function useCanvasBindings(props: ResearchCanvasShellProps) {
@@ -194,12 +138,11 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
   const b = useCanvasBindings(props);
   const { ui, ctrl, agent, actions, promoteRule } = b;
   const openAgent = () => ui.setModal("agent", true);
-  const apply = (proposal: AgentProposal) =>
-    applyAgentProposal({
-      proposal,
+  const applyProposals = (proposalIds: readonly string[]) =>
+    agent.applyProposals({
+      proposalIds,
       ctrl,
       onPromoteExitRule: promoteRule,
-      onApplied: agent.markApplied,
     });
   const mobile = buildMobileChrome(ctrl.thesis, openAgent);
   return (
@@ -231,7 +174,7 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
         ui={ui}
         actions={actions}
         agent={agent}
-        onApplyProposal={apply}
+        onApplyProposals={applyProposals}
       />
     </>
   );

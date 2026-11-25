@@ -2,6 +2,7 @@ import { CreateDisciplineEntrySchema } from "@kanon/core";
 import { addDisciplineEntry, getKanonDb, listThesisRevisions } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
+import { verifySameOrigin } from "../../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,8 @@ interface RouteContext {
 
 export async function POST(request: Request, context: RouteContext) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 

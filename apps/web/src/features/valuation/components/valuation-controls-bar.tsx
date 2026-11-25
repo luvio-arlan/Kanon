@@ -1,9 +1,13 @@
 "use client";
 
-import { PROBABILITY_PRESETS, type ProbabilityPreset } from "@kanon/core";
+import { PROBABILITY_PRESETS, type ProbabilityPreset, type ValuationModelMode } from "@kanon/core";
 import { cn, Input } from "@kanon/ui";
 
 const HORIZONS = [2, 3, 5] as const;
+const MODEL_MODES: ReadonlyArray<{ id: ValuationModelMode; label: string }> = [
+  { id: "pe", label: "PE 主锚" },
+  { id: "ev_fcf", label: "EV/FCF 主锚" },
+];
 
 function HorizonPills({ value, onChange }: { value: number; onChange: (y: number) => void }) {
   return (
@@ -30,17 +34,49 @@ function HorizonPills({ value, onChange }: { value: number; onChange: (y: number
   );
 }
 
+function ModelModePills({
+  modelMode,
+  onModelMode,
+}: {
+  modelMode: ValuationModelMode;
+  onModelMode: (mode: ValuationModelMode) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-pill border border-hairline bg-muted/70 p-0.5">
+      {MODEL_MODES.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => onModelMode(m.id)}
+          className={cn(
+            "cursor-pointer rounded-pill px-2.5 py-1 text-xs font-medium transition-colors",
+            modelMode === m.id
+              ? "bg-surface text-ink-primary shadow-card"
+              : "text-ink-muted hover:text-ink-primary",
+          )}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ProbabilityPresetRow({
   activePreset,
+  modelMode,
   onApplyPreset,
+  onModelMode,
 }: {
   activePreset: string | null;
+  modelMode: ValuationModelMode;
   onApplyPreset: (preset: ProbabilityPreset) => void;
+  onModelMode: (mode: ValuationModelMode) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
-      <span className="text-xs text-ink-muted">概率权重</span>
       <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs text-ink-muted">概率权重</span>
         {PROBABILITY_PRESETS.map((preset) => (
           <button
             key={preset.id}
@@ -57,6 +93,7 @@ function ProbabilityPresetRow({
           </button>
         ))}
       </div>
+      <ModelModePills modelMode={modelMode} onModelMode={onModelMode} />
     </div>
   );
 }
@@ -66,9 +103,11 @@ export function ValuationControlsBar(props: {
   horizonYears: number;
   latestSecEps?: number | null;
   activePreset: string | null;
+  modelMode: ValuationModelMode;
   onPrice: (next: number) => void;
   onHorizon: (next: number) => void;
   onApplyPreset: (preset: ProbabilityPreset) => void;
+  onModelMode: (mode: ValuationModelMode) => void;
 }) {
   return (
     <div className="space-y-3 rounded-card border border-hairline bg-surface px-5 py-4">
@@ -94,7 +133,12 @@ export function ValuationControlsBar(props: {
         </div>
         <HorizonPills value={props.horizonYears} onChange={props.onHorizon} />
       </div>
-      <ProbabilityPresetRow activePreset={props.activePreset} onApplyPreset={props.onApplyPreset} />
+      <ProbabilityPresetRow
+        activePreset={props.activePreset}
+        modelMode={props.modelMode}
+        onApplyPreset={props.onApplyPreset}
+        onModelMode={props.onModelMode}
+      />
     </div>
   );
 }

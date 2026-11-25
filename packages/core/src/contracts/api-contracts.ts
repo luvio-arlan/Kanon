@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   QuarterlyReviewSchema,
+  SavedCopilotOutputSchema,
   SecSnapshotSchema,
   ThesisDetailSchema,
   ThesisRevisionSchema,
@@ -74,14 +75,26 @@ export const SavedAgentRunSchema = z.object({
 });
 export type SavedAgentRun = z.infer<typeof SavedAgentRunSchema>;
 
-export const AgentApplyRequestSchema = z.object({
-  runId: z.string().min(1),
-  proposalId: z.string().min(1),
-});
+export const AgentApplyRequestSchema = z
+  .object({
+    runId: z.string().min(1),
+    proposalId: z.string().min(1).optional(),
+    proposalIds: z.array(z.string().min(1)).max(8).optional(),
+  })
+  .refine((v) => Boolean(v.proposalId || (v.proposalIds && v.proposalIds.length > 0)), {
+    message: "至少需要提供一个待采纳的提案编号。",
+  });
 
 export const AgentApplyResponseSchema = z.object({
   ok: z.literal(true),
   appliedProposalIds: z.array(z.string()),
+  thesis: ThesisDetailSchema.optional(),
+  revisions: z.array(ThesisRevisionSchema).optional(),
+  promotedExitRules: z.array(z.string()).optional(),
+});
+
+export const AgentRunsListResponseSchema = z.object({
+  runs: z.array(SavedAgentRunSchema),
 });
 
 export const QuarterlyReviewCreateResponseSchema = z.object({
@@ -95,6 +108,9 @@ export const ThesisArchiveImportRequestSchema = z.object({
     schemaVersion: z.string().optional(),
     thesis: ThesisDetailSchema,
     secSnapshot: SecSnapshotSchema.nullable().optional(),
+    quarterlyReviews: z.array(QuarterlyReviewSchema).optional(),
+    copilotOutputs: z.array(SavedCopilotOutputSchema).optional(),
+    agentRuns: z.array(SavedAgentRunSchema).optional(),
   }),
   mode: z.enum(["create_copy", "overwrite"]).default("create_copy"),
 });

@@ -1,11 +1,9 @@
 import { calculateImpliedExpectations } from "../math/implied-expectations";
 import { analyzeSecQuality } from "../math/sec-analytics";
-import type { SecSnapshot, ThesisDetail, ThesisRevision } from "../schemas/research";
+import type { ThesisDetail } from "../schemas/research";
+import type { ThesisExportExtras } from "./formatters-sections";
 
-export interface ThesisExportExtras {
-  secSnapshot?: SecSnapshot | null;
-  revisions?: readonly ThesisRevision[];
-}
+export type { ThesisExportExtras };
 
 function escapeHtml(text: string): string {
   return text

@@ -1,6 +1,7 @@
 import { fetchSecEdgarSnapshot } from "@kanon/ai";
 import { getKanonDb, getSecSnapshot, upsertSecSnapshot } from "@kanon/core/db";
 import { jsonOk } from "../../_lib/http";
+import { verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,10 @@ export async function GET(_request: Request, context: RouteContext) {
   return jsonOk({ snapshot }, startedAt);
 }
 
-export async function POST(_request: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
   const { ticker } = await context.params;
   const db = await getKanonDb();
   const fetched = await fetchSecEdgarSnapshot(ticker);

@@ -17,6 +17,11 @@ import {
   revokeOtherUserSessions,
   updateUserProfile,
 } from "./repositories/account/profile-and-sessions";
+import {
+  type AtomicAgentApplyResult,
+  applyAgentProposalsAtomic,
+  listAgentRuns,
+} from "./repositories/agent/agent-apply-store";
 import { importThesisArchive } from "./repositories/archive-importer";
 import {
   authenticateUser,
@@ -46,6 +51,7 @@ import {
   saveAgentRun,
 } from "./repositories/review-and-agent-store";
 import { listThesisRevisions } from "./repositories/revision-queries";
+import { consumePersistentRateLimit } from "./repositories/security/rate-limit-store";
 import { createThesis, updateThesisStep } from "./repositories/thesis-mutations";
 import { getThesisById, listTheses, listThesisSummaries } from "./repositories/thesis-queries";
 import * as schema from "./schema";
@@ -417,5 +423,140 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     ]);
     const cached = await getCachedMarketQuotes(db, [cacheKey]);
     expect(cached.get("NVDA")?.regularPrice).toBe(145.5);
+  });
+
+  it("applies multi-proposal Agent batches atomically, preserves Archive v3 catalysts/reviews, and enforces persistent rate limits", async () => {
+    const target = await createThesis(db, {
+      ticker: "AVGO",
+      companyName: "博通",
+      sectorTag: "定制芯片",
+      currentPrice: 175,
+    });
+    const withDriver = await updateThesisStep(db, target.id, {
+      step: "valuation",
+      valuationInput: target.valuationInput,
+      modelMode: "ev_fcf",
+      driverInputs: {
+        currentRevenueB: 52,
+        revenueCagrPct: 20,
+        baseOwnerFcfB: 28,
+        ownerFcfMultipleBase: 24,
+        cashB: 10,
+        totalDebtB: 65,
+      },
+    });
+    expect(withDriver?.valuationModelMode).toBe("ev_fcf");
+    expect(withDriver?.valuationDriverInputs?.baseOwnerFcfB).toBe(28);
+
+    const withCat = await updateThesisStep(db, target.id, {
+      step: "catalysts",
+      catalysts: [
+        {
+          id: "cat-avgo-1",
+          title: "AI XPU 出货指引上修",
+          dateLabel: "FY26 Q2",
+          category: "earnings",
+          impact: "high",
+          direction: "bullish",
+          status: "upcoming",
+          verificationMetric: "AI 营收同比增速",
+          note: "跟踪四大云厂客户量产节奏",
+        },
+      ],
+    });
+    expect(withCat?.catalysts).toHaveLength(1);
+
+    const savedRun = await saveAgentRun(db, {
+      thesisId: target.id,
+      engine: "grounded-local",
+      briefing: {
+        ticker: "AVGO",
+        engine: "grounded-local",
+        verdict: "具备长期护城河与赔率空间，建议围绕定制芯片增速跟踪",
+        convictionScore: 81,
+        bullSynthesis: "定制 ASIC 与网络交换芯片双轮驱动现金流持续扩张。",
+        bearCritique: "大客户自研替代或资本开支节奏波动将压制估值倍数。",
+        bearRebuttal: "若连续两季 AI XPU 订单放缓且毛利率跌破 72% 需审慎下调中枢。",
+        accountingCheck: "Owner FCF 转化稳健，净杠杆可控。",
+        traces: [],
+        proposals: [
+          {
+            id: "p-var",
+            target: "variant_perception",
+            title: "补全核心预期差",
+            content: "市场低估定制 ASIC 全栈软件生态与互联带宽粘性。",
+            rationale: "高切换成本支撑长期毛利中枢",
+            citation: "AVGO 10-K",
+          },
+          {
+            id: "p-pre",
+            target: "pre_mortem",
+            title: "补全逆向推演",
+            content: "若头部云厂转向通用 GPU 方案，AI 收入增长将显著低于一致预期。",
+            rationale: "客户集中度风险",
+            citation: "AVGO Risk Factors",
+          },
+        ],
+      },
+    });
+
+    const runs = await listAgentRuns(db, target.id, 5);
+    expect(runs[0]?.id).toBe(savedRun.id);
+
+    const atomicRes: AtomicAgentApplyResult | null = await applyAgentProposalsAtomic(db, {
+      runId: savedRun.id,
+      proposalIds: ["p-var", "p-pre"],
+    });
+    expect(atomicRes?.appliedProposalIds).toEqual(["p-var", "p-pre"]);
+    expect(atomicRes?.thesis.businessFilter.variantPerception).toContain("互联带宽粘性");
+    expect(atomicRes?.thesis.businessFilter.preMortem).toContain("通用 GPU 方案");
+    if (!atomicRes) throw new Error("Expected atomicRes to be present");
+
+    const importedV3 = await importThesisArchive(db, {
+      archive: {
+        schemaVersion: "kanon-archive/v3",
+        thesis: { ...atomicRes.thesis, ticker: "AVGORE" },
+        agentRuns: runs,
+      },
+      mode: "create_copy",
+    });
+    expect(importedV3.thesis.catalysts).toHaveLength(1);
+    expect(importedV3.thesis.valuationModelMode).toBe("ev_fcf");
+    expect(importedV3.thesis.valuationDriverInputs?.baseOwnerFcfB).toBe(28);
+    expect((await listAgentRuns(db, importedV3.thesis.id, 5)).length).toBe(1);
+
+    const now = new Date("2026-11-25T05:00:00.000Z");
+    const r1 = await consumePersistentRateLimit(db, {
+      bucketKey: "test:login:1",
+      maxRequests: 2,
+      windowMs: 60_000,
+      now,
+    });
+    const r2 = await consumePersistentRateLimit(db, {
+      bucketKey: "test:login:1",
+      maxRequests: 2,
+      windowMs: 60_000,
+      now,
+    });
+    const r3 = await consumePersistentRateLimit(db, {
+      bucketKey: "test:login:1",
+      maxRequests: 2,
+      windowMs: 60_000,
+      now,
+    });
+    expect(r1.allowed).toBe(true);
+    expect(r2.allowed).toBe(true);
+    expect(r3.allowed).toBe(false);
+    const resetRes = await consumePersistentRateLimit(db, {
+      bucketKey: "test:login:1",
+      maxRequests: 2,
+      windowMs: 60_000,
+      now: new Date("2026-11-25T05:02:00.000Z"),
+    });
+    expect(resetRes.allowed).toBe(true);
+    expect(resetRes.count).toBe(1);
+
+    await deleteThesis(db, target.id);
+    await deleteThesis(db, importedV3.thesis.id);
   });
 });
