@@ -174,3 +174,9 @@
 - **Mistake**: Re-downloading multi-megabyte SEC EDGAR HTML documents on every Source Clipper open caused 3–8s latency and risked SEC rate-limits, while keeping Agent proposals purely template-based missed 10-K/10-Q paragraph evidence and unverified LLM figures risked numeric hallucinations.
 - **Correct Pattern**: Persist parsed SEC sections and cross-quarter diffs in `sec_filing_documents_cache` (`0008-sec-filing-docs-cache.ts`), use configurable `KANON_SEC_USER_AGENT` with bounded retry (`sec-http.ts`), retrieve filing paragraphs deterministically via BM25 (`search_sec_filing_excerpts`), and pass optional LLM proposals through `isProposalGrounded` figure verification before presentation.
 - **Why / Gate**: Enforced by `filing-search-tool.test.ts`, `sec-forensics-v2.test.ts`, `sec_filing_documents_cache` DDL parity in `repository.test.ts`, and `/api/ai/agent/ask` contract checks.
+
+### [2026-11-25] Maintain Bounded Subdirectories, Dynamic DDL Parity & Exact Enum Unions When Adding Research Lineage and Portfolio Calibration
+
+- **Mistake**: Growing `cross-check-editor.tsx` / `valuation-reverse-dcf-panel.tsx` past the 250-line file cap and risking flat folder overflow (`>= 12` files) when adding Step 2/3 evidence lineage (`hypothesisId`) and portfolio cognitive calibration.
+- **Correct Pattern**: Always add new Schema columns via expand-only migrations (`0009-cross-check-hypothesis-link.ts`), extract cohesive sub-cards into bounded domain subdirectories (`lineage/`, `drivers/`, `calibration/`) to keep every module `<= 250` lines, remap child IDs safely on archive import (`archive-importer.ts`), and strictly reuse canonical Zod enum unions (`EmotionState`, `CrossCheck`).
+- **Why / Gate**: Enforced by `universal-max-directory-files`, `universal-max-file-lines`, `expand-only-migrations` in `pnpm check`, `repository.test.ts` DDL parity, and `portfolio-calibration.test.ts`.

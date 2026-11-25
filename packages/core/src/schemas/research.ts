@@ -66,6 +66,7 @@ export const CrossCheckSchema = z.object({
   alignment: AlignmentSchema,
   takeaway: z.string().min(1),
   linkedThesisId: z.string().min(1).nullable().optional(),
+  hypothesisId: z.string().min(1).nullable().optional(),
 });
 export type CrossCheck = z.infer<typeof CrossCheckSchema>;
 

@@ -103,7 +103,27 @@ function useValuationPatchers(setDraft: React.Dispatch<React.SetStateAction<Valu
       setDraft((prev) => ({ ...prev, cases: applyPresetToCases(prev.cases, p) })),
     [setDraft],
   );
-  return { patchCase, patchDrivers, setModelMode, applyPreset };
+  const applyProbabilities = useCallback(
+    (bearRaw: number, baseRaw: number, bullRaw: number) => {
+      const b1 = Math.max(1, bearRaw);
+      const b2 = Math.max(1, baseRaw);
+      const b3 = Math.max(1, bullRaw);
+      const total = b1 + b2 + b3;
+      const bear = Math.round((b1 / total) * 100) / 100;
+      const base = Math.round((b2 / total) * 100) / 100;
+      const bull = Math.round((1 - bear - base) * 100) / 100;
+      setDraft((prev) => ({
+        ...prev,
+        cases: {
+          bear: { ...prev.cases.bear, probability: bear },
+          base: { ...prev.cases.base, probability: base },
+          bull: { ...prev.cases.bull, probability: bull },
+        },
+      }));
+    },
+    [setDraft],
+  );
+  return { patchCase, patchDrivers, setModelMode, applyPreset, applyProbabilities };
 }
 
 export function useValuationDraft(params: {

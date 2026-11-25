@@ -213,6 +213,7 @@ export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitSh
             onOpenCommand={() => ui.setModal("cmd", true)}
             onRefreshPrices={() => void ext.refreshPrices()}
             onOpenStressTest={() => ext.setStressOpen(true)}
+            onOpenCalibration={() => ext.setCalibrationOpen(true)}
             onOpenSettings={() => openSettings("general")}
             onOpenAccountSettings={() => openSettings("account")}
           />

@@ -84,8 +84,10 @@ function TranscriptInputCard({
 function CrossCheckListSection(props: {
   checks: readonly CrossCheck[];
   linkableTheses: readonly ThesisSummary[];
+  hypotheses: StepFirstPrinciplesProps["thesis"]["hypotheses"];
   glossary: readonly GlossaryTerm[];
   onCycle: (id: string) => void;
+  onLinkHypothesis: (id: string, hypothesisId: string | null) => void;
   onDelete: (id: string) => void;
   onAdd: (next: CrossCheck) => void;
 }) {
@@ -98,13 +100,19 @@ function CrossCheckListSection(props: {
               key={cc.id}
               cc={cc}
               glossary={props.glossary}
+              hypotheses={props.hypotheses}
               onCycleAlignment={() => props.onCycle(cc.id)}
+              onLinkHypothesis={(hypId) => props.onLinkHypothesis(cc.id, hypId)}
               onDelete={() => props.onDelete(cc.id)}
             />
           ))}
         </Card>
       ) : null}
-      <AddCrossCheckForm linkableTheses={props.linkableTheses} onAdd={props.onAdd} />
+      <AddCrossCheckForm
+        linkableTheses={props.linkableTheses}
+        hypotheses={props.hypotheses}
+        onAdd={props.onAdd}
+      />
     </div>
   );
 }
@@ -215,8 +223,12 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
       <CrossCheckListSection
         checks={d.draft}
         linkableTheses={linkable}
+        hypotheses={props.thesis.hypotheses}
         glossary={props.glossary}
         onCycle={cycleCheck}
+        onLinkHypothesis={(id, hypothesisId) =>
+          d.setDraft((p) => p.map((i) => (i.id === id ? { ...i, hypothesisId } : i)))
+        }
         onDelete={(id) => d.setDraft((p) => p.filter((i) => i.id !== id))}
         onAdd={(next) => d.setDraft((p) => [...p, next])}
       />

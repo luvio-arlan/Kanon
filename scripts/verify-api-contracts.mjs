@@ -32,6 +32,7 @@ const KNOWN_ROUTES = [
   "market/refresh-prices/route.ts",
   "mcp/context/route.ts",
   "mcp/route.ts",
+  "portfolio/calibration/route.ts",
   "sec/[ticker]/filing/route.ts",
   "sec/[ticker]/route.ts",
   "theses/[id]/discipline/route.ts",
@@ -498,6 +499,11 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
 
   const marketQuotes = await fetchJson("/api/market/quotes?tickers=NVDA", {}, cookieA);
   assert.equal(marketQuotes.status, 200);
+
+  const calibration = await fetchJson("/api/portfolio/calibration", {}, cookieA);
+  assert.equal(calibration.status, 200);
+  assert.equal(typeof calibration.data.calibration.weightedCalibrationScore, "number");
+  assert.equal(typeof calibration.data.digest.summaryLine, "string");
 
   const providerTest = await fetchJson(
     "/api/market/provider-test",

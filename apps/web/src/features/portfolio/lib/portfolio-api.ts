@@ -1,9 +1,12 @@
 import {
+  type PortfolioCalibrationReport,
+  PortfolioCalibrationResponseSchema,
   type PortfolioRole,
   ThesisArchiveImportRequestSchema,
   ThesisArchiveImportResponseSchema,
   type ThesisDetail,
   ThesisMutationResponseSchema,
+  type WeeklyIcDigest,
 } from "@kanon/core";
 import { toast } from "sonner";
 import { kanonFetch } from "@/shared/lib/kanon-fetch";
@@ -63,5 +66,19 @@ export async function apiImportThesisArchive(
   }
   const verb = res.data.mode === "overwrite" ? "覆盖更新" : "导入新建";
   toast.success(`已${verb} ${res.data.thesis.companyName} (${res.data.thesis.ticker})`);
+  return res.data;
+}
+
+export async function apiGetPortfolioCalibration(): Promise<{
+  calibration: PortfolioCalibrationReport;
+  digest: WeeklyIcDigest;
+} | null> {
+  const res = await kanonFetch("/api/portfolio/calibration", PortfolioCalibrationResponseSchema, {
+    fallbackError: "加载组合认知校准失败",
+  });
+  if (!res.ok) {
+    toast.error(res.error);
+    return null;
+  }
   return res.data;
 }

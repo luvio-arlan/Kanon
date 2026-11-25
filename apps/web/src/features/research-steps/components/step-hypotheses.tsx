@@ -7,13 +7,7 @@ import type {
   ThesisCatalyst,
   ThesisDetail,
 } from "@kanon/core";
-import {
-  AgentThinking,
-  Button,
-  ComposerLoader,
-  KANON_LENS_VARIANTS,
-  SegmentedTabs,
-} from "@kanon/ui";
+import { AgentThinking, Button, KANON_LENS_VARIANTS, SegmentedTabs } from "@kanon/ui";
 import { IconPlus, IconScale } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -76,6 +70,7 @@ function HypothesesLensBody(p: {
             total={draft.length}
             item={item}
             glossary={props.glossary}
+            linkedChecks={props.thesis.crossChecks.filter((cc) => cc.hypothesisId === item.id)}
             onChange={(n) => setDraft((prev) => prev.map((it, i) => (i === idx ? n : it)))}
             onMove={(delta) => setDraft((prev) => swapHypotheses(prev, idx, delta))}
             onRemove={
@@ -97,11 +92,9 @@ function HypothesesLensBody(p: {
         </button>
       ) : null}
       {props.redTeamLoading ? (
-        <ComposerLoader active radius={14}>
-          <div className="rounded-panel border border-hairline bg-surface px-5 py-4 shadow-card">
-            <AgentThinking variant="stars" label="正在从空头视角审视核心假设盲区" />
-          </div>
-        </ComposerLoader>
+        <div className="rounded-panel border border-hairline bg-surface px-5 py-4 shadow-card">
+          <AgentThinking variant="stars" label="正在从空头视角审视核心假设盲区" />
+        </div>
       ) : null}
       {props.redTeam ? (
         <RedTeamResultCard report={props.redTeam} onPromoteRule={props.onPromoteRedTeamRule} />

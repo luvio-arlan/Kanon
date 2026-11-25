@@ -6,6 +6,7 @@ import { KANON_CATALYSTS_MIGRATION_SQL } from "./0005-catalysts";
 import { KANON_SECURITY_MCP_CACHE_SQL } from "./0006-security-mcp-cache";
 import { KANON_RATE_LIMIT_BUCKETS_SQL } from "./0007-rate-limit-buckets";
 import { KANON_SEC_FILING_DOCS_CACHE_SQL } from "./0008-sec-filing-docs-cache";
+import { KANON_CROSS_CHECK_HYPOTHESIS_LINK_SQL } from "./0009-cross-check-hypothesis-link";
 
 export interface KanonMigration {
   id: string;
@@ -65,6 +66,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     id: "0008_sec_filing_docs_cache",
     description: "Expand-only persistent parsed SEC filing sections & cross-quarter diffs cache",
     sql: KANON_SEC_FILING_DOCS_CACHE_SQL,
+  },
+  {
+    id: "0009_cross_check_hypothesis_link",
+    description:
+      "Expand-only cross_check -> hypothesis lineage reference for Step 2/3 bidirectional links",
+    sql: KANON_CROSS_CHECK_HYPOTHESIS_LINK_SQL,
   },
 ];
 

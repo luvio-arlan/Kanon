@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { type AgentBriefing, AgentBriefingSchema } from "../../contracts/ai-contracts";
 import type { SavedAgentRun } from "../../contracts/api-contracts";
 import {
@@ -110,6 +110,29 @@ export async function listQuarterlyReviews(
     .select()
     .from(quarterlyReviewsTable)
     .where(eq(quarterlyReviewsTable.thesisId, thesisId))
+    .orderBy(desc(quarterlyReviewsTable.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    thesisId: row.thesisId,
+    quarterLabel: row.quarterLabel,
+    summary: row.summary,
+    hypothesisVerdicts: row.hypothesisVerdicts,
+    priceAtReview: row.priceAtReview,
+    baseTargetAtReview: row.baseTargetAtReview,
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
+export async function listQuarterlyReviewsByThesisIds(
+  db: KanonDb,
+  thesisIds: readonly string[],
+): Promise<QuarterlyReview[]> {
+  if (thesisIds.length === 0) return [];
+  const rows = await db
+    .select()
+    .from(quarterlyReviewsTable)
+    .where(inArray(quarterlyReviewsTable.thesisId, [...thesisIds]))
     .orderBy(desc(quarterlyReviewsTable.createdAt));
 
   return rows.map((row) => ({

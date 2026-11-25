@@ -95,6 +95,7 @@ export const crossChecksTable = pgTable("cross_checks", {
   alignment: text("alignment").$type<Alignment>().notNull().default("pending"),
   takeaway: text("takeaway").notNull(),
   linkedThesisId: text("linked_thesis_id"),
+  hypothesisId: text("hypothesis_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

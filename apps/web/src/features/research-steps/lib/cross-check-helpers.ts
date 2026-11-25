@@ -31,6 +31,7 @@ export interface NewCheckDraft {
   statement: string;
   takeaway: string;
   linkedThesisId: string | null;
+  hypothesisId: string | null;
 }
 
 export const EMPTY_CHECK: NewCheckDraft = {
@@ -42,6 +43,7 @@ export const EMPTY_CHECK: NewCheckDraft = {
   statement: "",
   takeaway: "",
   linkedThesisId: null,
+  hypothesisId: null,
 };
 
 export function nextAlignment(current: Alignment): Alignment {
@@ -60,6 +62,7 @@ export function buildCrossCheckFromDraft(draft: NewCheckDraft): CrossCheck {
     alignment: draft.alignment,
     takeaway: draft.takeaway.trim() || "与核心假设形成产业链交叉互证。",
     linkedThesisId: draft.linkedThesisId,
+    hypothesisId: draft.hypothesisId,
   };
 }
 
@@ -88,6 +91,7 @@ export function buildClippedCrossCheck(
     statement: excerpt,
     alignment: "aligned",
     takeaway: "来自原文精读器划词摘录，待与产业链上下游口径互证。",
+    hypothesisId: null,
   };
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import type { GlossaryTerm, Hypothesis, HypothesisStatus } from "@kanon/core";
+import type { CrossCheck, GlossaryTerm, Hypothesis, HypothesisStatus } from "@kanon/core";
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -11,6 +11,7 @@ import {
 } from "@kanon/ui";
 import { IconArrowDown, IconArrowUp, IconTrash } from "@tabler/icons-react";
 import { GlossaryChips } from "@/features/glossary";
+import { HypothesisLinkedEvidence } from "./lineage/hypothesis-link-controls";
 
 const STATUS_OPTS: ReadonlyArray<{ id: HypothesisStatus; label: string; tone: ButtonGroupTone }> = [
   { id: "validated", label: "已验证", tone: "pass" },
@@ -153,11 +154,12 @@ export function HypothesisEditorCard(props: {
   total: number;
   item: Hypothesis;
   glossary: readonly GlossaryTerm[];
+  linkedChecks?: readonly CrossCheck[];
   onChange: (next: Hypothesis) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove?: () => void;
 }) {
-  const { item, glossary, onChange } = props;
+  const { item, glossary, linkedChecks = [], onChange } = props;
   return (
     <Card className="group/hyp overflow-hidden">
       <HypothesisHeaderRow {...props} />
@@ -172,6 +174,7 @@ export function HypothesisEditorCard(props: {
         />
         <GlossaryChips text={`${item.title} ${item.metricLabel} ${item.note}`} terms={glossary} />
       </div>
+      <HypothesisLinkedEvidence checks={linkedChecks} />
     </Card>
   );
 }

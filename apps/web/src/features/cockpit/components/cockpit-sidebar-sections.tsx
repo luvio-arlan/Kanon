@@ -2,7 +2,7 @@
 
 import type { ThesisDetail } from "@kanon/core";
 import { SidebarNavItem, SidebarSection } from "@kanon/ui";
-import { IconActivityHeartbeat, IconRefresh } from "@tabler/icons-react";
+import { IconActivityHeartbeat, IconRefresh, IconScale } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 
 export function QuickThesesNav(p: {
@@ -40,6 +40,7 @@ export function CockpitToolsNav(p: {
   onCloseMobile: () => void;
   onRefreshPrices: () => void;
   onOpenStressTest: () => void;
+  onOpenCalibration: () => void;
 }) {
   const spin = p.refreshingPrices ? "animate-spin text-accent-coral" : undefined;
   return (
@@ -51,6 +52,15 @@ export function CockpitToolsNav(p: {
         onClick={() => {
           p.onCloseMobile();
           p.onOpenStressTest();
+        }}
+      />
+      <SidebarNavItem
+        label="组合校准与周报"
+        icon={<IconScale size={17} stroke={1.5} />}
+        collapsed={p.collapsed}
+        onClick={() => {
+          p.onCloseMobile();
+          p.onOpenCalibration();
         }}
       />
       <SidebarNavItem

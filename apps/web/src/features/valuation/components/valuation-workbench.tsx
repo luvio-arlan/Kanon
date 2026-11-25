@@ -154,9 +154,13 @@ export function ValuationWorkbench({
         latestSecEps={latestSecEps}
         activePreset={d.activePreset}
         modelMode={d.modelMode}
+        bearProb={d.cases.bear.probability}
+        baseProb={d.cases.base.probability}
+        bullProb={d.cases.bull.probability}
         onPrice={(currentPrice) => d.store.setDraft((prev) => ({ ...prev, currentPrice }))}
         onHorizon={(horizonYears) => d.store.setDraft((prev) => ({ ...prev, horizonYears }))}
         onApplyPreset={d.applyPreset}
+        onCustomProb={d.applyProbabilities}
         onModelMode={d.setModelMode}
       />
       <ValuationLensBody

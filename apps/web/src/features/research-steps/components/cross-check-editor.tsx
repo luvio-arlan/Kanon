@@ -1,11 +1,9 @@
 "use client";
 
-import type { CrossCheck, GlossaryTerm, ThesisSummary } from "@kanon/core";
-import { ActionMenu, Badge, Button, ButtonGroup, ButtonGroupItem, Card, Input } from "@kanon/ui";
-import { IconArrowUpRight, IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
-import Link from "next/link";
+import type { CrossCheck, Hypothesis, ThesisSummary } from "@kanon/core";
+import { Button, ButtonGroup, ButtonGroupItem, Card, Input } from "@kanon/ui";
+import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
-import { GlossaryText } from "@/features/glossary";
 import {
   ALIGN_CYCLE,
   ALIGN_META,
@@ -14,80 +12,13 @@ import {
   EMPTY_CHECK,
   type NewCheckDraft,
   nextAlignment,
-  ROLE_LABELS,
   ROLE_OPTIONS,
   TOP_CHECK_FIELDS,
 } from "../lib/cross-check-helpers";
+import { HypothesisLinkPicker, LinkThesisPicker } from "./lineage/hypothesis-link-controls";
 
+export { CrossCheckItemCard } from "./lineage/cross-check-item-card";
 export { nextAlignment };
-
-function CrossCheckHeaderRow({
-  cc,
-  onCycleAlignment,
-  onDelete,
-}: {
-  cc: CrossCheck;
-  onCycleAlignment: () => void;
-  onDelete: () => void;
-}) {
-  const align = ALIGN_META[cc.alignment];
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-ink-primary">{cc.peerCompany}</span>
-        <Badge variant="titanium">{ROLE_LABELS[cc.peerRole]}</Badge>
-        <button
-          type="button"
-          onClick={onCycleAlignment}
-          title="切换口径一致状态"
-          className="cursor-pointer"
-        >
-          <Badge variant={align.variant}>{align.label}</Badge>
-        </button>
-        {cc.linkedThesisId ? (
-          <Link
-            href={`/thesis/${cc.linkedThesisId}`}
-            className="inline-flex items-center gap-1 rounded-pill border border-hairline bg-muted/60 px-2 py-0.5 text-xs text-ink-secondary hover:border-strong hover:text-ink-primary"
-          >
-            <IconLink size={11} stroke={1.5} />
-            <span>联动</span>
-            <IconArrowUpRight size={11} stroke={1.5} />
-          </Link>
-        ) : null}
-      </div>
-      <button
-        type="button"
-        aria-label="删除对照项"
-        onClick={onDelete}
-        className="cursor-pointer rounded-item p-1 text-ink-muted opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-muted hover:text-status-fail focus-visible:opacity-100 group-hover/cc:opacity-100"
-      >
-        <IconTrash size={14} stroke={1.5} />
-      </button>
-    </div>
-  );
-}
-
-export function CrossCheckItemCard(p: {
-  cc: CrossCheck;
-  glossary: readonly GlossaryTerm[];
-  onCycleAlignment: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="group/cc space-y-2 px-6 py-5 sm:px-7">
-      <CrossCheckHeaderRow cc={p.cc} onCycleAlignment={p.onCycleAlignment} onDelete={p.onDelete} />
-      <div className="text-xs text-ink-muted">
-        {p.cc.topic} · {p.cc.sourceAnchor}
-      </div>
-      <div className="text-sm leading-[1.7] text-ink-primary">
-        <GlossaryText text={p.cc.statement} terms={p.glossary} />
-      </div>
-      {p.cc.takeaway ? (
-        <p className="text-xs leading-relaxed text-ink-secondary">{p.cc.takeaway}</p>
-      ) : null}
-    </div>
-  );
-}
 
 function RoleAndAlignPicker({
   draft,
@@ -162,44 +93,61 @@ function DraftInputsGrid(p: {
   );
 }
 
-function LinkThesisPicker(p: {
+function AddCheckFormHeader(p: {
   linkableTheses: readonly ThesisSummary[];
+  hypotheses: readonly Hypothesis[];
   draft: NewCheckDraft;
   onPatch: (v: Partial<NewCheckDraft>) => void;
 }) {
-  if (p.linkableTheses.length === 0) return null;
-  const linked = p.linkableTheses.find((t) => t.id === p.draft.linkedThesisId);
   return (
-    <ActionMenu
-      ariaLabel="关联库内标的"
-      items={[
-        { id: "none", label: "不关联", onSelect: () => p.onPatch({ linkedThesisId: null }) },
-        ...p.linkableTheses.map((t) => ({
-          id: t.id,
-          label: `${t.companyName} (${t.ticker})`,
-          selected: t.id === p.draft.linkedThesisId,
-          onSelect: () =>
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-6 py-3.5 sm:px-7">
+      <span className="text-sm font-semibold text-ink-primary">新增上下游交叉印证</span>
+      <div className="flex items-center gap-2">
+        <HypothesisLinkPicker
+          hypotheses={p.hypotheses}
+          value={p.draft.hypothesisId}
+          onSelect={(hypothesisId) => p.onPatch({ hypothesisId })}
+        />
+        <LinkThesisPicker
+          linkableTheses={p.linkableTheses}
+          linkedThesisId={p.draft.linkedThesisId}
+          peerCompany={p.draft.peerCompany}
+          onSelect={(t) =>
             p.onPatch({
-              linkedThesisId: t.id,
-              peerCompany: p.draft.peerCompany.trim() || `${t.companyName}（${t.ticker}）`,
-            }),
-        })),
-      ]}
-      trigger={
-        <>
-          <IconLink size={13} stroke={1.5} />
-          <span>{linked ? linked.ticker : "关联标的"}</span>
-        </>
-      }
-    />
+              linkedThesisId: t?.id ?? null,
+              peerCompany:
+                t && !p.draft.peerCompany.trim()
+                  ? `${t.companyName}（${t.ticker}）`
+                  : p.draft.peerCompany,
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function AddCheckFooter(p: { canAdd: boolean; onCancel: () => void; onSubmit: () => void }) {
+  return (
+    <div className="flex items-center justify-end gap-2 border-t border-hairline px-6 py-3 sm:px-7">
+      <Button variant="ghost" size="xs" onClick={p.onCancel}>
+        取消
+      </Button>
+      <Button variant="primary" size="xs" onClick={p.onSubmit} disabled={!p.canAdd}>
+        <IconPlus size={13} stroke={1.5} />
+        <span>加入对照表</span>
+      </Button>
+    </div>
   );
 }
 
 export function AddCrossCheckForm({
   linkableTheses = [],
+  hypotheses = [],
   onAdd,
 }: {
   linkableTheses?: readonly ThesisSummary[];
+  hypotheses?: readonly Hypothesis[];
   onAdd: (item: CrossCheck) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -226,21 +174,15 @@ export function AddCrossCheckForm({
   }
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-6 py-3.5 sm:px-7">
-        <span className="text-sm font-semibold text-ink-primary">新增上下游交叉印证</span>
-        <LinkThesisPicker linkableTheses={linkableTheses} draft={draft} onPatch={patch} />
-      </div>
+      <AddCheckFormHeader
+        linkableTheses={linkableTheses}
+        hypotheses={hypotheses}
+        draft={draft}
+        onPatch={patch}
+      />
       <RoleAndAlignPicker draft={draft} onPatch={patch} />
       <DraftInputsGrid draft={draft} onPatch={patch} />
-      <div className="flex items-center justify-end gap-2 border-t border-hairline px-6 py-3 sm:px-7">
-        <Button variant="ghost" size="xs" onClick={() => setOpen(false)}>
-          取消
-        </Button>
-        <Button variant="primary" size="xs" onClick={handleSubmit} disabled={!canAdd}>
-          <IconPlus size={13} stroke={1.5} />
-          <span>加入对照表</span>
-        </Button>
-      </div>
+      <AddCheckFooter canAdd={canAdd} onCancel={() => setOpen(false)} onSubmit={handleSubmit} />
     </Card>
   );
 }

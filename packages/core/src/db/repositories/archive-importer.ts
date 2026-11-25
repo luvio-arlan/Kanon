@@ -24,14 +24,17 @@ import { getThesisById } from "./thesis-queries";
 
 async function replacePrimaryChildren(tx: KanonDb, targetId: string, source: ThesisDetail) {
   await tx.delete(hypothesesTable).where(eq(hypothesesTable.thesisId, targetId));
-  await tx.insert(hypothesesTable).values(
-    source.hypotheses.map((h, idx) => ({
+  const hypRows = source.hypotheses.map((h, idx) => ({
+    oldId: h.id,
+    row: {
       ...h,
       id: `${targetId}-h-${idx + 1}-${crypto.randomUUID().slice(0, 4)}`,
       thesisId: targetId,
       sortOrder: idx,
-    })),
-  );
+    },
+  }));
+  const hypIdMap = new Map(hypRows.map((entry) => [entry.oldId, entry.row.id]));
+  await tx.insert(hypothesesTable).values(hypRows.map((entry) => entry.row));
   await tx.delete(thesisCatalystsTable).where(eq(thesisCatalystsTable.thesisId, targetId));
   if (source.catalysts.length > 0) {
     await tx.insert(thesisCatalystsTable).values(
@@ -50,6 +53,7 @@ async function replacePrimaryChildren(tx: KanonDb, targetId: string, source: The
         id: `${targetId}-cc-${idx + 1}-${crypto.randomUUID().slice(0, 4)}`,
         thesisId: targetId,
         linkedThesisId: cc.linkedThesisId ?? null,
+        hypothesisId: cc.hypothesisId ? (hypIdMap.get(cc.hypothesisId) ?? cc.hypothesisId) : null,
       })),
     );
   }

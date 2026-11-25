@@ -39,6 +39,7 @@ export function usePortfolioOverlayState(
   const [compareOpen, setCompareOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [stressOpen, setStressOpen] = useState(false);
+  const [calibrationOpen, setCalibrationOpen] = useState(false);
   const compareTheses = useMemo(
     () => ui.theses.filter((t) => compareIds.includes(t.id)),
     [ui.theses, compareIds],
@@ -68,6 +69,8 @@ export function usePortfolioOverlayState(
     setImportOpen,
     stressOpen,
     setStressOpen,
+    calibrationOpen,
+    setCalibrationOpen,
     refreshPrices,
     onCreated,
     onImported,

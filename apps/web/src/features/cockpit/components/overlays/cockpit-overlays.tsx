@@ -5,6 +5,7 @@ import { CommandMenu } from "@kanon/ui";
 import dynamic from "next/dynamic";
 import { readByokConfig, type SettingsTabId } from "@/features/ai-settings";
 import { useHasOpened } from "@/shared/hooks/use-has-opened";
+import { withOverlayCommandItems } from "../../data/command-actions";
 import type { useCockpitState } from "../../lib/cockpit-state";
 import type { LiveMarketQuotesState } from "../../lib/use-live-market-quotes";
 import type { usePortfolioOverlayState } from "../../lib/use-portfolio-overlays";
@@ -19,6 +20,10 @@ const CompareThesesSheet = dynamic(
 );
 const ImportArchiveModal = dynamic(
   () => import("@/features/portfolio").then((m) => m.ImportArchiveModal),
+  { ssr: false },
+);
+const PortfolioCalibrationSheet = dynamic(
+  () => import("@/features/portfolio").then((m) => m.PortfolioCalibrationSheet),
   { ssr: false },
 );
 const PortfolioStressSheet = dynamic(
@@ -43,6 +48,7 @@ function PortfolioModals({
   const compareMounted = useHasOpened(ext.compareOpen);
   const importMounted = useHasOpened(ext.importOpen);
   const stressMounted = useHasOpened(ext.stressOpen);
+  const calibrationMounted = useHasOpened(ext.calibrationOpen);
   return (
     <>
       {compareMounted ? (
@@ -66,6 +72,12 @@ function PortfolioModals({
           theses={ui.theses}
           onOpenChange={ext.setStressOpen}
           onInspectThesis={ui.setPreviewThesis}
+        />
+      ) : null}
+      {calibrationMounted ? (
+        <PortfolioCalibrationSheet
+          open={ext.calibrationOpen}
+          onOpenChange={ext.setCalibrationOpen}
         />
       ) : null}
     </>
@@ -127,12 +139,16 @@ export function CockpitOverlays(props: {
   currentUser: PublicUser;
   settingsTab?: SettingsTabId;
 }) {
+  const groups = withOverlayCommandItems(props.ui.commandGroups, {
+    onOpenStressTest: () => props.ext.setStressOpen(true),
+    onOpenCalibration: () => props.ext.setCalibrationOpen(true),
+  });
   return (
     <>
       <CommandMenu
         open={props.ui.modals.cmd}
         onOpenChange={(o) => props.ui.setModal("cmd", o)}
-        groups={props.ui.commandGroups}
+        groups={groups}
       />
       <CoreWorkspaceModals {...props} />
       <PortfolioModals ui={props.ui} ext={props.ext} />

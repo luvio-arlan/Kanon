@@ -166,9 +166,27 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     expect(withCatalysts?.catalysts).toHaveLength(1);
     expect(withCatalysts?.catalysts[0]?.title).toContain("Azure");
 
+    const withChecks = await updateThesisStep(db, created.id, {
+      step: "cross_checks",
+      crossChecks: [
+        {
+          id: "msft-cc-1",
+          peerCompany: "Nvidia",
+          peerRole: "upstream",
+          topic: "GPU 配额",
+          sourceAnchor: "Q3 Call",
+          statement: "企业级训练采购延续双位数增长",
+          alignment: "aligned",
+          takeaway: "印证 Azure AI CapEx",
+          hypothesisId: "missing-hyp-id",
+        },
+      ],
+    });
+    expect(withChecks?.crossChecks[0]?.hypothesisId).toBe("missing-hyp-id");
+
     const revisions = await listThesisRevisions(db, created.id);
-    expect(revisions.length).toBeGreaterThanOrEqual(4);
-    expect(revisions[0]?.step).toBe("catalysts");
+    expect(revisions.length).toBeGreaterThanOrEqual(5);
+    expect(revisions[0]?.step).toBe("cross_checks");
 
     // Consecutive auto-saves on the same step within the coalesce window update in place
     await updateThesisStep(db, created.id, {
@@ -187,8 +205,24 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
         },
       ],
     });
+    await updateThesisStep(db, created.id, {
+      step: "catalysts",
+      catalysts: [
+        {
+          id: "msft-cat-1",
+          title: "Azure AI 季度增速三次确认",
+          dateLabel: "FY27 Q1",
+          category: "earnings",
+          impact: "high",
+          direction: "bullish",
+          status: "upcoming",
+          verificationMetric: "Azure 同比增速 > 36%",
+          note: "合并窗口修订验证",
+        },
+      ],
+    });
     const coalescedRevisions = await listThesisRevisions(db, created.id);
-    expect(coalescedRevisions.length).toBe(revisions.length);
+    expect(coalescedRevisions.length).toBe(revisions.length + 1);
 
     const health = await getDbHealthStats(db);
     expect(health.engine).toBe("pglite-embedded");

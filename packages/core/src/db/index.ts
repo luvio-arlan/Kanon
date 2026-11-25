@@ -58,6 +58,7 @@ export {
   getLatestAgentRun,
   listInboundCrossChecks,
   listQuarterlyReviews,
+  listQuarterlyReviewsByThesisIds,
   markAgentProposalApplied,
   saveAgentRun,
 } from "./repositories/review-and-agent-store";

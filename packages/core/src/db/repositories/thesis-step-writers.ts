@@ -77,9 +77,14 @@ export async function writeCrossChecksStep(
 ): Promise<string> {
   await tx.delete(crossChecksTable).where(eq(crossChecksTable.thesisId, thesisId));
   if (parsed.crossChecks.length > 0) {
-    await tx
-      .insert(crossChecksTable)
-      .values(parsed.crossChecks.map((item) => ({ ...item, thesisId })));
+    await tx.insert(crossChecksTable).values(
+      parsed.crossChecks.map((item) => ({
+        ...item,
+        thesisId,
+        linkedThesisId: item.linkedThesisId ?? null,
+        hypothesisId: item.hypothesisId ?? null,
+      })),
+    );
   }
   await tx
     .update(thesesTable)
