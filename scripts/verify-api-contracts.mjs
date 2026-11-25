@@ -451,7 +451,7 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
     body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
   });
   assert.equal(mcpTools.status, 200);
-  assert.equal(mcpTools.data.result.tools.length, 4);
+  assert.equal(mcpTools.data.result.tools.length, 9);
 
   const mcpCall = await fetchJson("/api/mcp", {
     method: "POST",
@@ -465,6 +465,85 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
   });
   assert.equal(mcpCall.status, 200);
   assert.equal(mcpCall.data.result.isError, false);
+
+  const mcpCalibCall = await fetchJson("/api/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pat}` },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 301,
+      method: "tools/call",
+      params: { name: "get_portfolio_calibration", arguments: {} },
+    }),
+  });
+  assert.equal(mcpCalibCall.status, 200);
+  assert.equal(mcpCalibCall.data.result.isError, false);
+
+  const mcpWriteBlocked = await fetchJson("/api/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pat}` },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 302,
+      method: "tools/call",
+      params: {
+        name: "add_catalyst_event",
+        arguments: {
+          ticker: "NVDA",
+          title: "Should Fail",
+          dateLabel: "FY27 Q1",
+          category: "earnings",
+          impact: "medium",
+          direction: "bullish",
+          verificationMetric: "Margin > 70%",
+        },
+      },
+    }),
+  });
+  assert.equal(mcpWriteBlocked.status, 200);
+  assert.equal(mcpWriteBlocked.data.result.isError, true);
+
+  const rwPatRes = await fetchJson(
+    "/api/auth/tokens",
+    {
+      method: "POST",
+      body: JSON.stringify({ name: "CI MCP RW", scope: "read_write", expiresInDays: 30 }),
+    },
+    cookieA,
+  );
+  assert.equal(rwPatRes.status, 201);
+  const rwPat = rwPatRes.data.plaintextToken;
+
+  const mcpWriteOk = await fetchJson("/api/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${rwPat}` },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 303,
+      method: "tools/call",
+      params: {
+        name: "add_catalyst_event",
+        arguments: {
+          ticker: "NVDA",
+          title: "Vera Rubin 量产进度",
+          dateLabel: "FY27 Q2",
+          category: "product",
+          impact: "high",
+          direction: "bullish",
+          verificationMetric: "出货量 > 预期",
+        },
+      },
+    }),
+  });
+  assert.equal(mcpWriteOk.status, 200);
+  assert.equal(mcpWriteOk.data.result.isError, false);
+
+  const rwRevoke = await fetchJson(
+    `/api/auth/tokens?id=${encodeURIComponent(rwPatRes.data.token.id)}`,
+    { method: "DELETE" },
+    cookieA,
+  );
+  assert.equal(rwRevoke.status, 200);
 
   const mcpResources = await fetchJson("/api/mcp", {
     method: "POST",

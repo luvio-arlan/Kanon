@@ -1,4 +1,5 @@
 import {
+  type ApiTokenScope,
   type ApiTokenSummary,
   ChangePasswordResponseSchema,
   type CreateApiTokenResponse,
@@ -62,12 +63,17 @@ export async function apiListApiTokens(): Promise<
 
 export async function apiCreateApiToken(input: {
   name: string;
+  scope?: ApiTokenScope;
   expiresInDays: number | null;
 }): Promise<{ ok: true; data: CreateApiTokenResponse } | { ok: false; error: string }> {
   return kanonFetch("/api/auth/tokens", CreateApiTokenResponseSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: input.name, scope: "read", expiresInDays: input.expiresInDays }),
+    body: JSON.stringify({
+      name: input.name,
+      scope: input.scope ?? "read",
+      expiresInDays: input.expiresInDays,
+    }),
   });
 }
 

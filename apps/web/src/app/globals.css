@@ -20,6 +20,10 @@
     display: none;
   }
 
+  .print-only {
+    display: block;
+  }
+
   body .kanon-ambient-canvas {
     background: var(--color-surface);
     min-height: auto;
@@ -29,6 +33,17 @@
   body section,
   body [data-slot="card"] {
     box-shadow: none;
+    border-color: var(--border-hairline);
     break-inside: avoid;
   }
+
+  body p,
+  body li {
+    orphans: 3;
+    widows: 3;
+  }
+}
+
+.print-only {
+  display: none;
 }

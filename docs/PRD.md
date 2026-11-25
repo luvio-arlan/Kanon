@@ -1,6 +1,6 @@
-# KANON — 美股投资逻辑操作系统（PRD v5.0）
+# KANON — 美股投资逻辑操作系统（PRD v6.0）
 
-> 版本：v5.0（机构买方级全栈投研闭环） | 日期：2026-11-25 | 定位：Linear 级美股深度研究、财务法证与交易纪律操作系统 | 形态：桌面优先 Web 应用
+> 版本：v6.0（机构买方级全栈投研闭环） | 日期：2026-11-25 | 定位：Linear 级美股深度研究、财务法证与交易纪律操作系统 | 形态：桌面优先 Web 应用
 
 ## 1. 品牌定稿、视觉标识与产品定位
 
@@ -29,7 +29,8 @@
 - **组合风控、信号雷达与压力测试矩阵（Attention Radar & Stress Test）**：聚合已配仓位、现金缓冲、赛道集中度（>35% 提醒）、单票超上限提醒与 HHI 集中度，提供 4 种宏观压力情景（基准、估值杀跌 -20%、共振熊市、重仓赛道回撤）及半凯利资金配置阶梯抽屉。
 - **仓位纪律编辑器与半凯利建议**：在驾驶舱快捷抽屉中管理 `watchlist / starter / core / exited` 仓位角色、当前权重、单票上限与持仓成本，并提供受个人上限约束的零杠杆半凯利保守建议区间。
 - **2–3 只标的并排对比抽屉**：从赔率矩阵勾选 2–3 只标的，在宽幅抽屉中同屏对比买点、CAGR、安全边际、赔率比、成熟度、仓位、核心预期差与未来 18 个月争论。
-- **数据可携带性**：支持导出 Markdown / Google Doc HTML / Portfolio CSV / 全量 `archive.json`，并支持 `POST /api/import/thesis` 一键无损还原与 `GET /api/mcp/context` 只读研究上下文接口。
+- **组合认知校准与 IC 投研周报（Portfolio Calibration & Weekly Digest）**：聚合全仓决策情绪归因（冷静/犹豫/FOMO/恐慌胜率与平均偏离）、季度裁决分布、Half-Kelly 建议与未实现盈亏对照，并一键生成与复制 Markdown 格式周报（`GET /api/portfolio/calibration`）。
+- **数据可携带性与 MCP Server v2**：支持导出全量 `archive.json`（含 `catalysts / quarterlyReviews / copilotOutputs / agentRuns` lossless v3）与 `POST /api/import/thesis`；提供基于 `read` / `read_write` 分级 PAT 的 Streamable HTTP MCP Server（6 只读 + 3 读写工具）。
 
 ### 3.2 五步引导式研究画布（零丢失草稿引擎）
 
@@ -52,8 +53,8 @@
 
 ### 3.3 多角色投委会 Agent（SSE 持久化 + 人机共审 Diff）
 
-- 依次调度 8 大确定性工具（SEC 财务法证评分与稀释核查、Reverse-DCF 压力测试、假设盲区、产业链口径分歧、仓位与零杠杆纪律、季度复盘与目标价漂移审计、实时盘前/盘后体制校准、催化剂与价值陷阱核查），通过 SSE 实时展示工具轨迹，开展四角色投委会辩论（投资总监 / 基本面多头 / 法证空头 / 财务法证官），并支持 BYOK（Gemini / Claude / OpenAI）与确定性本地引擎自动透明降级。
-- 审计结果持久化存储于 PostgreSQL（`agent_runs`），提供 Before → After 对比提案卡片，支持单条或一键批量人机共审回写 Step 1 / Step 2 / Step 3 / Step 5 并记录采纳状态。
+- 依次调度 9 大工具（含 SEC 财务法证评分与 CCC 现金转换周期、BM25 原文段落检索 `search_sec_filing_excerpts`、Reverse-DCF 压力测试、假设盲区、产业链口径分歧、仓位与零杠杆纪律、季度复盘与目标价漂移审计、实时盘前/盘后体制校准、催化剂与价值陷阱核查），通过 SSE 实时展示可中止工具轨迹与历史运行回放，开展四角色投委会辩论并支持多轮投委会追问（`POST /api/ai/agent/ask`），以及 `PE / EV-FCF` 双主锚模型、假设-印证双向血缘挂载与原件持久化缓存（`sec_filing_documents_cache`）。
+- 审计结果持久化存储于 PostgreSQL（`agent_runs`），通过事务级 `POST /api/ai/agent/apply` 支持单条或一键批量人机共审原子回写 Step 1 / Step 2 / Step 3 / Step 5（含数值溯源校核与 `expectedUpdatedAt` OCC 并发冲突保护）。
 
 ## 4. 视觉设计系统与唯一组件库契约
 
@@ -67,4 +68,4 @@
 - **全自动机械门禁（零豁免、零回退）**：
   - `pnpm check`：`Biome` + `tsc --noEmit` + `dependency-cruiser` + AST 规模与审美守卫（`<= 250` 行/文件、`<= 50` 行/函数、嵌套 `<= 3`、单目录 `<= 12` 文件、零未校验 JSON 强转、零静默空 `catch`、零客户端 `@kanon/ai` 运行时导入、文档同步校验）+ `knip` 死代码清零。
   - `pnpm test`：Vitest 金融数学 Golden 测试、1:1 动态 DDL 校验、零杠杆铁律与 AI/DB 契约测试。
-  - `pnpm test:api`：动态盘点全部 16 个 API 路由并在隔离数据库实例中端到端校验 HTTP 契约与 SSR 渲染。
+  - `pnpm test:api`：动态盘点全部 30 个 API 路由并在隔离数据库实例中端到端校验 HTTP 契约、CSRF、OCC、MCP 作用域与 SSR 渲染。

@@ -1,62 +1,28 @@
+import { searchFilingExcerpts } from "@kanon/ai";
 import {
+  type ApiTokenScope,
   analyzeSecForensics,
   analyzeSecQuality,
+  buildWeeklyIcDigest,
   calculateImpliedExpectations,
   calculatePortfolioAnalytics,
+  calculatePortfolioCalibration,
   calculateResearchReadiness,
+  type QuarterlyReview,
 } from "@kanon/core";
 import {
   getLatestAgentRun,
   getSecSnapshot,
   type KanonDb,
+  listCachedSecFilingDocsByTicker,
   listInboundCrossChecks,
   listQuarterlyReviews,
+  listQuarterlyReviewsByThesisIds,
   listTheses,
 } from "@kanon/core/db";
+import { executeMcpWriteToolCall, isMcpWriteTool } from "./_mcp-write-tools";
 
-export const MCP_TOOL_DEFINITIONS = [
-  {
-    name: "list_portfolio_theses",
-    description:
-      "List all tracked investment theses in the authenticated KANON workspace with valuation risk/reward, base CAGR, readiness score, and portfolio analytics.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-  },
-  {
-    name: "get_thesis_dossier",
-    description:
-      "Get the full 5-step fundamental research dossier for a single US equity ticker, including hypotheses, Reverse-DCF implied expectations, SEC forensic quality, quarterly reviews, and latest IC briefing.",
-    inputSchema: {
-      type: "object",
-      properties: { ticker: { type: "string", description: "US stock ticker, e.g. NVDA or MU" } },
-      required: ["ticker"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "list_upcoming_catalysts",
-    description:
-      "List upcoming catalysts across active KANON theses, optionally filtered by ticker or high impact.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        ticker: { type: "string", description: "Optional ticker filter" },
-        onlyHighImpact: { type: "boolean", description: "Return only high-impact catalysts" },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "get_sec_forensics",
-    description:
-      "Inspect 14-metric SEC XBRL forensic quality grade, red flags, and annual/quarterly financials for a tracked ticker.",
-    inputSchema: {
-      type: "object",
-      properties: { ticker: { type: "string", description: "US stock ticker, e.g. NVDA" } },
-      required: ["ticker"],
-      additionalProperties: false,
-    },
-  },
-] as const;
+export { MCP_TOOL_DEFINITIONS } from "./_mcp-read-schemas";
 
 async function handleThesisDossier(db: KanonDb, userId: string, tickerRaw: string) {
   const ticker = tickerRaw.trim().toUpperCase();
@@ -145,28 +111,55 @@ async function handleSecForensics(db: KanonDb, tickerRaw: string) {
   };
 }
 
+async function handleSearchFilingExcerpts(db: KanonDb, args: Record<string, unknown>) {
+  const ticker = typeof args.ticker === "string" ? args.ticker.trim().toUpperCase() : "";
+  const query = typeof args.query === "string" ? args.query.trim() : "";
+  if (!ticker || !query) return { error: "Missing required arguments: ticker, query" };
+  const docs = await listCachedSecFilingDocsByTicker(db, ticker);
+  const limit = typeof args.limit === "number" ? Math.min(8, Math.max(1, args.limit)) : 4;
+  const matches = searchFilingExcerpts({ query, filings: docs, limit });
+  return { ticker, query, cachedDocsCount: docs.length, matches };
+}
+
+async function handlePortfolioCalibration(db: KanonDb, userId: string) {
+  const theses = await listTheses(db, userId);
+  const reviews = await listQuarterlyReviewsByThesisIds(
+    db,
+    theses.map((t) => t.id),
+  );
+  const reviewsMap = new Map<string, QuarterlyReview[]>();
+  for (const r of reviews) {
+    const bucket = reviewsMap.get(r.thesisId);
+    if (bucket) bucket.push(r);
+    else reviewsMap.set(r.thesisId, [r]);
+  }
+  const calibration = calculatePortfolioCalibration(theses, reviewsMap);
+  const digest = buildWeeklyIcDigest(theses, calibration);
+  return { calibration, digest };
+}
+
 export async function executeMcpToolCall(
   db: KanonDb,
   userId: string,
   name: string,
   args: Record<string, unknown>,
+  scope: ApiTokenScope = "read",
 ): Promise<{ isError?: boolean; payload: unknown }> {
-  if (name === "list_portfolio_theses") {
+  if (isMcpWriteTool(name)) return executeMcpWriteToolCall(db, userId, name, args, scope);
+  if (name === "list_portfolio_theses")
     return { payload: await handlePortfolioSummary(db, userId) };
+  if (name === "get_portfolio_calibration") {
+    return { payload: await handlePortfolioCalibration(db, userId) };
   }
-  if (name === "get_thesis_dossier") {
-    const ticker = typeof args.ticker === "string" ? args.ticker : "";
-    if (!ticker) return { isError: true, payload: { error: "Missing required argument: ticker" } };
-    return { payload: await handleThesisDossier(db, userId, ticker) };
-  }
-  if (name === "list_upcoming_catalysts") {
+  if (name === "list_upcoming_catalysts")
     return { payload: await handleCatalystsList(db, userId, args) };
-  }
-  if (name === "get_sec_forensics") {
-    const ticker = typeof args.ticker === "string" ? args.ticker : "";
-    if (!ticker) return { isError: true, payload: { error: "Missing required argument: ticker" } };
-    return { payload: await handleSecForensics(db, ticker) };
-  }
+  if (name === "search_sec_filing_excerpts")
+    return { payload: await handleSearchFilingExcerpts(db, args) };
+  const ticker = typeof args.ticker === "string" ? args.ticker : "";
+  if (!ticker) return { isError: true, payload: { error: "Missing required argument: ticker" } };
+  if (name === "get_thesis_dossier")
+    return { payload: await handleThesisDossier(db, userId, ticker) };
+  if (name === "get_sec_forensics") return { payload: await handleSecForensics(db, ticker) };
   return { isError: true, payload: { error: `Unknown MCP tool: ${name}` } };
 }
 

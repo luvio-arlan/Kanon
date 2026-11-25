@@ -1,4 +1,4 @@
-import type { PublicUser } from "@kanon/core";
+import type { ApiTokenScope, PublicUser } from "@kanon/core";
 import { authenticateApiToken, getKanonDb, getSessionUser } from "@kanon/core/db";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
@@ -74,7 +74,7 @@ export async function requireMcpAuthContext(
   request: Request,
   startedAt: number,
 ): Promise<
-  | { ok: true; user: PublicUser; authMethod: "pat" | "session" }
+  | { ok: true; user: PublicUser; authMethod: "pat" | "session"; scope: ApiTokenScope }
   | { ok: false; response: NextResponse }
 > {
   const authHeader = request.headers.get("authorization")?.trim();
@@ -88,9 +88,9 @@ export async function requireMcpAuthContext(
         response: jsonError("个人访问令牌无效或已过期。", 401, startedAt, "INVALID_TOKEN"),
       };
     }
-    return { ok: true, user: matched.user, authMethod: "pat" };
+    return { ok: true, user: matched.user, authMethod: "pat", scope: matched.scope };
   }
   const sessionAuth = await requireWorkspaceContext(startedAt);
   if (!sessionAuth.ok) return sessionAuth;
-  return { ok: true, user: sessionAuth.user, authMethod: "session" };
+  return { ok: true, user: sessionAuth.user, authMethod: "session", scope: "read_write" };
 }

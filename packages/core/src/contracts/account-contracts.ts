@@ -56,6 +56,7 @@ export const RevokeOtherSessionsResponseSchema = z.object({
 export type RevokeOtherSessionsResponse = z.infer<typeof RevokeOtherSessionsResponseSchema>;
 
 export const ApiTokenScopeSchema = z.enum(["read", "read_write"]);
+export type ApiTokenScope = z.infer<typeof ApiTokenScopeSchema>;
 
 export const ApiTokenSummarySchema = z.object({
   id: z.string().min(1),

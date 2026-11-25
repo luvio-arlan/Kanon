@@ -8,6 +8,7 @@ import {
 } from "@kanon/core";
 import {
   Button,
+  cn,
   KANON_FADE_UP_ITEM,
   KANON_STAGGER_CONTAINER,
   KANON_TRANSITION_FAST,
@@ -59,6 +60,35 @@ interface MainStageProps {
   analytics: ReturnType<typeof calculatePortfolioAnalytics>;
 }
 
+function ThesisCardsGrid({ ui, market }: Pick<MainStageProps, "ui" | "market">) {
+  return (
+    <motion.section
+      aria-label="跟踪标的列表"
+      variants={KANON_STAGGER_CONTAINER}
+      initial={false}
+      animate="visible"
+      className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-2 2xl:grid-cols-3"
+    >
+      {ui.visibleTheses.map((thesis, idx) => (
+        <motion.div
+          key={thesis.id}
+          variants={KANON_FADE_UP_ITEM}
+          className={cn(
+            "flex h-full rounded-card transition-shadow",
+            idx === ui.selectedIndex && "ring-1 ring-accent-coral/70",
+          )}
+        >
+          <ThesisBentoCard
+            thesis={thesis}
+            liveQuote={market.quotes[thesis.ticker]}
+            onQuickInspect={ui.setPreviewThesis}
+          />
+        </motion.div>
+      ))}
+    </motion.section>
+  );
+}
+
 function renderCollectionBody({ ui, ext, market, analytics }: MainStageProps) {
   if (ui.viewMode === "catalysts") return <CatalystCalendarBoard theses={ui.theses} />;
   if (ui.viewMode === "comps") {
@@ -87,25 +117,7 @@ function renderCollectionBody({ ui, ext, market, analytics }: MainStageProps) {
       />
     );
   }
-  return (
-    <motion.section
-      aria-label="跟踪标的列表"
-      variants={KANON_STAGGER_CONTAINER}
-      initial={false}
-      animate="visible"
-      className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-2 2xl:grid-cols-3"
-    >
-      {ui.visibleTheses.map((thesis) => (
-        <motion.div key={thesis.id} variants={KANON_FADE_UP_ITEM} className="flex h-full">
-          <ThesisBentoCard
-            thesis={thesis}
-            liveQuote={market.quotes[thesis.ticker]}
-            onQuickInspect={ui.setPreviewThesis}
-          />
-        </motion.div>
-      ))}
-    </motion.section>
-  );
+  return <ThesisCardsGrid ui={ui} market={market} />;
 }
 
 function ThesisCollectionView(p: MainStageProps) {

@@ -180,3 +180,9 @@
 - **Mistake**: Growing `cross-check-editor.tsx` / `valuation-reverse-dcf-panel.tsx` past the 250-line file cap and risking flat folder overflow (`>= 12` files) when adding Step 2/3 evidence lineage (`hypothesisId`) and portfolio cognitive calibration.
 - **Correct Pattern**: Always add new Schema columns via expand-only migrations (`0009-cross-check-hypothesis-link.ts`), extract cohesive sub-cards into bounded domain subdirectories (`lineage/`, `drivers/`, `calibration/`) to keep every module `<= 250` lines, remap child IDs safely on archive import (`archive-importer.ts`), and strictly reuse canonical Zod enum unions (`EmotionState`, `CrossCheck`).
 - **Why / Gate**: Enforced by `universal-max-directory-files`, `universal-max-file-lines`, `expand-only-migrations` in `pnpm check`, `repository.test.ts` DDL parity, and `portfolio-calibration.test.ts`.
+
+### [2026-11-25] Enforce Strict PAT Scopes on MCP v2, Lean SSR Projections & Focus-Safe Keyboard Shortcuts
+
+- **Mistake**: Exposing external MCP write tools without explicit `read` vs `read_write` token scope gating risks unintended workspace mutations from read-only desktop integrations; loading full sibling JSONB valuation blobs during SSR canvas bootstrap slows initial TTFT; binding global `Enter` shortcuts when no card is keyboard-selected hijacks native link/button activation.
+- **Correct Pattern**: Propagate `scope: ApiTokenScope` through `requireMcpAuthContext` and enforce `scope === "read_write"` before dispatching `append_cross_check_note`, `add_catalyst_event`, or `draft_quarterly_review`; split sibling valuation SSR queries into lightweight scalar column projections while capping initial revisions at 12; guard global `Enter` shortcuts to bind only when `selectedIndex >= 0`.
+- **Why / Gate**: Verified via `verify-api-contracts.mjs` (`read` 403-style MCP block vs `read_write` 200 pass, 30 routes inventoried), `pnpm check`, `pnpm test`, and `pnpm build`.

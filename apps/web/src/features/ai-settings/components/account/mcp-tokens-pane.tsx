@@ -1,7 +1,16 @@
 "use client";
 
-import type { ApiTokenSummary } from "@kanon/core";
-import { Badge, Button, Input, SettingsCard, SettingsRow, SettingsSectionLabel } from "@kanon/ui";
+import type { ApiTokenScope, ApiTokenSummary } from "@kanon/core";
+import {
+  Badge,
+  Button,
+  ButtonGroup,
+  ButtonGroupItem,
+  Input,
+  SettingsCard,
+  SettingsRow,
+  SettingsSectionLabel,
+} from "@kanon/ui";
 import { IconCopy, IconKey, IconPlugConnected, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -90,6 +99,7 @@ function McpConfigCard({ snippet }: { snippet: string }) {
 function useMcpTokensController() {
   const [tokens, setTokens] = useState<ApiTokenSummary[]>([]);
   const [name, setName] = useState("");
+  const [scope, setScope] = useState<ApiTokenScope>("read");
   const [creating, setCreating] = useState(false);
   const [freshToken, setFreshToken] = useState<string | null>(null);
 
@@ -107,7 +117,7 @@ function useMcpTokensController() {
     }
     setCreating(true);
     try {
-      const res = await apiCreateApiToken({ name: clean, expiresInDays: 90 });
+      const res = await apiCreateApiToken({ name: clean, scope, expiresInDays: 90 });
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -131,7 +141,46 @@ function useMcpTokensController() {
     toast.success("已撤销该访问令牌");
   }
 
-  return { tokens, name, setName, creating, freshToken, create, revoke };
+  return { tokens, name, setName, scope, setScope, creating, freshToken, create, revoke };
+}
+
+function CreateTokenBar(p: { ctrl: ReturnType<typeof useMcpTokensController> }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        value={p.ctrl.name}
+        maxLength={40}
+        onChange={(e) => p.ctrl.setName(e.target.value)}
+        placeholder="令牌用途（如 Antigravity 桌面端）"
+        className="min-w-[180px] flex-1"
+      />
+      <ButtonGroup ariaLabel="访问令牌权限">
+        <ButtonGroupItem
+          size="sm"
+          selected={p.ctrl.scope === "read"}
+          onClick={() => p.ctrl.setScope("read")}
+        >
+          只读
+        </ButtonGroupItem>
+        <ButtonGroupItem
+          size="sm"
+          selected={p.ctrl.scope === "read_write"}
+          onClick={() => p.ctrl.setScope("read_write")}
+        >
+          读写
+        </ButtonGroupItem>
+      </ButtonGroup>
+      <Button
+        variant="primary"
+        size="sm"
+        loading={p.ctrl.creating}
+        onClick={() => void p.ctrl.create()}
+      >
+        {!p.ctrl.creating ? <IconPlus size={14} stroke={1.5} /> : null}
+        <span>生成令牌</span>
+      </Button>
+    </div>
+  );
 }
 
 export function McpTokensPane() {
@@ -145,24 +194,7 @@ export function McpTokensPane() {
       <div>
         <SettingsSectionLabel>个人访问令牌（PAT）</SettingsSectionLabel>
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Input
-              value={ctrl.name}
-              maxLength={40}
-              onChange={(e) => ctrl.setName(e.target.value)}
-              placeholder="令牌用途（如 Antigravity 桌面端）"
-              className="flex-1"
-            />
-            <Button
-              variant="primary"
-              size="sm"
-              loading={ctrl.creating}
-              onClick={() => void ctrl.create()}
-            >
-              {!ctrl.creating ? <IconPlus size={14} stroke={1.5} /> : null}
-              <span>生成令牌</span>
-            </Button>
-          </div>
+          <CreateTokenBar ctrl={ctrl} />
           {ctrl.freshToken ? <NewTokenBanner plaintext={ctrl.freshToken} /> : null}
           <SettingsCard>
             {ctrl.tokens.length === 0 ? (

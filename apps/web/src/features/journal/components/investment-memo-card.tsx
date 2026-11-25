@@ -56,6 +56,9 @@ function MemoArticleBody({ memo }: { memo: InvestmentMemo }) {
         <span className="font-medium text-ink-muted">离场执行纪律：</span>
         {memo.exitDiscipline}
       </div>
+      <div className="print-only border-t border-hairline pt-4 font-mono text-xs text-ink-muted">
+        零杠杆风控原则确认 · 决策留痕归档 ({new Date().toISOString().slice(0, 10)})
+      </div>
     </article>
   );
 }
@@ -103,6 +106,10 @@ export function InvestmentMemoCard({ memo, loading, onGenerate }: InvestmentMemo
 
   return (
     <Card className="p-6 sm:p-8">
+      <div className="print-only mb-4 flex items-center justify-between border-b border-hairline pb-2 font-mono text-xs tracking-wider text-ink-muted">
+        <span>KANON · IC RESEARCH MEMORANDUM</span>
+        <span>{new Date().toISOString().slice(0, 10)}</span>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-base font-semibold text-ink-primary">投研备忘录</h3>
         <MemoActionButtons

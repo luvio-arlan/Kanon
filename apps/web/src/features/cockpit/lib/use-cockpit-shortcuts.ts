@@ -20,15 +20,28 @@ export function useCockpitShortcuts(params: {
   onToggleView: () => void;
   onToggleTheme: () => void;
   onFocusSearch: () => void;
+  onMoveSelection?: (delta: -1 | 1) => void;
+  onOpenSelected?: () => void;
 }) {
-  const { disabled, onNewThesis, onToggleView, onToggleTheme, onFocusSearch } = params;
+  const {
+    disabled,
+    onNewThesis,
+    onToggleView,
+    onToggleTheme,
+    onFocusSearch,
+    onMoveSelection,
+    onOpenSelected,
+  } = params;
 
   useEffect(() => {
-    const handlers: Record<string, () => void> = {
+    const handlers: Record<string, (() => void) | undefined> = {
       "/": onFocusSearch,
       n: onNewThesis,
       v: onToggleView,
       t: onToggleTheme,
+      j: onMoveSelection ? () => onMoveSelection(1) : undefined,
+      k: onMoveSelection ? () => onMoveSelection(-1) : undefined,
+      enter: onOpenSelected,
     };
     function handleKeyDown(event: KeyboardEvent) {
       if (shouldIgnoreEvent(event, disabled)) return;
@@ -39,5 +52,13 @@ export function useCockpitShortcuts(params: {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [disabled, onNewThesis, onToggleView, onToggleTheme, onFocusSearch]);
+  }, [
+    disabled,
+    onNewThesis,
+    onToggleView,
+    onToggleTheme,
+    onFocusSearch,
+    onMoveSelection,
+    onOpenSelected,
+  ]);
 }

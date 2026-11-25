@@ -28,7 +28,7 @@ import {
   listQuarterlyReviews,
 } from "./review-and-agent-store";
 import { listThesisRevisions } from "./revision-queries";
-import { buildValuationInput, hydrateThesis } from "./thesis-queries";
+import { hydrateThesis } from "./thesis-queries";
 
 interface ThesisCanvasBootstrap {
   thesis: ThesisDetail;
@@ -42,12 +42,50 @@ interface ThesisCanvasBootstrap {
   inboundCrossChecks: InboundCrossCheck[];
 }
 
+interface ValuationScalarRow {
+  thesisId: string;
+  bearEps: number;
+  bearPe: number;
+  bearProb: number;
+  baseEps: number;
+  basePe: number;
+  baseProb: number;
+  bullEps: number;
+  bullPe: number;
+  bullProb: number;
+}
+
+function buildSummaryValuationInput(
+  row: typeof thesesTable.$inferSelect,
+  val: ValuationScalarRow | undefined,
+) {
+  return {
+    currentPrice: row.currentPrice,
+    horizonYears: row.horizonYears,
+    bear: {
+      eps: val?.bearEps ?? 1,
+      peMultiple: val?.bearPe ?? 15,
+      probability: val?.bearProb ?? 0.25,
+    },
+    base: {
+      eps: val?.baseEps ?? 2,
+      peMultiple: val?.basePe ?? 20,
+      probability: val?.baseProb ?? 0.5,
+    },
+    bull: {
+      eps: val?.bullEps ?? 3,
+      peMultiple: val?.bullPe ?? 25,
+      probability: val?.bullProb ?? 0.25,
+    },
+  };
+}
+
 function buildSummaries(
   rows: readonly (typeof thesesTable.$inferSelect)[],
-  valMap: Map<string, typeof valuationScenariosTable.$inferSelect>,
+  valMap: Map<string, ValuationScalarRow>,
 ): ThesisSummary[] {
   return rows.map((row) => {
-    const val = calculateValuationScenarios(buildValuationInput(row, valMap.get(row.id)));
+    const val = calculateValuationScenarios(buildSummaryValuationInput(row, valMap.get(row.id)));
     return {
       id: row.id,
       indexLabel: String(row.indexOrder).padStart(2, "0"),
@@ -90,10 +128,41 @@ function fetchInitialWave(db: KanonDb, id: string, userId: string) {
       .orderBy(desc(disciplineEntriesTable.createdAt)),
     listGlossaryTerms(db),
     listCopilotOutputs(db, id),
-    listThesisRevisions(db, id),
+    listThesisRevisions(db, id, 12),
     listQuarterlyReviews(db, id),
     getLatestAgentRun(db, id),
     listInboundCrossChecks(db, id),
+  ]);
+}
+
+function loadTargetAndSiblingValuations(
+  db: KanonDb,
+  id: string,
+  ticker: string,
+  allIds: readonly string[],
+) {
+  return Promise.all([
+    getSecSnapshot(db, ticker),
+    db
+      .select()
+      .from(valuationScenariosTable)
+      .where(eq(valuationScenariosTable.thesisId, id))
+      .limit(1),
+    db
+      .select({
+        thesisId: valuationScenariosTable.thesisId,
+        bearEps: valuationScenariosTable.bearEps,
+        bearPe: valuationScenariosTable.bearPe,
+        bearProb: valuationScenariosTable.bearProb,
+        baseEps: valuationScenariosTable.baseEps,
+        basePe: valuationScenariosTable.basePe,
+        baseProb: valuationScenariosTable.baseProb,
+        bullEps: valuationScenariosTable.bullEps,
+        bullPe: valuationScenariosTable.bullPe,
+        bullProb: valuationScenariosTable.bullProb,
+      })
+      .from(valuationScenariosTable)
+      .where(inArray(valuationScenariosTable.thesisId, [...allIds])),
   ]);
 }
 
@@ -109,25 +178,24 @@ export async function loadThesisCanvasBootstrap(
   if (!targetRow) return null;
 
   const allIds = rows.map((row) => row.id);
-  const [secSnapshot, valuations] = await Promise.all([
-    getSecSnapshot(db, targetRow.ticker),
-    db
-      .select()
-      .from(valuationScenariosTable)
-      .where(inArray(valuationScenariosTable.thesisId, allIds)),
-  ]);
-  const valMap = new Map(valuations.map((v) => [v.thesisId, v]));
+  const [secSnapshot, targetValRows, siblingValRows] = await loadTargetAndSiblingValuations(
+    db,
+    id,
+    targetRow.ticker,
+    allIds,
+  );
+  const scalarMap = new Map(siblingValRows.map((v) => [v.thesisId, v]));
   const thesis = hydrateThesis({
     row: targetRow,
     hypotheses,
     catalysts,
     crossChecks,
-    valuationRow: valMap.get(id),
+    valuationRow: targetValRows[0],
     disciplineRows,
   });
   return {
     thesis,
-    allTheses: buildSummaries(rows, valMap),
+    allTheses: buildSummaries(rows, scalarMap),
     glossary,
     secSnapshot,
     savedOutputs,

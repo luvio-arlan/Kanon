@@ -113,6 +113,51 @@ function useCockpitCollection(initialTheses: ThesisDetail[]) {
   };
 }
 
+function useCardSelection(visibleTheses: readonly ThesisDetail[], onOpen: (id: string) => void) {
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const count = visibleTheses.length;
+  const moveSelection = useCallback(
+    (delta: -1 | 1) => {
+      if (count === 0) return;
+      setSelectedIndex((prev) => {
+        if (prev < 0 || prev >= count) return delta > 0 ? 0 : count - 1;
+        return (prev + delta + count) % count;
+      });
+    },
+    [count],
+  );
+  const active = selectedIndex >= 0 && selectedIndex < count ? visibleTheses[selectedIndex] : null;
+  return {
+    selectedIndex: active ? selectedIndex : -1,
+    moveSelection,
+    openSelected: active ? () => onOpen(active.id) : undefined,
+  };
+}
+
+function useCockpitCommandGroups(params: {
+  theses: readonly ThesisDetail[];
+  glossary: readonly GlossaryTerm[];
+  theme: "light" | "dark";
+  setModal: (key: "cmd" | "create" | "ai", open: boolean) => void;
+  toggleTheme: () => void;
+  openThesis: (id: string) => void;
+}) {
+  const { theses, glossary, theme, setModal, toggleTheme, openThesis } = params;
+  return useMemo(
+    () =>
+      buildCockpitCommandGroups({
+        theses,
+        glossary,
+        theme,
+        onOpenThesis: (item) => openThesis(item.id),
+        onNewThesis: () => setModal("create", true),
+        onOpenSettings: () => setModal("ai", true),
+        onToggleTheme: toggleTheme,
+      }),
+    [theses, glossary, openThesis, setModal, theme, toggleTheme],
+  );
+}
+
 export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonly GlossaryTerm[]) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
@@ -125,33 +170,29 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
     setHasByok(Boolean(readByokConfig()));
   }, []);
 
-  const setModal = useCallback(
-    (key: "cmd" | "create" | "ai", open: boolean) =>
-      setModals((prev) => ({ ...prev, [key]: open })),
-    [],
+  const setModal = useCallback((key: "cmd" | "create" | "ai", open: boolean) => {
+    setModals((prev) => ({ ...prev, [key]: open }));
+  }, []);
+  const selection = useCardSelection(collection.visibleTheses, (id) =>
+    router.push(`/thesis/${id}`),
   );
-
   useCockpitShortcuts({
     disabled: modals.cmd || modals.create || modals.ai || collection.previewThesis !== null,
     onNewThesis: () => setModal("create", true),
     onToggleView: () => collection.setViewMode((v) => (v === "cards" ? "table" : "cards")),
     onToggleTheme: toggleTheme,
     onFocusSearch: () => searchInputRef.current?.focus(),
+    onMoveSelection: selection.moveSelection,
+    onOpenSelected: selection.openSelected,
   });
-
-  const commandGroups = useMemo(
-    () =>
-      buildCockpitCommandGroups({
-        theses: collection.theses,
-        glossary,
-        theme,
-        onOpenThesis: (item) => router.push(`/thesis/${item.id}`),
-        onNewThesis: () => setModal("create", true),
-        onOpenSettings: () => setModal("ai", true),
-        onToggleTheme: toggleTheme,
-      }),
-    [collection.theses, glossary, router, setModal, theme, toggleTheme],
-  );
+  const commandGroups = useCockpitCommandGroups({
+    theses: collection.theses,
+    glossary,
+    theme,
+    setModal,
+    toggleTheme,
+    openThesis: (id) => router.push(`/thesis/${id}`),
+  });
   return {
     router,
     searchInputRef,
@@ -159,6 +200,7 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
     setModal,
     hasByok,
     setHasByok,
+    selectedIndex: selection.selectedIndex,
     commandGroups,
     ...collection,
   };

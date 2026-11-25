@@ -22,10 +22,11 @@
   - Formalized Modular Type Scale, 4-tier Elevation Scale, and 4-tier Motion Physics Scale in `@kanon/ui`.
   - `O(N+M)` query indexing, lightweight `listThesisSummaries` projection for canvas switcher, streaming `loading.tsx` skeletons, and `⌘S` / `⌘J` shortcuts.
   - MCP-ready `packages/ai/src/agent/` multi-step research orchestrator + `POST /api/ai/agent` SSE stream + `AgentResearchSheet` (`⌘J`) with live tool traces and 1-click HITL proposal adoption.
-- **v4.0 (Next Horizon)**:
-  - `pgvector` + BM25 Hybrid RAG over full 10-K/10-Q/Earnings transcripts with click-to-highlight original source viewer.
-  - Automated Quarterly Earnings Diff & Hypothesis Drift Detector.
-  - Multi-Agent Investment Committee Debate (Fundamental / Forensic Accounting / Short Bear / PM Synthesizer).
+- **v4.0–v6.0 (Implemented Now)**:
+  - Persistent `sec_filing_documents_cache` (0008), Working Capital Cycle (DSO/DIO/DPO/CCC) & Form 4 insider monitor, and deterministic BM25 full-text search over 10-K/10-Q paragraphs (`search_sec_filing_excerpts`) with numeric grounding verification (`isProposalGrounded`) + multi-turn IC follow-up (`POST /api/ai/agent/ask`).
+  - Atomic multi-proposal Agent apply (`applyAgentProposalsAtomic`), `expectedUpdatedAt` OCC (`409 CONFLICT`), `BroadcastChannel` tab sync, lossless Archive v3 export/import, and persistent Postgres `rate_limit_buckets` + `verifySameOrigin` CSRF gate across all mutations.
+  - Step 2/3 bidirectional `cross_checks.hypothesis_id` lineage (0009), 3-bar Expectations Contrast chart, custom probability normalization, Portfolio Cognitive Calibration (`calm / hesitant / fomo / fearful` win rates), and Weekly IC Digest (`GET /api/portfolio/calibration`).
+  - Scoped Streamable HTTP MCP Server v2 (`6 read + 3 read_write tools` via `/api/mcp`) and print-grade `@media print` A4 IC Memo typography.
 - **v5.0 (Institutional Team OS)**:
   - Local-First sub-50ms sync engine (ElectricSQL / Zero) on Postgres WAL.
   - External MCP Server connectors (live market feeds, SEC Form 4/13F, Google Drive/Notion sync).

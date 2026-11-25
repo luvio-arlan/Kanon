@@ -1,4 +1,4 @@
-import { McpJsonRpcRequestSchema } from "@kanon/core";
+import { type ApiTokenScope, McpJsonRpcRequestSchema } from "@kanon/core";
 import { getKanonDb } from "@kanon/core/db";
 import { NextResponse } from "next/server";
 import { requireMcpAuthContext } from "../_lib/auth-session";
@@ -43,10 +43,11 @@ export async function GET(request: Request) {
   return jsonOk(
     {
       name: "kanon-research-os",
-      version: "1.0.0",
+      version: "2.0.0",
       protocolVersion: MCP_PROTOCOL_VERSION,
       transport: "streamable-http",
       authMethod: auth.authMethod,
+      scope: auth.scope,
       toolsCount: MCP_TOOL_DEFINITIONS.length,
     },
     startedAt,
@@ -58,9 +59,10 @@ async function dispatchWorkspaceRpc(params: {
   method: string;
   rpcParams: Record<string, unknown>;
   userId: string;
+  scope: ApiTokenScope;
   startedAt: number;
 }) {
-  const { id, method, rpcParams, userId, startedAt } = params;
+  const { id, method, rpcParams, userId, scope, startedAt } = params;
   const db = await getKanonDb();
   if (method === "tools/call") {
     const name = typeof rpcParams.name === "string" ? rpcParams.name : "";
@@ -68,7 +70,7 @@ async function dispatchWorkspaceRpc(params: {
       rpcParams.arguments && typeof rpcParams.arguments === "object"
         ? (rpcParams.arguments as Record<string, unknown>)
         : {};
-    const outcome = await executeMcpToolCall(db, userId, name, args);
+    const outcome = await executeMcpToolCall(db, userId, name, args, scope);
     return rpcSuccess(
       id,
       {
@@ -95,6 +97,7 @@ async function dispatchRpcMethod(params: {
   method: string;
   rpcParams: Record<string, unknown>;
   userId: string;
+  scope: ApiTokenScope;
   startedAt: number;
 }) {
   const { id, method, startedAt } = params;
@@ -104,7 +107,7 @@ async function dispatchRpcMethod(params: {
       {
         protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
-        serverInfo: { name: "kanon-research-os", version: "1.0.0" },
+        serverInfo: { name: "kanon-research-os", version: "2.0.0" },
       },
       startedAt,
     );
@@ -137,6 +140,7 @@ export async function POST(request: Request) {
     method: parsed.data.method,
     rpcParams: parsed.data.params ?? {},
     userId: auth.user.id,
+    scope: auth.scope,
     startedAt,
   });
 }
