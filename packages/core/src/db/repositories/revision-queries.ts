@@ -10,6 +10,15 @@ import type {
 import type { KanonDb } from "../client";
 import { thesisRevisionsTable } from "../schema";
 
+const COALESCE_WINDOW_MS = 5 * 60 * 1000;
+const COALESCEABLE_STEPS = new Set<RevisionStep>([
+  "business_filter",
+  "hypotheses",
+  "catalysts",
+  "cross_checks",
+  "valuation",
+]);
+
 function buildRevisionSnapshot(thesis: ThesisDetail, readinessScore: number): RevisionSnapshot {
   return {
     currentPrice: thesis.currentPrice,
@@ -28,30 +37,16 @@ function buildRevisionSnapshot(thesis: ThesisDetail, readinessScore: number): Re
   };
 }
 
-export async function recordThesisRevision(
-  db: KanonDb,
-  thesis: ThesisDetail,
-  step: RevisionStep,
-  summary: string,
-): Promise<ThesisRevision> {
-  const now = new Date();
-  const id = `rev-${crypto.randomUUID().slice(0, 10)}`;
-  const readiness = calculateResearchReadiness(thesis);
-  const snapshot = buildRevisionSnapshot(thesis, readiness.scorePct);
-
-  await db.insert(thesisRevisionsTable).values({
-    id,
-    thesisId: thesis.id,
-    step,
-    summary,
-    currentPrice: thesis.currentPrice,
-    baseTargetPrice: thesis.valuation.base.targetPrice,
-    riskRewardRatio: thesis.valuation.riskRewardRatio,
-    readinessScore: readiness.scorePct,
-    snapshotJson: snapshot,
-    createdAt: now,
-  });
-
+function toRevisionDto(params: {
+  id: string;
+  thesis: ThesisDetail;
+  step: RevisionStep;
+  summary: string;
+  readinessScore: number;
+  snapshot: RevisionSnapshot;
+  now: Date;
+}): ThesisRevision {
+  const { id, thesis, step, summary, readinessScore, snapshot, now } = params;
   return {
     id,
     thesisId: thesis.id,
@@ -60,10 +55,78 @@ export async function recordThesisRevision(
     currentPrice: thesis.currentPrice,
     baseTargetPrice: thesis.valuation.base.targetPrice,
     riskRewardRatio: thesis.valuation.riskRewardRatio,
-    readinessScore: readiness.scorePct,
+    readinessScore,
     snapshot,
     createdAt: now.toISOString(),
   };
+}
+
+async function findRecentSameStepRevision(
+  db: KanonDb,
+  thesisId: string,
+  step: RevisionStep,
+  now: Date,
+): Promise<string | null> {
+  if (!COALESCEABLE_STEPS.has(step)) return null;
+  const [latest] = await db
+    .select({
+      id: thesisRevisionsTable.id,
+      step: thesisRevisionsTable.step,
+      createdAt: thesisRevisionsTable.createdAt,
+    })
+    .from(thesisRevisionsTable)
+    .where(eq(thesisRevisionsTable.thesisId, thesisId))
+    .orderBy(desc(thesisRevisionsTable.createdAt))
+    .limit(1);
+  if (!latest || latest.step !== step) return null;
+  return now.getTime() - latest.createdAt.getTime() <= COALESCE_WINDOW_MS ? latest.id : null;
+}
+
+export async function recordThesisRevision(
+  db: KanonDb,
+  thesis: ThesisDetail,
+  step: RevisionStep,
+  summary: string,
+): Promise<ThesisRevision> {
+  const now = new Date();
+  const readiness = calculateResearchReadiness(thesis);
+  const snapshot = buildRevisionSnapshot(thesis, readiness.scorePct);
+  const payload = {
+    summary,
+    currentPrice: thesis.currentPrice,
+    baseTargetPrice: thesis.valuation.base.targetPrice,
+    riskRewardRatio: thesis.valuation.riskRewardRatio,
+    readinessScore: readiness.scorePct,
+    snapshotJson: snapshot,
+    createdAt: now,
+  };
+  const existingId = await findRecentSameStepRevision(db, thesis.id, step, now);
+  if (existingId) {
+    await db
+      .update(thesisRevisionsTable)
+      .set(payload)
+      .where(eq(thesisRevisionsTable.id, existingId));
+    return toRevisionDto({
+      id: existingId,
+      thesis,
+      step,
+      summary,
+      readinessScore: readiness.scorePct,
+      snapshot,
+      now,
+    });
+  }
+  const id = `rev-${crypto.randomUUID().slice(0, 10)}`;
+  await db.insert(thesisRevisionsTable).values({ id, thesisId: thesis.id, step, ...payload });
+  return toRevisionDto({
+    id,
+    thesis,
+    step,
+    summary,
+    readinessScore: readiness.scorePct,
+    snapshot,
+    now,
+  });
 }
 
 export async function listThesisRevisions(

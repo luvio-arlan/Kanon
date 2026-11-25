@@ -17,25 +17,28 @@ function RedTeamChallengeRow({
   const label =
     ch.severity === "critical" ? "核心风险" : ch.severity === "high" ? "高关注" : "常规关注";
   return (
-    <div className="rounded-control border border-hairline bg-surface p-4">
+    <div className="px-6 py-5 sm:px-7">
       <div className="flex items-start justify-between gap-3">
         <div className="text-sm font-semibold text-ink-primary">
-          0{idx + 1}. {ch.question}
+          <span className="mr-2 font-mono text-xs font-normal text-ink-muted tabular-nums">
+            0{idx + 1}
+          </span>
+          {ch.question}
         </div>
-        <Badge variant={variant}>{label}</Badge>
+        <Badge variant={variant} className="shrink-0">
+          {label}
+        </Badge>
       </div>
-      <p className="mt-2 text-sm leading-relaxed text-ink-secondary">
-        证伪路径：{ch.falsificationPath}
-      </p>
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-        <div className="font-mono text-xs text-ink-muted">锚点：{ch.sourceAnchor}</div>
+      <p className="mt-2 text-sm leading-relaxed text-ink-secondary">{ch.falsificationPath}</p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="font-mono text-xs text-ink-muted">{ch.sourceAnchor}</div>
         {onPromoteRule ? (
           <button
             type="button"
             onClick={() => onPromoteRule(ch.falsificationPath)}
             className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-coral transition-opacity hover:opacity-80"
           >
-            <span>带入 Step 5 离场条件</span>
+            <span>转为离场条件</span>
             <IconArrowRight size={13} stroke={1.5} />
           </button>
         ) : null}
@@ -52,12 +55,11 @@ export function RedTeamResultCard({
   onPromoteRule?: (rule: string) => void;
 }) {
   return (
-    <Card tone="titanium" className="space-y-4 p-6">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-ink-primary">反向质询 · 空头视角审视</h3>
-        <Badge variant="fail">Counter-Thesis</Badge>
+    <Card className="overflow-hidden">
+      <div className="border-b border-hairline px-6 py-4 sm:px-7">
+        <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">反向质询</h3>
       </div>
-      <div className="space-y-3">
+      <div className="divide-y divide-hairline">
         {report.challenges.map((ch, idx) => (
           <RedTeamChallengeRow key={ch.id} ch={ch} idx={idx} onPromoteRule={onPromoteRule} />
         ))}

@@ -6,24 +6,9 @@ import { ScenarioEditorCard } from "./scenario-editor-card";
 
 const PE_RANGE = { min: 6, max: 60, step: 1 };
 const CASE_META = [
-  {
-    key: "bear" as const,
-    label: "悲观情景",
-    subtitle: "周期下行与估值底线",
-    tone: "warn" as const,
-  },
-  {
-    key: "base" as const,
-    label: "中性基准",
-    subtitle: "大概率兑现盈利中枢",
-    tone: "pass" as const,
-  },
-  {
-    key: "bull" as const,
-    label: "乐观情景",
-    subtitle: "超预期扩张与双击",
-    tone: "titanium" as const,
-  },
+  { key: "bear" as const, label: "悲观", tone: "warn" as const },
+  { key: "base" as const, label: "中性", tone: "pass" as const },
+  { key: "bull" as const, label: "乐观", tone: "titanium" as const },
 ];
 
 export function computeEpsRange(initialEps: number) {
@@ -49,7 +34,6 @@ export function ScenarioCardsGrid({
         <ScenarioEditorCard
           key={meta.key}
           label={`${meta.label} · ${Math.round(cases[meta.key].probability * 100)}%`}
-          subtitle={meta.subtitle}
           tone={meta.tone}
           eps={cases[meta.key].eps}
           peMultiple={cases[meta.key].peMultiple}

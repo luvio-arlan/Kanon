@@ -142,3 +142,17 @@
   2. Standardize 6-tier concentric radius tokens (`rounded-card` 20px → `rounded-panel` 14px → `rounded-control` 10px → `rounded-item` 8px → `rounded-badge` 6px → `rounded-pill`), dedicated `overlay-motion.css` with `--ease-kanon` / `--ease-exit` / `--ease-overlay`, recessed `shadow-input` + `resize-none` textareas, tray-style `ButtonGroup`, and `ActionMenu` with native `selected` checkmarks and `.kanon-chevron` rotation.
   3. Replace Recharts sparklines with zero-dependency pure-SVG monotone splines, split off-screen views/modals/charts with `next/dynamic` + `useHasOpened`, cache Glossary regex via `WeakMap`, deduplicate SSR auth via `React.cache`, import Zod contracts from `@kanon/core`, and parallelize DB canvas bootstrap in a single initial wave.
 - **Why / Gate**: Mechanically enforced by `semantic-radius-only`, `institutional-copy-hygiene`, `no-native-select`, `no-recharts-in-cockpit`, `css-concentric-tokens-and-motion`, and `no-jarring-inline-mono-glossary` in `pnpm check`.
+
+### [2026-11-25] Seamless Invisible Auto-Save, Hairline Editorial Paper Grids & Conclusion-First Agent Dossier
+
+- **Mistake**:
+  1. Surfacing a full-width "有未保存修改" banner (`DraftStatusBar`), blocking step switches with `UnsavedChangesDialog`, requiring manual Save clicks on Steps 1–4, and popping success toasts created constant friction and layout jumps.
+  2. Placing a coral progress strip along the bottom edge of the rounded `CanvasContextRibbon` and redundant coral bars on sidebar/cards created visual harshness.
+  3. Rendering the IC Agent drawer with triple-nested bordered cards, a bright green progress bar, `1ms`/`2ms` dev-log timestamps, and 8 expanded trace cards ABOVE the actual IC Verdict buried conclusions under noisy debug chrome.
+  4. Stacking 4 recessed gray-bordered `<Textarea>` boxes with `IC Framework` / English subtitles and 4 corner `填充示例` buttons inside white cards made research forms look like generic OA questionnaires, while English page subtitles (`Quality Assessment`, `STEP 01`, modal subtitles) cluttered reading calm.
+- **Correct Pattern**:
+  1. Debounced silent auto-save (`useThesisStepDraft` + `useAutoSaveScheduler`) with version-pinned crash recovery, in-flight trailing queue, instant flush on step switch, whisper-quiet ribbon sync indicator, and 5-minute same-step revision coalescing (`recordThesisRevision`).
+  2. Remove decorative coral edge bars from sticky ribbons, sidebars, and cards.
+  3. Present IC Agent as a conclusion-first single-layer hairline dossier (`Verdict Monolith` → `4-Role Debate` → `Proposals` → default-collapsed borderless `Audit Timeline`).
+  4. Use borderless archival-paper inputs (`variant="editorial"`) inside `1px` hairline crosshair grids with hover/focus-revealed helper actions, and remove ornamental English subtitles, eyebrows, and verbose captions globally.
+- **Why / Gate**: Elevates KANON from form-heavy SaaS into a calm, frictionless Swiss Editorial institutional research canvas. Verified via `repository.test.ts` revision coalescing test, `pnpm check`, `pnpm test:api`, and live dual-theme visual QA.

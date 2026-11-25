@@ -172,8 +172,7 @@ export function CompareThesesSheet(props: CompareThesesSheetProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       size="lg"
-      title={`标的横向并排对比（${props.theses.length} 只）`}
-      subtitle="同屏检视安全边际、赔率比、仓位约束与核心预期差，辅助增量资金配置决策"
+      title={`横向对比 · ${props.theses.length} 只`}
       footer={
         <div className="flex items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={props.onClearSelection}>

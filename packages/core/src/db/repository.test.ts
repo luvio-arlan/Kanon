@@ -159,6 +159,26 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     expect(revisions.length).toBeGreaterThanOrEqual(4);
     expect(revisions[0]?.step).toBe("catalysts");
 
+    // Consecutive auto-saves on the same step within the coalesce window update in place
+    await updateThesisStep(db, created.id, {
+      step: "catalysts",
+      catalysts: [
+        {
+          id: "msft-cat-1",
+          title: "Azure AI 季度增速二次确认",
+          dateLabel: "FY27 Q1",
+          category: "earnings",
+          impact: "high",
+          direction: "bullish",
+          status: "upcoming",
+          verificationMetric: "Azure 同比增速 > 35%",
+          note: "无缝自动保存合并修订验证",
+        },
+      ],
+    });
+    const coalescedRevisions = await listThesisRevisions(db, created.id);
+    expect(coalescedRevisions.length).toBe(revisions.length);
+
     const health = await getDbHealthStats(db);
     expect(health.engine).toBe("pglite-embedded");
     expect(health.secCachedCount).toBeGreaterThanOrEqual(4);

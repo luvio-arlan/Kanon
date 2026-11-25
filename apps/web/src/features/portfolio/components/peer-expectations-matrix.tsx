@@ -107,7 +107,7 @@ function PeerCompTr({ row }: { row: PeerCompRow }) {
 function MediansFooterRow({ medians }: { medians: PeerCompsMedians }) {
   return (
     <tr className="border-t border-strong bg-muted/55 font-mono text-xs font-semibold text-ink-primary tabular-nums">
-      <td className="px-4 py-3 font-sans">组合中位数基准（MEDIAN）</td>
+      <td className="px-4 py-3 font-sans">组合中位数</td>
       <td className="px-3 py-3 text-right text-ink-muted">—</td>
       <td className="px-3 py-3 text-right text-ink-muted">—</td>
       <td className="px-3 py-3 text-right text-status-pass">
@@ -141,13 +141,8 @@ export function PeerExpectationsMatrix({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-5 py-4">
         <div className="flex items-center gap-2">
           <IconChartHistogram size={17} stroke={1.5} className="text-accent-coral" />
-          <span className="text-sm font-semibold text-ink-primary">
-            同业预期横评与半凯利仓位校准矩阵
-          </span>
+          <span className="text-sm font-semibold text-ink-primary">同业预期横评</span>
         </div>
-        <span className="font-mono text-xs text-ink-muted tabular-nums">
-          实时结合盘前/盘后价与 52W 区间回撤
-        </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[960px] border-collapse text-left">

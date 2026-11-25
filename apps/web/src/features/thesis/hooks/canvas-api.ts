@@ -35,7 +35,8 @@ export interface ThesisMutationResult {
 export async function apiPatchStep(
   thesisId: string,
   payload: UpdateThesisStepInput,
-  okMessage: string,
+  okMessage?: string,
+  options?: { silent?: boolean },
 ): Promise<ThesisMutationResult | null> {
   const res = await kanonFetch(`/api/theses/${thesisId}`, ThesisMutationResponseSchema, {
     method: "PATCH",
@@ -46,7 +47,9 @@ export async function apiPatchStep(
     toast.error(res.error);
     return null;
   }
-  toast.success(okMessage);
+  if (!options?.silent && okMessage) {
+    toast.success(okMessage);
+  }
   return { thesis: res.data.thesis, revisions: res.data.revisions };
 }
 

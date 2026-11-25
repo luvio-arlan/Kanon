@@ -65,11 +65,8 @@ function QuickPriceCalibrator({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-hairline bg-surface p-4">
-      <div>
-        <div className="text-xs font-semibold text-ink-primary">快速校准当前参考价</div>
-        <div className="mt-0.5 text-xs text-ink-muted">重算赔率并写入版本演进记录</div>
-      </div>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-panel border border-hairline bg-surface p-4">
+      <span className="text-xs font-semibold text-ink-primary">快速校准参考价</span>
       <div className="flex items-center gap-2">
         <Input
           type="number"

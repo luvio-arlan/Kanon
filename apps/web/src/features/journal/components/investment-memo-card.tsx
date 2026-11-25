@@ -104,7 +104,7 @@ export function InvestmentMemoCard({ memo, loading, onGenerate }: InvestmentMemo
   return (
     <Card className="p-6 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-lg font-semibold text-ink-primary">一页纸投研备忘录（IC Memo）</h3>
+        <h3 className="text-base font-semibold text-ink-primary">投研备忘录</h3>
         <MemoActionButtons
           hasMemo={Boolean(memo)}
           loading={loading}
@@ -121,8 +121,8 @@ export function InvestmentMemoCard({ memo, loading, onGenerate }: InvestmentMemo
       ) : memo ? (
         <MemoArticleBody memo={memo} />
       ) : (
-        <div className="mt-6 border-t border-hairline pt-8 pb-4 text-center text-sm text-ink-muted">
-          尚未生成投研备忘录。点击右上角按钮，基于前 4 步一阶档案一键凝练并保存。
+        <div className="mt-6 border-t border-hairline pb-4 pt-8 text-center text-sm text-ink-muted">
+          尚未生成投研备忘录
         </div>
       )}
     </Card>

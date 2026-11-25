@@ -5,13 +5,7 @@ import {
   calculateResearchReadiness,
   type ThesisDetail,
 } from "@kanon/core";
-import {
-  ProgressBar,
-  ReadinessRing,
-  RollingNumber,
-  SidebarNavItem,
-  SidebarSection,
-} from "@kanon/ui";
+import { ReadinessRing, RollingNumber, SidebarNavItem, SidebarSection } from "@kanon/ui";
 import { IconCheck } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
@@ -119,19 +113,11 @@ function StepProgressHeader({
   scorePct: number;
 }) {
   return (
-    <div className="space-y-2 px-1">
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-xs text-ink-muted tabular-nums">
-          研究进度 · {completedCount}/5 步
-        </span>
-        <ReadinessRing scorePct={scorePct} size={22} />
-      </div>
-      <ProgressBar
-        value={scorePct}
-        max={100}
-        tone={scorePct >= 100 ? "pass" : "accent"}
-        size="sm"
-      />
+    <div className="flex items-center justify-between px-1">
+      <span className="font-mono text-xs text-ink-muted tabular-nums">
+        进度 {completedCount} / 5
+      </span>
+      <ReadinessRing scorePct={scorePct} size={22} />
     </div>
   );
 }
@@ -157,7 +143,7 @@ export function StepRail({
           scorePct={readiness.scorePct}
         />
       ) : null}
-      <SidebarSection title="五步研究工作台" collapsed={collapsed}>
+      <SidebarSection title="研究步骤" collapsed={collapsed}>
         {STEPS.map((step, idx) => (
           <SidebarNavItem
             key={step.id}

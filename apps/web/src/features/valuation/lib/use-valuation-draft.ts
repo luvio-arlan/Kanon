@@ -71,11 +71,13 @@ function applyPresetToCases(cases: CaseMap, p: ProbabilityPreset): CaseMap {
 
 export function useValuationDraft(params: {
   thesis: ThesisDetail;
-  saving: boolean;
-  onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
-  onSave: (payload: { currentPrice: number; horizonYears: number } & CaseMap) => Promise<void>;
+  onSyncChange?: (
+    status: import("@/shared/hooks/use-thesis-step-draft").AutoSaveStatus,
+    flush: (() => Promise<void>) | null,
+  ) => void;
+  onSave: (payload: { currentPrice: number; horizonYears: number } & CaseMap) => Promise<boolean>;
 }) {
-  const { thesis, saving, onDirtyChange, onSave } = params;
+  const { thesis, onSyncChange, onSave } = params;
   const serverValue = useMemo<ValuationDraftState>(
     () => ({
       currentPrice: thesis.currentPrice,
@@ -88,8 +90,12 @@ export function useValuationDraft(params: {
     storageKey: `kanon-draft:${thesis.id}:step4`,
     serverValue,
     serverVersion: thesis.updatedAt,
-    canSave: !saving && serverValue.currentPrice > 0,
-    onDirtyChange,
+    canSaveDraft: (val) =>
+      val.currentPrice > 0 &&
+      val.cases.bear.eps > 0 &&
+      val.cases.base.eps > 0 &&
+      val.cases.bull.eps > 0,
+    onSyncChange,
     validateStored: isValuationDraft,
     onSave: (val) =>
       onSave({

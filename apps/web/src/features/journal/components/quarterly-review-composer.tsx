@@ -112,20 +112,20 @@ function ComposerHeaderFields(p: ComposerHeaderFieldsProps) {
         <DisciplineSwitch
           isSelected={p.applyUpdates}
           onChange={p.onApplyUpdates}
-          label="同步更新 Step 2 核心假设状态"
-          description="强化自动标记为「已验证」，削弱标记为「出现预警」并回写证据"
+          label="同步更新核心假设状态"
         />
       </div>
-      <div className="space-y-1.5">
-        <label htmlFor="qrev-summary" className="text-xs text-ink-muted">
-          季度复盘核心结论（至少 6 字）
+      <div className="rounded-panel border border-hairline bg-canvas/35 px-4 py-3.5 transition-colors focus-within:bg-surface">
+        <label htmlFor="qrev-summary" className="mb-1.5 block text-xs font-medium text-ink-muted">
+          季度复盘核心结论
         </label>
         <Textarea
           id="qrev-summary"
+          variant="editorial"
           value={p.summary}
           onChange={(e) => p.onSummary(e.target.value)}
-          placeholder="总结本季度核心财报亮点、预期差兑现程度及下一季跟踪焦点..."
-          className="min-h-[82px]"
+          placeholder="总结本季核心财报亮点与预期差兑现情况…"
+          className="min-h-[76px]"
         />
       </div>
     </>

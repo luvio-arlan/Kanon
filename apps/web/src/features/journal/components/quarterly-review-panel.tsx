@@ -2,7 +2,7 @@
 
 import type { CreateQuarterlyReviewInput, QuarterlyReview, ThesisDetail } from "@kanon/core";
 import { Badge, Button, Card } from "@kanon/ui";
-import { IconCalendarEvent, IconPlus } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { QuarterlyReviewComposer, VERDICT_META } from "./quarterly-review-composer";
 
@@ -47,11 +47,7 @@ export function QuarterlyReviewPanel(props: QuarterlyReviewPanelProps) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
-          <IconCalendarEvent size={14} stroke={1.5} />
-          <span>每季财报落地后逐条核验核心假设，持续检验投资逻辑</span>
-        </span>
+      <div className="flex items-center justify-end">
         <Button variant="primary" size="sm" onClick={() => setComposerOpen((v) => !v)}>
           <IconPlus size={14} stroke={1.5} />
           <span>{composerOpen ? "收起复盘单" : "记录季度复盘"}</span>

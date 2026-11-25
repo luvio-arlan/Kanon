@@ -91,18 +91,13 @@ function ResearchKickstartDesk({
 
   return (
     <section className="rounded-card border border-hairline bg-surface p-6 shadow-card sm:p-8">
-      <div className="flex flex-col justify-between gap-4 border-b border-hairline pb-6 sm:flex-row sm:items-end">
-        <div>
-          <h2 className="text-xl font-semibold tracking-[-0.02em] text-ink-primary">
-            开启第一份深度研究档案
-          </h2>
-          <p className="mt-1.5 text-sm text-ink-secondary">
-            输入任意美股代码自动拉取 SEC 财务基准，或从下列经典样本直接进入五步纪律画布
-          </p>
-        </div>
+      <div className="flex flex-col justify-between gap-4 border-b border-hairline pb-5 sm:flex-row sm:items-center">
+        <h2 className="text-xl font-semibold tracking-[-0.02em] text-ink-primary">
+          开启第一份研究档案
+        </h2>
         <Button variant="primary" size="md" onClick={onNewThesis}>
           <IconPlus size={16} stroke={1.5} />
-          <span>自定义新建标的</span>
+          <span>新建标的</span>
         </Button>
       </div>
       <div className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-5">

@@ -53,7 +53,7 @@ function StressSheetBody({
     <div className="space-y-6">
       <StressKpiStrip report={report} />
       <section className="space-y-2.5">
-        <h3 className="text-xs font-semibold text-ink-muted">四情景压力测试（计入现金缓冲）</h3>
+        <h3 className="text-xs font-semibold text-ink-muted">情景压力测试</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {report.scenarios.map((scenario) => (
             <StressScenarioRow key={scenario.id} scenario={scenario} />
@@ -62,9 +62,7 @@ function StressSheetBody({
       </section>
       <section className="space-y-2.5">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-ink-muted">
-            资金配置阶梯（当前权重 vs 上限 vs 半凯利建议）
-          </h3>
+          <h3 className="text-xs font-semibold text-ink-muted">资金配置阶梯</h3>
           {report.topSectorName ? (
             <span className="font-mono text-xs text-ink-muted tabular-nums">
               第一赛道：{report.topSectorName} ({report.topSectorWeightPct}%)
@@ -102,8 +100,7 @@ export function PortfolioStressSheet({
       open={open}
       onOpenChange={onOpenChange}
       size="lg"
-      title="组合压力测试与资金配置矩阵"
-      subtitle="零杠杆抗压底线 · 4 种宏观冲击情景 · 半凯利仓位阶梯"
+      title="组合压力测试"
       footer={
         <StressSheetFooter
           hasBearAlert={report.weightedBearImpactPct <= -15}

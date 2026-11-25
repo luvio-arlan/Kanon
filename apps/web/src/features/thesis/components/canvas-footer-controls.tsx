@@ -72,7 +72,6 @@ function DeleteThesisDialog(p: {
       open={p.open}
       onOpenChange={p.onOpenChange}
       title={`永久删除 ${p.thesis.ticker} 研究档案？`}
-      subtitle="删除后该标的的商业评估、核心假设、估值模型与纪律记录将被彻底清除"
       icon={<IconAlertTriangle size={18} stroke={1.5} />}
       footer={
         <>
@@ -141,59 +140,16 @@ export function useCanvasShellActions(params: {
   return { commandGroups, handleConfirmDelete };
 }
 
-function UnsavedChangesDialog(props: {
-  open: boolean;
-  saving: boolean;
-  onResolve: (mode: "save" | "discard" | "cancel") => Promise<void>;
-}) {
-  return (
-    <DialogModal
-      open={props.open}
-      onOpenChange={(open) => {
-        if (!open) void props.onResolve("cancel");
-      }}
-      title="当前步骤有未保存修改"
-      subtitle="草稿已暂存本地，建议保存后再切换"
-      icon={<IconAlertTriangle size={18} stroke={1.5} />}
-      footer={
-        <>
-          <Button variant="ghost" size="md" onClick={() => void props.onResolve("discard")}>
-            放弃修改
-          </Button>
-          <Button variant="outline" size="md" onClick={() => void props.onResolve("cancel")}>
-            继续编辑
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            disabled={props.saving}
-            onClick={() => void props.onResolve("save")}
-          >
-            {props.saving ? "保存中..." : "保存并切换"}
-          </Button>
-        </>
-      }
-    >
-      <p className="text-sm leading-relaxed text-ink-secondary">
-        你可以点击「保存并切换」同步保存后跳转，或按 <kbd className="font-mono">⌘S</kbd> 快速保存。
-      </p>
-    </DialogModal>
-  );
-}
-
 export interface CanvasOverlaysProps {
   thesis: ThesisDetail;
   deleting: boolean;
-  saving: boolean;
   commandOpen: boolean;
   aiModalOpen: boolean;
   deleteOpen: boolean;
-  unsavedOpen: boolean;
   commandGroups: ReturnType<typeof buildCanvasCommandGroups>;
   onCommandOpen: (open: boolean) => void;
   onAiModalOpen: (open: boolean) => void;
   onDeleteOpen: (open: boolean) => void;
-  onResolveUnsaved: (mode: "save" | "discard" | "cancel") => Promise<void>;
   onByokChanged: () => void;
   onConfirmDelete: () => Promise<void>;
 }
@@ -211,7 +167,7 @@ export function CanvasOverlays(props: CanvasOverlaysProps) {
         open={props.commandOpen}
         onOpenChange={props.onCommandOpen}
         groups={props.commandGroups}
-        placeholder="搜索步骤、指令、标的或术语..."
+        placeholder="搜索步骤、标的或术语..."
       />
       {aiMounted ? (
         <AiSettingsModal
@@ -228,11 +184,6 @@ export function CanvasOverlays(props: CanvasOverlaysProps) {
         deleting={props.deleting}
         onOpenChange={props.onDeleteOpen}
         onConfirm={props.onConfirmDelete}
-      />
-      <UnsavedChangesDialog
-        open={props.unsavedOpen}
-        saving={props.saving}
-        onResolve={props.onResolveUnsaved}
       />
     </>
   );

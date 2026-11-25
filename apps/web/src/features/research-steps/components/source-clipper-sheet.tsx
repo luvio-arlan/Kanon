@@ -124,16 +124,13 @@ function EmptySourcePrompt({
   onChangeSource: (next: string) => void;
 }) {
   return (
-    <div className="space-y-3 rounded-card border border-hairline bg-titanium-subtle p-5">
-      <div className="text-sm font-semibold text-ink-primary">粘贴财报原文或电话会纪要</div>
-      <p className="text-xs leading-relaxed text-ink-secondary">
-        将 Earnings Call Q&A、10-K 风险段落粘贴至下方，精读器将自动高亮
-        CapEx、毛利率、指引与库存信号词，支持划词一键摘录。
-      </p>
+    <div className="space-y-3 rounded-panel border border-hairline bg-surface p-5">
+      <div className="text-sm font-semibold text-ink-primary">财报原文 / 电话会纪要</div>
       <Textarea
+        variant="editorial"
         value={sourceText}
         onChange={(e) => onChangeSource(e.target.value)}
-        placeholder="在此粘贴多段财报/电话会原文..."
+        placeholder="粘贴财报或电话会原文，自动高亮核心信号词…"
         className="min-h-[160px]"
       />
     </div>
@@ -160,8 +157,7 @@ export function SourceClipperSheet(props: SourceClipperSheetProps) {
     <Sheet
       open={props.open}
       onOpenChange={props.onOpenChange}
-      title={`一阶原文精读器 · ${props.ticker}`}
-      subtitle="高亮买方关键信号词 · 划词一键沉淀为交叉验证或离场条件"
+      title={`原文精读 · ${props.ticker}`}
       footer={
         <ClipperFooter
           activeQuote={activeQuote}

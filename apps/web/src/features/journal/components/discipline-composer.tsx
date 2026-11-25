@@ -46,34 +46,40 @@ function ExitRuleFields(props: {
   onNote: (next: string) => void;
 }) {
   return (
-    <div className="space-y-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <label htmlFor="disc-exit-rule" className="text-xs text-ink-muted">
-          预设离场条件（必填）
-        </label>
-        {props.redTeamHint && !props.exitRule.trim() ? (
-          <button
-            type="button"
-            onClick={() => props.onExitRule(props.redTeamHint ?? "")}
-            className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-coral transition-opacity hover:opacity-80"
-          >
-            <IconSparkles size={13} stroke={1.5} />
-            <span>引用空头质询条件</span>
-          </button>
-        ) : null}
+    <div className="divide-y divide-hairline overflow-hidden rounded-panel border border-hairline bg-canvas/35">
+      <div className="space-y-2 px-4 py-3.5 transition-colors focus-within:bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label htmlFor="disc-exit-rule" className="text-xs font-medium text-ink-muted">
+            预设离场条件
+          </label>
+          {props.redTeamHint && !props.exitRule.trim() ? (
+            <button
+              type="button"
+              onClick={() => props.onExitRule(props.redTeamHint ?? "")}
+              className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-coral transition-opacity hover:opacity-80"
+            >
+              <IconSparkles size={13} stroke={1.5} />
+              <span>引用空头质询条件</span>
+            </button>
+          ) : null}
+        </div>
+        <Textarea
+          id="disc-exit-rule"
+          variant="editorial"
+          value={props.exitRule}
+          onChange={(e) => props.onExitRule(e.target.value)}
+          placeholder="例如：连续两季毛利率跌破阈值则无条件减仓复盘…"
+          className="min-h-[68px]"
+        />
       </div>
-      <Textarea
-        id="disc-exit-rule"
-        value={props.exitRule}
-        onChange={(e) => props.onExitRule(e.target.value)}
-        placeholder="若连续两季毛利率跌破阈值或资本开支失控，无条件减半仓复盘..."
-        className="min-h-[76px]"
-      />
-      <Input
-        value={props.note}
-        onChange={(e) => props.onNote(e.target.value)}
-        placeholder="补充决策备忘（可选）"
-      />
+      <div className="px-4 py-3 transition-colors focus-within:bg-surface">
+        <Input
+          variant="editorial"
+          value={props.note}
+          onChange={(e) => props.onNote(e.target.value)}
+          placeholder="决策备忘…"
+        />
+      </div>
     </div>
   );
 }

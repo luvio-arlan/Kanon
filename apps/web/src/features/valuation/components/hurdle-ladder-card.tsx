@@ -50,22 +50,16 @@ export function HurdleLadderCard({ summary }: { summary: ValuationScenarioSummar
   return (
     <Card className="space-y-4 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-ink-primary">
-            复利门槛买点阶梯与凯利盈亏平衡胜率
-          </h3>
-          <p className="mt-0.5 text-xs text-ink-muted">
-            基于 {ladder.horizonYears} 年中性目标 ${ladder.baseTargetPrice.toFixed(1)}{" "}
-            倒推各档目标年化回报对应的严格安全买入价
-          </p>
-        </div>
+        <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">
+          复利门槛买点阶梯
+        </h3>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="titanium" className="font-mono tabular-nums">
-            概率期望回报 {ladder.expectedValueReturnPct >= 0 ? "+" : ""}
+            期望回报 {ladder.expectedValueReturnPct >= 0 ? "+" : ""}
             {ladder.expectedValueReturnPct.toFixed(1)}%
           </Badge>
           <Badge variant="default" className="font-mono tabular-nums">
-            盈亏平衡胜率 p* = {breakevenLabel}
+            p* = {breakevenLabel}
           </Badge>
         </div>
       </div>

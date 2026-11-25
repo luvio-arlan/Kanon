@@ -50,40 +50,40 @@ function ReorderActions(props: {
   onRemove?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/hyp:opacity-100">
       <button
         type="button"
         disabled={props.index === 0}
         onClick={() => props.onMove(-1)}
-        title="上移优先级"
-        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary disabled:opacity-30"
+        title="上移"
+        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-item text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary disabled:opacity-30"
       >
-        <IconArrowUp size={15} stroke={1.5} />
+        <IconArrowUp size={14} stroke={1.5} />
       </button>
       <button
         type="button"
         disabled={props.index === props.total - 1}
         onClick={() => props.onMove(1)}
-        title="下移优先级"
-        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary disabled:opacity-30"
+        title="下移"
+        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-item text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary disabled:opacity-30"
       >
-        <IconArrowDown size={15} stroke={1.5} />
+        <IconArrowDown size={14} stroke={1.5} />
       </button>
       {props.onRemove ? (
         <button
           type="button"
           onClick={props.onRemove}
-          title="移除此条假设"
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-status-fail-soft hover:text-status-fail"
+          title="移除"
+          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-item text-ink-muted transition-colors hover:bg-status-fail-soft hover:text-status-fail"
         >
-          <IconTrash size={15} stroke={1.5} />
+          <IconTrash size={14} stroke={1.5} />
         </button>
       ) : null}
     </div>
   );
 }
 
-function MetricInputsRow({
+function MetricStrip({
   item,
   onChange,
 }: {
@@ -91,18 +91,20 @@ function MetricInputsRow({
   onChange: (next: Hypothesis) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div className="space-y-1.5">
-        <div className="text-xs font-medium text-ink-muted">关键观测指标</div>
+    <div className="grid grid-cols-1 divide-y divide-hairline border-b border-hairline bg-canvas/35 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+      <div className="px-6 py-3.5 transition-colors focus-within:bg-surface/85 sm:px-7">
+        <div className="mb-1 text-xs text-ink-muted">观测指标</div>
         <Input
+          variant="editorial"
           value={item.metricLabel}
           onChange={(e) => onChange({ ...item, metricLabel: e.target.value })}
           placeholder="例如：数据中心营收增速"
         />
       </div>
-      <div className="space-y-1.5">
-        <div className="text-xs font-medium text-ink-muted">证伪阈值</div>
+      <div className="px-6 py-3.5 transition-colors focus-within:bg-surface/85 sm:px-7">
+        <div className="mb-1 text-xs text-ink-muted">证伪阈值</div>
         <Input
+          variant="editorial"
           value={item.threshold}
           onChange={(e) => onChange({ ...item, threshold: e.target.value })}
           placeholder="例如：连续两季低于 20%"
@@ -113,37 +115,35 @@ function MetricInputsRow({
   );
 }
 
-function HypothesisCardFields({
-  item,
-  glossary,
-  onChange,
-}: {
+function HypothesisHeaderRow(p: {
+  index: number;
+  total: number;
   item: Hypothesis;
-  glossary: readonly GlossaryTerm[];
   onChange: (next: Hypothesis) => void;
+  onMove: (delta: -1 | 1) => void;
+  onRemove?: () => void;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <div className="text-xs font-medium text-ink-muted">核心前提陈述</div>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-6 py-4 transition-colors focus-within:bg-canvas/35 sm:px-7">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="shrink-0 font-mono text-xs text-ink-muted tabular-nums">
+          {String(p.index + 1).padStart(2, "0")}
+        </span>
         <Input
-          value={item.title}
-          onChange={(e) => onChange({ ...item, title: e.target.value })}
-          placeholder="写出必须成立的核心前提..."
-          className="text-[15px] font-medium"
+          variant="editorial"
+          value={p.item.title}
+          onChange={(e) => p.onChange({ ...p.item, title: e.target.value })}
+          placeholder="核心前提陈述…"
+          className="text-[15px] font-semibold tracking-[-0.01em]"
         />
       </div>
-      <MetricInputsRow item={item} onChange={onChange} />
-      <div className="space-y-1.5">
-        <div className="text-xs font-medium text-ink-muted">财报佐证与追踪备注</div>
-        <Textarea
-          value={item.note}
-          onChange={(e) => onChange({ ...item, note: e.target.value })}
-          placeholder="记录最新财报佐证或证伪信号..."
-          className="min-h-[88px]"
+      <div className="flex shrink-0 items-center gap-2">
+        <ReorderActions index={p.index} total={p.total} onMove={p.onMove} onRemove={p.onRemove} />
+        <StatusButtonGroup
+          status={p.item.status}
+          onSelect={(status) => p.onChange({ ...p.item, status })}
         />
       </div>
-      <GlossaryChips text={`${item.title} ${item.metricLabel} ${item.note}`} terms={glossary} />
     </div>
   );
 }
@@ -157,27 +157,21 @@ export function HypothesisEditorCard(props: {
   onMove: (delta: -1 | 1) => void;
   onRemove?: () => void;
 }) {
-  const { index, total, item, glossary, onChange } = props;
+  const { item, glossary, onChange } = props;
   return (
-    <Card className="space-y-5 p-6 sm:p-7">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-sm font-semibold tracking-wide text-ink-primary tabular-nums">
-            HYPOTHESIS 0{index + 1}
-          </span>
-          <ReorderActions
-            index={index}
-            total={total}
-            onMove={props.onMove}
-            onRemove={props.onRemove}
-          />
-        </div>
-        <StatusButtonGroup
-          status={item.status}
-          onSelect={(status) => onChange({ ...item, status })}
+    <Card className="group/hyp overflow-hidden">
+      <HypothesisHeaderRow {...props} />
+      <MetricStrip item={item} onChange={onChange} />
+      <div className="space-y-3 px-6 py-4 transition-colors focus-within:bg-canvas/35 sm:px-7">
+        <Textarea
+          variant="editorial"
+          value={item.note}
+          onChange={(e) => onChange({ ...item, note: e.target.value })}
+          placeholder="记录财报佐证或证伪信号…"
+          className="min-h-[68px]"
         />
+        <GlossaryChips text={`${item.title} ${item.metricLabel} ${item.note}`} terms={glossary} />
       </div>
-      <HypothesisCardFields item={item} glossary={glossary} onChange={onChange} />
     </Card>
   );
 }

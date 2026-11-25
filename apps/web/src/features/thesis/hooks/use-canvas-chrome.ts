@@ -4,11 +4,11 @@ import type { ThesisSummary } from "@kanon/core";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readByokConfig } from "@/features/ai-settings";
+import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
 import type { StepId } from "../components/canvas-chrome";
 import { useCanvasShortcuts } from "./use-canvas-shortcuts";
 
 export type CanvasModalKey = "cmd" | "ai" | "del" | "agent";
-export type PendingNavTarget = { type: "step"; step: StepId } | { type: "thesis"; id: string };
 
 function findAdjacentThesisId(
   allTheses: readonly ThesisSummary[],
@@ -20,14 +20,26 @@ function findAdjacentThesisId(
   return allTheses[(idx + delta + allTheses.length) % allTheses.length]?.id ?? null;
 }
 
-function useDirtyTracker() {
-  const dirtyRef = useRef(false);
-  const saveActionRef = useRef<(() => Promise<void>) | null>(null);
-  const setDirtyState = useCallback((dirty: boolean, saveAction: (() => Promise<void>) | null) => {
-    dirtyRef.current = dirty;
-    saveActionRef.current = saveAction;
+function useSyncTracker() {
+  const [syncStatus, setSyncStatus] = useState<AutoSaveStatus>("idle");
+  const flushRef = useRef<(() => Promise<void>) | null>(null);
+
+  const setSyncState = useCallback(
+    (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => {
+      setSyncStatus(status);
+      flushRef.current = flush;
+    },
+    [],
+  );
+
+  const flushPending = useCallback(async () => {
+    const fn = flushRef.current;
+    if (!fn) return;
+    flushRef.current = null;
+    await fn();
   }, []);
-  return { dirtyRef, saveActionRef, setDirtyState };
+
+  return { syncStatus, flushRef, setSyncState, flushPending };
 }
 
 function syncCanvasStepUrl(currentId: string, step: StepId) {
@@ -38,55 +50,42 @@ function syncCanvasStepUrl(currentId: string, step: StepId) {
   }
 }
 
-function useGuardedNavigation(
+function useSeamlessNavigation(
   currentId: string,
   allTheses: readonly ThesisSummary[],
   initialStep: StepId,
 ) {
   const router = useRouter();
   const [nav, setNav] = useState<{ step: StepId; dir: number }>({ step: initialStep, dir: 1 });
-  const [pendingNav, setPendingNav] = useState<PendingNavTarget | null>(null);
-  const { dirtyRef, saveActionRef, setDirtyState } = useDirtyTracker();
+  const sync = useSyncTracker();
 
-  const executeNav = useCallback(
-    (target: PendingNavTarget) => {
-      if (target.type === "thesis") return router.push(`/thesis/${target.id}`);
-      setNav((prev) => ({ step: target.step, dir: target.step >= prev.step ? 1 : -1 }));
-      syncCanvasStepUrl(currentId, target.step);
+  const jumpToStep = useCallback(
+    (step: StepId) => {
+      if (step === nav.step) return;
+      if (sync.flushRef.current) void sync.flushPending();
+      setNav((prev) => ({ step, dir: step >= prev.step ? 1 : -1 }));
+      syncCanvasStepUrl(currentId, step);
     },
-    [currentId, router],
+    [currentId, nav.step, sync],
   );
-  const requestNav = useCallback(
-    (target: PendingNavTarget) => {
-      if (target.type === "step" && target.step === nav.step) return;
-      if (dirtyRef.current) setPendingNav(target);
-      else executeNav(target);
-    },
-    [dirtyRef, executeNav, nav.step],
-  );
-  const resolvePendingNav = useCallback(
-    async (mode: "save" | "discard" | "cancel") => {
-      const target = pendingNav;
-      setPendingNav(null);
-      if (!target || mode === "cancel") return;
-      if (mode === "save" && saveActionRef.current) await saveActionRef.current();
-      dirtyRef.current = false;
-      executeNav(target);
-    },
-    [dirtyRef, executeNav, pendingNav, saveActionRef],
-  );
+
   const cycleThesis = useCallback(
     (delta: -1 | 1) => {
       const nextId = findAdjacentThesisId(allTheses, currentId, delta);
-      if (nextId) requestNav({ type: "thesis", id: nextId });
+      if (!nextId) return;
+      void sync.flushPending().finally(() => router.push(`/thesis/${nextId}`));
     },
-    [allTheses, currentId, requestNav],
+    [allTheses, currentId, router, sync],
   );
-  const jumpToStep = useCallback(
-    (step: StepId) => requestNav({ type: "step", step }),
-    [requestNav],
-  );
-  return { nav, pendingNav, setDirtyState, resolvePendingNav, jumpToStep, cycleThesis };
+
+  return {
+    nav,
+    syncStatus: sync.syncStatus,
+    setSyncState: sync.setSyncState,
+    flushPending: sync.flushPending,
+    jumpToStep,
+    cycleThesis,
+  };
 }
 
 export function useCanvasChromeState(
@@ -97,7 +96,7 @@ export function useCanvasChromeState(
   const [focusMode, setFocusMode] = useState(false);
   const [modals, setModals] = useState({ cmd: false, ai: false, del: false, agent: false });
   const [hasByok, setHasByok] = useState(false);
-  const navCtrl = useGuardedNavigation(currentId, allTheses, initialStep);
+  const navCtrl = useSeamlessNavigation(currentId, allTheses, initialStep);
 
   useEffect(() => {
     setHasByok(Boolean(readByokConfig()));
@@ -107,7 +106,7 @@ export function useCanvasChromeState(
   const toggleAgent = useCallback(() => setModals((prev) => ({ ...prev, agent: !prev.agent })), []);
 
   useCanvasShortcuts({
-    disabled: modals.cmd || modals.ai || modals.del || modals.agent || navCtrl.pendingNav !== null,
+    disabled: modals.cmd || modals.ai || modals.del || modals.agent,
     onSelectStep: navCtrl.jumpToStep,
     onToggleFocus: toggleFocus,
     onToggleAgent: toggleAgent,

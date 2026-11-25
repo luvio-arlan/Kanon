@@ -68,7 +68,7 @@ export function Sheet({
         <Modal.Dialog
           className={cn(
             "kanon-dialog-panel flex h-full max-w-none flex-col overflow-hidden rounded-card border border-strong bg-surface-elevated p-0 shadow-overlay focus:outline-none",
-            size === "lg" ? "w-[min(94vw,760px)]" : "w-[min(92vw,520px)]",
+            size === "lg" ? "w-[min(94vw,760px)]" : "w-[min(92vw,560px)]",
           )}
         >
           <SheetHeader title={title} subtitle={subtitle} onClose={() => onOpenChange(false)} />

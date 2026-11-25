@@ -5,7 +5,6 @@ import { Badge, Card, PrecisionSlider, RollingNumber } from "@kanon/ui";
 
 export interface ScenarioEditorCardProps {
   label: string;
-  subtitle: string;
   tone: "warn" | "pass" | "titanium";
   eps: number;
   peMultiple: number;
@@ -18,17 +17,13 @@ export interface ScenarioEditorCardProps {
 
 function ScenarioMetricHeader({
   label,
-  subtitle,
   tone,
   result,
-}: Pick<ScenarioEditorCardProps, "label" | "subtitle" | "tone" | "result">) {
+}: Pick<ScenarioEditorCardProps, "label" | "tone" | "result">) {
   return (
     <div>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h4 className="text-base font-semibold text-ink-primary">{label}</h4>
-          <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>
-        </div>
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-[15px] font-semibold tracking-[-0.01em] text-ink-primary">{label}</h4>
         <Badge variant={tone} className="font-mono tabular-nums">
           <RollingNumber
             value={result.returnPct}
@@ -53,43 +48,29 @@ function ScenarioMetricHeader({
   );
 }
 
-const ACCENT_BAR: Record<"warn" | "pass" | "titanium", string> = {
-  warn: "bg-status-warn/75",
-  titanium: "bg-strong",
-  pass: "bg-status-pass/80",
-};
-
 export function ScenarioEditorCard(props: ScenarioEditorCardProps) {
   return (
-    <Card className="group flex flex-col justify-between overflow-hidden focus-within:border-strong focus-within:shadow-card-hover">
-      <div aria-hidden="true" className={`h-[2px] w-full ${ACCENT_BAR[props.tone]}`} />
-      <div className="flex flex-1 flex-col justify-between p-6">
-        <ScenarioMetricHeader
-          label={props.label}
-          subtitle={props.subtitle}
-          tone={props.tone}
-          result={props.result}
+    <Card className="group flex flex-col justify-between p-6 focus-within:border-strong focus-within:shadow-card-hover">
+      <ScenarioMetricHeader label={props.label} tone={props.tone} result={props.result} />
+      <div className="mt-4 space-y-4">
+        <PrecisionSlider
+          label="远期 EPS"
+          value={props.eps}
+          min={props.epsRange.min}
+          max={props.epsRange.max}
+          step={props.epsRange.step}
+          displayValue={`$${props.eps.toFixed(2)}`}
+          onChange={props.onChangeEps}
         />
-        <div className="mt-4 space-y-4">
-          <PrecisionSlider
-            label="远期每股收益 (EPS)"
-            value={props.eps}
-            min={props.epsRange.min}
-            max={props.epsRange.max}
-            step={props.epsRange.step}
-            displayValue={`$${props.eps.toFixed(2)}`}
-            onChange={props.onChangeEps}
-          />
-          <PrecisionSlider
-            label="合理市盈率 (PE)"
-            value={props.peMultiple}
-            min={props.peRange.min}
-            max={props.peRange.max}
-            step={props.peRange.step}
-            displayValue={`${props.peMultiple.toFixed(0)}x`}
-            onChange={props.onChangePe}
-          />
-        </div>
+        <PrecisionSlider
+          label="合理 PE"
+          value={props.peMultiple}
+          min={props.peRange.min}
+          max={props.peRange.max}
+          step={props.peRange.step}
+          displayValue={`${props.peMultiple.toFixed(0)}x`}
+          onChange={props.onChangePe}
+        />
       </div>
     </Card>
   );

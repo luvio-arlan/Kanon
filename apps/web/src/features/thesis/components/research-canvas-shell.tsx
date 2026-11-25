@@ -64,16 +64,13 @@ function CanvasOverlaysBridge({
       <CanvasOverlays
         thesis={ctrl.thesis}
         deleting={ctrl.deleting}
-        saving={ctrl.saving}
         commandOpen={ui.modals.cmd}
         aiModalOpen={ui.modals.ai}
         deleteOpen={ui.modals.del}
-        unsavedOpen={ui.pendingNav !== null}
         commandGroups={actions.commandGroups}
         onCommandOpen={(o) => ui.setModal("cmd", o)}
         onAiModalOpen={(o) => ui.setModal("ai", o)}
         onDeleteOpen={(o) => ui.setModal("del", o)}
-        onResolveUnsaved={ui.resolvePendingNav}
         onByokChanged={() => ui.setHasByok(Boolean(readByokConfig()))}
         onConfirmDelete={actions.handleConfirmDelete}
       />
@@ -143,6 +140,8 @@ function StageTopBanner({ b }: { b: ReturnType<typeof useCanvasBindings> }) {
       thesis={ctrl.thesis}
       activeStep={ui.nav.step}
       liveQuote={live.quote}
+      syncStatus={ui.syncStatus}
+      onRetrySave={() => void ui.flushPending()}
       onSelectStep={ui.jumpToStep}
       onOpenAgent={() => ui.setModal("agent", true)}
     />
@@ -178,7 +177,7 @@ function CanvasStageSection(p: {
             inboundCrossChecks={p.props.inboundCrossChecks}
             glossary={p.props.glossary}
             promotedRule={promotedRule}
-            onDirtyChange={ui.setDirtyState}
+            onSyncChange={ui.setSyncState}
             onClearPromoted={() => setPromotedRule(null)}
             onPromoteRule={promoteRule}
           />

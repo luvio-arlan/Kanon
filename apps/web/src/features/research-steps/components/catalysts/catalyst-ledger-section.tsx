@@ -2,8 +2,8 @@
 
 import type { ThesisCatalyst } from "@kanon/core";
 import { Button } from "@kanon/ui";
-import { IconCheck, IconDeviceFloppy, IconPlus } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { IconPlus } from "@tabler/icons-react";
+import { type AutoSaveStatus, useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { CatalystEditorRow } from "./catalyst-editor-row";
 
 function createBlankCatalyst(thesisId: string): ThesisCatalyst {
@@ -20,93 +20,80 @@ function createBlankCatalyst(thesisId: string): ThesisCatalyst {
   };
 }
 
-function CatalystFooterBar(p: {
-  count: number;
-  saving: boolean;
-  onAdd: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-      {p.count < 12 ? (
-        <Button variant="outline" size="md" onClick={p.onAdd}>
-          <IconPlus size={15} stroke={1.5} />
-          <span>新增催化事件</span>
-        </Button>
-      ) : (
-        <span className="font-mono text-xs text-ink-muted">12 / 12 催化剂上限</span>
-      )}
-      <Button variant="primary" size="lg" disabled={p.saving} onClick={p.onSave}>
-        {p.saving ? (
-          <IconCheck size={16} stroke={1.5} />
-        ) : (
-          <IconDeviceFloppy size={16} stroke={1.5} />
-        )}
-        <span>{p.saving ? "保存中..." : `保存 ${p.count} 项催化剂`}</span>
-      </Button>
-    </div>
+function isCatalystArray(val: unknown): val is ThesisCatalyst[] {
+  return Array.isArray(val);
+}
+
+function areValidCatalysts(items: readonly ThesisCatalyst[]): boolean {
+  return items.every(
+    (c) =>
+      c.title.trim().length >= 2 &&
+      c.dateLabel.trim().length >= 2 &&
+      c.verificationMetric.trim().length >= 1,
   );
 }
 
 function CatalystEmptyCard({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="rounded-card border border-hairline bg-surface p-8 text-center">
-      <p className="text-sm text-ink-secondary">
-        高安全边际若缺乏明确催化剂，容易陷入长期价值陷阱。建议列出 2–4 个关键财报或产品节点。
-      </p>
+    <div className="rounded-card border border-hairline bg-surface px-6 py-10 text-center">
+      <p className="text-sm text-ink-secondary">暂无催化事件</p>
       <div className="mt-4">
-        <Button variant="titanium" size="sm" onClick={onAdd}>
-          <IconPlus size={15} stroke={1.5} />
-          <span>新增首条催化剂</span>
+        <Button variant="outline" size="sm" onClick={onAdd}>
+          <IconPlus size={14} stroke={1.5} />
+          <span>新增催化剂</span>
         </Button>
       </div>
     </div>
   );
 }
 
-export function CatalystLedgerSection({
-  thesisId,
-  serverCatalysts,
-  saving,
-  onSave,
-}: {
+function AddCatalystTrigger({ onAdd }: { onAdd: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-panel border border-hairline bg-surface/60 py-3 text-xs font-medium text-ink-secondary transition-colors duration-150 ease-[var(--ease-kanon)] hover:border-strong hover:bg-surface hover:text-ink-primary"
+    >
+      <IconPlus size={14} stroke={1.5} />
+      <span>新增催化事件</span>
+    </button>
+  );
+}
+
+export function CatalystLedgerSection(p: {
   thesisId: string;
   serverCatalysts: readonly ThesisCatalyst[];
-  saving: boolean;
-  onSave: (items: ThesisCatalyst[]) => Promise<void>;
+  serverVersion: string;
+  onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
+  onSave: (items: ThesisCatalyst[]) => Promise<boolean>;
 }) {
-  const [items, setItems] = useState<ThesisCatalyst[]>([...serverCatalysts]);
-  useEffect(() => {
-    setItems([...serverCatalysts]);
-  }, [serverCatalysts]);
-
-  const handlePatch = (id: string, next: ThesisCatalyst) =>
-    setItems((prev) => prev.map((it) => (it.id === id ? next : it)));
-  const handleRemove = (id: string) => setItems((prev) => prev.filter((it) => it.id !== id));
-  const handleAdd = () => setItems((prev) => [...prev, createBlankCatalyst(thesisId)]);
+  const d = useThesisStepDraft<ThesisCatalyst[]>({
+    storageKey: `kanon-draft:${p.thesisId}:step2-catalysts`,
+    serverValue: [...p.serverCatalysts],
+    serverVersion: p.serverVersion,
+    canSaveDraft: areValidCatalysts,
+    onSyncChange: p.onSyncChange,
+    validateStored: isCatalystArray,
+    onSave: p.onSave,
+  });
+  const handleAdd = () => d.setDraft((prev) => [...prev, createBlankCatalyst(p.thesisId)]);
+  if (d.draft.length === 0) return <CatalystEmptyCard onAdd={handleAdd} />;
 
   return (
     <div className="space-y-4">
-      {items.length === 0 ? (
-        <CatalystEmptyCard onAdd={handleAdd} />
-      ) : (
-        <div className="space-y-3">
-          {items.map((item) => (
-            <CatalystEditorRow
-              key={item.id}
-              item={item}
-              onChange={(next) => handlePatch(item.id, next)}
-              onRemove={() => handleRemove(item.id)}
-            />
-          ))}
-        </div>
-      )}
-      <CatalystFooterBar
-        count={items.length}
-        saving={saving}
-        onAdd={handleAdd}
-        onSave={() => void onSave(items)}
-      />
+      <div className="space-y-3">
+        {d.draft.map((item) => (
+          <CatalystEditorRow
+            key={item.id}
+            item={item}
+            onChange={(next) =>
+              d.setDraft((prev) => prev.map((it) => (it.id === item.id ? next : it)))
+            }
+            onRemove={() => d.setDraft((prev) => prev.filter((it) => it.id !== item.id))}
+          />
+        ))}
+      </div>
+      {d.draft.length < 12 ? <AddCatalystTrigger onAdd={handleAdd} /> : null}
     </div>
   );
 }

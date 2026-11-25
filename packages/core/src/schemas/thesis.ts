@@ -12,7 +12,7 @@ export const HypothesisSchema = z.object({
   metricLabel: z.string().min(1),
   threshold: z.string().min(1),
   status: HypothesisStatusSchema,
-  note: z.string().min(1),
+  note: z.string(),
 });
 export type Hypothesis = z.infer<typeof HypothesisSchema>;
 

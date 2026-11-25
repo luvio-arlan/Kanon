@@ -21,7 +21,7 @@ function PresetQuickPickRow({
 }) {
   return (
     <div className="mb-4 border-b border-hairline pb-4">
-      <div className="mb-2.5 text-xs font-medium text-ink-muted">经典样本快填（含 SEC 基准）</div>
+      <div className="mb-2.5 text-xs font-medium text-ink-muted">常用样本</div>
       <div className="flex flex-wrap gap-2">
         {INSTITUTIONAL_THESIS_PRESETS.map((preset) => (
           <button
@@ -51,7 +51,7 @@ function TickerInputControl(props: {
   return (
     <div>
       <label htmlFor="new-ticker" className="mb-1.5 block text-xs font-medium text-ink-muted">
-        美股代码（Ticker）
+        股票代码
       </label>
       <div className="flex gap-1.5">
         <Input
@@ -122,13 +122,13 @@ function CompanyMetaFields({
       </div>
       <div>
         <label htmlFor="new-summary" className="mb-1.5 block text-xs font-medium text-ink-muted">
-          初步看多逻辑（可选）
+          核心投资逻辑
         </label>
         <Textarea
           id="new-summary"
           value={draft.convictionSummary}
           onChange={(e) => onPatch({ convictionSummary: e.target.value })}
-          placeholder="先记下一句核心直觉，进入画布后再用 5 步脚手架证伪打磨..."
+          placeholder="记录初步判断…"
           className="min-h-[76px]"
         />
       </div>
@@ -162,8 +162,7 @@ export function NewThesisModal({ open, onOpenChange, onCreated }: NewThesisModal
     <DialogModal
       open={open}
       onOpenChange={onOpenChange}
-      title="新建美股研究标的"
-      subtitle="输入代码点击「识别」，自动填充 SEC 财报与参考价并进入五步画布"
+      title="新建研究标的"
       icon={<IconSparkles size={18} stroke={1.5} />}
       footer={
         <>

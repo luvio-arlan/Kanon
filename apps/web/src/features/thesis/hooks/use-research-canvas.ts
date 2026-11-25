@@ -62,27 +62,29 @@ function useCopilotRunner(thesisId: string, initialCopilot: InitialCopilotState)
   return { copilot, runCopilot };
 }
 
-export function useResearchCanvas(
-  initialThesis: ThesisDetail,
-  initialSec: SecSnapshot | null,
-  initialCopilot: InitialCopilotState,
-  initialRevisions: readonly ThesisRevision[],
-  initialReviews: readonly QuarterlyReview[],
+function useThesisMutations(
+  thesis: ThesisDetail,
+  setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>,
+  setRevisions: React.Dispatch<React.SetStateAction<ThesisRevision[]>>,
+  setReviews: React.Dispatch<React.SetStateAction<QuarterlyReview[]>>,
+  setSecSnapshot: React.Dispatch<React.SetStateAction<SecSnapshot | null>>,
+  withFlag: ReturnType<typeof useBusyState>["withFlag"],
 ) {
-  const [thesis, setThesis] = useState(initialThesis);
-  const [revisions, setRevisions] = useState<ThesisRevision[]>([...initialRevisions]);
-  const [reviews, setReviews] = useState<QuarterlyReview[]>([...initialReviews]);
-  const [secSnapshot, setSecSnapshot] = useState(initialSec);
-  const { busy, withFlag } = useBusyState();
-  const { copilot, runCopilot } = useCopilotRunner(thesis.id, initialCopilot);
-
   const applyMutation = (res: ThesisMutationResult | null) => {
     if (!res) return;
     setThesis(res.thesis);
     if (res.revisions) setRevisions(res.revisions);
   };
-  const patchStep = async (payload: UpdateThesisStepInput, okMessage: string) =>
-    applyMutation(await withFlag("saving", () => apiPatchStep(thesis.id, payload, okMessage)));
+  const patchStep = async (
+    payload: UpdateThesisStepInput,
+    okMessage?: string,
+    options?: { silent?: boolean },
+  ): Promise<boolean> => {
+    const run = () => apiPatchStep(thesis.id, payload, okMessage, options);
+    const res = options?.silent ? await run() : await withFlag("saving", run);
+    applyMutation(res);
+    return res !== null;
+  };
   const submitDiscipline = async (entry: CreateDisciplineEntryInput) =>
     applyMutation(await withFlag("saving", () => apiPostDiscipline(thesis.id, entry)));
   const submitQuarterlyReview = async (input: CreateQuarterlyReviewInput) => {
@@ -96,18 +98,30 @@ export function useResearchCanvas(
     const snap = await withFlag("secSyncing", () => apiSyncSec(thesis.ticker));
     if (snap) setSecSnapshot(snap);
   };
-  return {
+  const deleteCurrentThesis = () => withFlag("deleting", () => apiDeleteThesis(thesis.id));
+  return { patchStep, submitDiscipline, submitQuarterlyReview, syncSec, deleteCurrentThesis };
+}
+
+export function useResearchCanvas(
+  initialThesis: ThesisDetail,
+  initialSec: SecSnapshot | null,
+  initialCopilot: InitialCopilotState,
+  initialRevisions: readonly ThesisRevision[],
+  initialReviews: readonly QuarterlyReview[],
+) {
+  const [thesis, setThesis] = useState(initialThesis);
+  const [revisions, setRevisions] = useState<ThesisRevision[]>([...initialRevisions]);
+  const [reviews, setReviews] = useState<QuarterlyReview[]>([...initialReviews]);
+  const [secSnapshot, setSecSnapshot] = useState(initialSec);
+  const { busy, withFlag } = useBusyState();
+  const { copilot, runCopilot } = useCopilotRunner(thesis.id, initialCopilot);
+  const actions = useThesisMutations(
     thesis,
-    revisions,
-    reviews,
-    secSnapshot,
-    ...busy,
-    copilot,
-    patchStep,
-    submitDiscipline,
-    submitQuarterlyReview,
-    syncSec,
-    runCopilot,
-    deleteCurrentThesis: () => withFlag("deleting", () => apiDeleteThesis(thesis.id)),
-  };
+    setThesis,
+    setRevisions,
+    setReviews,
+    setSecSnapshot,
+    withFlag,
+  );
+  return { thesis, revisions, reviews, secSnapshot, ...busy, copilot, runCopilot, ...actions };
 }

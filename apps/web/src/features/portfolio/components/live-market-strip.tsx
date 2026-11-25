@@ -1,7 +1,7 @@
 "use client";
 
 import type { MarketDataSource, MarketQuoteSnapshot, ThesisDetail } from "@kanon/core";
-import { Badge, Button, cn, MarketSessionBadge, RollingNumber } from "@kanon/ui";
+import { Button, cn, MarketSessionBadge, RollingNumber } from "@kanon/ui";
 import { IconAdjustmentsHorizontal, IconRadar2, IconRefresh } from "@tabler/icons-react";
 
 export interface LiveMarketStripProps {
@@ -15,14 +15,6 @@ export interface LiveMarketStripProps {
   onOpenMarketSettings: () => void;
   onSelectThesis: (thesis: ThesisDetail) => void;
 }
-
-const SOURCE_LABELS: Record<MarketDataSource | "none", string> = {
-  yahoo: "Yahoo 免费盘前/盘后",
-  finnhub: "Finnhub 实时通道",
-  fmp: "FMP 机构通道",
-  polygon: "Polygon SIP 通道",
-  none: "本地参考锚点",
-};
 
 function formatSignedPct(val: number | null): string {
   if (val === null) return "";
@@ -116,9 +108,6 @@ export function LiveMarketStrip(p: LiveMarketStripProps) {
     <div className="kanon-surface-specular flex flex-wrap items-center justify-between gap-3 rounded-card border border-hairline bg-surface px-4 py-2.5">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">
         <MarketSessionBadge session={primarySession} />
-        <Badge variant="titanium" className="font-mono">
-          {SOURCE_LABELS[p.activeSource]}
-        </Badge>
         <div className="kanon-scroll-thin flex min-w-0 items-center gap-2 overflow-x-auto py-0.5">
           {quotedItems.slice(0, 6).map(({ thesis, quote }) => (
             <QuotePill
@@ -130,7 +119,7 @@ export function LiveMarketStrip(p: LiveMarketStripProps) {
           ))}
           {quotedItems.length === 0 ? (
             <span className="text-xs text-ink-muted">
-              {p.loadingQuotes ? "正在拉取实时盘前/盘后报价..." : "点击右侧刷新获取盘前/盘后快照"}
+              {p.loadingQuotes ? "拉取实时报价中…" : "点击右侧刷新盘口"}
             </span>
           ) : null}
         </div>

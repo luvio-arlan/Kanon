@@ -10,11 +10,10 @@ import type {
   ThesisSummary,
 } from "@kanon/core";
 import { AgentThinking, Button, Card, Textarea } from "@kanon/ui";
-import { IconCheck, IconDeviceFloppy, IconScissors, IconSparkles } from "@tabler/icons-react";
+import { IconScissors, IconSparkles } from "@tabler/icons-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { DraftStatusBar } from "@/shared/components/draft-status-bar";
-import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
+import { type AutoSaveStatus, useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { buildClippedCrossCheck } from "../lib/cross-check-helpers";
 import { AddCrossCheckForm, CrossCheckItemCard, nextAlignment } from "./cross-check-editor";
 import { SecAnnualsTable } from "./sec-annuals-table";
@@ -30,11 +29,10 @@ export interface StepFirstPrinciplesProps {
   secSyncing: boolean;
   digestLoading: boolean;
   digest: EarningsDigest | null;
-  saving: boolean;
-  onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
+  onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
   onSyncSec: () => Promise<void>;
   onRunDigest: (sourceText?: string) => Promise<void>;
-  onSaveCrossChecks: (items: CrossCheck[]) => Promise<void>;
+  onSaveCrossChecks: (items: CrossCheck[]) => Promise<boolean>;
   onPromoteExitRule?: (rule: string) => void;
 }
 
@@ -52,27 +50,32 @@ function TranscriptInputCard({
   onOpenClipper: () => void;
 }) {
   return (
-    <Card className="space-y-4 p-6 sm:p-7">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-base font-semibold text-ink-primary">电话会纪要 / 10-K 原文精读</h3>
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-6 py-4 sm:px-7">
+        <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">
+          电话会纪要与原文精读
+        </h3>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onOpenClipper}>
-            <IconScissors size={15} stroke={1.5} />
-            <span>精读摘录</span>
+          <Button variant="outline" size="xs" onClick={onOpenClipper}>
+            <IconScissors size={14} stroke={1.5} />
+            <span>原文摘录</span>
           </Button>
-          <Button variant="titanium" size="sm" loading={loading} onClick={onRun}>
-            {!loading ? <IconSparkles size={15} stroke={1.5} /> : null}
+          <Button variant="titanium" size="xs" loading={loading} onClick={onRun}>
+            {!loading ? <IconSparkles size={14} stroke={1.5} /> : null}
             <span>{loading ? "提炼中" : "AI 提炼"}</span>
           </Button>
         </div>
       </div>
-      {loading ? <AgentThinking variant="wave" label="正在提炼电话会与财报核心要点" /> : null}
-      <Textarea
-        value={sourceText}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="粘贴季度电话会管理层问答、CapEx 指引或 10-K 风险段落..."
-        className="min-h-[104px]"
-      />
+      <div className="space-y-3 px-6 py-5 transition-colors focus-within:bg-canvas/45 sm:px-7">
+        {loading ? <AgentThinking variant="wave" label="正在提炼核心要点" /> : null}
+        <Textarea
+          variant="editorial"
+          value={sourceText}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="粘贴季度电话会问答、CapEx 指引或 10-K 关键段落…"
+          className="min-h-[104px]"
+        />
+      </div>
     </Card>
   );
 }
@@ -81,37 +84,27 @@ function CrossCheckListSection(props: {
   checks: readonly CrossCheck[];
   linkableTheses: readonly ThesisSummary[];
   glossary: readonly GlossaryTerm[];
-  saving: boolean;
   onCycle: (id: string) => void;
   onDelete: (id: string) => void;
   onAdd: (next: CrossCheck) => void;
-  onSave: () => Promise<void>;
 }) {
   return (
-    <>
-      <div className="space-y-3">
-        {props.checks.map((cc) => (
-          <CrossCheckItemCard
-            key={cc.id}
-            cc={cc}
-            glossary={props.glossary}
-            onCycleAlignment={() => props.onCycle(cc.id)}
-            onDelete={() => props.onDelete(cc.id)}
-          />
-        ))}
-      </div>
+    <div className="space-y-4">
+      {props.checks.length > 0 ? (
+        <Card className="divide-y divide-hairline overflow-hidden">
+          {props.checks.map((cc) => (
+            <CrossCheckItemCard
+              key={cc.id}
+              cc={cc}
+              glossary={props.glossary}
+              onCycleAlignment={() => props.onCycle(cc.id)}
+              onDelete={() => props.onDelete(cc.id)}
+            />
+          ))}
+        </Card>
+      ) : null}
       <AddCrossCheckForm linkableTheses={props.linkableTheses} onAdd={props.onAdd} />
-      <div className="flex justify-end">
-        <Button variant="primary" size="md" disabled={props.saving} onClick={props.onSave}>
-          {props.saving ? (
-            <IconCheck size={15} stroke={1.5} />
-          ) : (
-            <IconDeviceFloppy size={15} stroke={1.5} />
-          )}
-          <span>{props.saving ? "保存中..." : "保存交叉验证记录"}</span>
-        </Button>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -121,17 +114,10 @@ function isCrossCheckArray(val: unknown): val is CrossCheck[] {
 
 function StepThreeHeading() {
   return (
-    <header className="space-y-2 border-b border-hairline pb-5">
-      <div className="flex items-center gap-2.5">
-        <span className="h-[1.5px] w-7 bg-accent-coral" />
-        <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 03</span>
-      </div>
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
-          一阶资料印证
-        </h1>
-        <span className="kanon-editorial-subtitle text-xl">Primary Sources</span>
-      </div>
+    <header className="border-b border-hairline pb-4">
+      <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
+        一阶资料印证
+      </h1>
     </header>
   );
 }
@@ -141,8 +127,7 @@ function useStepThreeDraft(props: StepFirstPrinciplesProps) {
     storageKey: `kanon-draft:${props.thesis.id}:step3`,
     serverValue: props.thesis.crossChecks,
     serverVersion: props.thesis.updatedAt,
-    canSave: !props.saving,
-    onDirtyChange: props.onDirtyChange,
+    onSyncChange: props.onSyncChange,
     validateStored: isCrossCheckArray,
     onSave: props.onSaveCrossChecks,
   });
@@ -171,6 +156,7 @@ function StepThreeEvidenceBody({
         <SecAnnualsTable
           annuals={props.secSnapshot.annuals}
           quarterlies={props.secSnapshot.quarterlies}
+          title="历史财务轨迹"
         />
       ) : null}
       <TranscriptInputCard
@@ -197,12 +183,11 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
     );
   const clipCrossCheck = (excerpt: string, anchor: string) => {
     d.setDraft((p) => [...p, buildClippedCrossCheck(props.thesis.companyName, excerpt, anchor)]);
-    toast.success("已摘录至 Step 3 交叉验证草稿，记得点击保存");
+    toast.success("已摘录至交叉验证");
   };
 
   return (
     <div className="space-y-6">
-      <DraftStatusBar draft={d} saving={props.saving} />
       <StepThreeHeading />
       <StepThreeEvidenceBody
         props={props}
@@ -214,11 +199,9 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
         checks={d.draft}
         linkableTheses={linkable}
         glossary={props.glossary}
-        saving={props.saving}
         onCycle={cycleCheck}
         onDelete={(id) => d.setDraft((p) => p.filter((i) => i.id !== id))}
         onAdd={(next) => d.setDraft((p) => [...p, next])}
-        onSave={d.save}
       />
       <SourceClipperSheet
         open={clipperOpen}

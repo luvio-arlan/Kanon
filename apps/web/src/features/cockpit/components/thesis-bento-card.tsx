@@ -64,11 +64,7 @@ function CardIdentityHeader({
   return (
     <div className="px-6 pb-4 pt-5">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2 font-mono text-xs text-ink-muted tabular-nums">
-          <span>NO.{thesis.indexLabel}</span>
-          <span aria-hidden="true">·</span>
-          <span className="truncate font-sans">{thesis.sectorTag}</span>
-        </div>
+        <span className="min-w-0 truncate text-xs text-ink-muted">{thesis.sectorTag}</span>
         <ReadinessRing
           scorePct={readiness.scorePct}
           size={24}
@@ -208,10 +204,6 @@ export const ThesisBentoCard = memo(function ThesisBentoCard({
   return (
     <motion.article whileHover={KANON_CARD_HOVER} className="flex h-full">
       <Card interactive spotlight className="group relative flex w-full flex-col overflow-hidden">
-        <div
-          aria-hidden="true"
-          className="h-[2px] w-full origin-left scale-x-0 bg-accent-coral transition-transform duration-200 ease-[var(--ease-kanon)] group-hover:scale-x-100"
-        />
         <CardIdentityHeader thesis={thesis} readiness={readiness} targetHref={next.href} />
         <ValuationAnchorPanel
           valuation={thesis.valuation}

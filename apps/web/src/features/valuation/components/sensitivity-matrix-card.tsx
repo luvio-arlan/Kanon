@@ -139,15 +139,19 @@ function MatrixHeader({
   metric,
   onMetric,
 }: {
-  caption: string;
+  caption: string | null;
   metric: MatrixMetric;
   onMetric: (next: MatrixMetric) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 pb-5">
-      <div>
-        <h3 className="text-base font-semibold text-ink-primary">5×5 估值敏感度矩阵（EPS × PE）</h3>
-        <p className="mt-1 font-mono text-xs text-ink-muted tabular-nums">{caption}</p>
+      <div className="flex flex-wrap items-baseline gap-3">
+        <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">
+          5×5 估值敏感度矩阵
+        </h3>
+        {caption ? (
+          <span className="font-mono text-xs text-ink-muted tabular-nums">{caption}</span>
+        ) : null}
       </div>
       <SegmentedTabs
         layoutId="sensitivity-metric-mode"
@@ -175,7 +179,7 @@ export function SensitivityMatrixCard({
   const activeCell = hovered ? matrix.rows[hovered.r]?.[hovered.c] : null;
   const caption = activeCell
     ? `EPS $${activeCell.eps.toFixed(2)} × ${activeCell.pe}x → $${activeCell.targetPrice.toFixed(1)} · CAGR ${activeCell.cagrPct.toFixed(1)}%`
-    : "点击任意矩阵格一键回填中性基准";
+    : null;
 
   const handleSelect = onSelectBaseCell
     ? (eps: number, pe: number) => {

@@ -55,14 +55,14 @@ const SORT_OPTIONS: ReadonlyArray<{ id: CockpitSortBy; label: string }> = [
   { id: "margin", label: "安全边际" },
 ];
 
-const VIEW_TITLES: Record<string, { zh: string; en: string }> = {
-  matrix: { zh: "横向赔率矩阵", en: "Comparison" },
-  catalysts: { zh: "催化剂日程", en: "Catalysts" },
-  comps: { zh: "同业预期横评", en: "Peer Comps" },
-  all: { zh: "研究总览", en: "Convictions" },
-  attractive: { zh: "高赔率机会", en: "Asymmetry" },
-  attention: { zh: "假设预警", en: "Vigilance" },
-  archived: { zh: "已归档观察", en: "Archive" },
+const VIEW_TITLES: Record<string, string> = {
+  matrix: "横向赔率矩阵",
+  catalysts: "催化剂日程",
+  comps: "同业预期横评",
+  all: "研究总览",
+  attractive: "高赔率机会",
+  attention: "假设预警",
+  archived: "已归档观察",
 };
 
 function SortDropdown({
@@ -128,30 +128,20 @@ function EditorialMasthead(props: CockpitHeaderProps) {
       : props.viewMode === "catalysts" || props.viewMode === "comps"
         ? props.viewMode
         : props.filter;
-  const meta = VIEW_TITLES[titleKey] ?? { zh: "研究总览", en: "Convictions" };
+  const title = VIEW_TITLES[titleKey] ?? "研究总览";
 
   return (
-    <header className="flex flex-col justify-between gap-4 border-b border-hairline pb-5 pt-1 xl:flex-row xl:items-end">
+    <header className="flex flex-col justify-between gap-4 border-b border-hairline pb-4 pt-1 xl:flex-row xl:items-end">
       <div className="space-y-2">
-        <motion.div
-          key={`rule-${titleKey}`}
-          initial={{ scaleX: 0.35, opacity: 0.5 }}
-          animate={{ scaleX: 1, opacity: 1 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          className="h-[1.5px] w-8 origin-left bg-accent-coral"
-        />
-        <motion.div
+        <motion.h1
           key={titleKey}
           variants={KANON_TITLE_SWAP}
           initial="hidden"
           animate="visible"
-          className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1"
+          className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary sm:text-[28px]"
         >
-          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary sm:text-[30px]">
-            {meta.zh}
-          </h1>
-          <span className="kanon-editorial-subtitle text-xl sm:text-2xl">{meta.en}</span>
-        </motion.div>
+          {title}
+        </motion.h1>
         <AttentionRadarStrip
           analytics={props.analytics}
           onFocusBuyZone={props.onFocusBuyZone}

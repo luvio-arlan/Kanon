@@ -33,16 +33,6 @@
   color: transparent;
 }
 
-.kanon-editorial-subtitle {
-  display: inline-block;
-  font-family: var(--font-serif);
-  font-style: italic;
-  line-height: 1.15;
-  padding: 0.02em 0.1em 0.16em 0;
-  margin-bottom: -0.16em;
-  color: var(--ink-muted);
-}
-
 .kanon-cta-sheen {
   position: relative;
   overflow: hidden;

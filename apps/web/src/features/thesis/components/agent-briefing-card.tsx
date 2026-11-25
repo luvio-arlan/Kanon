@@ -1,141 +1,102 @@
 "use client";
 
 import type { AgentBriefing, AgentPartialSynthesis } from "@kanon/core";
-import { AgentThinking, Badge, ProgressBar, ReadinessRing } from "@kanon/ui";
+import { AgentThinking, cn, ReadinessRing } from "@kanon/ui";
 
-function DebateRoleCard({
+type DebateTone = "pass" | "warn" | "coral" | "muted";
+
+const DOT_TONE: Record<DebateTone, string> = {
+  pass: "bg-status-pass",
+  warn: "bg-status-warn",
+  coral: "bg-accent-coral",
+  muted: "bg-ink-muted",
+};
+
+function DebateDossierRow({
   roleLabel,
-  tag,
   tone,
   body,
 }: {
   roleLabel: string;
-  tag: string;
-  tone: "pass" | "warn" | "titanium";
+  tone: DebateTone;
   body: string;
 }) {
   return (
-    <div className="rounded-control border border-hairline bg-surface px-3.5 py-3 shadow-card">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant={tone}>{roleLabel}</Badge>
-        <span className="font-mono text-xs text-ink-muted">{tag}</span>
+    <div className="px-5 py-4 sm:px-6">
+      <div className="flex items-center gap-2">
+        <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-pill", DOT_TONE[tone])} />
+        <span className="text-xs font-semibold tracking-[0.02em] text-ink-primary">
+          {roleLabel}
+        </span>
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-ink-secondary">{body}</p>
+      <p className="mt-2 text-sm leading-[1.75] text-ink-secondary">{body}</p>
     </div>
   );
 }
 
-function BriefingHeader({ briefing }: { briefing: AgentBriefing }) {
+function VerdictMonolith({ briefing }: { briefing: AgentBriefing }) {
   return (
-    <div className="rounded-control border border-hairline bg-surface p-3.5 shadow-card">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-ink-muted">
-            <span>投委会裁决</span>
-            <Badge variant={briefing.engine === "vercel-ai-sdk" ? "pass" : "default"}>
-              {briefing.engine === "vercel-ai-sdk" ? "BYOK 模型" : "确定性引擎"}
-            </Badge>
-          </div>
-          <div className="mt-1.5 text-sm font-semibold leading-snug text-ink-primary">
-            {briefing.verdict}
-          </div>
+    <section className="kanon-surface-specular rounded-panel border border-hairline bg-surface p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-xs font-medium text-ink-muted">投委会裁决</span>
+        <div className="inline-flex items-center gap-2.5">
+          <span className="font-mono text-2xl font-light tracking-[-0.04em] text-ink-primary tabular-nums">
+            {briefing.convictionScore}
+            <span className="ml-0.5 text-xs font-normal text-ink-muted">/100</span>
+          </span>
+          <ReadinessRing scorePct={briefing.convictionScore} size={28} strokeWidth={2.2} />
         </div>
-        <ReadinessRing
-          scorePct={briefing.convictionScore}
-          size={36}
-          label={`${briefing.convictionScore}`}
-        />
       </div>
-      <ProgressBar
-        value={briefing.convictionScore}
-        max={100}
-        tone={briefing.convictionScore >= 75 ? "pass" : "accent"}
-        size="sm"
-        className="mt-3"
-      />
-    </div>
+      <p className="mt-3 text-[16px] font-semibold leading-[1.55] tracking-[-0.015em] text-ink-primary">
+        {briefing.verdict}
+      </p>
+      {briefing.fallbackReason ? (
+        <div className="mt-3 border-t border-hairline pt-3 text-xs text-status-warn">
+          {briefing.fallbackReason}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
 export function AgentBriefingCard({ briefing }: { briefing: AgentBriefing }) {
   return (
-    <div className="space-y-2.5 rounded-card border border-hairline bg-muted/55 p-3 shadow-card">
-      <BriefingHeader briefing={briefing} />
-      {briefing.fallbackReason ? (
-        <div className="rounded-control bg-status-warn-soft px-3 py-1.5 text-xs text-status-warn">
-          {briefing.fallbackReason}
-        </div>
-      ) : null}
-      <div className="space-y-2">
-        <DebateRoleCard
-          roleLabel="基本面多头"
-          tag="LONG · 预期差"
-          tone="pass"
-          body={briefing.bullSynthesis}
-        />
-        <DebateRoleCard
-          roleLabel="法证空头"
-          tag="BEAR · 下行风险"
-          tone="warn"
-          body={briefing.bearCritique}
-        />
+    <div className="space-y-4">
+      <VerdictMonolith briefing={briefing} />
+      <section className="divide-y divide-hairline overflow-hidden rounded-panel border border-hairline bg-surface">
+        <DebateDossierRow roleLabel="基本面多头" tone="pass" body={briefing.bullSynthesis} />
+        <DebateDossierRow roleLabel="法证空头" tone="warn" body={briefing.bearCritique} />
         {briefing.bearRebuttal ? (
-          <DebateRoleCard
-            roleLabel="空头二次质询"
-            tag="CROSS-EXAM · 证伪反演"
-            tone="warn"
-            body={briefing.bearRebuttal}
-          />
+          <DebateDossierRow roleLabel="反向质询" tone="coral" body={briefing.bearRebuttal} />
         ) : null}
-        <DebateRoleCard
-          roleLabel="财务法证官"
-          tag="FORENSICS · 现金流"
-          tone="titanium"
-          body={briefing.accountingCheck}
-        />
-      </div>
+        <DebateDossierRow roleLabel="财务法证" tone="muted" body={briefing.accountingCheck} />
+      </section>
     </div>
   );
 }
 
 export function AgentStreamingCard({ partial }: { partial: AgentPartialSynthesis }) {
   return (
-    <div className="space-y-2.5 rounded-card border border-hairline bg-muted/55 p-3 shadow-card">
-      <div className="flex items-center justify-between gap-2 px-1">
-        <AgentThinking variant="wave" label="投委会四角色正在流式辩论..." />
-        <Badge variant="titanium">LIVE</Badge>
+    <div className="divide-y divide-hairline overflow-hidden rounded-panel border border-hairline bg-surface">
+      <div className="px-5 py-3.5 sm:px-6">
+        <AgentThinking variant="wave" label="投委会辩论推演中" />
       </div>
       {partial.verdict ? (
-        <div className="rounded-control border border-hairline bg-surface p-3 text-sm font-semibold text-ink-primary">
+        <div className="px-5 py-4 text-[15px] font-semibold leading-snug text-ink-primary sm:px-6">
           {partial.verdict}
         </div>
       ) : null}
       {partial.bullSynthesis ? (
-        <DebateRoleCard
-          roleLabel="基本面多头"
-          tag="LONG"
-          tone="pass"
-          body={partial.bullSynthesis}
-        />
+        <DebateDossierRow roleLabel="基本面多头" tone="pass" body={partial.bullSynthesis} />
       ) : null}
       {partial.bearCritique ? (
-        <DebateRoleCard roleLabel="法证空头" tag="BEAR" tone="warn" body={partial.bearCritique} />
+        <DebateDossierRow roleLabel="法证空头" tone="warn" body={partial.bearCritique} />
       ) : null}
       {partial.bearRebuttal ? (
-        <DebateRoleCard
-          roleLabel="空头二次质询"
-          tag="CROSS-EXAM"
-          tone="warn"
-          body={partial.bearRebuttal}
-        />
+        <DebateDossierRow roleLabel="反向质询" tone="coral" body={partial.bearRebuttal} />
       ) : null}
       {partial.accountingCheck ? (
-        <DebateRoleCard
-          roleLabel="财务法证官"
-          tag="FORENSICS"
-          tone="titanium"
-          body={partial.accountingCheck}
-        />
+        <DebateDossierRow roleLabel="财务法证" tone="muted" body={partial.accountingCheck} />
       ) : null}
     </div>
   );

@@ -8,88 +8,156 @@ import {
   AgentThinking,
   AgentWorkingRow,
   ComposerLoader,
-  ProgressBar,
+  cn,
+  KANON_TRANSITION_FAST,
   Spinner,
 } from "@kanon/ui";
-import { IconCheck } from "@tabler/icons-react";
+import { IconCheck, IconChevronDown } from "@tabler/icons-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useState } from "react";
 
-function TraceTreeCard({ step }: { step: AgentTraceStep }) {
+function TraceStepEntry({ step }: { step: AgentTraceStep }) {
   const isRunning = step.status === "running";
+  const indexText = String(step.stepIndex).padStart(2, "0");
+
   return (
-    <div className="rounded-control border border-hairline bg-surface px-3.5 py-2.5 shadow-card">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="inline-flex min-w-0 items-center gap-2 font-medium text-ink-primary">
-          {isRunning ? (
-            <Spinner size="xs" decorative />
-          ) : (
-            <IconCheck size={13} stroke={1.5} className="shrink-0 text-status-pass" />
-          )}
-          <span className="truncate">
-            {isRunning ? (
-              <AgentShimmerText>{`0${step.stepIndex} · ${step.label}`}</AgentShimmerText>
-            ) : (
-              `0${step.stepIndex} · ${step.label}`
-            )}
-          </span>
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="font-mono text-xs text-ink-muted tabular-nums">{indexText}</span>
+        {isRunning ? <Spinner size="xs" decorative className="text-accent-coral" /> : null}
+        <span className="min-w-0 flex-1 font-medium text-ink-primary">
+          {isRunning ? <AgentShimmerText>{step.label}</AgentShimmerText> : step.label}
         </span>
-        {step.status === "done" ? (
-          <span className="shrink-0 font-mono text-ink-muted tabular-nums">
-            {step.durationMs}ms
-          </span>
-        ) : null}
       </div>
       {step.finding ? (
-        <p className="mt-1.5 text-xs leading-relaxed text-ink-secondary">{step.finding}</p>
+        <p className="text-xs leading-[1.7] text-ink-secondary">{step.finding}</p>
       ) : null}
       {step.citation ? (
-        <div className="mt-1 truncate font-mono text-xs text-ink-muted">溯源：{step.citation}</div>
+        <div className="truncate font-mono text-xs text-ink-muted/80">{step.citation}</div>
       ) : null}
     </div>
   );
 }
 
-export function AgentTraceLogSection({
+function TraceListBody({
   traces,
   running,
 }: {
   traces: readonly AgentTraceStep[];
   running: boolean;
 }) {
-  const doneCount = traces.filter((t) => t.status === "done").length;
   return (
-    <ComposerLoader active={running} radius={20}>
-      <div className="rounded-card border border-hairline bg-muted/55 p-3.5 shadow-card">
-        <div className="flex items-center justify-between gap-2 px-1">
-          {running ? (
-            <AgentThinking variant="wave" label="多角色投委会深度审计中" />
-          ) : (
-            <span className="text-xs font-medium text-ink-secondary">
-              审计推理轨迹（{doneCount}/{Math.max(doneCount, 6)} 步）
-            </span>
-          )}
+    <div>
+      {traces.length > 0 ? (
+        <AgentLogList>
+          {traces.map((step, idx) => (
+            <AgentLogRow
+              key={step.stepIndex}
+              first={idx === 0}
+              last={idx === traces.length - 1}
+              active={step.status === "running"}
+            >
+              <TraceStepEntry step={step} />
+            </AgentLogRow>
+          ))}
+        </AgentLogList>
+      ) : null}
+      {running ? <AgentWorkingRow label="综合辩论并生成修订提案" /> : null}
+    </div>
+  );
+}
+
+function LiveTracePanel({
+  traces,
+  doneCount,
+}: {
+  traces: readonly AgentTraceStep[];
+  doneCount: number;
+}) {
+  const total = Math.max(traces.length, 8);
+  return (
+    <ComposerLoader active radius={14}>
+      <div className="rounded-panel border border-hairline bg-surface p-5 shadow-card">
+        <div className="mb-4 flex items-center justify-between gap-2 border-b border-hairline pb-3.5">
+          <AgentThinking variant="wave" label="投委会深度审计中" />
           <span className="font-mono text-xs text-ink-muted tabular-nums">
-            {running ? "LIVE" : "DONE"}
+            {doneCount} / {total}
           </span>
         </div>
-        <ProgressBar
-          value={doneCount}
-          max={6}
-          indeterminate={running && doneCount === 0}
-          tone={running ? "accent" : "pass"}
-          size="sm"
-          className="mt-2.5 px-1"
-        />
-        {traces.length > 0 ? (
-          <AgentLogList className="mt-3">
-            {traces.map((step, idx) => (
-              <AgentLogRow key={step.stepIndex} first={idx === 0} last={idx === traces.length - 1}>
-                <TraceTreeCard step={step} />
-              </AgentLogRow>
-            ))}
-          </AgentLogList>
-        ) : null}
-        {running ? <AgentWorkingRow label="正在综合四角色辩论并生成提案" /> : null}
+        <TraceListBody traces={traces} running />
       </div>
     </ComposerLoader>
+  );
+}
+
+function TraceDisclosureHeader({
+  doneCount,
+  expanded,
+  onToggle,
+}: {
+  doneCount: number;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className="flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors duration-150 ease-[var(--ease-kanon)] hover:bg-muted/35"
+    >
+      <span className="inline-flex items-center gap-2.5 text-xs font-medium text-ink-primary">
+        <IconCheck size={14} stroke={1.5} className="text-status-pass" />
+        <span>审计核验轨迹</span>
+        <span className="font-mono text-ink-muted tabular-nums">{doneCount} 步</span>
+      </span>
+      <IconChevronDown
+        size={15}
+        stroke={1.5}
+        className={cn(
+          "text-ink-muted transition-transform duration-200 ease-[var(--ease-kanon)]",
+          expanded && "rotate-180",
+        )}
+      />
+    </button>
+  );
+}
+
+export function AgentTraceLogSection({
+  traces,
+  running,
+  collapsedByDefault = false,
+}: {
+  traces: readonly AgentTraceStep[];
+  running: boolean;
+  collapsedByDefault?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(!collapsedByDefault);
+  const doneCount = traces.filter((t) => t.status === "done").length;
+  if (running) return <LiveTracePanel traces={traces} doneCount={doneCount} />;
+
+  return (
+    <div className="overflow-hidden rounded-panel border border-hairline bg-surface">
+      <TraceDisclosureHeader
+        doneCount={doneCount}
+        expanded={expanded}
+        onToggle={() => setExpanded((v) => !v)}
+      />
+      <AnimatePresence initial={false}>
+        {expanded ? (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={KANON_TRANSITION_FAST}
+            className="overflow-hidden border-t border-hairline"
+          >
+            <div className="px-5 py-4">
+              <TraceListBody traces={traces} running={false} />
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }

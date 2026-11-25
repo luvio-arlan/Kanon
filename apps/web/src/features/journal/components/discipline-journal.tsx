@@ -39,17 +39,10 @@ type Step5Tab = "ledger" | "reviews" | "calibration" | "memo" | "revisions";
 
 function Step5Header() {
   return (
-    <header className="space-y-2 border-b border-hairline pb-5">
-      <div className="flex items-center gap-2.5">
-        <span className="h-[1.5px] w-7 bg-accent-coral" />
-        <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 05</span>
-      </div>
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
-          纪律与备忘录
-        </h1>
-        <span className="kanon-editorial-subtitle text-xl">Discipline & Memo</span>
-      </div>
+    <header className="border-b border-hairline pb-4">
+      <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
+        纪律与备忘录
+      </h1>
     </header>
   );
 }

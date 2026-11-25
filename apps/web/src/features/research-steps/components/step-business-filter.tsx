@@ -12,8 +12,7 @@ import type {
 import { Badge, ButtonGroup, ButtonGroupItem, type ButtonGroupTone, Card } from "@kanon/ui";
 import { useMemo } from "react";
 import { GlossaryText } from "@/features/glossary";
-import { DraftStatusBar } from "@/shared/components/draft-status-bar";
-import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
+import { type AutoSaveStatus, useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { BusinessFilterNotesCard } from "./business-filter-notes";
 import { SecAnnualsTable } from "./sec-annuals-table";
 import { VariantPerceptionCard } from "./variant-perception-card";
@@ -24,12 +23,15 @@ export interface StepBusinessFilterProps {
   annuals?: readonly SecAnnualFinancial[];
   quarterlies?: readonly SecQuarterlyFinancial[];
   saving: boolean;
-  onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
-  onSave: (payload: {
-    status: ThesisStatus;
-    convictionSummary: string;
-    businessFilter: BusinessFilter;
-  }) => Promise<void>;
+  onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
+  onSave: (
+    payload: {
+      status: ThesisStatus;
+      convictionSummary: string;
+      businessFilter: BusinessFilter;
+    },
+    options?: { silent?: boolean },
+  ) => Promise<boolean>;
 }
 
 type FilterKey = "recurringRevenue" | "pricingPower" | "capitalReturn" | "governance";
@@ -39,25 +41,25 @@ const DIMENSIONS: ReadonlyArray<{ code: string; key: FilterKey; title: string; p
     code: "01",
     key: "recurringRevenue",
     title: "收入韧性与客户粘性",
-    prompt: "客户是否具备高留存复购或长期合约特征，而非每年重新获客？",
+    prompt: "客户是否具备高留存复购或长期合约特征？",
   },
   {
     code: "02",
     key: "pricingPower",
     title: "定价权与竞争壁垒",
-    prompt: "在成本通胀或行业低谷期，能否守住 Gross Margin 并向产业链传导成本？",
+    prompt: "在成本通胀或行业低谷期，能否守住 Gross Margin 并传导成本？",
   },
   {
     code: "03",
     key: "capitalReturn",
     title: "资本回报与现金流质量",
-    prompt: "账面盈利是否转化为真实 FCF，ROIC 能否持续高于资本成本且避免高强度 CapEx 消耗？",
+    prompt: "账面盈利是否转化为真实 FCF，ROIC 能否持续高于资本成本？",
   },
   {
     code: "04",
     key: "governance",
     title: "治理透明度与资本配置",
-    prompt: "管理层是否坦诚披露 10-K 风险、审慎扩产并保持理性回购与研发投入？",
+    prompt: "管理层是否坦诚披露 10-K 风险并保持理性回购与研发投入？",
   },
 ];
 
@@ -113,19 +115,10 @@ function StepOneMasthead({ status, filter }: { status: ThesisStatus; filter: Bus
   const statusTone = status === "archived_veto" ? "fail" : hasVeto ? "warn" : "pass";
 
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-hairline pb-5">
-      <div className="space-y-2">
-        <div className="flex items-center gap-2.5">
-          <span className="h-[1.5px] w-7 bg-accent-coral" />
-          <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 01</span>
-        </div>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
-            商业质量评估
-          </h1>
-          <span className="kanon-editorial-subtitle text-xl">Quality Assessment</span>
-        </div>
-      </div>
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
+      <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
+        商业质量评估
+      </h1>
       <Badge variant={statusTone} className="px-2.5 py-1.5 text-xs">
         {statusText}
       </Badge>
@@ -153,15 +146,18 @@ function useStep1Draft(props: StepBusinessFilterProps) {
     storageKey: `kanon-draft:${props.thesis.id}:step1`,
     serverValue,
     serverVersion: props.thesis.updatedAt,
-    canSave: !props.saving,
-    onDirtyChange: props.onDirtyChange,
+    canSaveDraft: (val) => Boolean(val.summary.trim()),
+    onSyncChange: props.onSyncChange,
     validateStored: isStep1Draft,
     onSave: (val) =>
-      props.onSave({
-        status: props.thesis.status,
-        convictionSummary: val.summary,
-        businessFilter: val.filter,
-      }),
+      props.onSave(
+        {
+          status: props.thesis.status,
+          convictionSummary: val.summary,
+          businessFilter: val.filter,
+        },
+        { silent: true },
+      ),
   });
 }
 
@@ -175,7 +171,7 @@ function DimensionsMatrixCard({
   onSelect: (key: FilterKey, verdict: FilterVerdict) => void;
 }) {
   return (
-    <Card className="divide-y divide-hairline px-6 py-4 sm:px-8">
+    <Card className="divide-y divide-hairline px-6 py-4 sm:px-7">
       {DIMENSIONS.map((dim) => (
         <DimensionRow
           key={dim.key}
@@ -201,8 +197,7 @@ export function StepBusinessFilter(props: StepBusinessFilterProps) {
     d.setDraft((prev) => ({ ...prev, filter: { ...prev.filter, ...patch } }));
 
   return (
-    <div className="space-y-7">
-      <DraftStatusBar draft={d} saving={saving} />
+    <div className="space-y-6">
       <StepOneMasthead status={thesis.status} filter={d.draft.filter} />
       <DimensionsMatrixCard
         filter={d.draft.filter}
@@ -211,11 +206,7 @@ export function StepBusinessFilter(props: StepBusinessFilterProps) {
       />
       <VariantPerceptionCard filter={d.draft.filter} onPatch={patchFilter} />
       {annuals.length > 0 ? (
-        <SecAnnualsTable
-          annuals={annuals}
-          quarterlies={quarterlies}
-          title="历史财务基本盘佐证（SEC 10-K/Q）"
-        />
+        <SecAnnualsTable annuals={annuals} quarterlies={quarterlies} title="历史财务佐证" />
       ) : null}
       <BusinessFilterNotesCard
         status={thesis.status}
@@ -225,13 +216,12 @@ export function StepBusinessFilter(props: StepBusinessFilterProps) {
         onSummary={(summary) => d.setDraft((prev) => ({ ...prev, summary }))}
         onNotes={(notes) => patchFilter({ notes })}
         onToggleArchive={() =>
-          onSave({
+          void onSave({
             status: nextStatus,
-            convictionSummary: d.draft.summary,
+            convictionSummary: d.draft.summary.trim() || thesis.convictionSummary,
             businessFilter: { ...d.draft.filter, vetoReason },
           })
         }
-        onSave={() => void d.save()}
       />
     </div>
   );

@@ -45,28 +45,28 @@ function gradeBadgeVariant(grade: SecQualitySummary["qualityGrade"]) {
 
 function SecQualityStrip({ quality }: { quality: SecQualitySummary }) {
   return (
-    <div className="grid grid-cols-2 gap-3 border-b border-hairline bg-muted/30 px-5 py-3 font-mono text-xs tabular-nums sm:grid-cols-4">
-      <div>
+    <div className="grid grid-cols-2 divide-x divide-hairline border-b border-hairline bg-canvas/45 font-mono text-xs tabular-nums sm:grid-cols-4">
+      <div className="px-6 py-4">
         <div className="font-sans text-ink-muted">营收复合增速</div>
-        <div className="mt-0.5 text-sm font-semibold text-ink-primary">
+        <div className="mt-1 text-base font-medium text-ink-primary">
           {quality.revenueCagrPct !== null ? `${quality.revenueCagrPct.toFixed(1)}%` : "—"}
         </div>
       </div>
-      <div>
+      <div className="px-6 py-4">
         <div className="font-sans text-ink-muted">均值毛利率</div>
-        <div className="mt-0.5 text-sm font-semibold text-ink-primary">
+        <div className="mt-1 text-base font-medium text-ink-primary">
           {quality.avgGrossMarginPct !== null ? `${quality.avgGrossMarginPct.toFixed(1)}%` : "—"}
         </div>
       </div>
-      <div>
+      <div className="px-6 py-4">
         <div className="font-sans text-ink-muted">FCF 转化率</div>
-        <div className="mt-0.5 text-sm font-semibold text-status-pass">
+        <div className="mt-1 text-base font-medium text-status-pass">
           {quality.fcfConversionPct !== null ? `${quality.fcfConversionPct.toFixed(1)}%` : "—"}
         </div>
       </div>
-      <div>
+      <div className="px-6 py-4">
         <div className="font-sans text-ink-muted">CapEx 强度</div>
-        <div className="mt-0.5 text-sm font-semibold text-ink-secondary">
+        <div className="mt-1 text-base font-medium text-ink-secondary">
           {quality.capexIntensityPct !== null ? `${quality.capexIntensityPct.toFixed(1)}%` : "—"}
         </div>
       </div>
@@ -163,9 +163,11 @@ function SecTableHeader(props: {
   onMode: (m: DisplayMode) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-5 py-3.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold text-ink-primary">{props.title}</h3>
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-6 py-4">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">
+          {props.title}
+        </h3>
         {props.quality ? (
           <Badge variant={gradeBadgeVariant(props.quality.qualityGrade)}>
             {props.quality.qualityLabel}
@@ -177,7 +179,7 @@ function SecTableHeader(props: {
             onClick={() => props.onMode("forensics")}
             className="cursor-pointer"
           >
-            <Badge variant="warn">{props.flagCount} 项法证提示</Badge>
+            <Badge variant="warn">{props.flagCount} 项提示</Badge>
           </button>
         ) : null}
       </div>
@@ -187,9 +189,9 @@ function SecTableHeader(props: {
         onChange={props.onMode}
         items={[
           { id: "table", label: "年度" },
-          { id: "quarters", label: "季度拐点", count: props.quarterCount || undefined },
-          { id: "chart", label: "趋势图" },
-          { id: "forensics", label: "法证审阅" },
+          { id: "quarters", label: "季度", count: props.quarterCount || undefined },
+          { id: "chart", label: "趋势" },
+          { id: "forensics", label: "法证" },
         ]}
       />
     </div>

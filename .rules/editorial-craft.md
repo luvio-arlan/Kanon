@@ -5,7 +5,7 @@
 ## 1. 文案极简与减法布局（Zero Ornamental Microcopy & Subtraction）
 
 - **删无可删**：屏幕上的每个字都必须直接服务于用户当下操作；删掉后意图不变的文字一律删除。
-- **严禁凑字与复杂化**：禁止页脚技术标签与交易标语堆砌（如 `SEC XBRL / +86 独立加密存储`、工作台底部铁律标语）、工作台重复营销口号与英文装饰眉题、主标题下方冗余解释副文案、内部版本号与路线图年份（`v4.0` / `未来十年`）、以及注册/首屏里的非必要配置开关。
+- **严禁凑字与复杂化**：禁止页脚技术标签与交易标语堆砌（如 `SEC XBRL / +86 独立加密存储`、工作台底部铁律标语）、工作台重复营销口号与英文装饰眉题/斜体副标题（如 `STEP 01`、`Quality Assessment`、`IC Framework`）、主标题/弹窗/抽屉下方冗余解释副文案、内部版本号与路线图年份（`v4.0` / `未来十年`）、以及注册/首屏里的非必要配置开关。
 - **严禁泄露底层研发术语** `[no-user-facing-db-jargon]`：面向用户的客户端功能层（`apps/web/src/features/**`）禁止出现 `Postgres`、`PostgreSQL`、`落库` 等基础设施术语，统一使用自然中文（「保存」「创建」）。
 - **买方机构级典雅文案纪律** `[institutional-copy-hygiene]`：面向投资者的界面、导出文档与 AI 提示词严禁出现口语、惊悚、戏谑或生硬直译词（如 `事前验尸`、`商业模式滤镜`、`商业滤镜`、`水电煤`、`死因链条`、`红队挑刺`、`红队拷问`、`苛刻空头`、`恐慌想割`、`法证体检`、`法证排雷`、`印钞机`、`烧钱黑洞`、`拍脑袋`、`一票否决`、`真·反向`），统一使用克制、典雅的买方投委会专业术语（如「商业质量评估」「逆向压力推演」「反向质询」「财务法证」「暂不纳入」「离场条件」）。
 - **正文术语静默排版** `[no-jarring-inline-mono-glossary]`：行内术语解释触发器（`GlossaryPopoverCard`）必须继承正文衬线/无衬线字体与字号，仅以克制点状细下划线提示可交互，严禁在中文段落中强制插入粗等宽字体（`font-mono`）与橙色虚线破坏阅读流。
@@ -20,7 +20,9 @@
 - **严禁 Tab 高度塌陷与模糊重绘** `[no-mode-wait-tab-collapse]` `[no-filter-blur-transition]`：客户端功能层严禁对 Tab/步骤面板使用导致空白塌陷帧的 `<AnimatePresence mode="wait">` 或触发 GPU 重绘的 `filter: "blur(...)"`；统一使用容器 `min-h` 托底 + 零位移透明度淡入（`KANON_LENS_VARIANTS`）+ 过阻尼滑块（`KANON_TAB_TRANSITION`）。
 - **焦点轮廓层级纪律** `[css-layered-focus-visible]`：`packages/ui/src/styles/editorial.css` 的全局 `:focus-visible` 规则必须包在 `@layer base` 内，严禁无层级规则覆盖 Tailwind `focus-visible:outline-none` 导致点击 Tab 叠出双层橙框。
 - **0ms 即时切换 + 静默 URL 同步**：同域高频模式切换（如 `登录 ↔ 注册`、画布 `Step 1–5`）使用本地状态瞬切并保留已填公共字段（如手机号），用 `window.history.replaceState` 同步地址栏，杜绝跨路由网络往返、整屏白闪与外层舞台重播动画。
-- **禁止顶部闪烁进度条** `[no-route-progress-bar]`：严禁挂载全局顶部红条/加载条组件（`RouteProgressBar` / `NextTopLoader`）。
+- **禁止顶部闪烁进度条与装饰红条** `[no-route-progress-bar]`：严禁挂载全局顶部红条/加载条组件（`RouteProgressBar` / `NextTopLoader`），并禁止在顶栏胶囊底边、侧栏或卡片顶部叠放多余珊瑚红进度细条。
+- **用户无感自动保存**：五步画布（商业质量、核心假设、催化剂、交叉验证、三情景估值）均在编辑停顿后静默防抖自动保存并在切换步骤时自动刷新落盘；同一编辑会话 5 分钟内的同步骤修订在服务端合并为单条演进日志，严禁弹出刺眼的「未保存草稿横幅」「离开确认弹窗」或频繁成功 Toast，仅在顶栏保留静默微指示与失败重试入口。
+- **纸面细线写作网格与结论先行 Agent 抽屉**：多栏投研写作区（如预期差四象限、投资论点、假设编辑卡）采用 `1px` 细线分隔的纸面无框输入（`variant="editorial"`），悬停/聚焦时渐显示例与管理控件，杜绝白卡内套多层灰框输入框的廉价表单感；投委会 Agent 抽屉以「综合裁决 → 四角色细线辩论 → 修订提案 → 默认折叠的极简核验轨迹」结论先行编排，杜绝双层叠卡、刺眼亮绿进度条与毫秒级开发日志噪音。
 - **同心圆角几何系统** `[semantic-radius-only]` `[css-concentric-tokens-and-motion]`：所有嵌套圆角必须满足光学同心法则 `R_inner = max(6px, R_outer - padding)`，严禁在组件中散落裸 Tailwind 圆角（`rounded-sm/md/lg/xl/2xl/3xl`），统一消费 6 级语义圆角令牌：`rounded-card (20px)` → `rounded-panel (14px)` → `rounded-control (10px)` → `rounded-item (8px)` → `rounded-badge (6px)` → `rounded-pill`。
 - **统一阻尼曲线与入慢出快纪律** `[css-concentric-tokens-and-motion]`：交互过渡统一收敛到 `--ease-kanon (0.22, 1, 0.36, 1)`、`--ease-overlay (0.32, 0.72, 0, 1)` 与 `--ease-exit (0.4, 0, 1, 1)`；浮层退场时长严格短于入场，按压反馈采用纯色阶加深（禁止缩放抖动），所有关键帧动画必须挂载 `@media (prefers-reduced-motion: reduce)` 兜底。
 - **下拉菜单与控件精工标准** `[no-native-select]`：严禁使用浏览器原生 `<select>`；统一下拉采用 `@kanon/ui` `ActionMenu`（`rounded-panel` 面板 + `p-1.5` + `rounded-item` 选项、内置 `selected` 对齐勾选列、`.kanon-chevron` 旋转与 `data-placement` 方向原点）；表单输入采用微凹 `--shadow-input` 质感与 `resize-none`，杜绝卡内叠卡阴影与浏览器默认拖拽斜杠；分段器（`ButtonGroup`）采用内嵌托盘 + 仅选中项浮起白卡设计。

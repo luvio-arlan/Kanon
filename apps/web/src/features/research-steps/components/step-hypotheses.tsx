@@ -12,14 +12,12 @@ import {
   Button,
   ComposerLoader,
   KANON_LENS_VARIANTS,
-  ProgressBar,
   SegmentedTabs,
 } from "@kanon/ui";
-import { IconCheck, IconDeviceFloppy, IconPlus, IconScale } from "@tabler/icons-react";
+import { IconPlus, IconScale } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { DraftStatusBar } from "@/shared/components/draft-status-bar";
-import { useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
+import { type AutoSaveStatus, useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { buildExtraHypothesis, isHypothesisArray, swapHypotheses } from "../lib/hypothesis-helpers";
 import { CatalystLedgerSection } from "./catalysts/catalyst-ledger-section";
 import { HypothesisEditorCard } from "./hypothesis-editor-card";
@@ -30,74 +28,34 @@ type StepTwoLens = "hypotheses" | "catalysts";
 export interface StepHypothesesProps {
   thesis: ThesisDetail;
   glossary: readonly GlossaryTerm[];
-  saving: boolean;
   redTeamLoading: boolean;
   redTeam: RedTeamReport | null;
-  onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
-  onSave: (hypotheses: Hypothesis[]) => Promise<void>;
-  onSaveCatalysts: (catalysts: ThesisCatalyst[]) => Promise<void>;
+  onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
+  onSave: (hypotheses: Hypothesis[]) => Promise<boolean>;
+  onSaveCatalysts: (catalysts: ThesisCatalyst[]) => Promise<boolean>;
   onRunRedTeam: () => Promise<void>;
   onPromoteRedTeamRule?: (rule: string) => void;
 }
 
-function StepTwoHeader({
-  count,
-  loading,
-  onRun,
-}: {
-  count: number;
-  loading: boolean;
-  onRun: () => Promise<void>;
-}) {
+function isValidHypotheses(items: readonly Hypothesis[]): boolean {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-hairline pb-5">
-      <div className="space-y-2">
-        <div className="flex items-center gap-2.5">
-          <span className="h-[1.5px] w-7 bg-accent-coral" />
-          <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">
-            STEP 02 · {count} ITEMS
-          </span>
-        </div>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
-            核心假设与催化剂
-          </h1>
-          <span className="kanon-editorial-subtitle text-xl">Hypotheses & Catalysts</span>
-        </div>
-      </div>
-      <Button variant="coral" size="md" loading={loading} onClick={onRun}>
-        {!loading ? <IconScale size={16} stroke={1.5} /> : null}
-        <span>{loading ? "推演中" : "反向质询"}</span>
-      </Button>
-    </header>
+    items.length >= 3 &&
+    items.length <= 5 &&
+    items.every((h) => Boolean(h.title.trim() && h.metricLabel.trim() && h.threshold.trim()))
   );
 }
 
-function StepTwoFooter(p: {
-  count: number;
-  saving: boolean;
-  onAdd: () => void;
-  onSave: () => void;
-}) {
+function StepTwoHeader({ loading, onRun }: { loading: boolean; onRun: () => Promise<void> }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-      {p.count < 5 ? (
-        <Button variant="outline" size="md" onClick={p.onAdd}>
-          <IconPlus size={15} stroke={1.5} />
-          <span>增补第 {p.count + 1} 条假设</span>
-        </Button>
-      ) : (
-        <span className="font-mono text-xs text-ink-muted">5 / 5 核心假设</span>
-      )}
-      <Button variant="primary" size="lg" disabled={p.saving} onClick={p.onSave}>
-        {p.saving ? (
-          <IconCheck size={16} stroke={1.5} />
-        ) : (
-          <IconDeviceFloppy size={16} stroke={1.5} />
-        )}
-        <span>{p.saving ? "保存中..." : `保存 ${p.count} 条核心假设`}</span>
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
+      <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
+        核心假设与催化剂
+      </h1>
+      <Button variant="coral" size="sm" loading={loading} onClick={onRun}>
+        {!loading ? <IconScale size={15} stroke={1.5} /> : null}
+        <span>{loading ? "推演中" : "反向质询"}</span>
       </Button>
-    </div>
+    </header>
   );
 }
 
@@ -106,7 +64,6 @@ function HypothesesLensBody(p: {
   draft: Hypothesis[];
   setDraft: React.Dispatch<React.SetStateAction<Hypothesis[]>>;
   onAdd: () => void;
-  onSave: () => void;
 }) {
   const { props, draft, setDraft } = p;
   return (
@@ -129,18 +86,26 @@ function HypothesesLensBody(p: {
           />
         ))}
       </div>
+      {draft.length < 5 ? (
+        <button
+          type="button"
+          onClick={p.onAdd}
+          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-panel border border-hairline bg-surface/60 py-3 text-xs font-medium text-ink-secondary transition-colors duration-150 ease-[var(--ease-kanon)] hover:border-strong hover:bg-surface hover:text-ink-primary"
+        >
+          <IconPlus size={14} stroke={1.5} />
+          <span>增补核心假设</span>
+        </button>
+      ) : null}
       {props.redTeamLoading ? (
-        <ComposerLoader active radius={18}>
-          <div className="space-y-2.5 rounded-card border border-hairline bg-surface p-4 shadow-card">
+        <ComposerLoader active radius={14}>
+          <div className="rounded-panel border border-hairline bg-surface px-5 py-4 shadow-card">
             <AgentThinking variant="stars" label="正在从空头视角审视核心假设盲区" />
-            <ProgressBar indeterminate tone="accent" size="sm" />
           </div>
         </ComposerLoader>
       ) : null}
       {props.redTeam ? (
         <RedTeamResultCard report={props.redTeam} onPromoteRule={props.onPromoteRedTeamRule} />
       ) : null}
-      <StepTwoFooter count={draft.length} saving={props.saving} onAdd={p.onAdd} onSave={p.onSave} />
     </>
   );
 }
@@ -151,7 +116,6 @@ function StepTwoStage(p: {
   draft: Hypothesis[];
   setDraft: React.Dispatch<React.SetStateAction<Hypothesis[]>>;
   onAdd: () => void;
-  onSave: () => void;
 }) {
   return (
     <motion.div
@@ -159,23 +123,18 @@ function StepTwoStage(p: {
       variants={KANON_LENS_VARIANTS}
       initial="enter"
       animate="center"
-      className="min-h-[360px] space-y-6"
+      className="min-h-[360px] space-y-5"
     >
       {p.lens === "catalysts" ? (
         <CatalystLedgerSection
           thesisId={p.props.thesis.id}
           serverCatalysts={p.props.thesis.catalysts}
-          saving={p.props.saving}
+          serverVersion={p.props.thesis.updatedAt}
+          onSyncChange={p.props.onSyncChange}
           onSave={p.props.onSaveCatalysts}
         />
       ) : (
-        <HypothesesLensBody
-          props={p.props}
-          draft={p.draft}
-          setDraft={p.setDraft}
-          onAdd={p.onAdd}
-          onSave={p.onSave}
-        />
+        <HypothesesLensBody props={p.props} draft={p.draft} setDraft={p.setDraft} onAdd={p.onAdd} />
       )}
     </motion.div>
   );
@@ -187,8 +146,8 @@ export function StepHypotheses(props: StepHypothesesProps) {
     storageKey: `kanon-draft:${props.thesis.id}:step2`,
     serverValue: props.thesis.hypotheses,
     serverVersion: props.thesis.updatedAt,
-    canSave: !props.saving,
-    onDirtyChange: props.onDirtyChange,
+    canSaveDraft: isValidHypotheses,
+    onSyncChange: props.onSyncChange,
     validateStored: isHypothesisArray,
     onSave: props.onSave,
   });
@@ -197,19 +156,14 @@ export function StepHypotheses(props: StepHypothesesProps) {
 
   return (
     <div className="space-y-6">
-      <DraftStatusBar draft={d} saving={props.saving} />
-      <StepTwoHeader
-        count={d.draft.length}
-        loading={props.redTeamLoading}
-        onRun={props.onRunRedTeam}
-      />
+      <StepTwoHeader loading={props.redTeamLoading} onRun={props.onRunRedTeam} />
       <SegmentedTabs
         layoutId="step2-lens-tabs"
         value={lens}
         onChange={setLens}
         items={[
-          { id: "hypotheses", label: "核心可证伪假设", count: d.draft.length },
-          { id: "catalysts", label: "催化剂与重估日程", count: props.thesis.catalysts.length },
+          { id: "hypotheses", label: "核心假设", count: d.draft.length },
+          { id: "catalysts", label: "催化剂日程", count: props.thesis.catalysts.length },
         ]}
       />
       <StepTwoStage
@@ -218,7 +172,6 @@ export function StepHypotheses(props: StepHypothesesProps) {
         draft={d.draft}
         setDraft={d.setDraft}
         onAdd={addExtra}
-        onSave={() => void d.save()}
       />
     </div>
   );

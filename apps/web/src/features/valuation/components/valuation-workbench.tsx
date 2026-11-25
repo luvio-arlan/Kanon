@@ -1,12 +1,12 @@
 "use client";
 
 import { checkScenarioMonotonicity, type SecAnnualFinancial, type ThesisDetail } from "@kanon/core";
-import { Button, KANON_LENS_VARIANTS, SegmentedTabs } from "@kanon/ui";
-import { IconAlertTriangle, IconDeviceFloppy } from "@tabler/icons-react";
+import { KANON_LENS_VARIANTS, SegmentedTabs } from "@kanon/ui";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { toast } from "sonner";
-import { DraftStatusBar } from "@/shared/components/draft-status-bar";
+import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
 import { type CaseMap, useValuationDraft } from "../lib/use-valuation-draft";
 import { LiveOddsBanner } from "./live-odds-banner";
 import { computeEpsRange, ScenarioCardsGrid } from "./scenario-cards-grid";
@@ -21,9 +21,8 @@ export interface ValuationWorkbenchProps {
   thesis: ThesisDetail;
   secAnnuals?: readonly SecAnnualFinancial[];
   latestSecEps?: number | null;
-  saving: boolean;
-  onDirtyChange?: (dirty: boolean, saveAction: (() => Promise<void>) | null) => void;
-  onSave: (payload: { currentPrice: number; horizonYears: number } & CaseMap) => Promise<void>;
+  onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
+  onSave: (payload: { currentPrice: number; horizonYears: number } & CaseMap) => Promise<boolean>;
 }
 
 function ValuationHeaderBar({
@@ -34,27 +33,18 @@ function ValuationHeaderBar({
   onLens: (next: ValuationLens) => void;
 }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-hairline pb-5">
-      <div className="space-y-2">
-        <div className="flex items-center gap-2.5">
-          <span className="h-[1.5px] w-7 bg-accent-coral" />
-          <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 04</span>
-        </div>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
-            三情景估值与赔率
-          </h1>
-          <span className="kanon-editorial-subtitle text-xl">Valuation</span>
-        </div>
-      </div>
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
+      <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
+        三情景估值与赔率
+      </h1>
       <SegmentedTabs
         layoutId="valuation-lens-tabs"
         value={lens}
         onChange={onLens}
         items={[
-          { id: "scenarios", label: "核心三情景" },
-          { id: "drivers", label: "营收拆解 / EV-FCF" },
-          { id: "reverse", label: "Reverse-DCF & TSR" },
+          { id: "scenarios", label: "三情景" },
+          { id: "drivers", label: "拆解 / EV-FCF" },
+          { id: "reverse", label: "Reverse DCF" },
         ]}
       />
     </header>
@@ -91,7 +81,7 @@ function ScenariosCoreSection({
         matrix={d.matrix}
         onSelectBaseCell={(eps, peMultiple) => {
           d.patchCase("base", { eps, peMultiple });
-          toast.success(`已将中性基准锚定为 EPS $${eps.toFixed(2)} × ${peMultiple}x`);
+          toast.success(`已锚定中性基准 EPS $${eps.toFixed(2)} × ${peMultiple}x`);
         }}
       />
     </>
@@ -117,7 +107,7 @@ function ValuationLensBody(props: {
         onApplyBaseEps={(eps) => {
           d.patchCase("base", { eps });
           props.onSwitchToScenarios();
-          toast.success(`已将自上而下推导的 EPS $${eps.toFixed(2)} 回填至中性情景`);
+          toast.success(`已回填中性 EPS $${eps.toFixed(2)}`);
         }}
       />
     ) : lens === "reverse" ? (
@@ -143,37 +133,18 @@ function ValuationLensBody(props: {
   );
 }
 
-function SaveValuationButton(props: { saving: boolean; disabled: boolean; onSave: () => void }) {
-  return (
-    <div className="flex justify-end">
-      <Button
-        variant="primary"
-        size="lg"
-        loading={props.saving}
-        disabled={props.disabled}
-        onClick={props.onSave}
-      >
-        {!props.saving ? <IconDeviceFloppy size={16} stroke={1.5} /> : null}
-        <span>{props.saving ? "保存中..." : "保存估值赔率"}</span>
-      </Button>
-    </div>
-  );
-}
-
 export function ValuationWorkbench({
   thesis,
   secAnnuals = [],
   latestSecEps = null,
-  saving,
-  onDirtyChange,
+  onSyncChange,
   onSave,
 }: ValuationWorkbenchProps) {
-  const d = useValuationDraft({ thesis, saving, onDirtyChange, onSave });
+  const d = useValuationDraft({ thesis, onSyncChange, onSave });
   const [lens, setLens] = useState<ValuationLens>("scenarios");
 
   return (
     <div className="space-y-6">
-      <DraftStatusBar draft={d.store} saving={saving} />
       <ValuationHeaderBar lens={lens} onLens={setLens} />
       <LiveOddsBanner summary={d.summary} trailingEps={latestSecEps} />
       <ValuationControlsBar
@@ -192,11 +163,6 @@ export function ValuationWorkbench({
         latestSecEps={latestSecEps}
         d={d}
         onSwitchToScenarios={() => setLens("scenarios")}
-      />
-      <SaveValuationButton
-        saving={saving}
-        disabled={saving || d.currentPrice <= 0}
-        onSave={() => void d.store.save()}
       />
     </div>
   );

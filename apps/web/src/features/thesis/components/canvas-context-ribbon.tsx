@@ -11,12 +11,15 @@ import {
   Button,
   cn,
   KANON_TAB_TRANSITION,
+  KANON_TRANSITION_FAST,
   MarketSessionBadge,
   RollingNumber,
+  Spinner,
 } from "@kanon/ui";
 import { IconArrowRight, IconCheck, IconSparkles } from "@tabler/icons-react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useMemo } from "react";
+import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
 import type { StepId } from "./step-rail";
 
 const STEP_SHORT: ReadonlyArray<{ step: StepId; label: string }> = [
@@ -55,7 +58,10 @@ function RibbonPriceTelemetry({
         decimals={2}
         className="font-medium text-ink-primary"
       />
-      <span className="text-ink-muted">→ 目标 ${thesis.valuation.base.targetPrice.toFixed(1)}</span>
+      <span className="inline-flex items-center gap-1 text-ink-muted">
+        <span>→</span>
+        <RollingNumber value={thesis.valuation.base.targetPrice} prefix="$" decimals={1} />
+      </span>
       <Badge variant={below15 ? "pass" : "titanium"}>
         {below15 ? "买点内" : `赔率 ${ratioText}`}
       </Badge>
@@ -113,17 +119,56 @@ function HorizontalStepPills({
   );
 }
 
+function QuietSyncIndicator({ status, onRetry }: { status: AutoSaveStatus; onRetry: () => void }) {
+  return (
+    <AnimatePresence initial={false}>
+      {status !== "idle" ? (
+        <motion.span
+          key={status}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={KANON_TRANSITION_FAST}
+          className="inline-flex items-center gap-1 pr-1 text-xs"
+        >
+          {status === "saving" ? (
+            <Spinner size="xs" decorative className="text-ink-muted" />
+          ) : status === "saved" ? (
+            <span className="inline-flex items-center gap-1 text-ink-muted">
+              <IconCheck size={12} stroke={1.5} className="text-status-pass" />
+              <span>已保存</span>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="cursor-pointer font-medium text-accent-coral hover:underline"
+            >
+              重试保存
+            </button>
+          )}
+        </motion.span>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
 function RibbonActions({
   nextStep,
+  syncStatus,
+  onRetrySave,
   onSelectStep,
   onOpenAgent,
 }: {
   nextStep: StepId | null;
+  syncStatus: AutoSaveStatus;
+  onRetrySave: () => void;
   onSelectStep: (step: StepId) => void;
   onOpenAgent: () => void;
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1.5">
+      <QuietSyncIndicator status={syncStatus} onRetry={onRetrySave} />
       <Button variant="titanium" size="xs" onClick={onOpenAgent}>
         <IconSparkles size={13} stroke={1.5} className="text-accent-coral" />
         <span>IC Agent</span>
@@ -151,19 +196,23 @@ export function CanvasContextRibbon({
   thesis,
   activeStep,
   liveQuote,
+  syncStatus = "idle",
+  onRetrySave,
   onSelectStep,
   onOpenAgent,
 }: {
   thesis: ThesisDetail;
   activeStep: StepId;
   liveQuote: MarketQuoteSnapshot | null;
+  syncStatus?: AutoSaveStatus;
+  onRetrySave?: () => void;
   onSelectStep: (step: StepId) => void;
   onOpenAgent: () => void;
 }) {
   const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
   const nextStep = activeStep < 5 ? ((activeStep + 1) as StepId) : null;
   return (
-    <div className="no-print kanon-glass-ribbon sticky top-3 z-20 mb-6 overflow-hidden rounded-card border border-hairline">
+    <div className="no-print kanon-glass-ribbon sticky top-3 z-20 mb-6 rounded-card border border-hairline">
       <div className="flex items-center justify-between gap-3 px-4 py-2.5">
         <RibbonPriceTelemetry thesis={thesis} quote={liveQuote} />
         <HorizontalStepPills
@@ -171,12 +220,12 @@ export function CanvasContextRibbon({
           activeStep={activeStep}
           onSelectStep={onSelectStep}
         />
-        <RibbonActions nextStep={nextStep} onSelectStep={onSelectStep} onOpenAgent={onOpenAgent} />
-      </div>
-      <div aria-hidden="true" className="h-[2px] w-full bg-hairline">
-        <div
-          className="h-full bg-accent-coral transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-          style={{ width: `${Math.min(100, Math.max(8, readiness.scorePct))}%` }}
+        <RibbonActions
+          nextStep={nextStep}
+          syncStatus={syncStatus}
+          onRetrySave={onRetrySave ?? (() => undefined)}
+          onSelectStep={onSelectStep}
+          onOpenAgent={onOpenAgent}
         />
       </div>
     </div>

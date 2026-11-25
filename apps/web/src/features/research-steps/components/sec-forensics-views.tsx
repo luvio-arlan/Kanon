@@ -94,16 +94,11 @@ export function SecForensicsView({ report }: { report: SecForensicReport }) {
             size={30}
             label={`${report.forensicScore}`}
           />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-ink-primary">机构级法证盈利质量评级</span>
-              <Badge variant={gradeBadgeTone(report.forensicGrade)}>
-                {report.forensicGradeLabel}
-              </Badge>
-            </div>
-            <div className="mt-0.5 text-xs text-ink-muted">
-              覆盖 ROIC/ROIIC、Sloan 应计项、Owner FCF 转化与资本结构审阅
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-ink-primary">盈利质量评级</span>
+            <Badge variant={gradeBadgeTone(report.forensicGrade)}>
+              {report.forensicGradeLabel}
+            </Badge>
           </div>
         </div>
         {report.rdIntensityPct !== null ? (

@@ -7,8 +7,8 @@ import type {
   CatalystStatus,
   ThesisCatalyst,
 } from "@kanon/core";
-import { Badge, Button, Input } from "@kanon/ui";
-import { IconTrash } from "@tabler/icons-react";
+import { ActionMenu, Badge, Card, Input } from "@kanon/ui";
+import { IconChevronDown, IconTrash } from "@tabler/icons-react";
 
 const STATUS_CYCLE: Record<CatalystStatus, CatalystStatus> = {
   upcoming: "realized",
@@ -44,32 +44,80 @@ const IMPACT_OPTIONS: ReadonlyArray<{ id: CatalystImpact; label: string }> = [
   { id: "medium", label: "中影响" },
 ];
 
-function OptionPills<T extends string>({
+function CompactPicker<T extends string>({
+  ariaLabel,
   options,
   value,
   onChange,
 }: {
+  ariaLabel: string;
   options: ReadonlyArray<{ id: T; label: string }>;
   value: T;
   onChange: (next: T) => void;
 }) {
+  const active = options.find((o) => o.id === value)?.label ?? "";
   return (
-    <div className="inline-flex flex-wrap items-center gap-1">
-      {options.map((opt) => (
-        <Button
-          key={opt.id}
-          variant={opt.id === value ? "titanium" : "ghost"}
-          size="xs"
-          onClick={() => onChange(opt.id)}
-        >
-          {opt.label}
-        </Button>
-      ))}
+    <ActionMenu
+      ariaLabel={ariaLabel}
+      items={options.map((opt) => ({
+        id: opt.id,
+        label: opt.label,
+        selected: opt.id === value,
+        onSelect: () => onChange(opt.id),
+      }))}
+      triggerClassName="h-7 border-transparent bg-transparent px-2 text-xs text-ink-secondary shadow-none hover:border-hairline hover:bg-muted/60 hover:text-ink-primary"
+      trigger={
+        <>
+          <span>{active}</span>
+          <IconChevronDown size={12} stroke={1.5} className="kanon-chevron text-ink-muted" />
+        </>
+      }
+    />
+  );
+}
+
+function CatalystMetaPickers({
+  item,
+  onChange,
+  onRemove,
+}: {
+  item: ThesisCatalyst;
+  onChange: (next: ThesisCatalyst) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <CompactPicker
+        ariaLabel="催化类别"
+        options={CATEGORY_OPTIONS}
+        value={item.category}
+        onChange={(category) => onChange({ ...item, category })}
+      />
+      <CompactPicker
+        ariaLabel="影响程度"
+        options={IMPACT_OPTIONS}
+        value={item.impact}
+        onChange={(impact) => onChange({ ...item, impact })}
+      />
+      <CompactPicker
+        ariaLabel="催化方向"
+        options={DIRECTION_OPTIONS}
+        value={item.direction}
+        onChange={(direction) => onChange({ ...item, direction })}
+      />
+      <button
+        type="button"
+        aria-label="删除催化剂"
+        onClick={onRemove}
+        className="ml-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-item text-ink-muted opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-status-fail-soft hover:text-status-fail focus-visible:opacity-100 group-hover/cat:opacity-100"
+      >
+        <IconTrash size={14} stroke={1.5} />
+      </button>
     </div>
   );
 }
 
-function CatalystMetaBar({
+function CatalystMetaHeader({
   item,
   onChange,
   onRemove,
@@ -80,37 +128,32 @@ function CatalystMetaBar({
 }) {
   const st = STATUS_META[item.status];
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-5 py-3 sm:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
           type="button"
           onClick={() => onChange({ ...item, status: STATUS_CYCLE[item.status] })}
-          className="cursor-pointer"
-          title="点击切换状态（待验证 → 已兑现 → 未兑现）"
+          className="shrink-0 cursor-pointer"
+          title="切换状态"
         >
           <Badge variant={st.variant}>{st.label}</Badge>
         </button>
-        <OptionPills
-          options={CATEGORY_OPTIONS}
-          value={item.category}
-          onChange={(category) => onChange({ ...item, category })}
+        <Input
+          variant="editorial"
+          value={item.dateLabel}
+          onChange={(e) => onChange({ ...item, dateLabel: e.target.value })}
+          placeholder="时间窗口"
+          className="w-28 shrink-0 font-mono text-xs text-ink-secondary"
+        />
+        <Input
+          variant="editorial"
+          value={item.title}
+          onChange={(e) => onChange({ ...item, title: e.target.value })}
+          placeholder="核心催化事件…"
+          className="text-sm font-semibold"
         />
       </div>
-      <div className="flex items-center gap-1.5">
-        <OptionPills
-          options={IMPACT_OPTIONS}
-          value={item.impact}
-          onChange={(impact) => onChange({ ...item, impact })}
-        />
-        <OptionPills
-          options={DIRECTION_OPTIONS}
-          value={item.direction}
-          onChange={(direction) => onChange({ ...item, direction })}
-        />
-        <Button variant="ghost" size="icon-sm" aria-label="删除催化剂" onClick={onRemove}>
-          <IconTrash size={14} stroke={1.5} className="text-ink-muted" />
-        </Button>
-      </div>
+      <CatalystMetaPickers item={item} onChange={onChange} onRemove={onRemove} />
     </div>
   );
 }
@@ -125,36 +168,30 @@ export function CatalystEditorRow({
   onRemove: () => void;
 }) {
   return (
-    <div className="space-y-3 rounded-panel border border-hairline bg-surface p-4 shadow-card">
-      <CatalystMetaBar item={item} onChange={onChange} onRemove={onRemove} />
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[160px_1fr]">
-        <Input
-          value={item.dateLabel}
-          onChange={(e) => onChange({ ...item, dateLabel: e.target.value })}
-          placeholder="时间窗口（如 2027 Q1）"
-          className="h-9 font-mono text-xs"
-        />
-        <Input
-          value={item.title}
-          onChange={(e) => onChange({ ...item, title: e.target.value })}
-          placeholder="核心催化事件（如 Blackwell 放量 / HBM4 认证）"
-          className="h-9 text-sm font-medium"
-        />
+    <Card className="group/cat overflow-hidden">
+      <CatalystMetaHeader item={item} onChange={onChange} onRemove={onRemove} />
+      <div className="grid grid-cols-1 divide-y divide-hairline bg-canvas/30 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <div className="px-5 py-3 transition-colors focus-within:bg-surface/85 sm:px-6">
+          <div className="mb-1 text-xs text-ink-muted">验证口径</div>
+          <Input
+            variant="editorial"
+            value={item.verificationMetric}
+            onChange={(e) => onChange({ ...item, verificationMetric: e.target.value })}
+            placeholder="例如：毛利率 > 45%"
+            className="font-mono text-xs"
+          />
+        </div>
+        <div className="px-5 py-3 transition-colors focus-within:bg-surface/85 sm:px-6">
+          <div className="mb-1 text-xs text-ink-muted">备注</div>
+          <Input
+            variant="editorial"
+            value={item.note}
+            onChange={(e) => onChange({ ...item, note: e.target.value })}
+            placeholder="重估逻辑补充…"
+            className="text-xs"
+          />
+        </div>
       </div>
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        <Input
-          value={item.verificationMetric}
-          onChange={(e) => onChange({ ...item, verificationMetric: e.target.value })}
-          placeholder="量化验证口径（如 毛利率 > 45%）"
-          className="h-9 font-mono text-xs"
-        />
-        <Input
-          value={item.note}
-          onChange={(e) => onChange({ ...item, note: e.target.value })}
-          placeholder="预期差重估逻辑备注（可选）"
-          className="h-9 text-xs"
-        />
-      </div>
-    </div>
+    </Card>
   );
 }

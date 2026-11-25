@@ -39,7 +39,7 @@ function ProbabilityPresetRow({
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
-      <span className="text-xs text-ink-muted">情景概率权重（用于期望目标价）</span>
+      <span className="text-xs text-ink-muted">概率权重</span>
       <div className="flex flex-wrap items-center gap-1.5">
         {PROBABILITY_PRESETS.map((preset) => (
           <button
@@ -88,7 +88,7 @@ export function ValuationControlsBar(props: {
           />
           {props.latestSecEps && props.latestSecEps > 0 ? (
             <span className="rounded-pill bg-titanium-subtle px-2.5 py-1 font-mono text-xs text-ink-secondary tabular-nums">
-              SEC 最新年报 EPS ${props.latestSecEps.toFixed(2)}
+              年报 EPS ${props.latestSecEps.toFixed(2)}
             </span>
           ) : null}
         </div>

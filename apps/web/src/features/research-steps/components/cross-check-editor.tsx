@@ -39,7 +39,7 @@ function CrossCheckHeaderRow({
         <button
           type="button"
           onClick={onCycleAlignment}
-          title="点击切换口径一致状态"
+          title="切换口径一致状态"
           className="cursor-pointer"
         >
           <Badge variant={align.variant}>{align.label}</Badge>
@@ -50,7 +50,7 @@ function CrossCheckHeaderRow({
             className="inline-flex items-center gap-1 rounded-pill border border-hairline bg-muted/60 px-2 py-0.5 text-xs text-ink-secondary hover:border-strong hover:text-ink-primary"
           >
             <IconLink size={11} stroke={1.5} />
-            <span>联动档案</span>
+            <span>联动</span>
             <IconArrowUpRight size={11} stroke={1.5} />
           </Link>
         ) : null}
@@ -59,36 +59,33 @@ function CrossCheckHeaderRow({
         type="button"
         aria-label="删除对照项"
         onClick={onDelete}
-        className="cursor-pointer rounded-control p-1 text-ink-muted hover:bg-muted hover:text-status-fail"
+        className="cursor-pointer rounded-item p-1 text-ink-muted opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-muted hover:text-status-fail focus-visible:opacity-100 group-hover/cc:opacity-100"
       >
-        <IconTrash size={15} stroke={1.5} />
+        <IconTrash size={14} stroke={1.5} />
       </button>
     </div>
   );
 }
 
-export function CrossCheckItemCard({
-  cc,
-  glossary,
-  onCycleAlignment,
-  onDelete,
-}: {
+export function CrossCheckItemCard(p: {
   cc: CrossCheck;
   glossary: readonly GlossaryTerm[];
   onCycleAlignment: () => void;
   onDelete: () => void;
 }) {
   return (
-    <Card className="space-y-2 p-5">
-      <CrossCheckHeaderRow cc={cc} onCycleAlignment={onCycleAlignment} onDelete={onDelete} />
+    <div className="group/cc space-y-2 px-6 py-5 sm:px-7">
+      <CrossCheckHeaderRow cc={p.cc} onCycleAlignment={p.onCycleAlignment} onDelete={p.onDelete} />
       <div className="text-xs text-ink-muted">
-        议题：{cc.topic} · 来源：{cc.sourceAnchor}
+        {p.cc.topic} · {p.cc.sourceAnchor}
       </div>
-      <div className="text-sm leading-relaxed text-ink-primary">
-        <GlossaryText text={cc.statement} terms={glossary} />
+      <div className="text-sm leading-[1.7] text-ink-primary">
+        <GlossaryText text={p.cc.statement} terms={p.glossary} />
       </div>
-      <p className="text-xs text-ink-secondary">结论：{cc.takeaway}</p>
-    </Card>
+      {p.cc.takeaway ? (
+        <p className="text-xs leading-relaxed text-ink-secondary">{p.cc.takeaway}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -100,7 +97,7 @@ function RoleAndAlignPicker({
   onPatch: (p: Partial<NewCheckDraft>) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-6 py-3.5 sm:px-7">
       <ButtonGroup ariaLabel="上下游角色">
         {ROLE_OPTIONS.map((opt) => (
           <ButtonGroupItem
@@ -131,69 +128,67 @@ function RoleAndAlignPicker({
   );
 }
 
-function DraftInputsGrid({
-  draft,
-  onPatch,
-}: {
+function DraftInputsGrid(p: {
   draft: NewCheckDraft;
-  onPatch: (p: Partial<NewCheckDraft>) => void;
+  onPatch: (v: Partial<NewCheckDraft>) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="divide-y divide-hairline">
+      <div className="grid grid-cols-1 divide-y divide-hairline sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {TOP_CHECK_FIELDS.map((f) => (
-          <Input
-            key={f.key}
-            value={draft[f.key]}
-            onChange={(e) => onPatch({ [f.key]: e.target.value })}
-            placeholder={f.ph}
-          />
+          <div key={f.key} className="px-6 py-3.5 transition-colors focus-within:bg-canvas/45">
+            <Input
+              variant="editorial"
+              value={p.draft[f.key]}
+              onChange={(e) => p.onPatch({ [f.key]: e.target.value })}
+              placeholder={f.ph}
+            />
+          </div>
         ))}
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 divide-y divide-hairline sm:grid-cols-2 sm:divide-x sm:divide-y-0">
         {BOTTOM_CHECK_FIELDS.map((f) => (
-          <Input
-            key={f.key}
-            value={draft[f.key]}
-            onChange={(e) => onPatch({ [f.key]: e.target.value })}
-            placeholder={f.ph}
-          />
+          <div key={f.key} className="px-6 py-3.5 transition-colors focus-within:bg-canvas/45">
+            <Input
+              variant="editorial"
+              value={p.draft[f.key]}
+              onChange={(e) => p.onPatch({ [f.key]: e.target.value })}
+              placeholder={f.ph}
+            />
+          </div>
         ))}
       </div>
     </div>
   );
 }
 
-function LinkThesisPicker({
-  linkableTheses,
-  draft,
-  onPatch,
-}: {
+function LinkThesisPicker(p: {
   linkableTheses: readonly ThesisSummary[];
   draft: NewCheckDraft;
-  onPatch: (p: Partial<NewCheckDraft>) => void;
+  onPatch: (v: Partial<NewCheckDraft>) => void;
 }) {
-  if (linkableTheses.length === 0) return null;
-  const linked = linkableTheses.find((t) => t.id === draft.linkedThesisId);
+  if (p.linkableTheses.length === 0) return null;
+  const linked = p.linkableTheses.find((t) => t.id === p.draft.linkedThesisId);
   return (
     <ActionMenu
       ariaLabel="关联库内标的"
       items={[
-        { id: "none", label: "不关联库内标的", onSelect: () => onPatch({ linkedThesisId: null }) },
-        ...linkableTheses.map((t) => ({
+        { id: "none", label: "不关联", onSelect: () => p.onPatch({ linkedThesisId: null }) },
+        ...p.linkableTheses.map((t) => ({
           id: t.id,
           label: `${t.companyName} (${t.ticker})`,
+          selected: t.id === p.draft.linkedThesisId,
           onSelect: () =>
-            onPatch({
+            p.onPatch({
               linkedThesisId: t.id,
-              peerCompany: draft.peerCompany.trim() || `${t.companyName}（${t.ticker}）`,
+              peerCompany: p.draft.peerCompany.trim() || `${t.companyName}（${t.ticker}）`,
             }),
         })),
       ]}
       trigger={
         <>
           <IconLink size={13} stroke={1.5} />
-          <span>{linked ? `已关联：${linked.ticker}` : "关联库内标的（可选）"}</span>
+          <span>{linked ? linked.ticker : "关联标的"}</span>
         </>
       }
     />
@@ -207,27 +202,42 @@ export function AddCrossCheckForm({
   linkableTheses?: readonly ThesisSummary[];
   onAdd: (item: CrossCheck) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<NewCheckDraft>(EMPTY_CHECK);
   const patch = (p: Partial<NewCheckDraft>) => setDraft((prev) => ({ ...prev, ...p }));
   const canAdd = Boolean(draft.peerCompany.trim() && draft.topic.trim() && draft.statement.trim());
-
-  function handleSubmit() {
+  const handleSubmit = () => {
     if (!canAdd) return;
     onAdd(buildCrossCheckFromDraft(draft));
     setDraft(EMPTY_CHECK);
+    setOpen(false);
+  };
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-panel border border-hairline bg-surface/60 py-3 text-xs font-medium text-ink-secondary transition-colors duration-150 ease-[var(--ease-kanon)] hover:border-strong hover:bg-surface hover:text-ink-primary"
+      >
+        <IconPlus size={14} stroke={1.5} />
+        <span>新增上下游交叉印证</span>
+      </button>
+    );
   }
-
   return (
-    <Card className="space-y-3 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-ink-primary">新增上下游交叉印证</div>
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-6 py-3.5 sm:px-7">
+        <span className="text-sm font-semibold text-ink-primary">新增上下游交叉印证</span>
         <LinkThesisPicker linkableTheses={linkableTheses} draft={draft} onPatch={patch} />
       </div>
       <RoleAndAlignPicker draft={draft} onPatch={patch} />
       <DraftInputsGrid draft={draft} onPatch={patch} />
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={handleSubmit} disabled={!canAdd}>
-          <IconPlus size={14} stroke={1.5} />
+      <div className="flex items-center justify-end gap-2 border-t border-hairline px-6 py-3 sm:px-7">
+        <Button variant="ghost" size="xs" onClick={() => setOpen(false)}>
+          取消
+        </Button>
+        <Button variant="primary" size="xs" onClick={handleSubmit} disabled={!canAdd}>
+          <IconPlus size={13} stroke={1.5} />
           <span>加入对照表</span>
         </Button>
       </div>

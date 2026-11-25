@@ -207,10 +207,6 @@ function TsrDecompositionCard(props: {
         reRate={tsr.multipleReRatePct}
         capital={tsr.capitalReturnPct}
       />
-      <p className="text-xs leading-relaxed text-ink-muted">
-        买方原则：长期超额收益应主要来自「盈利增长 +
-        资本回报」，警惕过度依赖估值倍数拔高的乐观预期。
-      </p>
     </Card>
   );
 }
