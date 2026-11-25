@@ -1,14 +1,14 @@
 "use client";
 
-import {
-  calculateTopDownEps,
-  type SecAnnualFinancial,
-  type TopDownEpsResult,
-  type ValuationDriverInputs,
-} from "@kanon/core";
-import { Button, Card, RollingNumber } from "@kanon/ui";
-import { IconArrowDownRight, IconCalculator } from "@tabler/icons-react";
-import { DriverNumInput, EvOwnerFcfCard } from "./ev-owner-fcf-card";
+import type { SecAnnualFinancial, ValuationDriverInputs } from "@kanon/core";
+import { SegmentedTabs } from "@kanon/ui";
+import { useState } from "react";
+import { LinkedOperatingCard } from "./drivers/linked-operating-card";
+import { SotpBuilderCard } from "./drivers/sotp-builder-card";
+import { TopDownEpsCard, type TopDownValues } from "./drivers/top-down-eps-card";
+import { EvOwnerFcfCard } from "./ev-owner-fcf-card";
+
+type DriverTab = "linked" | "sotp" | "classic";
 
 interface DriversPanelProps {
   currentPrice: number;
@@ -35,131 +35,15 @@ function deriveDefaults(latest: SecAnnualFinancial | null, price: number) {
   return { revB, marginPct, sharesM, cashB, debtB, baseFcfB: Math.max(0.5, baseFcfB) };
 }
 
-function TopDownFooter({
-  res,
-  onApply,
+function ClassicDriversGrid({
+  props,
+  defaults,
+  topDownValues,
 }: {
-  res: TopDownEpsResult;
-  onApply: (eps: number) => void;
+  props: DriversPanelProps;
+  defaults: ReturnType<typeof deriveDefaults>;
+  topDownValues: TopDownValues;
 }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-3.5">
-      <div className="font-mono text-xs text-ink-secondary tabular-nums">
-        <span>
-          远期营收 <strong className="text-ink-primary">${res.projectedRevenueB}B</strong> · 净利{" "}
-          <strong className="text-ink-primary">${res.projectedNetIncomeB}B</strong> · 推导 EPS{" "}
-        </span>
-        <RollingNumber
-          value={res.impliedEps}
-          prefix="$"
-          decimals={2}
-          className="text-sm font-semibold text-accent-coral"
-        />
-      </div>
-      <Button
-        variant="primary"
-        size="sm"
-        disabled={res.impliedEps <= 0}
-        onClick={() => onApply(res.impliedEps)}
-      >
-        <IconArrowDownRight size={14} stroke={1.5} />
-        <span>回填至中性 EPS</span>
-      </Button>
-    </div>
-  );
-}
-
-interface TopDownValues {
-  revB: number;
-  revCagr: number;
-  netMargin: number;
-  sharesM: number;
-  shareChange: number;
-}
-
-function TopDownInputsGrid({
-  d,
-  onPatch,
-}: {
-  d: TopDownValues;
-  onPatch: (p: Partial<ValuationDriverInputs>) => void;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      <DriverNumInput
-        label="基准年营收 ($B)"
-        value={d.revB}
-        onChange={(currentRevenueB) => onPatch({ currentRevenueB })}
-      />
-      <DriverNumInput
-        label="年化营收增速 (%)"
-        value={d.revCagr}
-        step={1}
-        onChange={(revenueCagrPct) => onPatch({ revenueCagrPct })}
-      />
-      <DriverNumInput
-        label="目标净利率 (%)"
-        value={d.netMargin}
-        onChange={(targetNetMarginPct) => onPatch({ targetNetMarginPct })}
-      />
-      <DriverNumInput
-        label="稀释股本 (百万股)"
-        value={d.sharesM}
-        step={10}
-        onChange={(dilutedSharesM) => onPatch({ dilutedSharesM })}
-      />
-      <DriverNumInput
-        label="年化股本变动 (%)"
-        value={d.shareChange}
-        onChange={(annualShareChangePct) => onPatch({ annualShareChangePct })}
-      />
-    </div>
-  );
-}
-
-function TopDownEpsCard({
-  horizonYears,
-  values,
-  onPatch,
-  onApplyBaseEps,
-}: {
-  horizonYears: number;
-  values: TopDownValues;
-  onPatch: (next: Partial<ValuationDriverInputs>) => void;
-  onApplyBaseEps: (eps: number) => void;
-}) {
-  const res = calculateTopDownEps({
-    currentRevenueB: values.revB,
-    revenueCagrPct: values.revCagr,
-    targetNetMarginPct: values.netMargin,
-    currentSharesM: values.sharesM,
-    annualShareChangePct: values.shareChange,
-    horizonYears,
-  });
-  return (
-    <Card className="space-y-4 p-5">
-      <div className="flex items-center gap-2">
-        <IconCalculator size={16} stroke={1.5} className="shrink-0 text-ink-muted" />
-        <h3 className="truncate text-sm font-semibold text-ink-primary">
-          自上而下 EPS 拆解（{horizonYears} 年）
-        </h3>
-      </div>
-      <TopDownInputsGrid d={values} onPatch={onPatch} />
-      <TopDownFooter res={res} onApply={onApplyBaseEps} />
-    </Card>
-  );
-}
-
-export function ValuationDriversPanel(props: DriversPanelProps) {
-  const defaults = deriveDefaults(props.latestAnnual, props.currentPrice);
-  const dr = props.driverInputs;
-  const topDownValues: TopDownValues = {
-    revB: dr.currentRevenueB ?? defaults.revB,
-    revCagr: dr.revenueCagrPct ?? 18,
-    netMargin: dr.targetNetMarginPct ?? defaults.marginPct,
-    sharesM: dr.dilutedSharesM ?? defaults.sharesM,
-    shareChange: dr.annualShareChangePct ?? -1,
-  };
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <TopDownEpsCard
@@ -175,10 +59,87 @@ export function ValuationDriversPanel(props: DriversPanelProps) {
         initialFcfB={defaults.baseFcfB}
         initialCashB={defaults.cashB}
         initialDebtB={defaults.debtB}
-        driverInputs={dr}
+        driverInputs={props.driverInputs}
         onPatchDrivers={props.onPatchDrivers}
         onApplyEvTargets={props.onApplyEvTargets}
       />
+    </div>
+  );
+}
+
+function DriverTabBody({
+  tab,
+  props,
+  defaults,
+  topDownValues,
+}: {
+  tab: DriverTab;
+  props: DriversPanelProps;
+  defaults: ReturnType<typeof deriveDefaults>;
+  topDownValues: TopDownValues;
+}) {
+  const dr = props.driverInputs;
+  const cashB = dr.cashB ?? defaults.cashB;
+  const debtB = dr.totalDebtB ?? defaults.debtB;
+  const applyTargets = props.onApplyEvTargets ?? (() => undefined);
+  if (tab === "linked") {
+    return (
+      <LinkedOperatingCard
+        currentPrice={props.currentPrice}
+        horizonYears={props.horizonYears}
+        currentRevenueB={topDownValues.revB}
+        currentSharesM={topDownValues.sharesM}
+        cashB={cashB}
+        totalDebtB={debtB}
+        latestAnnual={props.latestAnnual}
+        linkedDrivers={dr.linkedDrivers}
+        onChangeDrivers={(linkedDrivers) => props.onPatchDrivers({ linkedDrivers })}
+        onApplyAllCases={applyTargets}
+      />
+    );
+  }
+  if (tab === "sotp") {
+    return (
+      <SotpBuilderCard
+        currentPrice={props.currentPrice}
+        horizonYears={props.horizonYears}
+        dilutedSharesM={topDownValues.sharesM}
+        netCashB={cashB - debtB}
+        fallbackRevenueB={topDownValues.revB}
+        segments={dr.sotpSegments}
+        holdingDiscountPct={dr.sotpHoldingDiscountPct}
+        onChange={(p) => props.onPatchDrivers(p)}
+        onApplyTargets={applyTargets}
+      />
+    );
+  }
+  return <ClassicDriversGrid props={props} defaults={defaults} topDownValues={topDownValues} />;
+}
+
+export function ValuationDriversPanel(props: DriversPanelProps) {
+  const [tab, setTab] = useState<DriverTab>("linked");
+  const defaults = deriveDefaults(props.latestAnnual, props.currentPrice);
+  const dr = props.driverInputs;
+  const topDownValues: TopDownValues = {
+    revB: dr.currentRevenueB ?? defaults.revB,
+    revCagr: dr.revenueCagrPct ?? 18,
+    netMargin: dr.targetNetMarginPct ?? defaults.marginPct,
+    sharesM: dr.dilutedSharesM ?? defaults.sharesM,
+    shareChange: dr.annualShareChangePct ?? -1,
+  };
+  return (
+    <div className="space-y-4">
+      <SegmentedTabs
+        layoutId="valuation-driver-subtabs"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: "linked", label: "三情景经营模型" },
+          { id: "sotp", label: "SOTP 分部加总" },
+          { id: "classic", label: "EPS / EV-FCF 速算" },
+        ]}
+      />
+      <DriverTabBody tab={tab} props={props} defaults={defaults} topDownValues={topDownValues} />
     </div>
   );
 }

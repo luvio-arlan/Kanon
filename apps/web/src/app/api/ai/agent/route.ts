@@ -1,12 +1,15 @@
 import {
   AgentRequestSchema,
   type ByokCredentials,
+  buildMarketBenchmarks,
   fetchMarketQuote,
   streamResearchAgent,
 } from "@kanon/ai";
 import {
   AgentRunsListResponseSchema,
+  type MarketBenchmarkResponse,
   type MarketQuoteSnapshot,
+  type ResearchNote,
   type SecFilingReaderResponse,
 } from "@kanon/core";
 import {
@@ -16,6 +19,7 @@ import {
   listAgentRuns,
   listCachedSecFilingDocsByTicker,
   listQuarterlyReviews,
+  listResearchNotes,
   listThesisRevisions,
   saveAgentRun,
 } from "@kanon/core/db";
@@ -37,6 +41,8 @@ function createAgentSseStream(params: {
   revisions: Awaited<ReturnType<typeof listThesisRevisions>>;
   marketQuote: MarketQuoteSnapshot | null;
   cachedFilings: SecFilingReaderResponse[];
+  researchNotes: ResearchNote[];
+  benchmarks: MarketBenchmarkResponse | null;
   sourceText?: string;
   byok: ByokCredentials | undefined;
 }) {
@@ -90,6 +96,32 @@ export async function GET(request: Request) {
   return jsonOk(AgentRunsListResponseSchema.parse({ runs }), startedAt);
 }
 
+async function loadAgentEvidence(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  thesis: NonNullable<Awaited<ReturnType<typeof getThesisById>>>,
+  userId: string,
+  request: Request,
+) {
+  const marketCreds = parseMarketHeaders(request);
+  const [secSnapshot, reviews, revisions, cachedFilings, researchNotes, quoteRes] =
+    await Promise.all([
+      getSecSnapshot(db, thesis.ticker),
+      listQuarterlyReviews(db, thesis.id),
+      listThesisRevisions(db, thesis.id),
+      listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
+      listResearchNotes(db, thesis.id, userId, 12),
+      fetchMarketQuote(thesis.ticker, { creds: marketCreds }),
+    ]);
+  const marketQuote = quoteRes.ok ? quoteRes.quote : null;
+  const benchmarks = await buildMarketBenchmarks({
+    ticker: thesis.ticker,
+    currentPrice: marketQuote?.effectivePrice ?? thesis.currentPrice,
+    secSnapshot,
+    creds: marketCreds,
+  }).catch(() => null);
+  return { secSnapshot, reviews, revisions, cachedFilings, researchNotes, marketQuote, benchmarks };
+}
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
@@ -101,7 +133,6 @@ export async function POST(request: Request) {
 
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
-
   const parsed = AgentRequestSchema.safeParse(body.data);
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "Agent 参数不合法。"), 400, startedAt, "INVALID");
@@ -109,28 +140,16 @@ export async function POST(request: Request) {
 
   const db = await getKanonDb();
   const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
-  if (!thesis) {
-    return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
-  }
-  const [secSnapshot, reviews, revisions, cachedFilings, quoteRes] = await Promise.all([
-    getSecSnapshot(db, thesis.ticker),
-    listQuarterlyReviews(db, thesis.id),
-    listThesisRevisions(db, thesis.id),
-    listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
-    fetchMarketQuote(thesis.ticker, { creds: parseMarketHeaders(request) }),
-  ]);
+  if (!thesis) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
+
+  const evidence = await loadAgentEvidence(db, thesis, auth.user.id, request);
   const stream = createAgentSseStream({
     db,
     thesis,
-    secSnapshot,
-    reviews,
-    revisions,
-    cachedFilings,
+    ...evidence,
     sourceText: parsed.data.sourceText,
-    marketQuote: quoteRes.ok ? quoteRes.quote : null,
     byok: parseByokHeaders(request),
   });
-
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   QuarterlyReviewSchema,
+  ResearchNoteSchema,
   SavedCopilotOutputSchema,
   SecSnapshotSchema,
   ThesisDetailSchema,
@@ -33,6 +34,15 @@ export const ThesisMutationResponseSchema = z.object({
 
 export const SecSyncResponseSchema = z.object({
   snapshot: SecSnapshotSchema.nullable(),
+  notice: z.string().optional(),
+});
+
+export const ResearchNoteCreateResponseSchema = z.object({
+  note: ResearchNoteSchema,
+});
+
+export const ManualSecSaveResponseSchema = z.object({
+  snapshot: SecSnapshotSchema,
   notice: z.string().optional(),
 });
 

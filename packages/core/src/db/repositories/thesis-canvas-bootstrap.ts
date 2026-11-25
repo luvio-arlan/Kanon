@@ -8,6 +8,7 @@ import type {
   GlossaryTerm,
   InboundCrossCheck,
   QuarterlyReview,
+  ResearchNote,
   SavedCopilotOutput,
   SecSnapshot,
   ThesisDetail,
@@ -25,6 +26,7 @@ import {
 } from "../schema";
 import { listCopilotOutputs } from "./copilot-store";
 import { getSecSnapshot, listGlossaryTerms } from "./discipline-mutations";
+import { listResearchNotes } from "./library/research-notes-store";
 import {
   getLatestAgentRun,
   listInboundCrossChecks,
@@ -43,6 +45,7 @@ interface ThesisCanvasBootstrap {
   reviews: QuarterlyReview[];
   latestAgentRun: SavedAgentRun | null;
   inboundCrossChecks: InboundCrossCheck[];
+  researchNotes: ResearchNote[];
 }
 
 interface ValuationScalarRow {
@@ -135,6 +138,7 @@ function fetchInitialWave(db: KanonDb, id: string, userId: string) {
     listQuarterlyReviews(db, id),
     getLatestAgentRun(db, id),
     listInboundCrossChecks(db, id, userId),
+    listResearchNotes(db, id, userId),
   ]);
 }
 
@@ -176,7 +180,8 @@ export async function loadThesisCanvasBootstrap(
 ): Promise<ThesisCanvasBootstrap | null> {
   const wave = await fetchInitialWave(db, id, userId);
   const [rows, hypotheses, catalysts, crossChecks, disciplineRows, glossary, savedOutputs] = wave;
-  const [, , , , , , , revisions, reviews, latestAgentRun, inboundCrossChecks] = wave;
+  const [, , , , , , , revisions, reviews, latestAgentRun, inboundCrossChecks, researchNotes] =
+    wave;
   const targetRow = rows.find((row) => row.id === id);
   if (!targetRow) return null;
 
@@ -206,5 +211,6 @@ export async function loadThesisCanvasBootstrap(
     reviews,
     latestAgentRun,
     inboundCrossChecks,
+    researchNotes,
   };
 }

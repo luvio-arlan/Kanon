@@ -3,10 +3,12 @@ import { z } from "zod";
 import {
   extractAnnualHistory,
   formatUsdCompact,
+  resolveCurrencyNormalization,
   type SecFactsPayload,
   summarizeLatestFacts,
 } from "./edgar-annuals";
 import { extractQuarterlyHistory } from "./edgar-quarterlies";
+import { fetchForm4InsiderSummary } from "./form4-parser";
 import { fetchSecWithRetry } from "./sec-http";
 
 export { formatUsdCompact };
@@ -68,13 +70,7 @@ const SecFactUnitSchema = z.object({
 const SecNamespaceSchema = z.record(
   z.string(),
   z.object({
-    units: z
-      .object({
-        USD: z.array(SecFactUnitSchema).optional(),
-        "USD/shares": z.array(SecFactUnitSchema).optional(),
-        shares: z.array(SecFactUnitSchema).optional(),
-      })
-      .optional(),
+    units: z.record(z.string(), z.array(SecFactUnitSchema).optional()).optional(),
   }),
 );
 const SecCompanyFactsSchema = z.object({
@@ -176,6 +172,7 @@ async function buildSnapshotFromResponses(
   cik: string,
   subRes: Response,
   factsRes: Response,
+  fetchImpl: typeof fetch,
 ): Promise<{ ok: true; data: SecSnapshot } | { ok: false; error: string }> {
   if (!subRes.ok) {
     return { ok: false, error: `SEC EDGAR 接口返回状态 ${subRes.status}，已保留本地缓存。` };
@@ -188,17 +185,24 @@ async function buildSnapshotFromResponses(
   const factsPayload: SecFactsPayload | undefined = factsParsed?.success
     ? factsParsed.data.facts
     : undefined;
-  const annuals = extractAnnualHistory(factsPayload);
+  const norm = resolveCurrencyNormalization(factsPayload, upper);
+  const annuals = extractAnnualHistory(factsPayload, norm);
+  const filings = extractRecentFilings(cik, subParsed.data);
+  const insiderSummary = await fetchForm4InsiderSummary(filings, fetchImpl).catch(() => null);
   const snapshot = SecSnapshotSchema.parse({
     ticker: upper,
     cik,
     entityName: subParsed.data.name ?? upper,
     source: "sec-edgar-live",
+    reportingCurrency: norm.currency,
+    fxToUsd: norm.fxToUsd,
+    adrRatio: norm.adrRatio,
     fetchedAt: new Date().toISOString(),
-    filings: extractRecentFilings(cik, subParsed.data),
+    filings,
     facts: summarizeLatestFacts(annuals),
     annuals,
-    quarterlies: extractQuarterlyHistory(factsPayload),
+    quarterlies: extractQuarterlyHistory(factsPayload, norm, annuals),
+    insiderSummary,
   });
   return { ok: true, data: snapshot };
 }
@@ -223,7 +227,7 @@ export async function fetchSecEdgarSnapshot(
         fetchImpl,
       ),
     ]);
-    return buildSnapshotFromResponses(upper, cik, subRes, factsRes);
+    return buildSnapshotFromResponses(upper, cik, subRes, factsRes, fetchImpl);
   } catch (err) {
     const reason = err instanceof Error ? err.message.slice(0, 60) : "网络异常";
     return { ok: false, error: `SEC EDGAR 同步失败（${reason}），当前继续使用本地数据库缓存。` };

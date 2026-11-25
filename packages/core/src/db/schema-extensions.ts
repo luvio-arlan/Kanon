@@ -2,6 +2,7 @@ import { integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import type { UserRole } from "../contracts/auth-contracts";
 import type { MarketDataSource, MarketQuoteSnapshot } from "../contracts/market-contracts";
 import type { SecFilingDiff, SecFilingSection } from "../contracts/sec-filing-contracts";
+import type { ResearchNoteKind } from "../schemas/v7-research-os";
 
 export type ApiTokenScope = "read" | "read_write";
 
@@ -64,4 +65,19 @@ export const secFilingDocumentsCacheTable = pgTable("sec_filing_documents_cache"
   sectionsJson: jsonb("sections_json").$type<SecFilingSection[]>().notNull(),
   diffJson: jsonb("diff_json").$type<SecFilingDiff | null>(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const researchNotesTable = pgTable("research_notes", {
+  id: text("id").primaryKey(),
+  thesisId: text("thesis_id").notNull(),
+  userId: text("user_id").notNull(),
+  kind: text("kind").$type<ResearchNoteKind>().notNull().default("earnings_call"),
+  periodLabel: text("period_label").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  guidanceMetric: text("guidance_metric").notNull().default(""),
+  guidancePromised: text("guidance_promised").notNull().default(""),
+  guidanceDelivered: text("guidance_delivered").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

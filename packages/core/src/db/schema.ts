@@ -26,6 +26,7 @@ import type {
   SecAnnualFinancial,
   SecFilingItem,
   SecFinancialFact,
+  SecInsiderSummary,
   SecQuarterlyFinancial,
   ThesisStatus,
   TradeAction,
@@ -33,12 +34,14 @@ import type {
   ValuationModelMode,
 } from "../schemas/research";
 import type { HypothesisStatus, SparklinePoint } from "../schemas/thesis";
+import type { HypothesisKpiRule } from "../schemas/v7-research-os";
 
 export {
   type ApiTokenScope,
   apiTokensTable,
   marketQuotesCacheTable,
   rateLimitBucketsTable,
+  researchNotesTable,
   secFilingDocumentsCacheTable,
   sessionsTable,
   usersTable,
@@ -80,6 +83,7 @@ export const hypothesesTable = pgTable("hypotheses", {
   threshold: text("threshold").notNull(),
   status: text("status").$type<HypothesisStatus>().notNull().default("watching"),
   note: text("note").notNull(),
+  kpiRule: jsonb("kpi_rule").$type<HypothesisKpiRule | null>(),
 });
 
 export const crossChecksTable = pgTable("cross_checks", {
@@ -128,6 +132,8 @@ export const disciplineEntriesTable = pgTable("discipline_entries", {
   exitRule: text("exit_rule").notNull(),
   emotion: text("emotion").$type<EmotionState>().notNull(),
   priceAnchor: doublePrecision("price_anchor").notNull(),
+  weightDeltaPct: doublePrecision("weight_delta_pct"),
+  benchmarkPrice: doublePrecision("benchmark_price"),
   note: text("note").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -145,11 +151,15 @@ export const secFilingsCacheTable = pgTable("sec_filings_cache", {
   ticker: text("ticker").primaryKey(),
   cik: text("cik").notNull(),
   entityName: text("entity_name").notNull(),
-  source: text("source").$type<"sec-edgar-live" | "cached-seed">().notNull(),
+  source: text("source").$type<"sec-edgar-live" | "cached-seed" | "manual-verified">().notNull(),
+  reportingCurrency: text("reporting_currency").notNull().default("USD"),
+  fxToUsd: doublePrecision("fx_to_usd").notNull().default(1),
+  adrRatio: doublePrecision("adr_ratio").notNull().default(1),
   filings: jsonb("filings").$type<SecFilingItem[]>().notNull(),
   facts: jsonb("facts").$type<SecFinancialFact[]>().notNull(),
   annuals: jsonb("annuals").$type<SecAnnualFinancial[]>().notNull().default([]),
   quarterlies: jsonb("quarterlies").$type<SecQuarterlyFinancial[]>().notNull().default([]),
+  insiderSummary: jsonb("insider_summary").$type<SecInsiderSummary | null>(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

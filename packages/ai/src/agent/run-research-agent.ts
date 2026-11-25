@@ -3,8 +3,10 @@ import {
   analyzeSecQuality,
   calculateImpliedExpectations,
   calculateResearchReadiness,
+  type MarketBenchmarkResponse,
   type MarketQuoteSnapshot,
   type QuarterlyReview,
+  type ResearchNote,
   type SecFilingReaderResponse,
   type SecSnapshot,
   type ThesisDetail,
@@ -13,6 +15,11 @@ import {
 import { type LanguageModel, streamObject } from "ai";
 import { z } from "zod";
 import { type ByokCredentials, resolveByokModel } from "../copilot/run-copilot";
+import {
+  type AutonomousIcContext,
+  buildFullDossierContext,
+  runAutonomousIcInvestigation,
+} from "./autonomous-ic";
 import {
   type LlmProposalDraft,
   LlmProposalDraftSchema,
@@ -87,17 +94,11 @@ function buildLocalSynthesis(
   };
 }
 
-function buildSynthesisPrompt(thesis: ThesisDetail, traces: readonly AgentTraceStep[]): string {
-  const evidenceBlock = traces
-    .map((t) => `[工具 ${t.stepIndex} · ${t.label}] ${t.finding} (溯源: ${t.citation})`)
-    .join("\n");
-  return `标的：${thesis.companyName} (${thesis.ticker}) | 现价 $${thesis.currentPrice}\n核心论点：${thesis.convictionSummary}\n\n确定性工具审计证据：\n${evidenceBlock}`;
-}
-
 async function* streamLlmSynthesis(
   model: LanguageModel,
-  thesis: ThesisDetail,
+  ctx: AutonomousIcContext,
   traces: readonly AgentTraceStep[],
+  investigationSummary: string,
 ): AsyncGenerator<
   AgentStreamEvent,
   {
@@ -107,32 +108,29 @@ async function* streamLlmSynthesis(
     llmDrafts?: readonly LlmProposalDraft[];
   }
 > {
+  const evidenceBlock = traces
+    .map((t) => `[步骤 ${t.stepIndex} · ${t.label}] ${t.finding} (溯源: ${t.citation})`)
+    .join("\n");
+  const prompt = `${buildFullDossierContext(ctx)}\n\n确定性工具审计证据：\n${evidenceBlock}${investigationSummary ? `\n\n首席调查员自主查证结论：\n${investigationSummary}` : ""}`;
   try {
     const stream = streamObject({
       model,
       schema: IcSynthesisSchema,
       system:
-        "你是 KANON 买方投委会（IC）多角色辩论引擎。严禁编造任何未提供的数字，必须依次输出：PM 综合判定、多头预期差、法证空头下行推演、空头针对多头核心假设的二次质询（bearRebuttal）、财务法证审阅结论，以及最多 3 条引用上述工具数字的 customProposals（简体中文，克制严谨）。",
-      prompt: buildSynthesisPrompt(thesis, traces),
+        "你是 KANON 买方投委会（IC）多角色辩论引擎。严禁编造任何未提供的数字，必须引用原文坐标或财务事实依次输出：PM 综合判定、多头预期差、法证空头下行推演、空头针对多头核心假设的二次质询（bearRebuttal）、财务法证审阅结论，以及最多 3 条引用上述工具数字的 customProposals（简体中文，克制严谨）。",
+      prompt,
     });
     for await (const partial of stream.partialObjectStream) {
-      yield {
-        type: "synthesis_partial",
-        partial: { engine: "vercel-ai-sdk", ...partial },
-      };
+      yield { type: "synthesis_partial", partial: { engine: "vercel-ai-sdk", ...partial } };
     }
     const finalObj = await stream.object;
-    return {
-      engine: "vercel-ai-sdk",
-      synth: finalObj,
-      llmDrafts: finalObj.customProposals,
-    };
+    return { engine: "vercel-ai-sdk", synth: finalObj, llmDrafts: finalObj.customProposals };
   } catch (err) {
     const msg = err instanceof Error ? err.message.slice(0, 80) : "模型调用超时";
     return {
       engine: "grounded-local",
       fallbackReason: `BYOK 投委会综合异常（${msg}），已自动降级为本地确定性引擎`,
-      synth: buildLocalSynthesis(thesis, traces),
+      synth: buildLocalSynthesis(ctx.thesis, traces),
     };
   }
 }
@@ -193,6 +191,27 @@ function finalizeBriefing(params: {
   });
 }
 
+async function* resolveSynthesisOutcome(
+  model: LanguageModel | null,
+  params: AutonomousIcContext,
+  traces: AgentTraceStep[],
+) {
+  if (!model) {
+    return {
+      engine: "grounded-local" as const,
+      fallbackReason: undefined,
+      synth: buildLocalSynthesis(params.thesis, traces),
+      llmDrafts: undefined,
+    };
+  }
+  const inv = await runAutonomousIcInvestigation(model, params, traces.length);
+  for (const extraTrace of inv.traces) {
+    traces.push(extraTrace);
+    yield { type: "trace_done" as const, trace: extraTrace };
+  }
+  return yield* streamLlmSynthesis(model, params, traces, inv.investigationSummary);
+}
+
 export async function* streamResearchAgent(params: {
   thesis: ThesisDetail;
   secSnapshot: SecSnapshot | null;
@@ -200,33 +219,22 @@ export async function* streamResearchAgent(params: {
   revisions?: readonly ThesisRevision[];
   marketQuote?: MarketQuoteSnapshot | null;
   cachedFilings?: readonly SecFilingReaderResponse[];
+  researchNotes?: readonly ResearchNote[];
+  benchmarks?: MarketBenchmarkResponse | null;
   sourceText?: string;
   byok?: ByokCredentials;
 }): AsyncGenerator<AgentStreamEvent> {
   const traces: AgentTraceStep[] = [];
   const proposals: AgentProposal[] = [];
-  const tools = RESEARCH_AGENT_TOOLS.slice(0, MAX_AGENT_STEPS);
-
-  for (let i = 0; i < tools.length; i += 1) {
-    const tool = tools[i];
-    if (!tool) continue;
-    const stepIndex = i + 1;
-    yield { type: "trace_start", stepIndex, toolName: tool.name, label: tool.label };
-    const { trace, proposal } = executeToolStep(tool, stepIndex, params);
+  for (const [idx, toolSpec] of RESEARCH_AGENT_TOOLS.slice(0, MAX_AGENT_STEPS).entries()) {
+    const stepIndex = idx + 1;
+    yield { type: "trace_start", stepIndex, toolName: toolSpec.name, label: toolSpec.label };
+    const { trace, proposal } = executeToolStep(toolSpec, stepIndex, params);
     traces.push(trace);
     if (proposal) proposals.push(proposal);
     yield { type: "trace_done", trace };
   }
-
-  const model = resolveByokModel(params.byok);
-  const outcome = model
-    ? yield* streamLlmSynthesis(model, params.thesis, traces)
-    : {
-        engine: "grounded-local" as const,
-        fallbackReason: undefined,
-        synth: buildLocalSynthesis(params.thesis, traces),
-        llmDrafts: undefined,
-      };
+  const outcome = yield* resolveSynthesisOutcome(resolveByokModel(params.byok), params, traces);
   yield {
     type: "briefing_ready",
     briefing: finalizeBriefing({

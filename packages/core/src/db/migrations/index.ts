@@ -8,6 +8,7 @@ import { KANON_RATE_LIMIT_BUCKETS_SQL } from "./0007-rate-limit-buckets";
 import { KANON_SEC_FILING_DOCS_CACHE_SQL } from "./0008-sec-filing-docs-cache";
 import { KANON_CROSS_CHECK_HYPOTHESIS_LINK_SQL } from "./0009-cross-check-hypothesis-link";
 import { KANON_HEAL_RUNAWAY_VALUATION_SQL } from "./0010-heal-runaway-valuation";
+import { KANON_V7_RESEARCH_OS_SQL } from "./0011-v7-research-os";
 
 export interface KanonMigration {
   id: string;
@@ -79,6 +80,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Idempotent non-destructive repair of corrupted runaway valuation_scenarios rows (>100k EPS or >500x PE)",
     sql: KANON_HEAL_RUNAWAY_VALUATION_SQL,
+  },
+  {
+    id: "0011_v7_research_os",
+    description:
+      "Expand-only v7 research notes library, hypothesis KPI rules, Form 4/FX SEC fields & trade-position sync columns",
+    sql: KANON_V7_RESEARCH_OS_SQL,
   },
 ];
 

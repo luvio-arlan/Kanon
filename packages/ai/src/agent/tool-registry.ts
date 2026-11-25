@@ -4,8 +4,10 @@ import {
   calculateImpliedExpectations,
   calculateResearchReadiness,
   calculateTrueReverseDcf,
+  type MarketBenchmarkResponse,
   type MarketQuoteSnapshot,
   type QuarterlyReview,
+  type ResearchNote,
   type SecFilingReaderResponse,
   type SecSnapshot,
   type ThesisDetail,
@@ -27,6 +29,8 @@ export interface ResearchToolContext {
   revisions?: readonly ThesisRevision[];
   marketQuote?: MarketQuoteSnapshot | null;
   cachedFilings?: readonly SecFilingReaderResponse[];
+  researchNotes?: readonly ResearchNote[];
+  benchmarks?: MarketBenchmarkResponse | null;
   sourceText?: string;
 }
 
@@ -213,6 +217,7 @@ export const RESEARCH_AGENT_TOOLS: readonly ResearchToolSpec[] = [
       runFilingExcerptsTool({
         thesis: ctx.thesis,
         cachedFilings: ctx.cachedFilings,
+        researchNotes: ctx.researchNotes,
         sourceText: ctx.sourceText,
       }),
   },

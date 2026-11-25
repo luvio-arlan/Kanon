@@ -5,10 +5,17 @@ import type {
   InboundCrossCheck,
   SecFilingItem,
   SecFinancialFact,
+  SecInsiderSummary,
   SecSnapshot,
 } from "@kanon/core";
 import { Badge, Button, Card } from "@kanon/ui";
-import { IconArrowUpRight, IconExternalLink, IconLink, IconRefresh } from "@tabler/icons-react";
+import {
+  IconArrowUpRight,
+  IconEdit,
+  IconExternalLink,
+  IconLink,
+  IconRefresh,
+} from "@tabler/icons-react";
 import Link from "next/link";
 
 export interface SecFactsPanelProps {
@@ -16,6 +23,7 @@ export interface SecFactsPanelProps {
   snapshot: SecSnapshot | null;
   syncing: boolean;
   onSync: () => Promise<void>;
+  onOpenManual?: () => void;
 }
 
 function FactsGrid({ facts }: { facts: readonly SecFinancialFact[] }) {
@@ -38,33 +46,26 @@ function FactsGrid({ facts }: { facts: readonly SecFinancialFact[] }) {
 
 function FilingsRow({ filings }: { filings: readonly SecFilingItem[] }) {
   if (filings.length === 0) return null;
-  const primary = filings.filter((f) => f.form !== "4").slice(0, 4);
-  const insiders = filings.filter((f) => f.form === "4").slice(0, 2);
+  const items = [
+    ...filings.filter((f) => f.form !== "4").slice(0, 4),
+    ...filings.filter((f) => f.form === "4").slice(0, 2),
+  ];
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-hairline px-6 py-3.5">
-      {primary.map((f) => (
+      {items.map((f) => (
         <a
           key={f.accessionNumber}
           href={f.documentUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-control border border-hairline bg-canvas/55 px-3 py-1.5 text-xs font-medium text-ink-primary transition-colors hover:border-strong hover:bg-surface"
+          className={
+            f.form === "4"
+              ? "inline-flex items-center gap-1.5 rounded-control border border-hairline bg-titanium-subtle/65 px-2.5 py-1.5 text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
+              : "inline-flex items-center gap-1.5 rounded-control border border-hairline bg-canvas/55 px-3 py-1.5 text-xs font-medium text-ink-primary transition-colors hover:border-strong hover:bg-surface"
+          }
         >
-          <span className="font-mono">{f.form}</span>
+          <span className="font-mono">{f.form === "4" ? "Form 4" : f.form}</span>
           <span className="text-ink-muted tabular-nums">{f.filingDate}</span>
-          <IconExternalLink size={12} stroke={1.5} className="text-ink-muted" />
-        </a>
-      ))}
-      {insiders.map((f) => (
-        <a
-          key={f.accessionNumber}
-          href={f.documentUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-control border border-hairline bg-titanium-subtle/65 px-2.5 py-1.5 text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
-        >
-          <span className="font-mono font-medium">Form 4</span>
-          <span className="tabular-nums">{f.filingDate}</span>
           <IconExternalLink size={12} stroke={1.5} className="text-ink-muted" />
         </a>
       ))}
@@ -72,31 +73,79 @@ function FilingsRow({ filings }: { filings: readonly SecFilingItem[] }) {
   );
 }
 
-export function SecFactsPanel({ ticker, snapshot, syncing, onSync }: SecFactsPanelProps) {
+const INSIDER_META: Record<
+  SecInsiderSummary["signal"],
+  { label: string; tone: "pass" | "warn" | "fail" | "titanium" }
+> = {
+  cluster_buy: { label: "内部人抱团买入", tone: "pass" },
+  net_buying: { label: "内部人净买入", tone: "pass" },
+  routine_10b51: { label: "10b5-1 例行减持", tone: "titanium" },
+  discretionary_selling: { label: "自主公开市场减持", tone: "warn" },
+  neutral: { label: "内部人交易中性", tone: "titanium" },
+};
+
+function InsiderSignalStrip({ summary }: { summary: SecInsiderSummary }) {
+  const meta = INSIDER_META[summary.signal];
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-hairline bg-canvas/35 px-6 py-2.5 text-xs">
+      <Badge variant={meta.tone}>{meta.label}</Badge>
+      <span className="font-mono text-ink-secondary tabular-nums">
+        买入 {summary.openMarketBuysCount} 笔 (${Math.round(summary.openMarketBuysUsd / 1e3)}K) ·
+        卖出 {summary.openMarketSalesCount} 笔 (10b5-1: {summary.routine10b51SalesCount})
+      </span>
+    </div>
+  );
+}
+
+function resolveSourceBadge(source?: SecSnapshot["source"]) {
+  if (source === "sec-edgar-live") return { label: "SEC 实时", variant: "pass" as const };
+  if (source === "manual-verified") return { label: "手动核验", variant: "pass" as const };
+  return { label: "基准", variant: "default" as const };
+}
+
+function formatCurrencyBadge(snapshot: SecSnapshot | null): string | null {
+  if (!snapshot?.reportingCurrency || snapshot.reportingCurrency === "USD") return null;
+  const adr = (snapshot.adrRatio ?? 1) > 1 ? ` · ADR ${snapshot.adrRatio}:1` : "";
+  return `${snapshot.reportingCurrency}→USD${adr}`;
+}
+
+export function SecFactsPanel({
+  ticker,
+  snapshot,
+  syncing,
+  onSync,
+  onOpenManual,
+}: SecFactsPanelProps) {
+  const srcBadge = resolveSourceBadge(snapshot?.source);
+  const curTag = formatCurrencyBadge(snapshot);
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
         <div className="flex flex-wrap items-center gap-2.5">
           <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">
-            SEC EDGAR 档案
+            财报与披露档案
           </h3>
-          {snapshot ? (
-            <span className="font-mono text-xs text-ink-muted tabular-nums">
-              CIK {snapshot.cik}
-            </span>
-          ) : (
-            <span className="font-mono text-xs text-ink-muted">{ticker}</span>
-          )}
-          <Badge variant={snapshot?.source === "sec-edgar-live" ? "pass" : "default"}>
-            {snapshot?.source === "sec-edgar-live" ? "实时" : "基准"}
-          </Badge>
+          <span className="font-mono text-xs text-ink-muted tabular-nums">
+            {snapshot ? `CIK ${snapshot.cik}` : ticker}
+          </span>
+          <Badge variant={srcBadge.variant}>{srcBadge.label}</Badge>
+          {curTag ? <Badge variant="titanium">{curTag}</Badge> : null}
         </div>
-        <Button variant="outline" size="xs" disabled={syncing} onClick={onSync}>
-          <IconRefresh size={13} stroke={1.5} className={syncing ? "animate-spin" : ""} />
-          <span>{syncing ? "同步中" : "同步 SEC"}</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {onOpenManual ? (
+            <Button variant="outline" size="xs" onClick={onOpenManual}>
+              <IconEdit size={13} stroke={1.5} />
+              <span>全球/手动录入</span>
+            </Button>
+          ) : null}
+          <Button variant="outline" size="xs" disabled={syncing} onClick={onSync}>
+            <IconRefresh size={13} stroke={1.5} className={syncing ? "animate-spin" : ""} />
+            <span>{syncing ? "同步中" : "同步 SEC"}</span>
+          </Button>
+        </div>
       </div>
       {snapshot ? <FactsGrid facts={snapshot.facts} /> : null}
+      {snapshot?.insiderSummary ? <InsiderSignalStrip summary={snapshot.insiderSummary} /> : null}
       {snapshot ? <FilingsRow filings={snapshot.filings} /> : null}
     </Card>
   );
@@ -165,36 +214,34 @@ export function InboundCrossChecksPanel({ items }: { items: readonly InboundCros
         <span className="font-mono tabular-nums">{items.length} 条</span>
       </div>
       <div className="divide-y divide-hairline">
-        {items.map((item) => (
-          <div key={item.id} className="space-y-1.5 px-6 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <Link
-                href={`/thesis/${item.sourceThesisId}`}
-                className="inline-flex items-center gap-1 font-semibold text-ink-primary hover:text-accent-coral"
-              >
-                <span>
-                  {item.sourceCompanyName} ({item.sourceTicker})
-                </span>
-                <IconArrowUpRight size={13} stroke={1.5} />
-              </Link>
-              <Badge
-                variant={
-                  item.alignment === "aligned"
-                    ? "pass"
-                    : item.alignment === "divergent"
-                      ? "fail"
-                      : "warn"
-                }
-              >
-                {item.topic}
-              </Badge>
+        {items.map((item) => {
+          const tone =
+            item.alignment === "aligned"
+              ? "pass"
+              : item.alignment === "divergent"
+                ? "fail"
+                : "warn";
+          return (
+            <div key={item.id} className="space-y-1.5 px-6 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <Link
+                  href={`/thesis/${item.sourceThesisId}`}
+                  className="inline-flex items-center gap-1 font-semibold text-ink-primary hover:text-accent-coral"
+                >
+                  <span>
+                    {item.sourceCompanyName} ({item.sourceTicker})
+                  </span>
+                  <IconArrowUpRight size={13} stroke={1.5} />
+                </Link>
+                <Badge variant={tone}>{item.topic}</Badge>
+              </div>
+              <p className="text-sm leading-relaxed text-ink-secondary">{item.statement}</p>
+              <div className="text-xs text-ink-muted">
+                {item.sourceAnchor} · {item.takeaway}
+              </div>
             </div>
-            <p className="text-sm leading-relaxed text-ink-secondary">{item.statement}</p>
-            <div className="text-xs text-ink-muted">
-              {item.sourceAnchor} · {item.takeaway}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );

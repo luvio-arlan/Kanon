@@ -7,6 +7,7 @@ import type {
   InvestmentMemo,
   QuarterlyReview,
   RedTeamReport,
+  ResearchNote,
   SecSnapshot,
   ThesisDetail,
   ThesisRevision,
@@ -155,10 +156,12 @@ export function useResearchCanvas(
   initialCopilot: InitialCopilotState,
   initialRevisions: readonly ThesisRevision[],
   initialReviews: readonly QuarterlyReview[],
+  initialResearchNotes: readonly ResearchNote[] = [],
 ) {
   const [thesis, setThesis] = useState(initialThesis);
   const [revisions, setRevisions] = useState<ThesisRevision[]>([...initialRevisions]);
   const [reviews, setReviews] = useState<QuarterlyReview[]>([...initialReviews]);
+  const [researchNotes, setResearchNotes] = useState<ResearchNote[]>([...initialResearchNotes]);
   const [secSnapshot, setSecSnapshot] = useState(initialSec);
   const { busy, withFlag } = useBusyState();
   const { copilot, runCopilot } = useCopilotRunner(thesis.id, initialCopilot);
@@ -183,5 +186,17 @@ export function useResearchCanvas(
     return () => ch.close();
   }, [thesis.id, thesis.updatedAt]);
 
-  return { thesis, revisions, reviews, secSnapshot, ...busy, copilot, runCopilot, ...actions };
+  return {
+    thesis,
+    revisions,
+    reviews,
+    researchNotes,
+    setResearchNotes,
+    secSnapshot,
+    setSecSnapshot,
+    ...busy,
+    copilot,
+    runCopilot,
+    ...actions,
+  };
 }

@@ -1,9 +1,15 @@
 import { z } from "zod";
+import {
+  LinkedOperatingDriversSchema,
+  ReportingCurrencySchema,
+  SecInsiderSummarySchema,
+  SotpSegmentSchema,
+} from "./v7-research-os";
 
 export const PortfolioRoleSchema = z.enum(["watchlist", "core", "starter", "exited"]);
 export type PortfolioRole = z.infer<typeof PortfolioRoleSchema>;
 
-export const ValuationModelModeSchema = z.enum(["pe", "ev_fcf"]);
+export const ValuationModelModeSchema = z.enum(["pe", "ev_fcf", "ev_ebit", "sotp"]);
 export type ValuationModelMode = z.infer<typeof ValuationModelModeSchema>;
 
 export const ValuationDriverInputsSchema = z.object({
@@ -15,10 +21,14 @@ export const ValuationDriverInputsSchema = z.object({
   dividendYieldPct: z.number().finite().min(0).max(15).optional(),
   hurdleRatePct: z.number().finite().min(5).max(30).optional(),
   terminalMultiple: z.number().finite().min(5).max(50).optional(),
+  ronicPct: z.number().finite().min(5).max(120).optional(),
   ownerFcfMultipleBase: z.number().finite().min(5).max(60).optional(),
   baseOwnerFcfB: z.number().finite().positive().optional(),
   cashB: z.number().finite().nonnegative().optional(),
   totalDebtB: z.number().finite().nonnegative().optional(),
+  linkedDrivers: LinkedOperatingDriversSchema.optional(),
+  sotpSegments: z.array(SotpSegmentSchema).max(8).optional(),
+  sotpHoldingDiscountPct: z.number().finite().min(0).max(40).optional(),
 });
 export type ValuationDriverInputs = z.infer<typeof ValuationDriverInputsSchema>;
 
@@ -123,3 +133,48 @@ export const InboundCrossCheckSchema = z.object({
   takeaway: z.string().min(1),
 });
 export type InboundCrossCheck = z.infer<typeof InboundCrossCheckSchema>;
+
+export const SecFilingItemSchema = z.object({
+  form: z.string().min(1),
+  filingDate: z.string().min(1),
+  reportDate: z.string(),
+  accessionNumber: z.string().min(1),
+  documentUrl: z.string().url(),
+  description: z.string(),
+});
+export type SecFilingItem = z.infer<typeof SecFilingItemSchema>;
+
+export const SecFinancialFactSchema = z.object({
+  metric: z.string().min(1),
+  label: z.string().min(1),
+  valueFormatted: z.string().min(1),
+  period: z.string().min(1),
+  sourceTag: z.string().min(1),
+});
+export type SecFinancialFact = z.infer<typeof SecFinancialFactSchema>;
+
+export const SecSnapshotSchema = z.object({
+  ticker: z.string().min(1),
+  cik: z.string().min(1),
+  entityName: z.string().min(1),
+  source: z.enum(["sec-edgar-live", "cached-seed", "manual-verified"]),
+  reportingCurrency: z.string().min(2).max(8).optional(),
+  fxToUsd: z.number().finite().positive().optional(),
+  adrRatio: z.number().finite().positive().optional(),
+  fetchedAt: z.string().min(1),
+  filings: z.array(SecFilingItemSchema),
+  facts: z.array(SecFinancialFactSchema),
+  annuals: z.array(SecAnnualFinancialSchema).default([]),
+  quarterlies: z.array(SecQuarterlyFinancialSchema).default([]),
+  insiderSummary: SecInsiderSummarySchema.nullable().optional(),
+});
+export type SecSnapshot = z.infer<typeof SecSnapshotSchema>;
+
+export const UpsertManualSecSnapshotSchema = z.object({
+  entityName: z.string().trim().min(1).max(80),
+  reportingCurrency: ReportingCurrencySchema.default("USD"),
+  fxToUsd: z.number().finite().positive().max(100).default(1),
+  adrRatio: z.number().finite().positive().max(100).default(1),
+  annuals: z.array(SecAnnualFinancialSchema).min(1).max(10),
+});
+export type UpsertManualSecSnapshotInput = z.input<typeof UpsertManualSecSnapshotSchema>;

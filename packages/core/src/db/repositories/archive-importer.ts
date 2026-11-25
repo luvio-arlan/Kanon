@@ -212,7 +212,7 @@ export async function importThesisArchive(
 
   if (parsed.archive.secSnapshot) {
     const existingSec = await getSecSnapshot(db, parsed.archive.secSnapshot.ticker);
-    if (existingSec?.source !== "sec-edgar-live") {
+    if (existingSec?.source !== "sec-edgar-live" && existingSec?.source !== "manual-verified") {
       await upsertSecSnapshot(db, { ...parsed.archive.secSnapshot, source: "cached-seed" });
     }
   }

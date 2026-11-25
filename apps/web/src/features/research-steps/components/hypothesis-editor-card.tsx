@@ -1,6 +1,13 @@
 "use client";
 
-import type { CrossCheck, GlossaryTerm, Hypothesis, HypothesisStatus } from "@kanon/core";
+import type {
+  CrossCheck,
+  GlossaryTerm,
+  Hypothesis,
+  HypothesisStatus,
+  SecAnnualFinancial,
+  SecQuarterlyFinancial,
+} from "@kanon/core";
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -11,6 +18,7 @@ import {
 } from "@kanon/ui";
 import { IconArrowDown, IconArrowUp, IconTrash } from "@tabler/icons-react";
 import { GlossaryChips } from "@/features/glossary";
+import { HypothesisKpiStrip } from "./lineage/hypothesis-kpi-strip";
 import { HypothesisLinkedEvidence } from "./lineage/hypothesis-link-controls";
 
 const STATUS_OPTS: ReadonlyArray<{ id: HypothesisStatus; label: string; tone: ButtonGroupTone }> = [
@@ -154,12 +162,14 @@ export function HypothesisEditorCard(props: {
   total: number;
   item: Hypothesis;
   glossary: readonly GlossaryTerm[];
+  annuals?: readonly SecAnnualFinancial[];
+  quarterlies?: readonly SecQuarterlyFinancial[];
   linkedChecks?: readonly CrossCheck[];
   onChange: (next: Hypothesis) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove?: () => void;
 }) {
-  const { item, glossary, linkedChecks = [], onChange } = props;
+  const { item, glossary, annuals = [], quarterlies = [], linkedChecks = [], onChange } = props;
   return (
     <Card className="group/hyp overflow-hidden">
       <HypothesisHeaderRow {...props} />
@@ -174,6 +184,12 @@ export function HypothesisEditorCard(props: {
         />
         <GlossaryChips text={`${item.title} ${item.metricLabel} ${item.note}`} terms={glossary} />
       </div>
+      <HypothesisKpiStrip
+        item={item}
+        annuals={annuals}
+        quarterlies={quarterlies}
+        onChange={onChange}
+      />
       <HypothesisLinkedEvidence checks={linkedChecks} />
     </Card>
   );

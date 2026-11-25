@@ -4,6 +4,7 @@ import type {
   GlossaryTerm,
   InboundCrossCheck,
   QuarterlyReview,
+  ResearchNote,
   SavedAgentRun,
   SecSnapshot,
   ThesisDetail,
@@ -35,6 +36,7 @@ export interface ResearchCanvasShellProps {
   initialReviews: readonly QuarterlyReview[];
   initialAgentRun: SavedAgentRun | null;
   inboundCrossChecks: readonly InboundCrossCheck[];
+  initialResearchNotes?: readonly ResearchNote[];
 }
 
 function useCanvasBindings(props: ResearchCanvasShellProps) {
@@ -46,6 +48,7 @@ function useCanvasBindings(props: ResearchCanvasShellProps) {
     props.initialCopilot,
     props.initialRevisions,
     props.initialReviews,
+    props.initialResearchNotes ?? [],
   );
   const agent = useResearchAgent(ctrl.thesis.id, props.initialAgentRun);
   const live = useThesisLiveQuote(ctrl.thesis.ticker);
@@ -124,6 +127,7 @@ function CanvasStageSection(p: {
             onSyncChange={ui.setSyncState}
             onClearPromoted={() => setPromotedRule(null)}
             onPromoteRule={promoteRule}
+            onSelectStep={ui.jumpToStep}
           />
         </motion.div>
         <div className="no-print">

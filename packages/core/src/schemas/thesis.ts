@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HypothesisKpiRuleSchema } from "./v7-research-os";
 
 export const HypothesisStatusSchema = z.enum(["validated", "watching", "warning"]);
 export type HypothesisStatus = z.infer<typeof HypothesisStatusSchema>;
@@ -13,6 +14,7 @@ export const HypothesisSchema = z.object({
   threshold: z.string().min(1),
   status: HypothesisStatusSchema,
   note: z.string(),
+  kpiRule: HypothesisKpiRuleSchema.nullable().optional(),
 });
 export type Hypothesis = z.infer<typeof HypothesisSchema>;
 

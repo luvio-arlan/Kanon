@@ -68,32 +68,64 @@ function AlphaAuditTable({ rows }: { rows: readonly DisciplineAlphaRow[] }) {
   );
 }
 
-function buildCalibrationCards(report: ReturnType<typeof calculateCognitiveCalibration>) {
+type CalReport = ReturnType<typeof calculateCognitiveCalibration>;
+
+function formatReturnDelta(report: CalReport): string {
+  if (report.avgBenchmarkAlphaPct !== null) {
+    const sign = report.avgBenchmarkAlphaPct > 0 ? "+" : "";
+    return `相对基准 ${sign}${report.avgBenchmarkAlphaPct}%`;
+  }
+  if (report.avgEntryReturnPct !== null) {
+    const sign = report.avgEntryReturnPct > 0 ? "+" : "";
+    return `建仓 ${sign}${report.avgEntryReturnPct}%`;
+  }
+  return "等待样本";
+}
+
+function formatDriftCaption(report: CalReport): string {
+  if (report.avgTargetDriftPct === null) return `共 ${report.quarterlyVerdictCount} 条季报裁决`;
+  const sign = report.avgTargetDriftPct > 0 ? "+" : "";
+  return `目标价实现偏差 ${sign}${report.avgTargetDriftPct}%`;
+}
+
+function buildGateCard(report: CalReport) {
+  const passed = report.zeroLeverageGatePassed;
+  return {
+    label: "零杠杆门禁 & Brier",
+    icon: <IconShieldCheck size={16} stroke={1.5} />,
+    value:
+      report.brierScore !== null ? (
+        <RollingNumber value={report.brierScore} decimals={3} />
+      ) : (
+        <span>0.00×</span>
+      ),
+    caption: passed ? "零杠杆门禁通过 · Brier 越低越准" : "存在杠杆偏离",
+    delta: passed ? "门禁通过" : "门禁预警",
+    deltaTone: (passed ? "pass" : "warn") as "pass" | "warn",
+  };
+}
+
+function buildCalibrationCards(report: CalReport) {
   const favDelta =
     report.favorableDecisionRatePct !== null
       ? `顺向 ${report.favorableDecisionRatePct}%`
       : "待验证";
-  const retDelta =
-    report.avgEntryReturnPct !== null
-      ? `建仓 ${report.avgEntryReturnPct > 0 ? "+" : ""}${report.avgEntryReturnPct}%`
-      : "等待季报";
+  const hasStrength = report.strengthenedRatePct !== null;
   return [
     {
-      label: "认知校准分",
+      label: "真实校准分",
       icon: <IconBrain size={16} stroke={1.5} />,
-      value: <RollingNumber value={report.calibrationScore} decimals={0} />,
-      caption: "综合纪律与复盘一致率",
+      value:
+        report.decisionCount > 0 ? (
+          <RollingNumber value={report.calibrationScore} decimals={0} />
+        ) : (
+          <span>—</span>
+        ),
+      caption: "剔除门禁保底分，仅计实盘样本",
       delta: report.calibrationLabel,
-      deltaTone: (report.calibrationScore >= 78 ? "pass" : "neutral") as "pass" | "neutral",
+      deltaTone: (report.calibrationScore >= 76 ? "pass" : "neutral") as "pass" | "neutral",
     },
-    {
-      label: "零杠杆守约率",
-      icon: <IconShieldCheck size={16} stroke={1.5} />,
-      value: <RollingNumber value={report.zeroLeverageCompliancePct} suffix="%" decimals={0} />,
-      caption: "零杠杆契约执行",
-      delta: "0.00×",
-      deltaTone: "pass" as const,
-    },
+    buildGateCard(report),
     {
       label: "冷静决策占比",
       icon: <IconMoodSmile size={16} stroke={1.5} />,
@@ -103,16 +135,15 @@ function buildCalibrationCards(report: ReturnType<typeof calculateCognitiveCalib
       deltaTone: (report.calmDecisionPct >= 80 ? "pass" : "warn") as "pass" | "warn",
     },
     {
-      label: "季报假设强化率",
+      label: "季报强化与基准 Alpha",
       icon: <IconChartDots3 size={16} stroke={1.5} />,
-      value:
-        report.strengthenedRatePct !== null ? (
-          <RollingNumber value={report.strengthenedRatePct} suffix="%" decimals={0} />
-        ) : (
-          <span>—</span>
-        ),
-      caption: `共 ${report.quarterlyVerdictCount} 条季报裁决`,
-      delta: retDelta,
+      value: hasStrength ? (
+        <RollingNumber value={report.strengthenedRatePct ?? 0} suffix="%" decimals={0} />
+      ) : (
+        <span>—</span>
+      ),
+      caption: formatDriftCaption(report),
+      delta: formatReturnDelta(report),
       deltaTone: ((report.avgEntryReturnPct ?? 0) >= 0 ? "pass" : "warn") as "pass" | "warn",
     },
   ];

@@ -13,7 +13,8 @@ import { CustomProbabilityPopover } from "./drivers/custom-probability-strip";
 const HORIZONS = [2, 3, 5] as const;
 const MODEL_MODES: ReadonlyArray<{ id: ValuationModelMode; label: string }> = [
   { id: "pe", label: "PE 主锚" },
-  { id: "ev_fcf", label: "EV/FCF 主锚" },
+  { id: "ev_fcf", label: "EV/FCF" },
+  { id: "sotp", label: "SOTP 分部" },
 ];
 
 function HorizonPills({ value, onChange }: { value: number; onChange: (y: number) => void }) {

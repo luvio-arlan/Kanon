@@ -53,7 +53,7 @@ export async function kanonFetch<T>(
   url: string,
   schema: SafeParseSchema<T>,
   options?: {
-    method?: "GET" | "POST" | "PATCH" | "DELETE";
+    method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
     body?: unknown;
     headers?: Record<string, string>;
     fallbackError?: string;

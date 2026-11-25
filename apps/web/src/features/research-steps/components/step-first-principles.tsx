@@ -5,18 +5,20 @@ import type {
   EarningsDigest,
   GlossaryTerm,
   InboundCrossCheck,
+  ResearchNote,
   SecSnapshot,
   ThesisDetail,
   ThesisSummary,
 } from "@kanon/core";
-import { AgentThinking, Button, Card, Textarea } from "@kanon/ui";
-import { IconScissors, IconSparkles } from "@tabler/icons-react";
+import { Card } from "@kanon/ui";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { type AutoSaveStatus, useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { clearStoredDraft, readStoredDraft, writeStoredDraft } from "@/shared/lib/draft-storage";
 import { buildClippedCrossCheck } from "../lib/cross-check-helpers";
 import { AddCrossCheckForm, CrossCheckItemCard, nextAlignment } from "./cross-check-editor";
+import { ManualFinancialsSheet } from "./filing/manual-financials-sheet";
+import { ResearchNotesLibrary } from "./library/research-notes-library";
 import { SecAnnualsTable } from "./sec-annuals-table";
 import { EarningsDigestPanel, InboundCrossChecksPanel, SecFactsPanel } from "./sec-facts-panel";
 import { SourceClipperSheet } from "./source-clipper-sheet";
@@ -28,57 +30,16 @@ export interface StepFirstPrinciplesProps {
   glossary: readonly GlossaryTerm[];
   secSnapshot: SecSnapshot | null;
   secSyncing: boolean;
+  researchNotes?: readonly ResearchNote[];
   digestLoading: boolean;
   digest: EarningsDigest | null;
   onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
   onSyncSec: () => Promise<void>;
+  onSecSnapshotSaved?: (next: SecSnapshot) => void;
+  onResearchNotesChange?: (next: ResearchNote[]) => void;
   onRunDigest: (sourceText?: string) => Promise<void>;
   onSaveCrossChecks: (items: CrossCheck[]) => Promise<boolean>;
   onPromoteExitRule?: (rule: string) => void;
-}
-
-function TranscriptInputCard({
-  sourceText,
-  loading,
-  onChange,
-  onRun,
-  onOpenClipper,
-}: {
-  sourceText: string;
-  loading: boolean;
-  onChange: (next: string) => void;
-  onRun: () => Promise<void>;
-  onOpenClipper: () => void;
-}) {
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-6 py-4 sm:px-7">
-        <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">
-          电话会纪要与原文精读
-        </h3>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="xs" onClick={onOpenClipper}>
-            <IconScissors size={14} stroke={1.5} />
-            <span>原文摘录</span>
-          </Button>
-          <Button variant="titanium" size="xs" loading={loading} onClick={onRun}>
-            {!loading ? <IconSparkles size={14} stroke={1.5} /> : null}
-            <span>{loading ? "提炼中" : "AI 提炼"}</span>
-          </Button>
-        </div>
-      </div>
-      <div className="space-y-3 px-6 py-5 transition-colors focus-within:bg-canvas/45 sm:px-7">
-        {loading ? <AgentThinking variant="wave" label="正在提炼核心要点" /> : null}
-        <Textarea
-          variant="editorial"
-          value={sourceText}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="粘贴季度电话会问答、CapEx 指引或 10-K 关键段落…"
-          className="min-h-[104px]"
-        />
-      </div>
-    </Card>
-  );
 }
 
 function CrossCheckListSection(props: {
@@ -117,41 +78,54 @@ function CrossCheckListSection(props: {
   );
 }
 
-function isCrossCheckArray(val: unknown): val is CrossCheck[] {
-  return Array.isArray(val);
-}
-
-function StepThreeHeading() {
-  return (
-    <header className="border-b border-hairline pb-4">
-      <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
-        一阶资料印证
-      </h1>
-    </header>
+function useTranscriptDraft(thesisId: string, fallbackNote: string) {
+  const key = `kanon-transcript:${thesisId}`;
+  const [transcript, setTranscript] = useState(
+    () => readStoredDraft(key, "v1", (v): v is string => typeof v === "string") ?? fallbackNote,
   );
+  useEffect(() => {
+    if (transcript.trim()) writeStoredDraft(key, "v1", transcript);
+    else clearStoredDraft(key);
+  }, [transcript, key]);
+  return [transcript, setTranscript] as const;
 }
 
-function useStepThreeDraft(props: StepFirstPrinciplesProps) {
-  return useThesisStepDraft({
-    storageKey: `kanon-draft:${props.thesis.id}:step3`,
-    serverValue: props.thesis.crossChecks,
-    serverVersion: props.thesis.updatedAt,
-    onSyncChange: props.onSyncChange,
-    validateStored: isCrossCheckArray,
-    onSave: props.onSaveCrossChecks,
-  });
+function StepThreeSheets(p: {
+  props: StepFirstPrinciplesProps;
+  s: ReturnType<typeof useStepThreeState>;
+}) {
+  const { props, s } = p;
+  return (
+    <>
+      <SourceClipperSheet
+        open={s.clipperOpen}
+        ticker={props.thesis.ticker}
+        filings={props.secSnapshot?.filings}
+        sourceText={s.transcript}
+        digest={props.digest}
+        onChangeSource={s.setTranscript}
+        onOpenChange={s.setClipperOpen}
+        onClipCrossCheck={s.clip}
+        onClipExitRule={props.onPromoteExitRule}
+      />
+      <ManualFinancialsSheet
+        open={s.manualOpen}
+        ticker={props.thesis.ticker}
+        companyName={props.thesis.companyName}
+        snapshot={props.secSnapshot}
+        onOpenChange={s.setManualOpen}
+        onSaved={(snap) => props.onSecSnapshotSaved?.(snap)}
+      />
+    </>
+  );
 }
 
 function StepThreeEvidenceBody({
   props,
-  transcript,
-  onTranscript,
-  onOpenClipper,
+  s,
 }: {
   props: StepFirstPrinciplesProps;
-  transcript: string;
-  onTranscript: (v: string) => void;
-  onOpenClipper: () => void;
+  s: ReturnType<typeof useStepThreeState>;
 }) {
   return (
     <>
@@ -160,6 +134,7 @@ function StepThreeEvidenceBody({
         snapshot={props.secSnapshot}
         syncing={props.secSyncing}
         onSync={props.onSyncSec}
+        onOpenManual={() => s.setManualOpen(true)}
       />
       {props.secSnapshot?.annuals.length ? (
         <SecAnnualsTable
@@ -168,12 +143,15 @@ function StepThreeEvidenceBody({
           title="历史财务轨迹"
         />
       ) : null}
-      <TranscriptInputCard
-        sourceText={transcript}
-        loading={props.digestLoading}
-        onChange={onTranscript}
-        onRun={() => props.onRunDigest(transcript)}
-        onOpenClipper={onOpenClipper}
+      <ResearchNotesLibrary
+        thesisId={props.thesis.id}
+        notes={s.notes}
+        activeText={s.transcript}
+        digestLoading={props.digestLoading}
+        onNotesChange={(next) => props.onResearchNotesChange?.(next)}
+        onActiveTextChange={s.setTranscript}
+        onRunDigest={props.onRunDigest}
+        onOpenClipper={() => s.setClipperOpen(true)}
       />
       {props.digest ? <EarningsDigestPanel digest={props.digest} /> : null}
       <InboundCrossChecksPanel items={props.inboundCrossChecks ?? []} />
@@ -181,68 +159,66 @@ function StepThreeEvidenceBody({
   );
 }
 
-function isNonEmptyString(val: unknown): val is string {
-  return typeof val === "string";
-}
-
-function useTranscriptDraft(thesisId: string) {
-  const transcriptKey = `kanon-transcript:${thesisId}`;
-  const [transcript, setTranscript] = useState(
-    () => readStoredDraft(transcriptKey, "v1", isNonEmptyString) ?? "",
-  );
-  useEffect(() => {
-    if (transcript.trim()) writeStoredDraft(transcriptKey, "v1", transcript);
-    else clearStoredDraft(transcriptKey);
-  }, [transcript, transcriptKey]);
-  return [transcript, setTranscript] as const;
-}
-
-export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
-  const d = useStepThreeDraft(props);
-  const [transcript, setTranscript] = useTranscriptDraft(props.thesis.id);
+function useStepThreeState(props: StepFirstPrinciplesProps) {
+  const notes = props.researchNotes ?? [];
+  const d = useThesisStepDraft({
+    storageKey: `kanon-draft:${props.thesis.id}:step3`,
+    serverValue: props.thesis.crossChecks,
+    serverVersion: props.thesis.updatedAt,
+    onSyncChange: props.onSyncChange,
+    validateStored: (v): v is CrossCheck[] => Array.isArray(v),
+    onSave: props.onSaveCrossChecks,
+  });
+  const [transcript, setTranscript] = useTranscriptDraft(props.thesis.id, notes[0]?.content ?? "");
   const [clipperOpen, setClipperOpen] = useState(false);
-  const linkable = (props.allTheses ?? []).filter((t) => t.id !== props.thesis.id);
-  const cycleCheck = (id: string) =>
+  const [manualOpen, setManualOpen] = useState(false);
+  const cycle = (id: string) =>
     d.setDraft((p) =>
       p.map((i) => (i.id === id ? { ...i, alignment: nextAlignment(i.alignment) } : i)),
     );
-  const clipCrossCheck = (excerpt: string, anchor: string) => {
+  const linkHyp = (id: string, hypothesisId: string | null) =>
+    d.setDraft((p) => p.map((i) => (i.id === id ? { ...i, hypothesisId } : i)));
+  const clip = (excerpt: string, anchor: string) => {
     d.setDraft((p) => [...p, buildClippedCrossCheck(props.thesis.companyName, excerpt, anchor)]);
     toast.success("已摘录至交叉验证");
   };
+  return {
+    notes,
+    d,
+    transcript,
+    setTranscript,
+    clipperOpen,
+    setClipperOpen,
+    manualOpen,
+    setManualOpen,
+    cycle,
+    linkHyp,
+    clip,
+  };
+}
 
+export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
+  const s = useStepThreeState(props);
+  const linkable = (props.allTheses ?? []).filter((t) => t.id !== props.thesis.id);
   return (
     <div className="space-y-6">
-      <StepThreeHeading />
-      <StepThreeEvidenceBody
-        props={props}
-        transcript={transcript}
-        onTranscript={setTranscript}
-        onOpenClipper={() => setClipperOpen(true)}
-      />
+      <header className="border-b border-hairline pb-4">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
+          一阶资料印证
+        </h1>
+      </header>
+      <StepThreeEvidenceBody props={props} s={s} />
       <CrossCheckListSection
-        checks={d.draft}
+        checks={s.d.draft}
         linkableTheses={linkable}
         hypotheses={props.thesis.hypotheses}
         glossary={props.glossary}
-        onCycle={cycleCheck}
-        onLinkHypothesis={(id, hypothesisId) =>
-          d.setDraft((p) => p.map((i) => (i.id === id ? { ...i, hypothesisId } : i)))
-        }
-        onDelete={(id) => d.setDraft((p) => p.filter((i) => i.id !== id))}
-        onAdd={(next) => d.setDraft((p) => [...p, next])}
+        onCycle={s.cycle}
+        onLinkHypothesis={s.linkHyp}
+        onDelete={(id) => s.d.setDraft((p) => p.filter((i) => i.id !== id))}
+        onAdd={(next) => s.d.setDraft((p) => [...p, next])}
       />
-      <SourceClipperSheet
-        open={clipperOpen}
-        ticker={props.thesis.ticker}
-        filings={props.secSnapshot?.filings}
-        sourceText={transcript}
-        digest={props.digest}
-        onChangeSource={setTranscript}
-        onOpenChange={setClipperOpen}
-        onClipCrossCheck={clipCrossCheck}
-        onClipExitRule={props.onPromoteExitRule}
-      />
+      <StepThreeSheets props={props} s={s} />
     </div>
   );
 }

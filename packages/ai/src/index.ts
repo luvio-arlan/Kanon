@@ -23,6 +23,7 @@ export {
   runThesisCopilot,
   sanitizeProviderBaseUrl,
 } from "./copilot/run-copilot";
+export { buildMarketBenchmarks } from "./market/consensus-and-peers";
 export {
   clearMarketQuoteCache,
   fetchMarketClosingQuote,

@@ -196,3 +196,13 @@
   1. Pin slider ranges from stable initial anchors + explicit commit ceilings (never live `onChange` state), clamp `PrecisionSlider` bounds defensively, enforce upper bounds (`MAX_VALUATION_EPS/PE/PRICE`) in Zod schemas, auto-compact `RollingNumber` above `1M`, and pair `sanitizeValuationInput` with idempotent migration `0010_heal_runaway_valuation` to self-heal already-corrupted rows.
   2. Display signed `bear.returnPct`, dynamic `{horizonYears}`, semantic upside tones, selectable `<article>` + explicit clip button in Source Clipper, ref-tracked `expectedUpdatedAt` on queued autosaves, boolean-checked Step 5 submits, period-end + latest-filed XBRL keying, and exact prior-year quarter label matching.
 - **Why / Gate**: Prevents exponential UI feedback loops, corrupted persistence, and financial calculation drift. Verified via `valuation-scenarios.test.ts`, `valuation-advanced.test.ts`, `pnpm check`, `pnpm test`, `pnpm build`, and `pnpm test:api`.
+
+### [2026-11-25] Guard ADR Per-Share Currency Parity, Acyclic Schemas & Zero-Theater Calibration (v7 Research OS)
+
+- **Mistake**:
+  1. Applying an ADR share ratio (`5:1`) unconditionally on SEC XBRL `USD/shares` facts multiplied already-ADR-normalized EPS by 5×; importing `v4-extensions` from `v7-research-os` while `v4-extensions` imported `v7-research-os` created a runtime circular Zod schema initialization crash.
+  2. Relying solely on free-text `sectorTag` grouping hid correlated semiconductor concentration across custom labels; padding calibration scores with API-locked `zeroLeverageCompliancePct` (30%) inflated zero-sample scores to 72/100; omitting YTD cash-flow de-cumulation and 10-K TOC filtering starved quarterly FCF and MD&A retrieval.
+- **Correct Pattern**:
+  1. Apply ADR share conversion ONLY when `reportingCurrency !== "USD"` (local-currency 20-F ordinary shares), keep extension schema modules strictly DAG-acyclic (leaf `v7-research-os.ts` imports only `zod`), and route all client `kanonFetch` response schemas through `@kanon/core` contracts.
+  2. Normalize factor clusters via `classifyEconomicFactor`, treat Zero-Leverage strictly as a pass/fail gate alongside Brier Score & SPY benchmark alpha, de-cumulate 10-Q 6M/9M cash flows + derive Q4 (`FY - 9M`), skip TOC page-number lines in 10-K HTML, parse Form 4 XML (`cluster_buy` vs `10b5-1`), and combine cross-lingual CN→EN BM25 with Vercel AI SDK multi-step tool calling (`autonomous-ic.ts`).
+- **Why / Gate**: Mechanically enforced by `pnpm check` (`depcruise`, `knip`, 393-file Garden limits), `v7-models.test.ts`, `sec-v7.test.ts`, `filing-search-tool.test.ts`, `repository.test.ts` DDL parity (`0011_v7_research_os`), and 32-route `pnpm test:api`.

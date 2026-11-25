@@ -36,7 +36,14 @@ export function countBuySideSignals(text: string): number {
   return matches ? matches.length : 0;
 }
 
+function isTocLine(text: string): boolean {
+  if (/^item\s+(?:1a|1|2|7)\b/i.test(text) && /\s+\d{1,3}$/.test(text)) return true;
+  if (/\.{3,}\s*\d{1,3}$/.test(text)) return true;
+  return false;
+}
+
 function isKeepableParagraph(text: string): boolean {
+  if (isTocLine(text)) return false;
   if (/^item\s+(?:1a|1|2|7)\b/i.test(text) && text.length <= 180) return true;
   if (text.length < 75 || text.length > 1800) return false;
   return (text.match(/[A-Za-z]/g) ?? []).length >= 45;
@@ -47,6 +54,7 @@ export function stripSecHtmlToParagraphs(rawHtml: string): string[] {
     .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
     .replace(/<ix:header\b[\s\S]*?<\/ix:header>/gi, " ")
+    .replace(/<ix:hidden\b[\s\S]*?<\/ix:hidden>/gi, " ")
     .replace(/<(?:\/p|\/div|\/li|\/tr|\/h[1-6]|br\s*\/?)>/gi, "\n");
 
   const withoutTags = cleaned.replace(/<[^>]+>/g, " ");
@@ -60,7 +68,7 @@ export function stripSecHtmlToParagraphs(rawHtml: string): string[] {
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
     paragraphs.push(text);
-    if (paragraphs.length >= 260) break;
+    if (paragraphs.length >= 600) break;
   }
   return paragraphs;
 }

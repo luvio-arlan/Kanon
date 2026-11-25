@@ -5,6 +5,7 @@ import {
   analyzeSecQuality,
   calculateImpliedExpectations,
   calculateTrueReverseDcf,
+  type ResearchNote,
   type SecFilingReaderResponse,
   type SecSnapshot,
   type ThesisDetail,
@@ -49,6 +50,7 @@ function buildDeterministicAskResponse(params: {
   secSnapshot: SecSnapshot | null;
   question: string;
   cachedFilings?: readonly SecFilingReaderResponse[];
+  researchNotes?: readonly ResearchNote[];
   sourceText?: string;
 }): Omit<AgentAskResponse, "engine" | "fallbackReason"> {
   const { thesis, secSnapshot, question } = params;
@@ -63,6 +65,7 @@ function buildDeterministicAskResponse(params: {
   const hits = searchFilingExcerpts({
     query: `${question} ${thesis.ticker} ${thesis.businessFilter.keyDebate}`,
     filings: params.cachedFilings,
+    researchNotes: params.researchNotes,
     sourceText: params.sourceText,
     limit: 2,
   });
@@ -89,6 +92,7 @@ export async function askResearchIc(params: {
   secSnapshot: SecSnapshot | null;
   question: string;
   cachedFilings?: readonly SecFilingReaderResponse[];
+  researchNotes?: readonly ResearchNote[];
   sourceText?: string;
   byok?: ByokCredentials;
 }): Promise<AgentAskResponse> {

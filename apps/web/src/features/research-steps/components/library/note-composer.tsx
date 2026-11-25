@@ -1,0 +1,146 @@
+"use client";
+
+import type { ResearchNoteKind } from "@kanon/core";
+import { ActionMenu, Button, Input, Textarea } from "@kanon/ui";
+import { IconChevronDown } from "@tabler/icons-react";
+
+export const NOTE_KIND_LABELS: Record<ResearchNoteKind, string> = {
+  earnings_call: "法说会",
+  filing_note: "年季报附注",
+  channel_check: "渠道调研",
+  guidance_log: "指引兑现",
+};
+
+export interface NoteDraft {
+  kind: ResearchNoteKind;
+  periodLabel: string;
+  title: string;
+  content: string;
+  guidanceMetric: string;
+  guidancePromised: string;
+  guidanceDelivered: string;
+}
+
+export const EMPTY_NOTE_DRAFT: NoteDraft = {
+  kind: "earnings_call",
+  periodLabel: `FY${String(new Date().getFullYear()).slice(-2)} Q${Math.ceil((new Date().getMonth() + 1) / 3)}`,
+  title: "",
+  content: "",
+  guidanceMetric: "",
+  guidancePromised: "",
+  guidanceDelivered: "",
+};
+
+function NoteMetaRow({
+  draft,
+  onPatch,
+}: {
+  draft: NoteDraft;
+  onPatch: (p: Partial<NoteDraft>) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ActionMenu
+        ariaLabel="资料类型"
+        triggerClassName="inline-flex h-8 items-center gap-1.5 rounded-control border border-hairline bg-surface px-2.5 text-xs text-ink-primary hover:border-strong"
+        trigger={
+          <>
+            <span>{NOTE_KIND_LABELS[draft.kind]}</span>
+            <IconChevronDown size={12} stroke={1.5} className="kanon-chevron text-ink-muted" />
+          </>
+        }
+        items={(Object.keys(NOTE_KIND_LABELS) as ResearchNoteKind[]).map((k) => ({
+          id: k,
+          label: NOTE_KIND_LABELS[k],
+          selected: draft.kind === k,
+          onSelect: () => onPatch({ kind: k }),
+        }))}
+      />
+      <Input
+        value={draft.periodLabel}
+        onChange={(e) => onPatch({ periodLabel: e.target.value })}
+        placeholder="季度如 FY26 Q2"
+        className="h-8 w-28 font-mono text-xs"
+      />
+      <Input
+        value={draft.title}
+        onChange={(e) => onPatch({ title: e.target.value })}
+        placeholder="标题（如：云业务毛利与 CapEx 指引）"
+        className="h-8 min-w-[200px] flex-1 text-xs"
+      />
+    </div>
+  );
+}
+
+function GuidanceFieldsRow({
+  draft,
+  onPatch,
+}: {
+  draft: NoteDraft;
+  onPatch: (p: Partial<NoteDraft>) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-2 border-t border-hairline pt-3 sm:grid-cols-3">
+      <Input
+        value={draft.guidanceMetric}
+        onChange={(e) => onPatch({ guidanceMetric: e.target.value })}
+        placeholder="指引指标（可选，如毛利率）"
+        className="h-8 text-xs"
+      />
+      <Input
+        value={draft.guidancePromised}
+        onChange={(e) => onPatch({ guidancePromised: e.target.value })}
+        placeholder="管理层承诺（如 70%±0.5%）"
+        className="h-8 font-mono text-xs"
+      />
+      <Input
+        value={draft.guidanceDelivered}
+        onChange={(e) => onPatch({ guidanceDelivered: e.target.value })}
+        placeholder="实际兑现（如 70.6%）"
+        className="h-8 font-mono text-xs"
+      />
+    </div>
+  );
+}
+
+export function NewNoteComposer({
+  draft,
+  saving,
+  onPatch,
+  onSave,
+  onCancel,
+}: {
+  draft: NoteDraft;
+  saving: boolean;
+  onPatch: (p: Partial<NoteDraft>) => void;
+  onSave: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-3 border-b border-hairline bg-canvas/35 px-6 py-5 sm:px-7">
+      <NoteMetaRow draft={draft} onPatch={onPatch} />
+      <Textarea
+        variant="editorial"
+        value={draft.content}
+        onChange={(e) => onPatch({ content: e.target.value })}
+        placeholder="粘贴电话会问答、管理层原话或 10-K 附注摘录…"
+        className="min-h-[92px]"
+      />
+      <GuidanceFieldsRow draft={draft} onPatch={onPatch} />
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="xs" onClick={onCancel}>
+          取消
+        </Button>
+        <Button
+          variant="primary"
+          size="xs"
+          loading={saving}
+          disabled={!draft.title.trim() || !draft.content.trim()}
+          onClick={() => void onSave()}
+        >
+          归档保存
+        </Button>
+      </div>
+    </div>
+  );
+}

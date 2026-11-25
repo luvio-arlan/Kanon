@@ -26,6 +26,7 @@ const KNOWN_ROUTES = [
   "export/thesis/[id]/route.ts",
   "health/route.ts",
   "import/thesis/route.ts",
+  "market/benchmarks/route.ts",
   "market/bootstrap/route.ts",
   "market/provider-test/route.ts",
   "market/quotes/route.ts",
@@ -36,6 +37,7 @@ const KNOWN_ROUTES = [
   "sec/[ticker]/filing/route.ts",
   "sec/[ticker]/route.ts",
   "theses/[id]/discipline/route.ts",
+  "theses/[id]/notes/route.ts",
   "theses/[id]/reviews/route.ts",
   "theses/[id]/revisions/route.ts",
   "theses/[id]/route.ts",
@@ -578,6 +580,37 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
 
   const marketQuotes = await fetchJson("/api/market/quotes?tickers=NVDA", {}, cookieA);
   assert.equal(marketQuotes.status, 200);
+
+  const benchmarks = await fetchJson("/api/market/benchmarks?ticker=NVDA&price=135", {}, cookieA);
+  assert.equal(benchmarks.status, 200);
+  assert.ok(Array.isArray(benchmarks.data.peers) && benchmarks.data.peers.length >= 3);
+
+  const noteCreate = await fetchJson(
+    `/api/theses/${nvdaId}/notes`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "earnings_call",
+        periodLabel: "FY26 Q2",
+        title: "法说会指引复盘",
+        content: "管理层指引数据中心毛利率维持 74% 区间，Blackwell 产能持续爬坡。",
+        guidanceMetric: "综合毛利率",
+        guidancePromised: "74.0%",
+        guidanceDelivered: "74.6%",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(noteCreate.status, 201);
+  const notesList = await fetchJson(`/api/theses/${nvdaId}/notes`, {}, cookieA);
+  assert.equal(notesList.status, 200);
+  assert.ok(notesList.data.notes.length >= 1);
+  const noteDel = await fetchJson(
+    `/api/theses/${nvdaId}/notes?noteId=${noteCreate.data.note.id}`,
+    { method: "DELETE" },
+    cookieA,
+  );
+  assert.equal(noteDel.status, 200);
 
   const calibration = await fetchJson("/api/portfolio/calibration", {}, cookieA);
   assert.equal(calibration.status, 200);

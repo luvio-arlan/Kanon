@@ -215,4 +215,52 @@ describe("IC Agent v2: BM25 Filing Retrieval, Grounding & Ask IC", () => {
       "https://api.deepseek.com/v1",
     );
   });
+
+  it("supports cross-lingual CN-to-EN finance synonym retrieval and persisted research notes", () => {
+    const hits = searchFilingExcerpts({
+      query: "毛利率 资本开支",
+      filings: [
+        {
+          ticker: "MSFT",
+          form: "10-K",
+          filingDate: "2026-07-30",
+          accessionNumber: "0000789019-26-000010",
+          documentUrl: "https://www.sec.gov/Archives/edgar/data/789019/x/msft.htm",
+          source: "sec-edgar-live",
+          sections: [
+            {
+              id: "mda",
+              heading: "Item 7 · MD&A",
+              category: "mda",
+              signalHits: 3,
+              paragraphs: [
+                "Cloud gross margin held near 70% while capital expenditure expanded to scale AI data centers.",
+              ],
+            },
+          ],
+          fullExcerpt: "",
+          diff: null,
+          notice: "",
+        },
+      ],
+      researchNotes: [
+        {
+          id: "n-1",
+          thesisId: "t-msft",
+          kind: "guidance_log",
+          periodLabel: "FY26 Q2",
+          title: "Azure 指引跟踪",
+          content: "管理层强调资本开支将匹配云订单积压释放。",
+          guidanceMetric: "毛利率",
+          guidancePromised: "69%",
+          guidanceDelivered: "69.8%",
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-01T00:00:00Z",
+        },
+      ],
+    });
+    expect(hits.length).toBeGreaterThanOrEqual(2);
+    expect(hits.some((h) => h.citation.includes("¶1"))).toBe(true);
+    expect(hits.some((h) => h.citation.includes("FY26 Q2"))).toBe(true);
+  });
 });

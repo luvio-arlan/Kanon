@@ -5,6 +5,7 @@ import {
   getSecSnapshot,
   getThesisById,
   listCachedSecFilingDocsByTicker,
+  listResearchNotes,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { parseByokHeaders } from "../../../_lib/byok-headers";
@@ -38,15 +39,17 @@ export async function POST(request: Request) {
     return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   }
 
-  const [secSnapshot, cachedFilings] = await Promise.all([
+  const [secSnapshot, cachedFilings, researchNotes] = await Promise.all([
     getSecSnapshot(db, thesis.ticker),
     listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
+    listResearchNotes(db, thesis.id, auth.user.id, 12),
   ]);
   const result = await askResearchIc({
     thesis,
     secSnapshot,
     question: parsed.data.question,
     cachedFilings,
+    researchNotes,
     sourceText: parsed.data.sourceText,
     byok: parseByokHeaders(request),
   });

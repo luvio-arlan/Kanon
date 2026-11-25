@@ -57,6 +57,7 @@ interface EarlyStepsProps {
   glossary: readonly GlossaryTerm[];
   onSyncChange: SyncCallback;
   onPromoteRule: (rule: string) => void;
+  onSelectStep: (step: StepId) => void;
 }
 
 function StepThreeView({
@@ -82,10 +83,13 @@ function StepThreeView({
       glossary={glossary}
       secSnapshot={ctrl.secSnapshot}
       secSyncing={ctrl.secSyncing}
+      researchNotes={ctrl.researchNotes}
       digestLoading={ctrl.copilot.busy === "earnings_digest"}
       digest={ctrl.copilot.digest}
       onSyncChange={onSyncChange}
       onSyncSec={ctrl.syncSec}
+      onSecSnapshotSaved={ctrl.setSecSnapshot}
+      onResearchNotesChange={ctrl.setResearchNotes}
       onRunDigest={(sourceText) => ctrl.runCopilot("earnings_digest", sourceText)}
       onSaveCrossChecks={(crossChecks) =>
         ctrl.patchStep({ step: "cross_checks", crossChecks }, undefined, { silent: true })
@@ -104,6 +108,7 @@ function EarlySteps(p: EarlyStepsProps) {
         annuals={p.ctrl.secSnapshot?.annuals}
         quarterlies={p.ctrl.secSnapshot?.quarterlies}
         saving={p.ctrl.saving}
+        onJumpToStep={p.onSelectStep}
         onSyncChange={p.onSyncChange}
         onSave={(payload, opts) =>
           p.ctrl.patchStep(
@@ -120,6 +125,8 @@ function EarlySteps(p: EarlyStepsProps) {
       <StepHypotheses
         thesis={p.ctrl.thesis}
         glossary={p.glossary}
+        annuals={p.ctrl.secSnapshot?.annuals}
+        quarterlies={p.ctrl.secSnapshot?.quarterlies}
         redTeamLoading={p.ctrl.copilot.busy === "red_team"}
         redTeam={p.ctrl.copilot.redTeam}
         onSyncChange={p.onSyncChange}
@@ -180,6 +187,7 @@ function LateSteps(p: LateStepsProps) {
       onClearPromotedRule={onClearPromoted}
       onSubmitDiscipline={ctrl.submitDiscipline}
       onSubmitReview={ctrl.submitQuarterlyReview}
+      onPositionUpdated={(updated) => ctrl.applyMutation({ thesis: updated })}
       onGenerateMemo={() => ctrl.runCopilot("investment_memo")}
     />
   );
@@ -196,6 +204,7 @@ export function CanvasStepRenderer(props: {
   onSyncChange: SyncCallback;
   onClearPromoted: () => void;
   onPromoteRule: (rule: string) => void;
+  onSelectStep: (step: StepId) => void;
 }) {
   if (props.step <= 3) {
     return (
@@ -207,6 +216,7 @@ export function CanvasStepRenderer(props: {
         glossary={props.glossary}
         onSyncChange={props.onSyncChange}
         onPromoteRule={props.onPromoteRule}
+        onSelectStep={props.onSelectStep}
       />
     );
   }

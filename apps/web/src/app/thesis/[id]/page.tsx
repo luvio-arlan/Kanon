@@ -68,6 +68,7 @@ export default async function ThesisCanvasPage({ params, searchParams }: ThesisP
       initialReviews={data.reviews}
       initialAgentRun={data.latestAgentRun}
       inboundCrossChecks={data.inboundCrossChecks}
+      initialResearchNotes={data.researchNotes}
     />
   );
 }

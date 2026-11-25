@@ -38,9 +38,14 @@ export async function writeHypothesesStep(
   now: Date,
 ): Promise<string> {
   await tx.delete(hypothesesTable).where(eq(hypothesesTable.thesisId, thesisId));
-  await tx
-    .insert(hypothesesTable)
-    .values(parsed.hypotheses.map((h, idx) => ({ ...h, thesisId, sortOrder: idx })));
+  await tx.insert(hypothesesTable).values(
+    parsed.hypotheses.map((h, idx) => ({
+      ...h,
+      kpiRule: h.kpiRule ?? null,
+      thesisId,
+      sortOrder: idx,
+    })),
+  );
   await tx
     .update(thesesTable)
     .set({ lastReviewedLabel: "刚刚更新 · 核心假设", updatedAt: now })

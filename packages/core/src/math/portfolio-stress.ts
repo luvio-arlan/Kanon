@@ -1,4 +1,5 @@
 import type { PortfolioRole, ThesisDetail } from "../schemas/research";
+import { classifyEconomicFactor } from "./models/factor-clusters";
 import { suggestKellyCappedWeight } from "./portfolio-analytics";
 import { roundTo } from "./valuation-scenarios";
 
@@ -43,8 +44,8 @@ export interface PortfolioStressReport {
   sizingRows: PositionSizingRow[];
 }
 
-function primarySector(sectorTag: string): string {
-  return sectorTag.split(/[·/]/)[0]?.trim() || sectorTag.trim() || "其他";
+function primarySector(sectorTag: string, ticker?: string): string {
+  return classifyEconomicFactor(sectorTag, ticker);
 }
 
 function buildSizingRows(active: readonly ThesisDetail[]): PositionSizingRow[] {
@@ -60,7 +61,7 @@ function buildSizingRows(active: readonly ThesisDetail[]): PositionSizingRow[] {
         id: t.id,
         ticker: t.ticker,
         companyName: t.companyName,
-        sector: primarySector(t.sectorTag),
+        sector: primarySector(t.sectorTag, t.ticker),
         portfolioRole: t.portfolioRole,
         currentWeightPct: roundTo(Math.max(0, t.currentWeightPct), 1),
         targetMaxWeightPct: roundTo(Math.max(1, t.targetMaxWeightPct), 1),
@@ -129,7 +130,7 @@ function computeSectorShockImpact(
 ): number {
   let acc = 0;
   for (const t of weighted) {
-    if (primarySector(t.sectorTag) === topSectorName) {
+    if (primarySector(t.sectorTag, t.ticker) === topSectorName) {
       acc += (t.currentWeightPct / 100) * t.valuation.bear.returnPct;
     }
   }

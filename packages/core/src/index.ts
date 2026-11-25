@@ -49,11 +49,13 @@ export {
   CopilotApiResponseSchema,
   CreateThesisResponseSchema,
   DeleteOkResponseSchema,
+  ManualSecSaveResponseSchema,
   type MarketBootstrapResponse,
   MarketBootstrapResponseSchema,
   QuarterlyReviewCreateResponseSchema,
   type RefreshPricesResponse,
   RefreshPricesResponseSchema,
+  ResearchNoteCreateResponseSchema,
   type SavedAgentRun,
   SavedAgentRunSchema,
   SecSyncResponseSchema,
@@ -87,6 +89,7 @@ export {
   type ProbabilityPresetId,
 } from "./math/implied-expectations";
 export * from "./math/institutional";
+export * from "./math/models";
 export {
   calculatePortfolioAnalytics,
   type KellyWeightSuggestion,
@@ -203,6 +206,8 @@ export {
   TradeActionSchema,
   type UpdateThesisStepInput,
   UpdateThesisStepSchema,
+  type UpsertManualSecSnapshotInput,
+  UpsertManualSecSnapshotSchema,
   type ValuationDriverInputs,
   ValuationDriverInputsSchema,
   type ValuationModelMode,
@@ -232,3 +237,4 @@ export {
   ValuationScenarioSummarySchema,
 } from "./schemas/thesis";
 export * from "./schemas/v5-institutional";
+export * from "./schemas/v7-research-os";

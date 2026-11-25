@@ -4,6 +4,8 @@ import type {
   GlossaryTerm,
   Hypothesis,
   RedTeamReport,
+  SecAnnualFinancial,
+  SecQuarterlyFinancial,
   ThesisCatalyst,
   ThesisDetail,
 } from "@kanon/core";
@@ -22,6 +24,8 @@ type StepTwoLens = "hypotheses" | "catalysts";
 export interface StepHypothesesProps {
   thesis: ThesisDetail;
   glossary: readonly GlossaryTerm[];
+  annuals?: readonly SecAnnualFinancial[];
+  quarterlies?: readonly SecQuarterlyFinancial[];
   redTeamLoading: boolean;
   redTeam: RedTeamReport | null;
   onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
@@ -53,6 +57,27 @@ function StepTwoHeader({ loading, onRun }: { loading: boolean; onRun: () => Prom
   );
 }
 
+function HypothesesRedTeamSlot({
+  loading,
+  report,
+  onPromote,
+}: {
+  loading: boolean;
+  report: RedTeamReport | null;
+  onPromote?: (rule: string) => void;
+}) {
+  return (
+    <>
+      {loading ? (
+        <div className="rounded-panel border border-hairline bg-surface px-5 py-4 shadow-card">
+          <AgentThinking variant="stars" label="正在从空头视角审视核心假设盲区" />
+        </div>
+      ) : null}
+      {report ? <RedTeamResultCard report={report} onPromoteRule={onPromote} /> : null}
+    </>
+  );
+}
+
 function HypothesesLensBody(p: {
   props: StepHypothesesProps;
   draft: Hypothesis[];
@@ -70,6 +95,8 @@ function HypothesesLensBody(p: {
             total={draft.length}
             item={item}
             glossary={props.glossary}
+            annuals={props.annuals}
+            quarterlies={props.quarterlies}
             linkedChecks={props.thesis.crossChecks.filter((cc) => cc.hypothesisId === item.id)}
             onChange={(n) => setDraft((prev) => prev.map((it, i) => (i === idx ? n : it)))}
             onMove={(delta) => setDraft((prev) => swapHypotheses(prev, idx, delta))}
@@ -91,14 +118,11 @@ function HypothesesLensBody(p: {
           <span>增补核心假设</span>
         </button>
       ) : null}
-      {props.redTeamLoading ? (
-        <div className="rounded-panel border border-hairline bg-surface px-5 py-4 shadow-card">
-          <AgentThinking variant="stars" label="正在从空头视角审视核心假设盲区" />
-        </div>
-      ) : null}
-      {props.redTeam ? (
-        <RedTeamResultCard report={props.redTeam} onPromoteRule={props.onPromoteRedTeamRule} />
-      ) : null}
+      <HypothesesRedTeamSlot
+        loading={props.redTeamLoading}
+        report={props.redTeam}
+        onPromote={props.onPromoteRedTeamRule}
+      />
     </>
   );
 }

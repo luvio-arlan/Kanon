@@ -10,8 +10,6 @@ import {
 import {
   PortfolioRoleSchema,
   RevisionSnapshotSchema,
-  SecAnnualFinancialSchema,
-  SecQuarterlyFinancialSchema,
   ValuationDriverInputsSchema,
   ValuationModelModeSchema,
 } from "./v4-extensions";
@@ -19,6 +17,7 @@ import { ThesisCatalystSchema } from "./v5-institutional";
 
 export * from "./v4-extensions";
 export * from "./v5-institutional";
+export * from "./v7-research-os";
 
 export const FilterVerdictSchema = z.enum(["pass", "watch", "veto"]);
 export type FilterVerdict = z.infer<typeof FilterVerdictSchema>;
@@ -86,6 +85,8 @@ export const DisciplineEntrySchema = z.object({
   exitRule: z.string().min(1),
   emotion: EmotionStateSchema,
   priceAnchor: z.number().finite().positive(),
+  weightDeltaPct: z.number().finite().min(-100).max(100).nullable().optional(),
+  benchmarkPrice: z.number().finite().positive().nullable().optional(),
   note: z.string(),
   createdAt: z.string().min(1),
 });
@@ -94,10 +95,14 @@ export type DisciplineEntry = z.infer<typeof DisciplineEntrySchema>;
 export const CreateDisciplineEntrySchema = DisciplineEntrySchema.omit({
   id: true,
   createdAt: true,
-}).refine((entry) => entry.action === "pass" || entry.noLeverageConfirmed, {
-  message: "风控约束：建仓、加仓或持有操作必须明确确认「零杠杆」原则。",
-  path: ["noLeverageConfirmed"],
-});
+})
+  .extend({
+    syncPosition: z.boolean().optional(),
+  })
+  .refine((entry) => entry.action === "pass" || entry.noLeverageConfirmed, {
+    message: "风控约束：建仓、加仓或持有操作必须明确确认「零杠杆」原则。",
+    path: ["noLeverageConfirmed"],
+  });
 export type CreateDisciplineEntryInput = z.infer<typeof CreateDisciplineEntrySchema>;
 
 export const GlossaryTermSchema = z.object({
@@ -109,38 +114,6 @@ export const GlossaryTermSchema = z.object({
   example: z.string().min(1),
 });
 export type GlossaryTerm = z.infer<typeof GlossaryTermSchema>;
-
-export const SecFilingItemSchema = z.object({
-  form: z.string().min(1),
-  filingDate: z.string().min(1),
-  reportDate: z.string(),
-  accessionNumber: z.string().min(1),
-  documentUrl: z.string().url(),
-  description: z.string(),
-});
-export type SecFilingItem = z.infer<typeof SecFilingItemSchema>;
-
-export const SecFinancialFactSchema = z.object({
-  metric: z.string().min(1),
-  label: z.string().min(1),
-  valueFormatted: z.string().min(1),
-  period: z.string().min(1),
-  sourceTag: z.string().min(1),
-});
-export type SecFinancialFact = z.infer<typeof SecFinancialFactSchema>;
-
-export const SecSnapshotSchema = z.object({
-  ticker: z.string().min(1),
-  cik: z.string().min(1),
-  entityName: z.string().min(1),
-  source: z.enum(["sec-edgar-live", "cached-seed"]),
-  fetchedAt: z.string().min(1),
-  filings: z.array(SecFilingItemSchema),
-  facts: z.array(SecFinancialFactSchema),
-  annuals: z.array(SecAnnualFinancialSchema).default([]),
-  quarterlies: z.array(SecQuarterlyFinancialSchema).default([]),
-});
-export type SecSnapshot = z.infer<typeof SecSnapshotSchema>;
 
 export const SavedCopilotOutputSchema = z.object({
   action: z.enum(["earnings_digest", "red_team", "investment_memo"]),

@@ -111,6 +111,7 @@ export interface ReverseDcfInput {
   hurdleRatePct: number;
   terminalMultiple: number;
   historicalCagrPct?: number | null;
+  ronicPct?: number | null;
 }
 
 export interface ReverseDcfResult {
@@ -118,6 +119,8 @@ export interface ReverseDcfResult {
   historicalCagrPct: number | null;
   expectationsGapPct: number | null;
   impliedTerminalPrice: number;
+  impliedReinvestmentRatePct: number | null;
+  impliedCapYears: number;
   verdict: "underpriced" | "fair" | "demanding";
 }
 
@@ -127,12 +130,14 @@ function presentValueAtGrowth(
   discountRate: number,
   years: number,
   terminalMultiple: number,
+  ronicRate: number | null,
 ): number {
+  const reinvest = ronicRate && growthRate > 0 ? Math.min(0.85, growthRate / ronicRate) : 0;
   let pv = 0;
   let flow = baseMetric;
   for (let y = 1; y <= years; y += 1) {
     flow *= 1 + growthRate;
-    pv += flow / (1 + discountRate) ** y;
+    pv += (flow * (1 - reinvest)) / (1 + discountRate) ** y;
   }
   return pv + (flow * terminalMultiple) / (1 + discountRate) ** years;
 }
@@ -156,11 +161,14 @@ export function calculateTrueReverseDcf(input: ReverseDcfInput): ReverseDcfResul
   const discount = Math.max(0.03, input.hurdleRatePct / 100);
   const terminalMult = Math.max(4, input.terminalMultiple);
 
+  const ronicRate =
+    typeof input.ronicPct === "number" && input.ronicPct >= 5 ? input.ronicPct / 100 : null;
+
   let low = -0.4;
   let high = 1.5;
   for (let i = 0; i < 60; i += 1) {
     const mid = (low + high) / 2;
-    const pv = presentValueAtGrowth(base, mid, discount, years, terminalMult);
+    const pv = presentValueAtGrowth(base, mid, discount, years, terminalMult, ronicRate);
     if (pv < price) low = mid;
     else high = mid;
   }
@@ -172,12 +180,22 @@ export function calculateTrueReverseDcf(input: ReverseDcfInput): ReverseDcfResul
       ? roundTo(input.historicalCagrPct, 1)
       : null;
   const expectationsGapPct = hist !== null ? roundTo(hist - requiredCagrPct, 1) : null;
+  const impliedReinvestmentRatePct =
+    ronicRate && requiredRate > 0
+      ? roundTo(Math.min(85, (requiredRate / ronicRate) * 100), 1)
+      : null;
+  const impliedCapYears = Math.max(
+    years,
+    Math.min(15, Math.round(years + Math.max(0, requiredCagrPct - 8) / 4)),
+  );
 
   return {
     requiredCagrPct,
     historicalCagrPct: hist,
     expectationsGapPct,
     impliedTerminalPrice,
+    impliedReinvestmentRatePct,
+    impliedCapYears,
     verdict: classifyReverseDcfVerdict(requiredCagrPct, expectationsGapPct),
   };
 }

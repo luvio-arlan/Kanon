@@ -1,4 +1,4 @@
-import type { SecFilingReaderResponse, ThesisDetail } from "@kanon/core";
+import type { ResearchNote, SecFilingReaderResponse, ThesisDetail } from "@kanon/core";
 import { countBuySideSignals } from "../sec/filing-text-parser";
 import type { ResearchToolOutput } from "./types";
 
@@ -7,6 +7,26 @@ export interface FilingExcerptMatch {
   text: string;
   citation: string;
 }
+
+const BILINGUAL_FINANCE_SYNONYMS: ReadonlyArray<readonly [RegExp, readonly string[]]> = [
+  [/毛利|毛利率/, ["gross", "margin"]],
+  [/营收|收入|增速/, ["revenue", "growth"]],
+  [/资本开支|扩产/, ["capex", "capital", "expenditure", "capacity"]],
+  [/现金流|自由现金流/, ["free", "cash", "flow", "operating"]],
+  [/回购|股本/, ["repurchase", "buyback", "shares"]],
+  [/分红|股息/, ["dividend", "distribution"]],
+  [/指引|展望|预期/, ["guidance", "outlook", "expect"]],
+  [/库存|存货/, ["inventory", "inventories"]],
+  [/应收账款|回款/, ["receivable", "receivables"]],
+  [/云计算|云服务|云/, ["cloud", "azure", "aws", "infrastructure"]],
+  [/算力|数据中心|芯片|gpu|ai/i, ["data", "center", "ai", "gpu", "compute"]],
+  [/定价权|提价|价格/, ["pricing", "price", "asp"]],
+  [/股权激励|稀释|sbc/i, ["share-based", "compensation", "sbc", "dilution"]],
+  [/订单|积压|合同/, ["backlog", "rpo", "remaining", "performance", "obligations"]],
+  [/折旧|摊销/, ["depreciation", "amortization"]],
+  [/监管|关税|出口|反垄断/, ["tariff", "export", "control", "regulatory", "antitrust"]],
+  [/竞争|市占率|份额/, ["competition", "market", "share"]],
+];
 
 function tokenizeText(raw: string): string[] {
   const parts = raw
@@ -25,8 +45,15 @@ function tokenizeText(raw: string): string[] {
   return tokens;
 }
 
-function tokenizeQuery(raw: string): string[] {
-  return [...new Set(tokenizeText(raw))];
+export function expandBilingualFinanceQuery(raw: string): string[] {
+  const base = tokenizeText(raw);
+  const expanded = new Set(base);
+  for (const [pattern, synonyms] of BILINGUAL_FINANCE_SYNONYMS) {
+    if (pattern.test(raw)) {
+      for (const s of synonyms) expanded.add(s);
+    }
+  }
+  return [...expanded];
 }
 
 function appendFilingChunks(
@@ -34,20 +61,39 @@ function appendFilingChunks(
   chunks: Array<{ text: string; citation: string }>,
 ) {
   for (const sec of doc.sections) {
-    const citation = `${doc.form} (${doc.filingDate}) · ${sec.heading}`;
-    for (const para of sec.paragraphs) chunks.push({ text: para, citation });
+    sec.paragraphs.forEach((para, idx) => {
+      chunks.push({
+        text: para,
+        citation: `${doc.form} (${doc.filingDate}) · ${sec.heading} · ¶${idx + 1}`,
+      });
+    });
   }
   for (const added of doc.diff?.addedSnippets ?? []) {
     chunks.push({ text: added, citation: `${doc.form} (${doc.filingDate}) · 跨期新增措辞` });
   }
 }
 
+function appendNoteChunks(note: ResearchNote, chunks: Array<{ text: string; citation: string }>) {
+  const label = `${note.periodLabel} · ${note.title}`;
+  for (const line of note.content.split(/\n+/).map((l) => l.trim())) {
+    if (line.length >= 20) chunks.push({ text: line, citation: label });
+  }
+  if (note.guidancePromised.trim()) {
+    chunks.push({
+      text: `指引指标 ${note.guidanceMetric}：承诺 ${note.guidancePromised}；兑现 ${note.guidanceDelivered || "待追踪"}`,
+      citation: `${label} · 指引兑现`,
+    });
+  }
+}
+
 function buildSearchCorpus(
   filings: readonly SecFilingReaderResponse[],
   sourceText?: string,
+  researchNotes?: readonly ResearchNote[],
 ): Array<{ text: string; citation: string }> {
   const chunks: Array<{ text: string; citation: string }> = [];
   for (const doc of filings) appendFilingChunks(doc, chunks);
+  for (const note of researchNotes ?? []) appendNoteChunks(note, chunks);
   if (!sourceText?.trim()) return chunks;
   for (const line of sourceText.split(/\n+/).map((l) => l.trim())) {
     if (line.length >= 25) chunks.push({ text: line, citation: "电话会 / 一阶粘贴原文" });
@@ -84,12 +130,13 @@ function scoreBm25Lite(
 export function searchFilingExcerpts(params: {
   query: string;
   filings?: readonly SecFilingReaderResponse[];
+  researchNotes?: readonly ResearchNote[];
   sourceText?: string;
   limit?: number;
 }): FilingExcerptMatch[] {
-  const corpus = buildSearchCorpus(params.filings ?? [], params.sourceText);
+  const corpus = buildSearchCorpus(params.filings ?? [], params.sourceText, params.researchNotes);
   if (corpus.length === 0) return [];
-  const terms = tokenizeQuery(params.query);
+  const terms = expandBilingualFinanceQuery(params.query);
   if (terms.length === 0) return [];
 
   const docLens = corpus.map((c) => Math.max(8, tokenizeText(c.text).length));
@@ -114,6 +161,7 @@ export function searchFilingExcerpts(params: {
 export function runFilingExcerptsTool(params: {
   thesis: ThesisDetail;
   cachedFilings?: readonly SecFilingReaderResponse[];
+  researchNotes?: readonly ResearchNote[];
   sourceText?: string;
 }): ResearchToolOutput {
   const query = [
@@ -126,12 +174,13 @@ export function runFilingExcerptsTool(params: {
   const hits = searchFilingExcerpts({
     query,
     filings: params.cachedFilings,
+    researchNotes: params.researchNotes,
     sourceText: params.sourceText,
     limit: 3,
   });
   if (hits.length === 0) {
     return {
-      finding: `尚未缓存 ${params.thesis.ticker} 的 10-K/10-Q 正文或电话会原文；建议在 Step 3「原文摘录」直拉原文后重跑审计以获得段落级引用。`,
+      finding: `尚未缓存 ${params.thesis.ticker} 的 10-K/10-Q 正文或电话会纪要；建议在 Step 3 归档一手资料或直拉原文后重跑审计。`,
       citation: `SEC 原文检索引擎 · ${params.thesis.ticker}（待缓存）`,
     };
   }
@@ -139,7 +188,7 @@ export function runFilingExcerptsTool(params: {
     .map((h, i) => `(${i + 1}) [${h.citation}] ${h.text.slice(0, 140)}…`)
     .join(" ");
   return {
-    finding: `检索命中 ${hits.length} 条一阶原文段落：${summary}`,
+    finding: `跨语种检索命中 ${hits.length} 条一手原文段落：${summary}`,
     citation: hits[0]?.citation ?? `${params.thesis.ticker} SEC Filing`,
   };
 }

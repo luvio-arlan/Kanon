@@ -12,7 +12,7 @@ import {
 import { fetchSecWithRetry } from "./sec-http";
 
 const ALLOWED_SEC_ARCHIVE_PREFIX = "https://www.sec.gov/Archives/edgar/data/";
-const MAX_FILING_BYTES = 1_400_000;
+const MAX_FILING_BYTES = 6_000_000;
 
 async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
   if (!response.body) {

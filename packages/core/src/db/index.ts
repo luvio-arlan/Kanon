@@ -48,6 +48,12 @@ export {
   upsertSecSnapshot,
 } from "./repositories/discipline-mutations";
 export {
+  createResearchNote,
+  deleteResearchNote,
+  listResearchNotes,
+  updateResearchNote,
+} from "./repositories/library/research-notes-store";
+export {
   buildMarketQuoteCacheKey,
   getCachedMarketQuotes,
   SERVERLESS_QUOTE_CACHE_TTL_MS,
@@ -91,6 +97,7 @@ export {
   marketQuotesCacheTable,
   quarterlyReviewsTable,
   rateLimitBucketsTable,
+  researchNotesTable,
   secFilingDocumentsCacheTable,
   secFilingsCacheTable,
   selectGlossaryRowSchema,

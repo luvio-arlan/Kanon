@@ -42,7 +42,9 @@ function normalizeFilter(raw: BusinessFilter): BusinessFilter {
 
 function normalizeHypotheses(rows: HypothesisRow[]): Hypothesis[] {
   const sorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
-  const result = sorted.slice(0, 5).map(({ thesisId: _, sortOrder: __, ...rest }) => rest);
+  const result: Hypothesis[] = sorted
+    .slice(0, 5)
+    .map(({ thesisId: _, sortOrder: __, ...rest }) => rest);
   while (result.length < 3) {
     result.push({
       id: `placeholder-h-${result.length + 1}`,
@@ -168,6 +170,20 @@ async function loadThesisChildren(db: KanonDb, thesisIds: readonly string[]) {
   };
 }
 
+function hydrateWithChildren(
+  row: ThesisRow,
+  children: Awaited<ReturnType<typeof loadThesisChildren>>,
+): ThesisDetail {
+  return hydrateThesis({
+    row,
+    hypotheses: children.hypMap.get(row.id) ?? [],
+    catalysts: children.catMap.get(row.id) ?? [],
+    crossChecks: children.checkMap.get(row.id) ?? [],
+    valuationRow: children.valMap.get(row.id),
+    disciplineRows: children.discMap.get(row.id) ?? [],
+  });
+}
+
 export async function listTheses(
   db: KanonDb,
   userId: string = DEFAULT_WORKSPACE_USER_ID,
@@ -182,16 +198,7 @@ export async function listTheses(
     db,
     rows.map((r) => r.id),
   );
-  return rows.map((row) =>
-    hydrateThesis({
-      row,
-      hypotheses: children.hypMap.get(row.id) ?? [],
-      catalysts: children.catMap.get(row.id) ?? [],
-      crossChecks: children.checkMap.get(row.id) ?? [],
-      valuationRow: children.valMap.get(row.id),
-      disciplineRows: children.discMap.get(row.id) ?? [],
-    }),
-  );
+  return rows.map((row) => hydrateWithChildren(row, children));
 }
 
 function mapRowToSummary(row: ThesisRow, valMap: Map<string, ValuationRow>): ThesisSummary {
@@ -238,12 +245,5 @@ export async function getThesisById(
   const [row] = await db.select().from(thesesTable).where(whereClause);
   if (!row) return null;
   const children = await loadThesisChildren(db, [id]);
-  return hydrateThesis({
-    row,
-    hypotheses: children.hypMap.get(id) ?? [],
-    catalysts: children.catMap.get(id) ?? [],
-    crossChecks: children.checkMap.get(id) ?? [],
-    valuationRow: children.valMap.get(id),
-    disciplineRows: children.discMap.get(id) ?? [],
-  });
+  return hydrateWithChildren(row, children);
 }

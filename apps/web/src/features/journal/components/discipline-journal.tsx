@@ -12,6 +12,7 @@ import { Button, KANON_LENS_VARIANTS, KANON_TRANSITION_FAST, SegmentedTabs } fro
 import { IconChevronUp, IconPlus } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
+import { PositionEditorPanel } from "@/features/portfolio";
 import { CognitiveCalibrationPanel } from "./cognitive-calibration-panel";
 import { DecisionComposerCard } from "./discipline-composer";
 import { DisciplineTimeline } from "./discipline-timeline";
@@ -32,6 +33,7 @@ export interface DisciplineJournalProps {
   onClearPromotedRule?: () => void;
   onSubmitDiscipline: (entry: CreateDisciplineEntryInput) => Promise<boolean>;
   onSubmitReview: (input: CreateQuarterlyReviewInput) => Promise<boolean>;
+  onPositionUpdated?: (updated: ThesisDetail) => void;
   onGenerateMemo: () => Promise<void>;
 }
 
@@ -55,6 +57,11 @@ function LedgerPanel(
     : "composer";
   return (
     <div className="space-y-5">
+      {props.onPositionUpdated ? (
+        <div className="rounded-card border border-hairline bg-surface p-5">
+          <PositionEditorPanel thesis={props.thesis} onUpdated={props.onPositionUpdated} />
+        </div>
+      ) : null}
       <AnimatePresence initial={false}>
         {props.composerOpen ? (
           <motion.div
