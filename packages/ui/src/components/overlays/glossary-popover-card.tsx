@@ -33,7 +33,7 @@ export function GlossaryPopoverCard({
         {triggerText}
       </Popover.Trigger>
       <Popover.Content placement="top" offset={8} className="z-50 max-w-sm">
-        <Popover.Dialog className="rounded-panel border border-strong bg-surface-elevated p-4 shadow-dropdown">
+        <Popover.Dialog className="p-4 focus:outline-none">
           <Popover.Arrow />
           <div className="flex items-center justify-between gap-2">
             <Popover.Heading className="text-sm font-semibold text-ink-primary">

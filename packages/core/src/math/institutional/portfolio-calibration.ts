@@ -5,7 +5,11 @@ import type {
   ThesisDetail,
 } from "../../schemas/research";
 import { suggestKellyCappedWeight } from "../portfolio-analytics";
-import { roundTo } from "../valuation-scenarios";
+import {
+  calculateValuationScenarios,
+  roundTo,
+  sanitizeValuationInput,
+} from "../valuation-scenarios";
 import { calculateCognitiveCalibration, type DisciplineAlphaRow } from "./cognitive-calibration";
 
 const EMOTION_LABELS: Record<EmotionState, string> = {
@@ -110,7 +114,17 @@ function buildPositionRow(
   const cost = thesis.avgCostBasis;
   const unrealised =
     cost !== null && cost > 0 ? roundTo(((refPrice - cost) / cost) * 100, 1) : null;
-  const kelly = suggestKellyCappedWeight(thesis);
+  const activeVal =
+    Math.abs(refPrice - thesis.currentPrice) > 0.001
+      ? calculateValuationScenarios(
+          sanitizeValuationInput({ ...thesis.valuationInput, currentPrice: refPrice }),
+        )
+      : thesis.valuation;
+  const kelly = suggestKellyCappedWeight({
+    ...thesis,
+    currentPrice: refPrice,
+    valuation: activeVal,
+  });
   return {
     thesisId: thesis.id,
     ticker: thesis.ticker,
@@ -135,24 +149,42 @@ function collectThesisMetrics(
   const allReviews: QuarterlyReview[] = [];
   const positionRows: PositionEfficiencyRow[] = [];
   let weightedScoreSum = 0;
+  let scoredWeight = 0;
   let totalWeight = 0;
   let scoreSum = 0;
+  let scoredCount = 0;
   for (const thesis of theses) {
     const reviews = reviewsByThesis.get(thesis.id) ?? [];
     allReviews.push(...reviews);
     const live = livePrices?.[thesis.ticker];
     const report = calculateCognitiveCalibration(thesis, reviews, live);
     allRows.push(...report.entryAlphaRows);
-    scoreSum += report.calibrationScore;
+    const hasSample = report.decisionCount > 0;
+    if (hasSample) {
+      scoreSum += report.calibrationScore;
+      scoredCount += 1;
+    }
     if (thesis.currentWeightPct > 0) {
-      weightedScoreSum += report.calibrationScore * thesis.currentWeightPct;
       totalWeight += thesis.currentWeightPct;
+      if (hasSample) {
+        weightedScoreSum += report.calibrationScore * thesis.currentWeightPct;
+        scoredWeight += thesis.currentWeightPct;
+      }
     }
     if (thesis.portfolioRole !== "watchlist" || thesis.currentWeightPct > 0) {
       positionRows.push(buildPositionRow(thesis, report.calibrationScore, live));
     }
   }
-  return { allRows, allReviews, positionRows, weightedScoreSum, totalWeight, scoreSum };
+  return {
+    allRows,
+    allReviews,
+    positionRows,
+    weightedScoreSum,
+    scoredWeight,
+    totalWeight,
+    scoreSum,
+    scoredCount,
+  };
 }
 
 export function calculatePortfolioCalibration(
@@ -160,8 +192,9 @@ export function calculatePortfolioCalibration(
   reviewsByThesis: ReadonlyMap<string, readonly QuarterlyReview[]>,
   livePrices?: Readonly<Record<string, number>>,
 ): PortfolioCalibrationReport {
-  const m = collectThesisMetrics(theses, reviewsByThesis, livePrices);
-  const allEntries = theses.flatMap((t) => t.disciplineEntries);
+  const active = theses.filter((t) => t.status !== "archived_veto");
+  const m = collectThesisMetrics(active, reviewsByThesis, livePrices);
+  const allEntries = active.flatMap((t) => t.disciplineEntries);
   const nonPass = allEntries.filter((e) => e.action !== "pass");
   const zeroLevPct =
     nonPass.length === 0
@@ -169,14 +202,14 @@ export function calculatePortfolioCalibration(
       : Math.round((nonPass.filter((e) => e.noLeverageConfirmed).length / nonPass.length) * 100);
   const calmCount = allEntries.filter((e) => e.emotion === "calm").length;
   const favCount = m.allRows.filter((r) => r.favorable).length;
-  const avgScore = theses.length === 0 ? 70 : Math.round(m.scoreSum / theses.length);
+  const avgScore = m.scoredCount === 0 ? 0 : Math.round(m.scoreSum / m.scoredCount);
 
   return {
-    totalTheses: theses.length,
+    totalTheses: active.length,
     activePositionCount: m.positionRows.length,
     totalActiveWeightPct: roundTo(m.totalWeight, 1),
     weightedCalibrationScore:
-      m.totalWeight > 0 ? Math.round(m.weightedScoreSum / m.totalWeight) : avgScore,
+      m.scoredWeight > 0 ? Math.round(m.weightedScoreSum / m.scoredWeight) : avgScore,
     totalDecisionCount: allEntries.length,
     zeroLeverageCompliancePct: zeroLevPct,
     calmSharePct: allEntries.length === 0 ? 100 : Math.round((calmCount / allEntries.length) * 100),

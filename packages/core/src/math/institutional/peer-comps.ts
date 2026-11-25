@@ -3,7 +3,11 @@ import type { ThesisDetail } from "../../schemas/research";
 import { calculateImpliedExpectations } from "../implied-expectations";
 import { suggestKellyCappedWeight } from "../portfolio-analytics";
 import { calculateResearchReadiness } from "../research-readiness";
-import { calculateValuationScenarios, roundTo } from "../valuation-scenarios";
+import {
+  calculateValuationScenarios,
+  roundTo,
+  sanitizeValuationInput,
+} from "../valuation-scenarios";
 
 export interface PeerCompRow {
   thesisId: string;
@@ -54,12 +58,18 @@ function medianOf(values: readonly number[]): number | null {
   return roundTo((a + b) / 2, 1);
 }
 
+function resolveUsableQuote(quote: MarketQuoteSnapshot | undefined) {
+  if (!quote?.effectivePrice || quote.effectivePrice <= 0) return undefined;
+  return !quote.currency || quote.currency.toUpperCase() === "USD" ? quote : undefined;
+}
+
 function buildPeerRow(thesis: ThesisDetail, quote: MarketQuoteSnapshot | undefined): PeerCompRow {
-  const livePrice =
-    quote?.effectivePrice && quote.effectivePrice > 0 ? quote.effectivePrice : thesis.currentPrice;
+  const livePrice = resolveUsableQuote(quote)?.effectivePrice ?? thesis.currentPrice;
   const activeVal =
     Math.abs(livePrice - thesis.currentPrice) > 0.001
-      ? calculateValuationScenarios({ ...thesis.valuationInput, currentPrice: livePrice })
+      ? calculateValuationScenarios(
+          sanitizeValuationInput({ ...thesis.valuationInput, currentPrice: livePrice }),
+        )
       : thesis.valuation;
   const exp = calculateImpliedExpectations({ summary: activeVal });
   const readiness = calculateResearchReadiness(thesis);
@@ -105,7 +115,12 @@ export function calculatePeerCompsTable(
   liveQuotes?: Readonly<Record<string, MarketQuoteSnapshot>>,
 ): PeerCompsTable {
   const active = theses.filter((t) => t.status === "active");
-  const rows = active.map((thesis) => buildPeerRow(thesis, liveQuotes?.[thesis.ticker]));
+  const normalizedQuotes = liveQuotes
+    ? new Map(Object.entries(liveQuotes).map(([k, v]) => [k.trim().toUpperCase(), v]))
+    : null;
+  const rows = active.map((thesis) =>
+    buildPeerRow(thesis, normalizedQuotes?.get(thesis.ticker.trim().toUpperCase())),
+  );
   const rrFinite = rows
     .map((r) => r.riskRewardRatio)
     .filter((v): v is number => v !== null && Number.isFinite(v));

@@ -98,6 +98,9 @@ export async function registerUser(
   return { user, sessionToken: session.token, expiresAt: session.expiresAt };
 }
 
+const DUMMY_PASSWORD_HASH =
+  "scrypt$00000000000000000000000000000000$000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
 export async function authenticateUser(
   db: KanonDb,
   rawInput: LoginRequest,
@@ -108,7 +111,10 @@ export async function authenticateUser(
     .from(usersTable)
     .where(eq(usersTable.phoneE164, parsed.phone))
     .limit(1);
-  if (!row || row.role === "demo") return null;
+  if (!row || row.role === "demo") {
+    await verifyPassword(parsed.password, DUMMY_PASSWORD_HASH);
+    return null;
+  }
 
   const matched = await verifyPassword(parsed.password, row.passwordHash);
   if (!matched) return null;

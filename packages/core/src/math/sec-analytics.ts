@@ -17,6 +17,11 @@ export interface SecQualitySummary {
   qualityLabel: string;
 }
 
+function parseFyNumber(label: string): number | null {
+  const n = Number(label.replace(/[^0-9]/g, ""));
+  return Number.isFinite(n) && n >= 1900 && n <= 2200 ? n : null;
+}
+
 function computeRevenueCagr(annuals: readonly SecAnnualFinancial[]): number | null {
   const valid = annuals.filter(
     (row): row is SecAnnualFinancial & { revenue: number } =>
@@ -26,7 +31,9 @@ function computeRevenueCagr(annuals: readonly SecAnnualFinancial[]): number | nu
   const first = valid[0];
   const last = valid[valid.length - 1];
   if (!first || !last) return null;
-  const span = valid.length - 1;
+  const fyStart = parseFyNumber(first.fiscalYear);
+  const fyEnd = parseFyNumber(last.fiscalYear);
+  const span = fyStart && fyEnd && fyEnd > fyStart ? fyEnd - fyStart : valid.length - 1;
   return roundTo(((last.revenue / first.revenue) ** (1 / span) - 1) * 100, 1);
 }
 

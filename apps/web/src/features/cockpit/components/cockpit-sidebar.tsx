@@ -21,7 +21,7 @@ import {
   IconTable,
   IconTargetArrow,
 } from "@tabler/icons-react";
-import { AccountMenu } from "@/features/auth";
+import { AccountMenu } from "@/features/auth/public-account-menu";
 import type { CockpitFilter, CockpitFilterCounts, CockpitViewMode } from "./cockpit-header";
 import { CockpitToolsNav, QuickThesesNav } from "./cockpit-sidebar-sections";
 
@@ -35,6 +35,7 @@ export interface CockpitSidebarProps {
   viewMode: CockpitViewMode;
   refreshingPrices: boolean;
   collapsed: boolean;
+  isMobile?: boolean;
   onToggleCollapse: () => void;
   onCloseMobile: () => void;
   onSelectFilter: (next: CockpitFilter) => void;
@@ -60,6 +61,7 @@ function SidebarBrandRow(p: { collapsed: boolean; onToggleCollapse: () => void }
         target="_blank"
         rel="noreferrer"
         title="KANON 官网"
+        aria-label="KANON 官网"
         className="inline-flex items-center gap-2.5 text-ink-primary transition-opacity hover:opacity-75"
       >
         <KanonMark size={20} accent />
@@ -158,7 +160,7 @@ function PrimaryViewsNav(p: CockpitSidebarProps) {
             badge={badge}
             active={active}
             collapsed={p.collapsed}
-            layoutId="cockpit-nav"
+            layoutId={p.isMobile ? "cockpit-nav-mobile" : "cockpit-nav"}
             onClick={() => {
               p.onSelectViewMode(mode);
               p.onSelectFilter(filter);

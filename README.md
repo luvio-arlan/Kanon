@@ -180,7 +180,7 @@ kanon/
 └── docs/                  # PRD 白皮书、架构蓝图、GitHub 22s 宣传片与 README 动态样片
 ```
 
-- **五层自动化门禁（`pnpm check`）**：`Biome` 代码与认知复杂度检查 + `TypeScript` 跨包严格类型校验 + `Dependency Cruiser` 架构防腐蚀 + `AST / Editorial / Optical` 审美与体量守门 + `Knip` 零死代码检测
+- **五层自动化门禁（`pnpm check`）**：`Biome` 代码与认知复杂度检查 + `TypeScript` 跨包严格类型校验 + `Dependency Cruiser` 架构防腐蚀 + `AST / Security / Editorial / Optical` 逐 Handler CSRF、递归扩展式迁移、审美与体量守门 + `Knip` 零死代码检测
 - **确定性验证闭环（`pnpm test` & `pnpm test:api`）**：金融估值/联动经营模型/SOTP/RONIC Reverse-DCF/因子簇/Brier 校准黄金单测 + Drizzle 与迁移脚本 1:1 动态反射一致校验 + 32 路由 HTTP / CSRF / OCC / MCP 作用域隔离实测
 
 ---

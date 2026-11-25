@@ -70,6 +70,14 @@ async function decodeFetchResponse<T>(
   return { ok: true, data: parsed.data, status: res.status };
 }
 
+function resolveAbortSignal(
+  timeoutSignal: AbortSignal | undefined,
+  externalSignal: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (timeoutSignal && externalSignal) return AbortSignal.any([timeoutSignal, externalSignal]);
+  return timeoutSignal ?? externalSignal;
+}
+
 export async function kanonFetch<T>(
   url: string,
   schema: SafeParseSchema<T>,
@@ -79,6 +87,7 @@ export async function kanonFetch<T>(
     headers?: Record<string, string>;
     fallbackError?: string;
     timeoutMs?: number;
+    signal?: AbortSignal;
   },
 ): Promise<KanonFetchResult<T>> {
   const fallback = options?.fallbackError ?? "请求失败，请重试";
@@ -92,10 +101,13 @@ export async function kanonFetch<T>(
         ...options?.headers,
       },
       body: hasBody ? JSON.stringify(options?.body) : undefined,
-      signal: timeout.controller?.signal,
+      signal: resolveAbortSignal(timeout.controller?.signal, options?.signal),
     });
     return await decodeFetchResponse(res, schema, fallback);
   } catch (err) {
+    if (options?.signal?.aborted) {
+      return { ok: false, error: "请求已取消", status: 0, code: "ABORTED" };
+    }
     if (timeout.controller?.signal.aborted) {
       return { ok: false, error: "请求超时，请点击重试", status: 408 };
     }

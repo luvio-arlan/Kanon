@@ -43,25 +43,51 @@ function resolveDataDir(): string {
   return dir;
 }
 
+const MIGRATION_ADVISORY_LOCK_KEY = 720194821;
+
+async function readAppliedMigrationIds(sqlClient: postgres.Sql): Promise<Set<string>> {
+  try {
+    const rows = await sqlClient<{ id: string }[]>`SELECT id FROM schema_migrations`;
+    return new Set(rows.map((r) => r.id));
+  } catch (err) {
+    void err;
+    return new Set();
+  }
+}
+
+async function initExternalPostgres(sqlClient: postgres.Sql, db: KanonDb): Promise<void> {
+  if (await isExternalDbBootstrapped(sqlClient)) return;
+  await sqlClient`SELECT pg_advisory_lock(${MIGRATION_ADVISORY_LOCK_KEY})`;
+  try {
+    if (await isExternalDbBootstrapped(sqlClient)) return;
+    const applied = await readAppliedMigrationIds(sqlClient);
+    await runKanonMigrations(async (stmt) => {
+      await sqlClient.unsafe(stmt);
+    }, applied);
+    await seedIfEmpty(db);
+  } finally {
+    await sqlClient`SELECT pg_advisory_unlock(${MIGRATION_ADVISORY_LOCK_KEY})`.catch((err) => {
+      void err;
+    });
+  }
+}
+
 function createPersistentState(): DbState {
   const connectionString = process.env.DATABASE_URL?.trim();
   if (connectionString) {
     const sqlClient = postgres(connectionString, {
       prepare: false,
-      max: 10,
+      max: process.env.VERCEL ? 3 : 10,
       idle_timeout: 20,
       connect_timeout: 10,
     });
     const db = drizzlePostgres(sqlClient, { schema });
-    const initPromise = (async () => {
-      if (await isExternalDbBootstrapped(sqlClient)) {
-        return;
-      }
-      await runKanonMigrations(async (stmt) => {
-        await sqlClient.unsafe(stmt);
+    const initPromise = initExternalPostgres(sqlClient, db).catch(async (err) => {
+      await sqlClient.end({ timeout: 2 }).catch((closeErr) => {
+        void closeErr;
       });
-      await seedIfEmpty(db);
-    })();
+      throw err;
+    });
     return { db, initPromise };
   }
 
@@ -101,6 +127,10 @@ export async function runInTransaction<T>(
     return db.transaction((tx) => work(tx));
   }
   return db.transaction((tx) => work(tx));
+}
+
+export async function pingKanonDb(db: KanonDb): Promise<void> {
+  await db.execute(sql`SELECT 1`);
 }
 
 export async function getDbHealthStats(db: KanonDb): Promise<DbHealthStats> {

@@ -13,10 +13,11 @@ import type {
   ThesisRevision,
   UpdateThesisStepInput,
 } from "@kanon/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   apiCreateQuarterlyReview,
   apiDeleteThesis,
+  apiGetThesis,
   apiPatchStep,
   apiPostDiscipline,
   apiRunCopilot,
@@ -25,6 +26,7 @@ import {
   type CopilotResult,
   type ThesisMutationResult,
 } from "./canvas-api";
+import { broadcastThesisSync, useThesisBroadcastSync } from "./use-thesis-broadcast";
 
 export interface InitialCopilotState {
   redTeam: RedTeamReport | null;
@@ -34,19 +36,6 @@ export interface InitialCopilotState {
 
 export interface CopilotStates extends InitialCopilotState {
   busy: CopilotKind | null;
-}
-
-const SYNC_CHANNEL_NAME = "kanon-thesis-sync";
-
-function broadcastThesisSync(thesis: ThesisDetail, revisions?: ThesisRevision[]) {
-  if (typeof BroadcastChannel === "undefined") return;
-  try {
-    const ch = new BroadcastChannel(SYNC_CHANNEL_NAME);
-    ch.postMessage({ thesis, revisions });
-    ch.close();
-  } catch (err) {
-    void err;
-  }
 }
 
 function mergeCopilotResult(prev: CopilotStates, result: CopilotResult): CopilotStates {
@@ -105,6 +94,57 @@ function useSecondaryMutations(
   };
 }
 
+async function syncLatestOnConflict(deps: {
+  thesisId: string;
+  latestUpdatedAtRef: React.MutableRefObject<string>;
+  setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>;
+  setRevisions: React.Dispatch<React.SetStateAction<ThesisRevision[]>>;
+}) {
+  const fresh = await apiGetThesis(deps.thesisId);
+  if (!fresh) return;
+  deps.latestUpdatedAtRef.current = fresh.thesis.updatedAt;
+  deps.setThesis(fresh.thesis);
+  if (fresh.revisions) deps.setRevisions(fresh.revisions);
+}
+
+function createSerializedPatchStep(deps: {
+  thesisId: string;
+  latestUpdatedAtRef: React.MutableRefObject<string>;
+  patchChainRef: React.MutableRefObject<Promise<void>>;
+  withFlag: ReturnType<typeof useBusyState>["withFlag"];
+  applyMutation: (res: ThesisMutationResult | null) => void;
+  setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>;
+  setRevisions: React.Dispatch<React.SetStateAction<ThesisRevision[]>>;
+}) {
+  const execute = async (
+    payload: UpdateThesisStepInput,
+    okMessage?: string,
+    options?: { silent?: boolean },
+  ): Promise<boolean> => {
+    const run = () =>
+      apiPatchStep(deps.thesisId, payload, okMessage, {
+        ...options,
+        expectedUpdatedAt: deps.latestUpdatedAtRef.current,
+      });
+    const out = options?.silent ? await run() : await deps.withFlag("saving", run);
+    if (out.kind === "conflict") {
+      await syncLatestOnConflict(deps);
+      return false;
+    }
+    if (out.kind !== "ok") return false;
+    deps.applyMutation({ thesis: out.thesis, revisions: out.revisions });
+    return true;
+  };
+  return (payload: UpdateThesisStepInput, okMessage?: string, options?: { silent?: boolean }) => {
+    const task = deps.patchChainRef.current.then(() => execute(payload, okMessage, options));
+    deps.patchChainRef.current = task.then(
+      () => undefined,
+      () => undefined,
+    );
+    return task;
+  };
+}
+
 function useThesisMutations(
   thesis: ThesisDetail,
   setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>,
@@ -115,6 +155,8 @@ function useThesisMutations(
 ) {
   const latestUpdatedAtRef = useRef(thesis.updatedAt);
   latestUpdatedAtRef.current = thesis.updatedAt;
+  const patchChainRef = useRef<Promise<void>>(Promise.resolve());
+
   const applyMutation = useCallback(
     (res: ThesisMutationResult | null) => {
       if (!res) return;
@@ -125,21 +167,15 @@ function useThesisMutations(
     },
     [setRevisions, setThesis],
   );
-  const patchStep = async (
-    payload: UpdateThesisStepInput,
-    okMessage?: string,
-    options?: { silent?: boolean },
-  ): Promise<boolean> => {
-    const run = () =>
-      apiPatchStep(thesis.id, payload, okMessage, {
-        ...options,
-        expectedUpdatedAt: latestUpdatedAtRef.current,
-      });
-    const out = options?.silent ? await run() : await withFlag("saving", run);
-    if (out.kind !== "ok") return false;
-    applyMutation({ thesis: out.thesis, revisions: out.revisions });
-    return true;
-  };
+  const patchStep = createSerializedPatchStep({
+    thesisId: thesis.id,
+    latestUpdatedAtRef,
+    patchChainRef,
+    withFlag,
+    applyMutation,
+    setThesis,
+    setRevisions,
+  });
   const secondary = useSecondaryMutations(
     thesis,
     applyMutation,
@@ -148,29 +184,6 @@ function useThesisMutations(
     withFlag,
   );
   return { applyMutation, patchStep, ...secondary };
-}
-
-function useThesisBroadcastSync(
-  thesisId: string,
-  updatedAt: string,
-  setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>,
-  setRevisions: React.Dispatch<React.SetStateAction<ThesisRevision[]>>,
-) {
-  const updatedAtRef = useRef(updatedAt);
-  updatedAtRef.current = updatedAt;
-
-  useEffect(() => {
-    if (typeof BroadcastChannel === "undefined") return;
-    const ch = new BroadcastChannel(SYNC_CHANNEL_NAME);
-    ch.onmessage = (evt: MessageEvent<{ thesis?: ThesisDetail; revisions?: ThesisRevision[] }>) => {
-      if (!evt.data?.thesis || evt.data.thesis.id !== thesisId) return;
-      if (evt.data.thesis.updatedAt === updatedAtRef.current) return;
-      updatedAtRef.current = evt.data.thesis.updatedAt;
-      setThesis(evt.data.thesis);
-      if (evt.data.revisions) setRevisions(evt.data.revisions);
-    };
-    return () => ch.close();
-  }, [thesisId, setThesis, setRevisions]);
 }
 
 export function useResearchCanvas(

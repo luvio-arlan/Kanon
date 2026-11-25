@@ -1,9 +1,9 @@
 import { CreateResearchNoteSchema, UpdateResearchNoteSchema } from "@kanon/core";
 import {
+  assertThesisOwnership,
   createResearchNote,
   deleteResearchNote,
   getKanonDb,
-  getThesisById,
   listResearchNotes,
   updateResearchNote,
 } from "@kanon/core/db";
@@ -23,8 +23,9 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!auth.ok) return auth.response;
   const { id } = await context.params;
   const db = await getKanonDb();
-  const thesis = await getThesisById(db, id, auth.user.id);
-  if (!thesis) return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
+  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+    return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
+  }
   const notes = await listResearchNotes(db, id, auth.user.id);
   return jsonOk({ notes }, startedAt);
 }
@@ -43,8 +44,9 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError(formatZodError(parsed.error, "资料参数不合法。"), 400, startedAt, "INVALID");
   }
   const db = await getKanonDb();
-  const thesis = await getThesisById(db, id, auth.user.id);
-  if (!thesis) return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
+  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+    return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
+  }
   const note = await createResearchNote(db, {
     thesisId: id,
     userId: auth.user.id,

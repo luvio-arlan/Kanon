@@ -21,7 +21,7 @@ import {
   type UpdateThesisStepInput,
 } from "@kanon/core";
 import { toast } from "sonner";
-import { buildByokHeaders } from "@/features/ai-settings";
+import { buildByokHeaders } from "@/shared/lib/client-provider-storage";
 import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
 export type CopilotKind = "earnings_digest" | "red_team" | "investment_memo";
@@ -64,6 +64,15 @@ export async function apiPatchStep(
     toast.success(okMessage);
   }
   return { kind: "ok", thesis: res.data.thesis, revisions: res.data.revisions };
+}
+
+export async function apiGetThesis(thesisId: string): Promise<ThesisMutationResult | null> {
+  const res = await kanonFetch(`/api/theses/${thesisId}`, ThesisMutationResponseSchema, {
+    fallbackError: "同步最新研究档案失败",
+    timeoutMs: 12_000,
+  });
+  if (!res.ok) return null;
+  return { thesis: res.data.thesis, revisions: res.data.revisions };
 }
 
 export async function apiPostDiscipline(

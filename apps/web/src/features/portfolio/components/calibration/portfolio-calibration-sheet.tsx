@@ -12,16 +12,30 @@ type CalibrationTab = "attribution" | "digest";
 function CalibrationBody({
   tab,
   loading,
+  error,
   data,
+  onRetry,
 }: {
   tab: CalibrationTab;
   loading: boolean;
+  error: boolean;
   data: { calibration: PortfolioCalibrationReport; digest: WeeklyIcDigest } | null;
+  onRetry: () => void;
 }) {
   if (loading && !data) {
     return (
       <div className="rounded-card border border-hairline bg-surface p-6">
         <AgentThinking variant="wave" label="正在聚合组合交易纪律与复盘裁决" />
+      </div>
+    );
+  }
+  if (error && !data) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-card border border-hairline bg-surface p-8 text-center">
+        <p className="text-sm text-ink-secondary">组合校准数据加载失败，请重试。</p>
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          重新加载
+        </Button>
       </div>
     );
   }
@@ -35,18 +49,31 @@ function CalibrationBody({
 
 function useCalibrationReport(open: boolean) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [data, setData] = useState<{
     calibration: PortfolioCalibrationReport;
     digest: WeeklyIcDigest;
   } | null>(null);
 
+  const load = async (isCancelled: () => boolean = () => false) => {
+    setLoading(true);
+    setError(false);
+    const res = await apiGetPortfolioCalibration();
+    if (isCancelled()) return;
+    if (res) setData(res);
+    else setError(true);
+    setLoading(false);
+  };
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setLoading(true);
+    setError(false);
     void apiGetPortfolioCalibration().then((res) => {
       if (cancelled) return;
       if (res) setData(res);
+      else setError(true);
       setLoading(false);
     });
     return () => {
@@ -54,7 +81,7 @@ function useCalibrationReport(open: boolean) {
     };
   }, [open]);
 
-  return { loading, data };
+  return { loading, error, data, retry: () => void load() };
 }
 
 export function PortfolioCalibrationSheet({
@@ -65,7 +92,7 @@ export function PortfolioCalibrationSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const [tab, setTab] = useState<CalibrationTab>("attribution");
-  const { loading, data } = useCalibrationReport(open);
+  const { loading, error, data, retry } = useCalibrationReport(open);
 
   return (
     <Sheet
@@ -91,7 +118,7 @@ export function PortfolioCalibrationSheet({
             { id: "digest", label: "IC 投研周报" },
           ]}
         />
-        <CalibrationBody tab={tab} loading={loading} data={data} />
+        <CalibrationBody tab={tab} loading={loading} error={error} data={data} onRetry={retry} />
       </div>
     </Sheet>
   );

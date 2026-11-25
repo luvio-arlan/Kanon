@@ -1,5 +1,5 @@
 import type { ThesisDetail } from "../../schemas/research";
-import { evaluatePortfolioReviewRadar } from "./catalyst-radar";
+import { evaluatePortfolioReviewRadar, parseCatalystSortKey } from "./catalyst-radar";
 import type { PortfolioCalibrationReport } from "./portfolio-calibration";
 
 export interface DigestCatalystItem {
@@ -48,11 +48,12 @@ function collectUpcomingCatalysts(active: readonly ThesisDetail[]): DigestCataly
           impact: c.impact,
         })),
     )
+    .sort((a, b) => parseCatalystSortKey(a.dateLabel) - parseCatalystSortKey(b.dateLabel))
     .slice(0, 6);
 }
 
 function collectDigestSignals(active: readonly ThesisDetail[], now: Date) {
-  const radar = evaluatePortfolioReviewRadar(active, now.toISOString().slice(0, 10));
+  const radar = evaluatePortfolioReviewRadar(active, now.toISOString());
   const upcomingCatalysts = collectUpcomingCatalysts(active);
   const warningHypotheses = active
     .flatMap((t) =>

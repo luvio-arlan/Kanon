@@ -3,6 +3,7 @@
 import type { ThesisCatalyst } from "@kanon/core";
 import { Button } from "@kanon/ui";
 import { IconPlus } from "@tabler/icons-react";
+import { useMemo } from "react";
 import { type AutoSaveStatus, useThesisStepDraft } from "@/shared/hooks/use-thesis-step-draft";
 import { CatalystEditorRow } from "./catalyst-editor-row";
 
@@ -20,8 +21,19 @@ function createBlankCatalyst(thesisId: string): ThesisCatalyst {
   };
 }
 
+function isCatalystItem(val: unknown): val is ThesisCatalyst {
+  if (!val || typeof val !== "object") return false;
+  const r = val as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.title === "string" &&
+    typeof r.dateLabel === "string" &&
+    typeof r.verificationMetric === "string"
+  );
+}
+
 function isCatalystArray(val: unknown): val is ThesisCatalyst[] {
-  return Array.isArray(val);
+  return Array.isArray(val) && val.every(isCatalystItem);
 }
 
 function areValidCatalysts(items: readonly ThesisCatalyst[]): boolean {
@@ -67,9 +79,10 @@ export function CatalystLedgerSection(p: {
   onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
   onSave: (items: ThesisCatalyst[]) => Promise<boolean>;
 }) {
+  const serverValue = useMemo(() => [...p.serverCatalysts], [p.serverCatalysts]);
   const d = useThesisStepDraft<ThesisCatalyst[]>({
     storageKey: `kanon-draft:${p.thesisId}:step2-catalysts`,
-    serverValue: [...p.serverCatalysts],
+    serverValue,
     serverVersion: p.serverVersion,
     canSaveDraft: areValidCatalysts,
     onSyncChange: p.onSyncChange,

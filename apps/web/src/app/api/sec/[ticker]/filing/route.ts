@@ -2,13 +2,13 @@ import { fetchSecEdgarSnapshot, fetchSecFilingReaderData } from "@kanon/ai";
 import {
   getCachedSecFilingDoc,
   getKanonDb,
-  getSecSnapshot,
+  getSecSnapshotForUser,
   upsertCachedSecFilingDoc,
   upsertSecSnapshot,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../../_lib/http";
-import { checkRateLimit } from "../../../_lib/request-guards";
+import { checkPersistentRateLimit } from "../../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -35,12 +35,13 @@ function resolveTargetAccession(
 
 async function loadFilingWithCache(params: {
   db: Awaited<ReturnType<typeof getKanonDb>>;
+  userId: string;
   cleanTicker: string;
   accessionNumber?: string;
   form?: string;
   refresh: boolean;
 }) {
-  let snapshot = await getSecSnapshot(params.db, params.cleanTicker);
+  let snapshot = await getSecSnapshotForUser(params.db, params.cleanTicker, params.userId);
   if (!snapshot) {
     const liveSnap = await fetchSecEdgarSnapshot(params.cleanTicker);
     if (liveSnap.ok) snapshot = await upsertSecSnapshot(params.db, liveSnap.data);
@@ -52,7 +53,7 @@ async function loadFilingWithCache(params: {
   );
   if (targetAcc && !params.refresh) {
     const cachedDoc = await getCachedSecFilingDoc(params.db, targetAcc);
-    if (cachedDoc) return cachedDoc;
+    if (cachedDoc && cachedDoc.ticker.toUpperCase() === params.cleanTicker) return cachedDoc;
   }
   const readerData = await fetchSecFilingReaderData({
     ticker: params.cleanTicker,
@@ -68,7 +69,7 @@ async function loadFilingWithCache(params: {
 
 export async function GET(request: Request, context: { params: Promise<{ ticker: string }> }) {
   const startedAt = performance.now();
-  const rateErr = checkRateLimit(request, SEC_FILING_RATE_POLICY, startedAt);
+  const rateErr = await checkPersistentRateLimit(request, SEC_FILING_RATE_POLICY, startedAt);
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
@@ -83,6 +84,7 @@ export async function GET(request: Request, context: { params: Promise<{ ticker:
   const db = await getKanonDb();
   const readerData = await loadFilingWithCache({
     db,
+    userId: auth.user.id,
     cleanTicker,
     accessionNumber: url.searchParams.get("accession")?.trim() || undefined,
     form: url.searchParams.get("form")?.trim() || undefined,

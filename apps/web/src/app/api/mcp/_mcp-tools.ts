@@ -12,7 +12,8 @@ import {
 } from "@kanon/core";
 import {
   getLatestAgentRun,
-  getSecSnapshot,
+  getSecSnapshotForUser,
+  getThesisByTicker,
   type KanonDb,
   listCachedSecFilingDocsByTicker,
   listInboundCrossChecks,
@@ -26,12 +27,11 @@ export { MCP_TOOL_DEFINITIONS } from "./_mcp-read-schemas";
 
 async function handleThesisDossier(db: KanonDb, userId: string, tickerRaw: string) {
   const ticker = tickerRaw.trim().toUpperCase();
-  const theses = await listTheses(db, userId);
-  const match = theses.find((t) => t.ticker.toUpperCase() === ticker);
+  const match = await getThesisByTicker(db, ticker, userId);
   if (!match) return { error: `未找到标的 ${ticker} 的研究档案。` };
 
   const [secSnapshot, reviews, latestAgentRun, inboundCrossChecks] = await Promise.all([
-    getSecSnapshot(db, match.ticker),
+    getSecSnapshotForUser(db, match.ticker, userId),
     listQuarterlyReviews(db, match.id),
     getLatestAgentRun(db, match.id),
     listInboundCrossChecks(db, match.id, userId),
@@ -96,9 +96,9 @@ async function handleCatalystsList(db: KanonDb, userId: string, args: Record<str
   return { count: items.length, catalysts: items };
 }
 
-async function handleSecForensics(db: KanonDb, tickerRaw: string) {
+async function handleSecForensics(db: KanonDb, userId: string, tickerRaw: string) {
   const ticker = tickerRaw.trim().toUpperCase();
-  const snap = await getSecSnapshot(db, ticker);
+  const snap = await getSecSnapshotForUser(db, ticker, userId);
   if (!snap) return { error: `未找到 ${ticker} 的 SEC 财报缓存。` };
   return {
     ticker: snap.ticker,
@@ -159,7 +159,9 @@ export async function executeMcpToolCall(
   if (!ticker) return { isError: true, payload: { error: "Missing required argument: ticker" } };
   if (name === "get_thesis_dossier")
     return { payload: await handleThesisDossier(db, userId, ticker) };
-  if (name === "get_sec_forensics") return { payload: await handleSecForensics(db, ticker) };
+  if (name === "get_sec_forensics") {
+    return { payload: await handleSecForensics(db, userId, ticker) };
+  }
   return { isError: true, payload: { error: `Unknown MCP tool: ${name}` } };
 }
 

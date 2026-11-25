@@ -75,6 +75,7 @@ function SotpSegmentRow(p: {
           {p.canRemove ? (
             <button
               type="button"
+              aria-label={`删除 ${p.seg.name} 分部`}
               onClick={p.onRemove}
               className="cursor-pointer text-ink-muted hover:text-status-fail"
             >

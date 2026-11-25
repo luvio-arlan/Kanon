@@ -1,4 +1,4 @@
-import { inArray, lt } from "drizzle-orm";
+import { inArray, lt, sql } from "drizzle-orm";
 import {
   type MarketQuoteSnapshot,
   MarketQuoteSnapshotSchema,
@@ -44,27 +44,31 @@ export async function upsertCachedMarketQuotes(
   if (entries.length === 0) return;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + ttlMs);
-  for (const item of entries) {
+  const deduped = new Map(entries.map((item) => [item.cacheKey, item]));
+  const rows = [...deduped.values()].map((item) => ({
+    cacheKey: item.cacheKey,
+    ticker: item.quote.ticker.toUpperCase(),
+    source: item.quote.source,
+    payload: item.quote,
+    fetchedAt: now,
+    expiresAt,
+  }));
+  await db
+    .insert(marketQuotesCacheTable)
+    .values(rows)
+    .onConflictDoUpdate({
+      target: marketQuotesCacheTable.cacheKey,
+      set: {
+        source: sql`excluded.source`,
+        payload: sql`excluded.payload`,
+        fetchedAt: sql`excluded.fetched_at`,
+        expiresAt: sql`excluded.expires_at`,
+      },
+    });
+  if (Math.random() < 0.05) {
+    const staleCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     await db
-      .insert(marketQuotesCacheTable)
-      .values({
-        cacheKey: item.cacheKey,
-        ticker: item.quote.ticker.toUpperCase(),
-        source: item.quote.source,
-        payload: item.quote,
-        fetchedAt: now,
-        expiresAt,
-      })
-      .onConflictDoUpdate({
-        target: marketQuotesCacheTable.cacheKey,
-        set: {
-          source: item.quote.source,
-          payload: item.quote,
-          fetchedAt: now,
-          expiresAt,
-        },
-      });
+      .delete(marketQuotesCacheTable)
+      .where(lt(marketQuotesCacheTable.expiresAt, staleCutoff));
   }
-  const staleCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  await db.delete(marketQuotesCacheTable).where(lt(marketQuotesCacheTable.expiresAt, staleCutoff));
 }

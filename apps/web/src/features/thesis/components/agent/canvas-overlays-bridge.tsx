@@ -1,13 +1,19 @@
 "use client";
 
+import type { PublicUser } from "@kanon/core";
+import dynamic from "next/dynamic";
 import { useEffect } from "react";
-import { readByokConfig } from "@/features/ai-settings";
 import { useHasOpened } from "@/shared/hooks/use-has-opened";
+import { readByokConfig } from "@/shared/lib/client-provider-storage";
 import type { useCanvasChromeState } from "../../hooks/use-canvas-chrome";
 import type { useResearchAgent } from "../../hooks/use-research-agent";
 import type { useResearchCanvas } from "../../hooks/use-research-canvas";
-import { AgentResearchSheet } from "../agent-research-sheet";
 import { CanvasOverlays, type useCanvasShellActions } from "../canvas-footer-controls";
+
+const AgentResearchSheet = dynamic(
+  () => import("../agent-research-sheet").then((m) => m.AgentResearchSheet),
+  { ssr: false },
+);
 
 function AgentSheetBridge({
   open,
@@ -59,18 +65,21 @@ export function CanvasOverlaysBridge({
   ui,
   actions,
   agent,
+  currentUser,
   onApplyProposals,
 }: {
   ctrl: ReturnType<typeof useResearchCanvas>;
   ui: ReturnType<typeof useCanvasChromeState>;
   actions: ReturnType<typeof useCanvasShellActions>;
   agent: ReturnType<typeof useResearchAgent>;
+  currentUser?: PublicUser;
   onApplyProposals: (proposalIds: readonly string[]) => Promise<void>;
 }) {
   return (
     <>
       <CanvasOverlays
         thesis={ctrl.thesis}
+        currentUser={currentUser}
         deleting={ctrl.deleting}
         commandOpen={ui.modals.cmd}
         aiModalOpen={ui.modals.ai}

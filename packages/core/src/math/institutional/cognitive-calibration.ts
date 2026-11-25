@@ -41,19 +41,21 @@ function ratioPct(part: number, total: number): number | null {
 }
 
 function summarizeDecisions(entries: ThesisDetail["disciplineEntries"], refPrice: number) {
-  const rows: DisciplineAlphaRow[] = entries.map((entry) => {
-    const deltaPct = roundTo(((refPrice - entry.priceAnchor) / entry.priceAnchor) * 100, 1);
-    return {
-      id: entry.id,
-      action: entry.action,
-      priceAnchor: entry.priceAnchor,
-      currentPrice: refPrice,
-      deltaPct,
-      favorable: isDecisionFavorable(entry.action, deltaPct),
-      emotion: entry.emotion,
-      createdAt: entry.createdAt,
-    };
-  });
+  const rows: DisciplineAlphaRow[] = entries
+    .filter((entry) => Number.isFinite(entry.priceAnchor) && entry.priceAnchor > 0)
+    .map((entry) => {
+      const deltaPct = roundTo(((refPrice - entry.priceAnchor) / entry.priceAnchor) * 100, 1);
+      return {
+        id: entry.id,
+        action: entry.action,
+        priceAnchor: entry.priceAnchor,
+        currentPrice: refPrice,
+        deltaPct,
+        favorable: isDecisionFavorable(entry.action, deltaPct),
+        emotion: entry.emotion,
+        createdAt: entry.createdAt,
+      };
+    });
   const nonPass = entries.filter((e) => e.action !== "pass");
   const longs = rows.filter((r) => r.action === "buy" || r.action === "add");
   return {
@@ -79,11 +81,12 @@ function computeBrierScore(
   const dBear = Math.abs(refPrice - bear.targetPrice);
   const dBase = Math.abs(refPrice - base.targetPrice);
   const dBull = Math.abs(refPrice - bull.targetPrice);
-  const minDist = Math.min(dBear, dBase, dBull);
+  const winner: "bear" | "base" | "bull" =
+    dBase <= dBear && dBase <= dBull ? "base" : dBear <= dBull ? "bear" : "bull";
   const brierRaw =
-    ((bear.probability - (dBear === minDist ? 1 : 0)) ** 2 +
-      (base.probability - (dBase === minDist ? 1 : 0)) ** 2 +
-      (bull.probability - (dBull === minDist ? 1 : 0)) ** 2) /
+    ((bear.probability - (winner === "bear" ? 1 : 0)) ** 2 +
+      (base.probability - (winner === "base" ? 1 : 0)) ** 2 +
+      (bull.probability - (winner === "bull" ? 1 : 0)) ** 2) /
     3;
   return roundTo(brierRaw, 3);
 }
@@ -97,6 +100,7 @@ function computeBenchmarkAlpha(
   const benchEntries = entries.filter(
     (e) =>
       (e.action === "buy" || e.action === "add") &&
+      e.priceAnchor > 0 &&
       typeof e.benchmarkPrice === "number" &&
       e.benchmarkPrice > 0,
   );
@@ -116,13 +120,16 @@ function computeBrierAndDrift(
   refPrice: number,
   liveBenchmarkPrice?: number | null,
 ) {
+  const validReviews = reviews.filter(
+    (r) => Number.isFinite(r.baseTargetAtReview) && r.baseTargetAtReview > 0,
+  );
   const avgTargetDriftPct =
-    reviews.length > 0
+    validReviews.length > 0
       ? roundTo(
-          reviews.reduce(
+          validReviews.reduce(
             (s, r) => s + ((refPrice - r.baseTargetAtReview) / r.baseTargetAtReview) * 100,
             0,
-          ) / reviews.length,
+          ) / validReviews.length,
           1,
         )
       : null;

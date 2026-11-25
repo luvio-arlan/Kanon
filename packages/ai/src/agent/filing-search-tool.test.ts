@@ -5,9 +5,14 @@ import {
 } from "@kanon/core";
 import { describe, expect, it } from "vitest";
 import { sanitizeProviderBaseUrl } from "../copilot/run-copilot";
+import { isPrivateOrMetadataHost } from "../copilot/safe-provider-fetch";
 import { askResearchIc } from "./ask-ic";
 import { searchFilingExcerpts } from "./filing-search-tool";
-import { isProposalGrounded, mergeGroundedProposals } from "./proposal-grounding";
+import {
+  isProposalGrounded,
+  LlmProposalDraftSchema,
+  mergeGroundedProposals,
+} from "./proposal-grounding";
 
 const MOCK_FILING: SecFilingReaderResponse = {
   ticker: "NVDA",
@@ -211,9 +216,58 @@ describe("IC Agent v2: BM25 Filing Retrieval, Grounding & Ask IC", () => {
     expect(sanitizeProviderBaseUrl("https://10.0.0.1/v1")).toBeUndefined();
     expect(sanitizeProviderBaseUrl("https://192.168.1.10/v1")).toBeUndefined();
     expect(sanitizeProviderBaseUrl("https://[::1]/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://0.0.0.0/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://[64:ff9b::1]/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://[::ffff:127.0.0.1]/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://metadata.google.internal/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://user:pass@api.deepseek.com/v1")).toBeUndefined();
+    expect(sanitizeProviderBaseUrl("https://api.deepseek.com/v1?x=1")).toBeUndefined();
+    expect(isPrivateOrMetadataHost("localhost.")).toBe(true);
+    expect(isPrivateOrMetadataHost("64:ff9b::7f00:1")).toBe(true);
     expect(sanitizeProviderBaseUrl("https://api.deepseek.com/v1")).toBe(
       "https://api.deepseek.com/v1",
     );
+  });
+
+  it("enforces zero-tolerance numeric grounding, boundary matching, and proposal target allowlist", () => {
+    const corpus = "NVDA 毛利率 75.1%，营收增速 110%，目标价 $195。";
+    expect(
+      isProposalGrounded(
+        {
+          id: "partial-hallucination",
+          target: "key_debate",
+          title: "混入未验证数字",
+          content: "毛利率 75.1% 之外还假设明年净利率达到 88.2%。",
+          rationale: "严格零容忍校验",
+          citation: "10-Q",
+        },
+        corpus,
+      ),
+    ).toBe(false);
+
+    expect(
+      isProposalGrounded(
+        {
+          id: "substring-boundary",
+          target: "key_debate",
+          title: "数字边界防误匹配",
+          content: "若营收增速回落至 10% 将触发估值重构。",
+          rationale: "10% 不应误匹配 110%",
+          citation: "10-Q",
+        },
+        corpus,
+      ),
+    ).toBe(false);
+
+    const badTarget = LlmProposalDraftSchema.safeParse({
+      id: "bad-target",
+      target: "hypothesis_update",
+      title: "非法覆盖假设",
+      content: "试图写入未授权目标字段的建议内容文本。",
+      rationale: "越权目标校验",
+      citation: "10-Q",
+    });
+    expect(badTarget.success).toBe(false);
   });
 
   it("supports cross-lingual CN-to-EN finance synonym retrieval and persisted research notes", () => {

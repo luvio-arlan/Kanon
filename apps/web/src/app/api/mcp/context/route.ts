@@ -8,15 +8,19 @@ import {
 import {
   getKanonDb,
   getLatestAgentRun,
-  getSecSnapshot,
+  getSecSnapshotForUser,
+  getThesisByTicker,
   listInboundCrossChecks,
   listQuarterlyReviews,
   listTheses,
 } from "@kanon/core/db";
 import { requireMcpAuthContext } from "../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../_lib/http";
+import { checkPersistentRateLimit } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
+
+const MCP_CONTEXT_RATE_POLICY = { bucket: "mcp_context", maxRequests: 60, windowMs: 60 * 1000 };
 
 async function buildSingleTickerContext(
   db: Awaited<ReturnType<typeof getKanonDb>>,
@@ -24,7 +28,7 @@ async function buildSingleTickerContext(
   userId: string,
 ) {
   const [secSnapshot, reviews, latestAgentRun, inboundCrossChecks] = await Promise.all([
-    getSecSnapshot(db, thesis.ticker),
+    getSecSnapshotForUser(db, thesis.ticker, userId),
     listQuarterlyReviews(db, thesis.id),
     getLatestAgentRun(db, thesis.id),
     listInboundCrossChecks(db, thesis.id, userId),
@@ -53,22 +57,24 @@ async function buildSingleTickerContext(
 
 export async function GET(request: Request) {
   const startedAt = performance.now();
+  const rateErr = await checkPersistentRateLimit(request, MCP_CONTEXT_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
   const auth = await requireMcpAuthContext(request, startedAt);
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get("ticker")?.trim().toUpperCase();
   const db = await getKanonDb();
-  const theses = await listTheses(db, auth.user.id);
 
   if (ticker) {
-    const match = theses.find((t) => t.ticker.toUpperCase() === ticker);
+    const match = await getThesisByTicker(db, ticker, auth.user.id);
     if (!match) {
       return jsonError(`研究库中未找到代码为 ${ticker} 的标的。`, 404, startedAt, "NOT_FOUND");
     }
     const payload = await buildSingleTickerContext(db, match, auth.user.id);
     return jsonOk(payload, startedAt);
   }
+  const theses = await listTheses(db, auth.user.id);
 
   const analytics = calculatePortfolioAnalytics(theses);
   return jsonOk(

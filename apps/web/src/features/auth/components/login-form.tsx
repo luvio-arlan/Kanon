@@ -15,8 +15,17 @@ export interface LoginFormProps {
   onSwitchToRegister: () => void;
 }
 
+function hasControlChar(text: string): boolean {
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+
 function resolveSafeRedirect(nextPath?: string): string {
   if (!nextPath?.startsWith("/") || nextPath.startsWith("//")) return "/";
+  if (nextPath.includes("\\") || hasControlChar(nextPath)) return "/";
   return nextPath;
 }
 
@@ -36,7 +45,7 @@ function LoginSubmitFooter(props: {
       <button
         type="submit"
         disabled={!props.canSubmit}
-        className="kanon-cta-sheen group inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-pill bg-ink-primary px-6 text-sm font-medium text-ink-inverse shadow-button-primary transition-[opacity,transform] duration-200 hover:opacity-92 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-35"
+        className="kanon-cta-sheen group inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-pill bg-ink-primary px-6 text-sm font-medium text-ink-inverse shadow-button-primary transition-[opacity,background-color] duration-200 hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-35"
       >
         {props.submitting ? <IconLoader2 size={15} stroke={1.5} className="animate-spin" /> : null}
         <span>进入工作台</span>

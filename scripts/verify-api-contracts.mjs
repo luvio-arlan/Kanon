@@ -323,9 +323,16 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
   });
   assert.equal(agentRes.status, 200);
   const sseText = await agentRes.text();
+  assert.ok(sseText.includes(": connected"), "SSE stream should emit instant : connected frame");
   const readyLine = sseText
-    .split("\n\n")
-    .map((line) => line.replace(/^data:\s*/, "").trim())
+    .split(/\r?\n\r?\n/)
+    .map((frame) =>
+      frame
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("\n"),
+    )
     .filter(Boolean)
     .map((raw) => JSON.parse(raw))
     .find((evt) => evt.type === "briefing_ready");
@@ -639,6 +646,121 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
   assert.equal(afterLogout.status, 401);
 }
 
+async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
+  const unauthSec = await fetchJson("/api/sec/NVDA");
+  assert.equal(unauthSec.status, 401);
+  const unauthBoot = await fetchJson("/api/market/bootstrap?ticker=NVDA");
+  assert.equal(unauthBoot.status, 401);
+
+  const singleThesis = await fetchJson(`/api/theses/${nvdaId}`, {}, cookieA);
+  assert.equal(singleThesis.status, 200);
+  assert.equal(singleThesis.data.thesis.ticker, "NVDA");
+
+  const [mdRes, gdocRes, csvRes] = await Promise.all([
+    fetch(`${BASE}/api/export/thesis/${createdId}?format=md`, { headers: { Cookie: cookieA } }),
+    fetch(`${BASE}/api/export/thesis/${createdId}?format=gdoc`, { headers: { Cookie: cookieA } }),
+    fetch(`${BASE}/api/export/portfolio`, { headers: { Cookie: cookieA } }),
+  ]);
+  assert.equal(mdRes.status, 200);
+  assert.ok(mdRes.headers.get("content-type")?.includes("text/markdown"));
+  assert.equal(gdocRes.status, 200);
+  assert.ok(gdocRes.headers.get("content-type")?.includes("text/html"));
+  assert.equal(csvRes.status, 200);
+  assert.ok(csvRes.headers.get("cache-control")?.includes("no-store"));
+
+  const noteCreate = await fetchJson(
+    `/api/theses/${nvdaId}/notes`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "guidance_log",
+        periodLabel: "FY26 Q3",
+        title: "Partial Patch Test",
+        content: "Keep this body intact during partial PATCH.",
+        guidanceMetric: "Operating Margin",
+        guidancePromised: "62%",
+        guidanceDelivered: "63%",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(noteCreate.status, 201);
+  const notePatch = await fetchJson(
+    `/api/theses/${nvdaId}/notes`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ noteId: noteCreate.data.note.id, title: "Partial Patch Updated" }),
+    },
+    cookieA,
+  );
+  assert.equal(notePatch.status, 200);
+  assert.equal(notePatch.data.note.title, "Partial Patch Updated");
+  assert.equal(notePatch.data.note.guidanceMetric, "Operating Margin");
+  assert.equal(notePatch.data.note.guidancePromised, "62%");
+  const noteClean = await fetchJson(
+    `/api/theses/${nvdaId}/notes?noteId=${noteCreate.data.note.id}`,
+    { method: "DELETE" },
+    cookieA,
+  );
+  assert.equal(noteClean.status, 200);
+
+  const putManualSec = await fetchJson(
+    "/api/sec/CUSTOM",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        entityName: "Custom Isolated Holdings",
+        reportingCurrency: "HKD",
+        fxToUsd: 0.128,
+        adrRatio: 1,
+        annuals: [
+          {
+            fiscalYear: "FY2025",
+            revenue: 12e9,
+            grossProfit: 7e9,
+            grossMarginPct: 58.3,
+            netIncome: 3.2e9,
+            operatingCashFlow: 4.1e9,
+            capex: 0.9e9,
+            freeCashFlow: 3.2e9,
+            dilutedEps: 2.8,
+          },
+        ],
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(putManualSec.status, 200);
+  const secA = await fetchJson("/api/sec/CUSTOM", {}, cookieA);
+  assert.equal(secA.status, 200);
+  assert.equal(secA.data.snapshot?.entityName, "Custom Isolated Holdings");
+  const secB = await fetchJson("/api/sec/CUSTOM", {}, cookieB);
+  assert.equal(secB.status, 200);
+  assert.notEqual(secB.data.snapshot?.entityName, "Custom Isolated Holdings");
+
+  const bootRes = await fetchJson("/api/market/bootstrap?ticker=NVDA", {}, cookieA);
+  assert.equal(bootRes.status, 200);
+  assert.equal(bootRes.data.ticker, "NVDA");
+
+  const refreshCsrf = await fetchJson(
+    "/api/market/refresh-prices",
+    {
+      method: "POST",
+      headers: { Origin: "https://evil.example" },
+      body: JSON.stringify({ mode: "regular" }),
+    },
+    cookieA,
+  );
+  assert.equal(refreshCsrf.status, 403);
+  const refreshOk = await fetchJson(
+    "/api/market/refresh-prices",
+    { method: "POST", body: JSON.stringify({ mode: "regular" }) },
+    cookieA,
+  );
+  assert.equal(refreshOk.status, 200);
+  assert.ok(Array.isArray(refreshOk.data.updatedTheses));
+}
+
 async function main() {
   const discovered = discoverApiRoutes(API_DIR);
   assert.deepEqual(
@@ -678,6 +800,7 @@ async function main() {
     const { createdId, nvdaId } = await verifyCoreCrudAndDiscipline(cookieA, cookieB);
     const canvasRes = await fetch(`${BASE}/thesis/${nvdaId}`, { headers: { Cookie: cookieA } });
     assert.equal(canvasRes.status, 200);
+    await verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB);
     await verifyAiExportImportAndMcp(createdId, nvdaId, cookieA);
     process.stdout.write(
       `KANON API & SSR Contract Verification passed (${discovered.length} routes inventoried & verified).\n`,

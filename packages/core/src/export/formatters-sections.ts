@@ -2,6 +2,7 @@ import type { SavedAgentRun } from "../contracts/api-contracts";
 import { analyzeSecForensics } from "../math/sec-forensics";
 import type {
   QuarterlyReview,
+  ResearchNote,
   SavedCopilotOutput,
   SecSnapshot,
   ThesisDetail,
@@ -14,6 +15,7 @@ export interface ThesisExportExtras {
   quarterlyReviews?: readonly QuarterlyReview[];
   copilotOutputs?: readonly SavedCopilotOutput[];
   agentRuns?: readonly SavedAgentRun[];
+  researchNotes?: readonly ResearchNote[];
 }
 
 function formatForensicsMd(extras?: ThesisExportExtras): string[] {
@@ -48,6 +50,7 @@ function formatCatalystsMd(thesis: ThesisDetail): string[] {
 
 function formatDisciplineMd(thesis: ThesisDetail): string[] {
   if (thesis.disciplineEntries.length === 0) return [];
+  const omitted = Math.max(0, thesis.disciplineEntries.length - 5);
   return [
     "",
     "## 八、交易纪律与离场红线",
@@ -57,6 +60,7 @@ function formatDisciplineMd(thesis: ThesisDetail): string[] {
         (d) =>
           `- \`${d.createdAt.slice(0, 10)}\` **${d.action.toUpperCase()} @ $${d.priceAnchor.toFixed(2)}**（零杠杆确认：${d.noLeverageConfirmed ? "是" : "否"}）— 离场：${d.exitRule}`,
       ),
+    ...(omitted > 0 ? [`- *（其余 ${omitted} 条历史记录已归档至 JSON 备份）*`] : []),
   ];
 }
 

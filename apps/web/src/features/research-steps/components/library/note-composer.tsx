@@ -1,8 +1,8 @@
 "use client";
 
-import type { ResearchNoteKind } from "@kanon/core";
-import { ActionMenu, Button, Input, Textarea } from "@kanon/ui";
-import { IconChevronDown } from "@tabler/icons-react";
+import type { ResearchNote, ResearchNoteKind } from "@kanon/core";
+import { ActionMenu, Badge, Button, Input, Textarea } from "@kanon/ui";
+import { IconChevronDown, IconTrash } from "@tabler/icons-react";
 
 export const NOTE_KIND_LABELS: Record<ResearchNoteKind, string> = {
   earnings_call: "法说会",
@@ -141,6 +141,51 @@ export function NewNoteComposer({
           归档保存
         </Button>
       </div>
+    </div>
+  );
+}
+
+export function NoteRowItem({
+  note,
+  active,
+  deleting,
+  onSelect,
+  onDelete,
+}: {
+  note: ResearchNote;
+  active: boolean;
+  deleting: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 px-6 py-3.5 transition-colors hover:bg-canvas/45 sm:px-7">
+      <button type="button" onClick={onSelect} className="min-w-0 flex-1 cursor-pointer text-left">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={active ? "coral" : "titanium"}>{NOTE_KIND_LABELS[note.kind]}</Badge>
+          <span className="font-mono text-xs text-ink-muted">{note.periodLabel}</span>
+          <span className="truncate text-sm font-medium text-ink-primary">{note.title}</span>
+        </div>
+        {note.guidancePromised ? (
+          <div className="mt-1 font-mono text-xs text-ink-secondary">
+            {note.guidanceMetric || "指引"}：承诺 {note.guidancePromised} → 兑现{" "}
+            {note.guidanceDelivered || "待验证"}
+          </div>
+        ) : null}
+        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-secondary">
+          {note.content}
+        </p>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleting}
+        title="移除"
+        aria-label={`移除纪要 ${note.title}`}
+        className="shrink-0 cursor-pointer rounded-item p-1.5 text-ink-muted hover:bg-status-fail-soft hover:text-status-fail disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <IconTrash size={13} stroke={1.5} />
+      </button>
     </div>
   );
 }

@@ -141,15 +141,18 @@ select:autofill {
 }
 
 @layer components {
-  .slider [data-slot="thumb"] {
+  .slider .slider__thumb,
+  .slider [data-slot="slider-thumb"] {
     transition:
       transform 140ms var(--ease-kanon),
       box-shadow 160ms var(--ease-kanon),
       border-color 140ms ease;
   }
 
-  .slider [data-slot="thumb"][data-dragging="true"],
-  .slider [data-slot="thumb"]:focus-visible {
+  .slider .slider__thumb[data-dragging="true"],
+  .slider .slider__thumb:focus-visible,
+  .slider [data-slot="slider-thumb"][data-dragging="true"],
+  .slider [data-slot="slider-thumb"]:focus-visible {
     box-shadow: 0 0 0 5px var(--accent-coral-soft);
   }
 }

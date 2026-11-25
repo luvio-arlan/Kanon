@@ -30,7 +30,7 @@
 - **仓位纪律编辑器与交易台账联动**：在驾驶舱抽屉与 Step 5 画布内直接管理 `watchlist / starter / core / exited` 仓位角色、当前权重、单票上限与持仓成本；记录 `buy / add / trim` 交易动作时支持原子级自动重算持仓权重与加权成本。
 - **2–3 只标的并排对比抽屉**：从赔率矩阵勾选 2–3 只标的，在宽幅抽屉中同屏对比买点、CAGR、安全边际、赔率比、成熟度、仓位、核心预期差与未来 18 个月争论。
 - **去水分认知校准与 IC 投研周报（Honest Calibration & Weekly Digest）**：零杠杆作为 0/1 硬闸门（不充作虚假加分），基于真实决定的 **Brier 校准分**、**相对 SPY 基准超额 Alpha**、目标价漂移率与情绪归因计算真实投资纪律评分，并一键生成与复制 Markdown 格式周报（`GET /api/portfolio/calibration`）。
-- **数据可携带性与 MCP Server v2**：支持导出全量 `archive.json`（含 `catalysts / quarterlyReviews / copilotOutputs / agentRuns` lossless v3）与 `POST /api/import/thesis`；提供基于 `read` / `read_write` 分级 PAT 的 Streamable HTTP MCP Server（6 只读 + 3 读写工具）。
+- **数据可携带性与 MCP Server v2**：支持导出全量 `archive.json`（含 `catalysts / quarterlyReviews / copilotOutputs / agentRuns / researchNotes` lossless v3）与 `POST /api/import/thesis`；提供基于 `read` / `read_write` 分级 PAT 的 Streamable HTTP MCP Server（6 只读 + 3 读写工具）。
 
 ### 3.2 五步引导式研究画布（零丢失草稿引擎）
 
@@ -39,7 +39,7 @@
 1. **Step 1 商业质量评估与买方脚手架**：四维商业质量评估 + 市场一致预期 / 核心预期差（Variant Perception）/ 18 个月核心分歧 / 逆向压力推演（Downside Scenario）+ 一键跳转「先看财务事实 → / 先看隐含预期 →」适应非线性的真实研究流。
 2. **Step 2 弹性 3–5 条核心可证伪假设（活体 KPI 校验）**：支持增删、排序、绑定**机读 KPI 证伪规则**（按最新 SEC 财务事实自动计算实绩并一键同步强化/削弱状态），以及「反向质询（Counter-Thesis）」一键生成证伪路径并带入 Step 5 离场条件。
 3. **Step 3 全球财务法证、多季研究资料库与双向产业链互证**：
-   - 14 项法证年度财报解析（支持 10-K 与多币种外企 20-F 自动 FX 折算 + ADR 比例对齐、Q4 单季现金流 `FY - 9M` 反推、Form 4 XML 内部人买卖及 10b5-1 计划识别、ROIC/ROIIC/Rule of 40/Sloan 应计项/Owner FCF/净现金），并支持**全球非美股手动 5Y 财报录入**（`PUT /api/sec/[ticker]`，受导入保护）。
+   - 14 项法证年度财报解析（支持 10-K 与多币种外企 20-F 自动 FX 折算 + ADR 比例对齐、Q4 单季现金流 `FY - 9M` 反推、Form 4 XML 内部人买卖及 10b5-1 计划识别、ROIC/ROIIC/Rule of 40/Sloan 应计项/Owner FCF/净现金），并支持**全球非美股手动 5Y 财报录入**（`PUT /api/sec/[ticker]`，按租户隔离写入 `user_sec_overrides`）。
    - **持久研究资料库（Research Notes Library）**：按财报电话会 / 渠道调研 / 行业纪要 / 竞品备忘持续沉淀多季度研究笔记（`GET/POST/PATCH/DELETE /api/theses/[id]/notes`），并直接纳入 BM25 原文检索语料。
    - **一阶原文精读器（Source Clipper，6 MB 预算 + 去目录噪声）**：支持按「资本开支 / 毛利定价 / 订单库存 / 现金流回购」分类筛选并高亮买方信号词，划词一键摘录至 Step 3 产业链互证或 Step 5 离场条件。
    - **双向产业链互证联动**：支持关联库内其他标的档案，并在被关联标的画布中自动聚合「来自库内关联标的的双向互证」。
@@ -69,6 +69,6 @@
 - **Monorepo**：`Turborepo + pnpm`（`apps/web` + `packages/ui` + `packages/core` + `packages/ai`）
 - **数据层**：PostgreSQL（支持外部 `DATABASE_URL` 或本地持久化 PGlite）+ Drizzle ORM + 严格 Expand-Only 版本化迁移 + 动态反射 1:1 DDL 校验。
 - **全自动机械门禁（零豁免、零回退）**：
-  - `pnpm check`：`Biome` + `tsc --noEmit` + `dependency-cruiser` + AST 规模与审美守卫（`<= 250` 行/文件、`<= 50` 行/函数、嵌套 `<= 3`、单目录 `<= 12` 文件、零未校验 JSON 强转、零静默空 `catch`、零客户端 `@kanon/ai` 运行时导入、文档同步校验）+ `knip` 死代码清零。
+  - `pnpm check`：`Biome` + `tsc --noEmit` + `dependency-cruiser` + AST 规模/安全/审美守卫（`<= 250` 行/文件、`<= 50` 行/函数、嵌套 `<= 3`、单目录 `<= 12` 文件、逐 Handler AST CSRF 门禁、递归 Expand-Only 迁移检查、零 `active:scale-*`、零未校验 JSON 强转、零静默空 `catch`、零客户端 `@kanon/ai` 运行时导入、文档同步校验）+ `knip` 死代码清零。
   - `pnpm test`：Vitest 金融数学 Golden 测试、1:1 动态 DDL 校验、零杠杆铁律与 AI/DB 契约测试。
   - `pnpm test:api`：动态盘点全部 32 个 API 路由并在隔离数据库实例中端到端校验 HTTP 契约、CSRF、OCC、MCP 作用域与 SSR 渲染。

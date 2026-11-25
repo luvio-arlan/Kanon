@@ -180,8 +180,8 @@
   .kanon-sparkline-reveal,
   .kanon-terminal-halo,
   .kanon-cell-flash,
-  .popover__content[data-exiting="true"],
-  .dropdown__popover[data-exiting="true"],
+  .popover[data-exiting="true"][data-placement],
+  .dropdown__popover[data-exiting="true"][data-placement],
   .kanon-dialog-container[data-exiting="true"] {
     animation: none;
   }

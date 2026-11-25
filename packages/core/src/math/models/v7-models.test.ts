@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateCognitiveCalibration } from "../institutional/cognitive-calibration";
-import { calculateTrueReverseDcf } from "../valuation-advanced";
+import { calculateEvOwnerFcfValuation, calculateTrueReverseDcf } from "../valuation-advanced";
 import { calculateValuationScenarios } from "../valuation-scenarios";
 import {
   calculateLinkedOperatingModel,
@@ -197,5 +197,111 @@ describe("KANON v7 Institutional Financial Models", () => {
     expect(report.zeroLeverageGatePassed).toBe(true);
     expect(report.brierScore).not.toBeNull();
     expect(report.avgBenchmarkAlphaPct).toBe(10);
+  });
+
+  it("avoids SBC double-counting, aligns EV/EBIT tax, retains 100% negative FCF, and floors equity at 0", () => {
+    const lowSbc = deriveDefaultLinkedDrivers({
+      baseRevCagrPct: 12,
+      baseOperatingMarginPct: 30,
+      sbcPctOfRev: 1,
+      capexPctOfRev: 8,
+      basePe: 20,
+    });
+    const highSbc = {
+      ...lowSbc,
+      base: { ...lowSbc.base, sbcPctOfRev: 12 },
+    };
+    const rLow = calculateLinkedOperatingModel({
+      currentPrice: 100,
+      currentRevenueB: 50,
+      currentSharesM: 1000,
+      cashB: 10,
+      totalDebtB: 5,
+      horizonYears: 3,
+      drivers: lowSbc,
+    });
+    const rHigh = calculateLinkedOperatingModel({
+      currentPrice: 100,
+      currentRevenueB: 50,
+      currentSharesM: 1000,
+      cashB: 10,
+      totalDebtB: 5,
+      horizonYears: 3,
+      drivers: highSbc,
+    });
+    expect(rHigh.base.endingOwnerFcfB).toBe(rLow.base.endingOwnerFcfB);
+    expect(rLow.base.evEbitTargetPrice).toBeGreaterThan(rLow.base.evFcfTargetPrice);
+
+    const distressed = calculateLinkedOperatingModel({
+      currentPrice: 50,
+      currentRevenueB: 10,
+      currentSharesM: 1000,
+      cashB: 2,
+      totalDebtB: 500,
+      horizonYears: 3,
+      drivers: {
+        ...lowSbc,
+        cashRetentionPct: 20,
+        bear: {
+          ...lowSbc.bear,
+          targetOperatingMarginPct: -20,
+          capexPctOfRev: 15,
+        },
+      },
+    });
+    expect(distressed.bear.cumulativeFcfB).toBeLessThan(0);
+    expect(distressed.bear.endingNetCashB).toBeCloseTo(2 - 500 + distressed.bear.cumulativeFcfB, 1);
+    expect(distressed.bear.evFcfTargetPrice).toBe(0);
+    expect(distressed.bear.evEbitTargetPrice).toBe(0);
+  });
+
+  it("applies SOTP holdco discount only to positive equity and solves non-monotonic RONIC Reverse-DCF", () => {
+    const negSotp = calculateSotpValuation({
+      segments: [
+        {
+          id: "s1",
+          name: "Legacy",
+          metricLabel: "EBIT",
+          metricValueB: 5,
+          bearMultiple: 6,
+          baseMultiple: 8,
+          bullMultiple: 10,
+        },
+      ],
+      netCashB: -100,
+      dilutedSharesM: 1000,
+      holdingDiscountPct: 25,
+      currentPrice: 20,
+      horizonYears: 3,
+    });
+    expect(negSotp.baseEquityB).toBe(-60);
+    expect(negSotp.baseTargetPrice).toBe(0);
+
+    const lowRonic = calculateTrueReverseDcf({
+      currentPrice: 120,
+      baseMetricPerShare: 5,
+      horizonYears: 5,
+      hurdleRatePct: 12,
+      terminalMultiple: 18,
+      ronicPct: 18,
+    });
+    expect(Number.isFinite(lowRonic.requiredCagrPct)).toBe(true);
+    expect(lowRonic.requiredCagrPct).toBeGreaterThan(-40);
+    expect(lowRonic.requiredCagrPct).toBeLessThan(150);
+
+    const netCashRich = calculateEvOwnerFcfValuation({
+      currentPrice: 10,
+      dilutedSharesM: 1000,
+      cashB: 25,
+      totalDebtB: 5,
+      bearOwnerFcfB: 0.5,
+      baseOwnerFcfB: 1,
+      bullOwnerFcfB: 1.5,
+      bearEvMultiple: 10,
+      baseEvMultiple: 15,
+      bullEvMultiple: 20,
+      horizonYears: 3,
+    });
+    expect(netCashRich.currentEvB).toBeLessThan(0);
   });
 });

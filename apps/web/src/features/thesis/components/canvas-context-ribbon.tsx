@@ -224,7 +224,7 @@ export function CanvasContextRibbon({
   const nextStep = activeStep < 5 ? ((activeStep + 1) as StepId) : null;
   return (
     <div className="no-print kanon-glass-ribbon sticky top-3 z-20 mb-6 rounded-card border border-hairline">
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5">
         <RibbonPriceTelemetry thesis={thesis} quote={liveQuote} />
         <HorizontalStepPills
           completedSteps={readiness.steps.map((s) => s.complete)}

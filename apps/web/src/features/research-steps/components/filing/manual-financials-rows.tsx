@@ -119,6 +119,7 @@ function ManualAnnualRowEditor({
         {canDelete ? (
           <button
             type="button"
+            aria-label={`删除 ${row.fiscalYear || "当前"} 财年记录`}
             onClick={onDelete}
             className="cursor-pointer text-ink-muted hover:text-status-fail"
           >

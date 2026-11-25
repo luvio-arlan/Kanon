@@ -3,7 +3,7 @@
 import type { SecFilingItem, SecFilingReaderResponse } from "@kanon/core";
 import { Badge, Button, cn } from "@kanon/ui";
 import { IconCloudDownload, IconExternalLink, IconRefresh } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { fetchLiveSecFiling } from "../../lib/filing-api";
 import { FilingDiffBox } from "./filing-diff-box";
@@ -38,6 +38,20 @@ function SectionSwitcher({
   );
 }
 
+function emitLoadedFiling(
+  data: SecFilingReaderResponse,
+  setReader: (d: SecFilingReaderResponse) => void,
+  setSectionId: (id: string) => void,
+  onLoadedText: (text: string, anchor: string) => void,
+) {
+  setReader(data);
+  const first = data.sections[0];
+  setSectionId(first?.id ?? "");
+  const anchor = `${data.form} (${data.filingDate || "SEC"})`;
+  onLoadedText(first ? first.paragraphs.join("\n\n") : data.fullExcerpt, anchor);
+  toast.success(data.notice);
+}
+
 function useFilingLoader(
   ticker: string,
   filings: readonly SecFilingItem[],
@@ -48,38 +62,34 @@ function useFilingLoader(
   const [loading, setLoading] = useState(false);
   const [reader, setReader] = useState<SecFilingReaderResponse | null>(null);
   const [sectionId, setSectionId] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   async function load(accession?: string, refresh = false) {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     setLoading(true);
     try {
       const res = await fetchLiveSecFiling({
         ticker,
         accession: accession || undefined,
         refresh,
+        signal: ctrl.signal,
       });
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
-      setReader(res.data);
-      const first = res.data.sections[0];
-      setSectionId(first?.id ?? "");
-      const anchor = `${res.data.form} (${res.data.filingDate || "SEC"})`;
-      onLoadedText(first ? first.paragraphs.join("\n\n") : res.data.fullExcerpt, anchor);
-      toast.success(res.data.notice);
+      if (ctrl.signal.aborted) return;
+      if (!res.ok) return void toast.error(res.error);
+      emitLoadedFiling(res.data, setReader, setSectionId, onLoadedText);
     } finally {
-      setLoading(false);
+      if (abortRef.current === ctrl) setLoading(false);
     }
   }
 
   function selectSection(nextId: string) {
     setSectionId(nextId);
     const sec = reader?.sections.find((s) => s.id === nextId);
-    if (sec && reader) {
-      onLoadedText(sec.paragraphs.join("\n\n"), `${reader.form} · ${sec.heading}`);
-    }
+    if (sec && reader) onLoadedText(sec.paragraphs.join("\n\n"), `${reader.form} · ${sec.heading}`);
   }
-
   return { selectedAcc, setSelectedAcc, loading, reader, sectionId, load, selectSection };
 }
 
@@ -103,7 +113,13 @@ function FilingPickActions(p: {
         </a>
       ) : null}
       {p.hasReader ? (
-        <Button variant="ghost" size="xs" disabled={p.loading} onClick={() => p.onLoad(true)}>
+        <Button
+          variant="ghost"
+          size="xs"
+          aria-label="重新拉取 SEC 原文"
+          disabled={p.loading}
+          onClick={() => p.onLoad(true)}
+        >
           <IconRefresh size={13} stroke={1.5} className={p.loading ? "animate-spin" : ""} />
         </Button>
       ) : null}

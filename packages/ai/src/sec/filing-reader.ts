@@ -130,6 +130,7 @@ async function computeOptionalDiff(
   previous: SecFilingItem | null,
   currentParagraphs: readonly string[],
   heading: string,
+  category: SecFilingReaderResponse["sections"][number]["category"],
   fetchImpl: typeof fetch,
 ) {
   if (!previous) return null;
@@ -137,7 +138,8 @@ async function computeOptionalDiff(
   if (!prevRes.ok) return null;
   const prevParas = stripSecHtmlToParagraphs(prevRes.html);
   const prevSections = extractSecKeySections(prevParas);
-  const comparablePrev = prevSections[0]?.paragraphs ?? prevParas.slice(0, 20);
+  const matchedPrev = prevSections.find((s) => s.category === category) ?? prevSections[0];
+  const comparablePrev = matchedPrev?.paragraphs ?? prevParas.slice(0, 20);
   return computeFilingSectionDiff({
     sectionHeading: heading,
     previousForm: previous.form,
@@ -201,6 +203,7 @@ export async function fetchSecFilingReaderData(params: {
         previous,
         primarySection.paragraphs,
         primarySection.heading,
+        primarySection.category,
         fetchImpl,
       )
     : null;

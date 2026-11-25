@@ -89,6 +89,7 @@ function computeValuationBand(
 function resolvePeerMultiples(
   livePrice: number | null,
   cachedSnap: SecSnapshot | null | undefined,
+  estGrowthPct: number | null,
   fallbackPe: number | null,
 ) {
   const latest = cachedSnap?.annuals[cachedSnap.annuals.length - 1];
@@ -96,9 +97,19 @@ function resolvePeerMultiples(
     livePrice && latest?.dilutedShares
       ? roundTo((livePrice * latest.dilutedShares) / 1e9, 1)
       : null;
-  const hasEps = Boolean(livePrice && latest?.dilutedEps && latest.dilutedEps > 0);
-  const forwardPe = hasEps ? roundTo((livePrice ?? 0) / (latest?.dilutedEps ?? 1), 1) : fallbackPe;
+  const trailingEps = latest?.dilutedEps && latest.dilutedEps > 0 ? latest.dilutedEps : null;
+  const clampedGrowth = Math.max(-15, Math.min(45, estGrowthPct ?? 10));
+  const fy1Eps = trailingEps ? trailingEps * (1 + clampedGrowth / 100) : null;
+  const forwardPe = livePrice && fy1Eps && fy1Eps > 0 ? roundTo(livePrice / fy1Eps, 1) : fallbackPe;
   return { marketCapB, forwardPe };
+}
+
+function resolvePeerSource(
+  livePrice: number | null,
+  cachedSnap: SecSnapshot | null | undefined,
+): IndustryPeerRow["source"] {
+  if (livePrice) return "live-market";
+  return cachedSnap ? "sec-cached" : "curated-reference";
 }
 
 function buildPeerRow(
@@ -111,24 +122,25 @@ function buildPeerRow(
   const forensics = cachedSnap
     ? analyzeSecForensics(cachedSnap.annuals, cachedSnap.quarterlies)
     : null;
+  const growth = quality?.revenueCagrPct ?? ref?.revenueGrowthPct ?? null;
   const { marketCapB, forwardPe } = resolvePeerMultiples(
     livePrice,
     cachedSnap,
+    growth,
     ref?.forwardPe ?? null,
   );
-  const source = livePrice ? "live-market" : cachedSnap ? "sec-cached" : "curated-reference";
   return {
     ticker: peerTicker,
     companyName: cachedSnap?.entityName ?? ref?.companyName ?? peerTicker,
     sector: ref?.sector ?? "行业可比",
     price: livePrice,
     marketCapB,
-    revenueGrowthPct: quality?.revenueCagrPct ?? ref?.revenueGrowthPct ?? null,
+    revenueGrowthPct: growth,
     grossMarginPct: quality?.latestGrossMarginPct ?? ref?.grossMarginPct ?? null,
     roicPct: forensics?.roicPct ?? ref?.roicPct ?? null,
     forwardPe,
     evFcf: ref?.evFcf ?? null,
-    source,
+    source: resolvePeerSource(livePrice, cachedSnap),
   };
 }
 
@@ -137,25 +149,33 @@ export async function buildMarketBenchmarks(params: {
   currentPrice: number;
   secSnapshot: SecSnapshot | null;
   cachedPeers?: ReadonlyMap<string, SecSnapshot>;
+  loadCachedPeers?: (tickers: readonly string[]) => Promise<ReadonlyMap<string, SecSnapshot>>;
   creds?: MarketAdapterCredentials;
   fetchImpl?: typeof fetch;
 }): Promise<MarketBenchmarkResponse> {
   const upper = params.ticker.trim().toUpperCase();
   const peerTickers = selectPeerTickers(upper);
-  const quoteMap = await fetchMarketQuotes([...peerTickers, "SPY"], {
-    creds: params.creds,
-    fetchImpl: params.fetchImpl,
-  }).catch(() => new Map());
+  const [quoteMap, loadedPeers] = await Promise.all([
+    fetchMarketQuotes([...peerTickers, "SPY"], {
+      creds: params.creds,
+      fetchImpl: params.fetchImpl,
+    }).catch(() => new Map()),
+    params.cachedPeers
+      ? Promise.resolve(params.cachedPeers)
+      : params.loadCachedPeers
+        ? params.loadCachedPeers(peerTickers).catch(() => new Map<string, SecSnapshot>())
+        : Promise.resolve(new Map<string, SecSnapshot>()),
+  ]);
 
   const spyRes = quoteMap.get("SPY");
   const spyPrice = spyRes?.ok ? spyRes.quote.effectivePrice : null;
   const peers = peerTickers.map((pt) => {
     const q = quoteMap.get(pt);
-    return buildPeerRow(
-      pt,
-      q?.ok ? q.quote.effectivePrice : null,
-      params.cachedPeers?.get(pt) ?? null,
-    );
+    const usdPrice =
+      q?.ok && (!q.quote.currency || q.quote.currency.toUpperCase() === "USD")
+        ? q.quote.effectivePrice
+        : null;
+    return buildPeerRow(pt, usdPrice, loadedPeers.get(pt) ?? null);
   });
 
   return MarketBenchmarkResponseSchema.parse({

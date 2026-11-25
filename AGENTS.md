@@ -15,7 +15,7 @@
 apps/web/src/
 ├── app/          # Thin Server Components & API Route Handlers (ONLY layer allowed to import @kanon/core/db)
 ├── shared/       # Foundational client primitives (kanonFetch, useThesisStepDraft; zero feature/app/db imports)
-└── features/     # Acyclic bounded vertical slices (import sibling slices ONLY via index.ts)
+└── features/     # Acyclic bounded vertical slices (import sibling slices ONLY via index.ts or public-*.ts)
 packages/
 ├── ui/           # Pure HeroUI v3 + Swiss Editorial Titanium + NumberFlow (zero core/ai/web imports)
 ├── core/         # Drizzle schema + expand-only migrations + shared Zod contracts + pure math + exporters
@@ -36,7 +36,7 @@ packages/
 pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards + knip (zero-skip, zero-ratchet)
 pnpm test         # Vitest: financial math goldens, dynamic DDL parity, zero-leverage & AI/API contracts
 pnpm build        # Full Turborepo production build
-pnpm test:api     # Isolated 30-route API + SSR + Auth/MCP/CSRF contract verification
+pnpm test:api     # Isolated 32-route API + SSR + Auth/MCP/CSRF contract verification
 pnpm dev          # Local Next.js dev server (persistent PGlite when DATABASE_URL unset)
 pnpm db:push      # Push Drizzle schema to external PostgreSQL (DATABASE_URL)
 ```

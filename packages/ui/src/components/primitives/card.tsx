@@ -11,13 +11,25 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 function bindSpotlightRef(el: HTMLDivElement | null) {
   if (!el) return;
+  let rafId = 0;
+  let lastX = 0;
+  let lastY = 0;
   const onMove = (event: PointerEvent) => {
-    const rect = el.getBoundingClientRect();
-    el.style.setProperty("--mx", `${event.clientX - rect.left}px`);
-    el.style.setProperty("--my", `${event.clientY - rect.top}px`);
+    lastX = event.clientX;
+    lastY = event.clientY;
+    if (rafId !== 0) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      const rect = el.getBoundingClientRect();
+      el.style.setProperty("--mx", `${lastX - rect.left}px`);
+      el.style.setProperty("--my", `${lastY - rect.top}px`);
+    });
   };
   el.addEventListener("pointermove", onMove, { passive: true });
-  return () => el.removeEventListener("pointermove", onMove);
+  return () => {
+    el.removeEventListener("pointermove", onMove);
+    if (rafId !== 0) cancelAnimationFrame(rafId);
+  };
 }
 
 export function Card({

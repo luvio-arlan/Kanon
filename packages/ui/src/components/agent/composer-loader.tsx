@@ -102,32 +102,36 @@ export function ComposerLoader({
   const [box, setBox] = useState({ w: 440, h: 96 });
 
   useEffect(() => {
+    if (!active) return;
     const el = clipRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => {
+    const measure = () =>
       setBox({ w: Math.max(1, el.clientWidth), h: Math.max(1, el.clientHeight) });
-    });
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [active]);
 
   return (
     <div className={cn("relative", className)}>
-      <span
-        ref={clipRef}
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-10 overflow-hidden transition-opacity duration-500"
-        style={{ borderRadius: radius, opacity: active ? 1 : 0 }}
-      >
-        <BeamOverlaySvg
-          id={id}
-          w={box.w}
-          h={box.h}
-          rx={radius}
-          speed={speed}
-          band={(arc / 360) * 100}
-        />
-      </span>
+      {active ? (
+        <span
+          ref={clipRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 overflow-hidden transition-opacity duration-500"
+          style={{ borderRadius: radius }}
+        >
+          <BeamOverlaySvg
+            id={id}
+            w={box.w}
+            h={box.h}
+            rx={radius}
+            speed={speed}
+            band={(arc / 360) * 100}
+          />
+        </span>
+      ) : null}
       <div className="relative">{children}</div>
     </div>
   );

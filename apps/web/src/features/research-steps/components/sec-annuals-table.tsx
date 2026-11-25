@@ -14,10 +14,13 @@ import { useMemo, useState } from "react";
 import { formatCompact } from "../lib/forensic-cells";
 import { SecForensicsView, SecQuarterliesTable } from "./sec-forensics-views";
 
-const SecFinancialChart = dynamic(() => import("@kanon/ui").then((mod) => mod.SecFinancialChart), {
-  ssr: false,
-  loading: () => <div aria-hidden="true" className="kanon-shimmer m-5 h-52 rounded-panel" />,
-});
+const SecFinancialChart = dynamic(
+  () => import("@kanon/ui/charts").then((mod) => mod.SecFinancialChart),
+  {
+    ssr: false,
+    loading: () => <div aria-hidden="true" className="kanon-shimmer m-5 h-52 rounded-panel" />,
+  },
+);
 
 type DisplayMode = "table" | "quarters" | "chart" | "forensics";
 

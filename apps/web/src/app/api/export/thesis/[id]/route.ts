@@ -1,11 +1,12 @@
 import { formatGoogleDocHtml, formatThesisArchiveJson, formatThesisMarkdown } from "@kanon/core";
 import {
   getKanonDb,
-  getSecSnapshot,
+  getSecSnapshotForUser,
   getThesisById,
   listAgentRuns,
   listCopilotOutputs,
   listQuarterlyReviews,
+  listResearchNotes,
   listThesisRevisions,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
@@ -23,7 +24,7 @@ function buildExportResponse(
   extras: Parameters<typeof formatThesisMarkdown>[1],
   startedAt: number,
 ) {
-  const safeSlug = thesis.ticker.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const safeSlug = thesis.ticker.toLowerCase().replace(/[^a-z0-9]/g, "") || "thesis";
   if (format === "json") {
     return new Response(formatThesisArchiveJson(thesis, extras), {
       headers: {
@@ -62,17 +63,19 @@ export async function GET(request: Request, context: RouteContext) {
   const thesis = await getThesisById(db, id, auth.user.id);
   if (!thesis) return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
 
-  const [secSnapshot, revisions, quarterlyReviews, copilotOutputs, agentRuns] = await Promise.all([
-    getSecSnapshot(db, thesis.ticker),
-    listThesisRevisions(db, id, 30),
-    listQuarterlyReviews(db, id),
-    listCopilotOutputs(db, id),
-    listAgentRuns(db, id, 5),
-  ]);
+  const [secSnapshot, revisions, quarterlyReviews, copilotOutputs, agentRuns, researchNotes] =
+    await Promise.all([
+      getSecSnapshotForUser(db, thesis.ticker, auth.user.id),
+      listThesisRevisions(db, id, 30),
+      listQuarterlyReviews(db, id),
+      listCopilotOutputs(db, id),
+      listAgentRuns(db, id, 5),
+      listResearchNotes(db, id, auth.user.id, 200),
+    ]);
   return buildExportResponse(
     format,
     thesis,
-    { secSnapshot, revisions, quarterlyReviews, copilotOutputs, agentRuns },
+    { secSnapshot, revisions, quarterlyReviews, copilotOutputs, agentRuns, researchNotes },
     startedAt,
   );
 }

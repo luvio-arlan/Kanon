@@ -8,7 +8,7 @@ import {
   type AgentTraceStep,
 } from "@kanon/core";
 import { toast } from "sonner";
-import { buildByokHeaders, buildMarketHeaders } from "@/features/ai-settings";
+import { buildByokHeaders, buildMarketHeaders } from "@/shared/lib/client-provider-storage";
 import { parseValidatedSseLine } from "@/shared/lib/kanon-fetch";
 
 export interface AgentEventSetters {
@@ -32,16 +32,26 @@ async function readEventStream(
 ) {
   const decoder = new TextDecoder();
   let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() ?? "";
-    for (const chunk of parts) {
-      const evt = parseValidatedSseLine(chunk.trim(), AgentStreamEventSchema);
+  const flushChunk = (chunk: string) => {
+    for (const line of chunk.split(/\r?\n/)) {
+      const evt = parseValidatedSseLine(line.trim(), AgentStreamEventSchema);
       if (evt) onEvent(evt);
     }
+  };
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split(/\r?\n\r?\n/);
+      buffer = parts.pop() ?? "";
+      for (const chunk of parts) flushChunk(chunk);
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) flushChunk(buffer);
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
 }
 

@@ -159,7 +159,7 @@ async function applyVerdictStatuses(
     await tx
       .update(hypothesesTable)
       .set({ status: nextStatus, note: v.evidence })
-      .where(eq(hypothesesTable.id, match.id));
+      .where(and(eq(hypothesesTable.id, match.id), eq(hypothesesTable.thesisId, thesis.id)));
   }
 }
 

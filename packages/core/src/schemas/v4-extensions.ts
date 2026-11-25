@@ -34,6 +34,7 @@ export type ValuationDriverInputs = z.infer<typeof ValuationDriverInputsSchema>;
 
 export const SecAnnualFinancialSchema = z.object({
   fiscalYear: z.string().min(1),
+  periodEndDate: z.string().optional(),
   revenue: z.number().nullable(),
   grossProfit: z.number().nullable(),
   grossMarginPct: z.number().nullable(),
@@ -134,13 +135,27 @@ export const InboundCrossCheckSchema = z.object({
 });
 export type InboundCrossCheck = z.infer<typeof InboundCrossCheckSchema>;
 
+function isSafeSecDocumentUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    return parsed.protocol === "https:" && (host === "www.sec.gov" || host === "sec.gov");
+  } catch (err) {
+    void err;
+    return false;
+  }
+}
+
 export const SecFilingItemSchema = z.object({
-  form: z.string().min(1),
-  filingDate: z.string().min(1),
-  reportDate: z.string(),
-  accessionNumber: z.string().min(1),
-  documentUrl: z.string().url(),
-  description: z.string(),
+  form: z.string().min(1).max(20),
+  filingDate: z.string().min(1).max(32),
+  reportDate: z.string().max(32),
+  accessionNumber: z.string().min(1).max(40),
+  documentUrl: z
+    .string()
+    .url()
+    .refine(isSafeSecDocumentUrl, "SEC 原文链接必须指向 https://www.sec.gov"),
+  description: z.string().max(300),
 });
 export type SecFilingItem = z.infer<typeof SecFilingItemSchema>;
 

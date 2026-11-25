@@ -13,7 +13,7 @@ import {
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
-import { checkRateLimit } from "../../_lib/request-guards";
+import { checkPersistentRateLimit } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +98,7 @@ async function resolveQuotesWithDbCache(params: {
 
 export async function GET(request: Request) {
   const startedAt = performance.now();
-  const rateErr = checkRateLimit(request, QUOTES_RATE_POLICY, startedAt);
+  const rateErr = await checkPersistentRateLimit(request, QUOTES_RATE_POLICY, startedAt);
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;

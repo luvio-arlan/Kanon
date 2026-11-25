@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { SavedAgentRun } from "../../contracts/api-contracts";
 import {
   calculateValuationScenarios,
@@ -13,6 +13,7 @@ import type {
   SecSnapshot,
   ThesisDetail,
   ThesisRevision,
+  ThesisStatus,
   ThesisSummary,
 } from "../../schemas/research";
 import type { KanonDb } from "../client";
@@ -25,7 +26,7 @@ import {
   valuationScenariosTable,
 } from "../schema";
 import { listCopilotOutputs } from "./copilot-store";
-import { getSecSnapshot, listGlossaryTerms } from "./discipline-mutations";
+import { listGlossaryTerms } from "./discipline-mutations";
 import { listResearchNotes } from "./library/research-notes-store";
 import {
   getLatestAgentRun,
@@ -33,6 +34,8 @@ import {
   listQuarterlyReviews,
 } from "./review-and-agent-store";
 import { listThesisRevisions } from "./revision-queries";
+import { getSecSnapshotForUser } from "./sec/user-sec-overrides-store";
+import { fetchSiblingValuations, type ValuationScalarRow } from "./thesis/thesis-lookups";
 import { hydrateThesis } from "./thesis-queries";
 
 interface ThesisCanvasBootstrap {
@@ -48,23 +51,18 @@ interface ThesisCanvasBootstrap {
   researchNotes: ResearchNote[];
 }
 
-interface ValuationScalarRow {
-  thesisId: string;
-  bearEps: number;
-  bearPe: number;
-  bearProb: number;
-  baseEps: number;
-  basePe: number;
-  baseProb: number;
-  bullEps: number;
-  bullPe: number;
-  bullProb: number;
+interface SiblingSummaryRow {
+  id: string;
+  indexOrder: number;
+  ticker: string;
+  companyName: string;
+  sectorTag: string;
+  status: ThesisStatus;
+  currentPrice: number;
+  horizonYears: number;
 }
 
-function buildSummaryValuationInput(
-  row: typeof thesesTable.$inferSelect,
-  val: ValuationScalarRow | undefined,
-) {
+function buildSummaryValuationInput(row: SiblingSummaryRow, val: ValuationScalarRow | undefined) {
   return sanitizeValuationInput({
     currentPrice: row.currentPrice,
     horizonYears: row.horizonYears,
@@ -87,7 +85,7 @@ function buildSummaryValuationInput(
 }
 
 function buildSummaries(
-  rows: readonly (typeof thesesTable.$inferSelect)[],
+  rows: readonly SiblingSummaryRow[],
   valMap: Map<string, ValuationScalarRow>,
 ): ThesisSummary[] {
   return rows.map((row) => {
@@ -105,13 +103,39 @@ function buildSummaries(
   });
 }
 
-function fetchInitialWave(db: KanonDb, id: string, userId: string) {
+function fetchTargetAndSiblings(db: KanonDb, id: string, userId: string) {
   return Promise.all([
     db
       .select()
       .from(thesesTable)
+      .where(and(eq(thesesTable.id, id), eq(thesesTable.userId, userId)))
+      .limit(1),
+    db
+      .select({
+        id: thesesTable.id,
+        indexOrder: thesesTable.indexOrder,
+        ticker: thesesTable.ticker,
+        companyName: thesesTable.companyName,
+        sectorTag: thesesTable.sectorTag,
+        status: thesesTable.status,
+        currentPrice: thesesTable.currentPrice,
+        horizonYears: thesesTable.horizonYears,
+      })
+      .from(thesesTable)
       .where(eq(thesesTable.userId, userId))
       .orderBy(asc(thesesTable.indexOrder)),
+    listGlossaryTerms(db),
+  ]);
+}
+
+function fetchHydrationWave(
+  db: KanonDb,
+  id: string,
+  ticker: string,
+  userId: string,
+  otherIds: readonly string[],
+) {
+  return Promise.all([
     db
       .select()
       .from(hypothesesTable)
@@ -132,7 +156,13 @@ function fetchInitialWave(db: KanonDb, id: string, userId: string) {
       .from(disciplineEntriesTable)
       .where(eq(disciplineEntriesTable.thesisId, id))
       .orderBy(desc(disciplineEntriesTable.createdAt)),
-    listGlossaryTerms(db),
+    db
+      .select()
+      .from(valuationScenariosTable)
+      .where(eq(valuationScenariosTable.thesisId, id))
+      .limit(1),
+    fetchSiblingValuations(db, otherIds),
+    getSecSnapshotForUser(db, ticker, userId),
     listCopilotOutputs(db, id),
     listThesisRevisions(db, id, 12),
     listQuarterlyReviews(db, id),
@@ -142,68 +172,43 @@ function fetchInitialWave(db: KanonDb, id: string, userId: string) {
   ]);
 }
 
-function loadTargetAndSiblingValuations(
-  db: KanonDb,
-  id: string,
-  ticker: string,
-  allIds: readonly string[],
-) {
-  return Promise.all([
-    getSecSnapshot(db, ticker),
-    db
-      .select()
-      .from(valuationScenariosTable)
-      .where(eq(valuationScenariosTable.thesisId, id))
-      .limit(1),
-    db
-      .select({
-        thesisId: valuationScenariosTable.thesisId,
-        bearEps: valuationScenariosTable.bearEps,
-        bearPe: valuationScenariosTable.bearPe,
-        bearProb: valuationScenariosTable.bearProb,
-        baseEps: valuationScenariosTable.baseEps,
-        basePe: valuationScenariosTable.basePe,
-        baseProb: valuationScenariosTable.baseProb,
-        bullEps: valuationScenariosTable.bullEps,
-        bullPe: valuationScenariosTable.bullPe,
-        bullProb: valuationScenariosTable.bullProb,
-      })
-      .from(valuationScenariosTable)
-      .where(inArray(valuationScenariosTable.thesisId, [...allIds])),
-  ]);
-}
-
 export async function loadThesisCanvasBootstrap(
   db: KanonDb,
   id: string,
   userId: string,
 ): Promise<ThesisCanvasBootstrap | null> {
-  const wave = await fetchInitialWave(db, id, userId);
-  const [rows, hypotheses, catalysts, crossChecks, disciplineRows, glossary, savedOutputs] = wave;
-  const [, , , , , , , revisions, reviews, latestAgentRun, inboundCrossChecks, researchNotes] =
-    wave;
-  const targetRow = rows.find((row) => row.id === id);
+  const [[targetRow], siblingRows, glossary] = await fetchTargetAndSiblings(db, id, userId);
   if (!targetRow) return null;
-
-  const allIds = rows.map((row) => row.id);
-  const [secSnapshot, targetValRows, siblingValRows] = await loadTargetAndSiblingValuations(
-    db,
-    id,
-    targetRow.ticker,
-    allIds,
-  );
-  const scalarMap = new Map(siblingValRows.map((v) => [v.thesisId, v]));
+  const otherIds = siblingRows.map((r) => r.id).filter((sid) => sid !== id);
+  const [
+    hypotheses,
+    catalysts,
+    crossChecks,
+    disciplineRows,
+    targetValRows,
+    otherValRows,
+    secSnapshot,
+    savedOutputs,
+    revisions,
+    reviews,
+    latestAgentRun,
+    inboundCrossChecks,
+    researchNotes,
+  ] = await fetchHydrationWave(db, id, targetRow.ticker, userId, otherIds);
+  const targetVal = targetValRows[0];
+  const scalarMap = new Map<string, ValuationScalarRow>(otherValRows.map((v) => [v.thesisId, v]));
+  if (targetVal) scalarMap.set(targetVal.thesisId, targetVal);
   const thesis = hydrateThesis({
     row: targetRow,
     hypotheses,
     catalysts,
     crossChecks,
-    valuationRow: targetValRows[0],
+    valuationRow: targetVal,
     disciplineRows,
   });
   return {
     thesis,
-    allTheses: buildSummaries(rows, scalarMap),
+    allTheses: buildSummaries(siblingRows, scalarMap),
     glossary,
     secSnapshot,
     savedOutputs,

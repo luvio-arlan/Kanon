@@ -9,7 +9,12 @@ export { formatGoogleDocHtml, type ThesisExportExtras };
 
 function escapeCsvCell(value: string | number): string {
   const raw = String(value);
-  const formulaRisk = typeof value === "string" && (/^[=+@\t\r]/.test(raw) || /^-(?!\d)/.test(raw));
+  const trimmedStart = raw.replace(/^[\s\t\r]+/, "");
+  const isStrictNumber = /^-?\d+(?:\.\d+)?$/.test(trimmedStart);
+  const formulaRisk =
+    typeof value === "string" &&
+    !isStrictNumber &&
+    (/^[=+\-@\t\r]/.test(raw) || /^[=+\-@]/.test(trimmedStart));
   const safe = formulaRisk ? `'${raw}` : raw;
   if (/[",\n\r]/.test(safe)) {
     return `"${safe.replaceAll('"', '""')}"`;
@@ -125,6 +130,7 @@ export function formatThesisArchiveJson(thesis: ThesisDetail, extras?: ThesisExp
       quarterlyReviews: extras?.quarterlyReviews ?? [],
       copilotOutputs: extras?.copilotOutputs ?? [],
       agentRuns: extras?.agentRuns ?? [],
+      researchNotes: extras?.researchNotes ?? [],
     },
     null,
     2,

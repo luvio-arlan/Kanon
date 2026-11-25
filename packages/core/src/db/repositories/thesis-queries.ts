@@ -10,7 +10,6 @@ import type {
   DisciplineEntry,
   ThesisCatalyst,
   ThesisDetail,
-  ThesisSummary,
 } from "../../schemas/research";
 import type { Hypothesis } from "../../schemas/thesis";
 import type { KanonDb } from "../client";
@@ -40,14 +39,14 @@ function normalizeFilter(raw: BusinessFilter): BusinessFilter {
   };
 }
 
-function normalizeHypotheses(rows: HypothesisRow[]): Hypothesis[] {
+function normalizeHypotheses(thesisId: string, rows: HypothesisRow[]): Hypothesis[] {
   const sorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
   const result: Hypothesis[] = sorted
     .slice(0, 5)
     .map(({ thesisId: _, sortOrder: __, ...rest }) => rest);
   while (result.length < 3) {
     result.push({
-      id: `placeholder-h-${result.length + 1}`,
+      id: `${thesisId}-placeholder-h-${result.length + 1}`,
       title: "待补充核心可证伪假设",
       metricLabel: "核心观测指标",
       threshold: "待设定红线",
@@ -114,7 +113,7 @@ export function hydrateThesis(params: {
     convictionSummary: row.convictionSummary,
     status: row.status,
     businessFilter: normalizeFilter(row.businessFilter),
-    hypotheses: normalizeHypotheses(hypotheses),
+    hypotheses: normalizeHypotheses(row.id, hypotheses),
     catalysts: catalysts.map(({ thesisId: _, createdAt: __, ...rest }): ThesisCatalyst => rest),
     crossChecks: crossChecks.map(({ thesisId: _, createdAt: __, ...rest }): CrossCheck => rest),
     valuationInput: valInput,
@@ -135,7 +134,7 @@ export function hydrateThesis(params: {
   };
 }
 
-async function loadThesisChildren(db: KanonDb, thesisIds: readonly string[]) {
+export async function loadThesisChildren(db: KanonDb, thesisIds: readonly string[]) {
   const ids = [...thesisIds];
   const [hyps, cats, checks, vals, disc] = await Promise.all([
     db
@@ -169,7 +168,7 @@ async function loadThesisChildren(db: KanonDb, thesisIds: readonly string[]) {
   };
 }
 
-function hydrateWithChildren(
+export function hydrateWithChildren(
   row: ThesisRow,
   children: Awaited<ReturnType<typeof loadThesisChildren>>,
 ): ThesisDetail {
@@ -200,39 +199,6 @@ export async function listTheses(
   return rows.map((row) => hydrateWithChildren(row, children));
 }
 
-function mapRowToSummary(row: ThesisRow, valRow: ValuationRow | undefined): ThesisSummary {
-  const val = calculateValuationScenarios(buildValuationInput(row, valRow));
-  return {
-    id: row.id,
-    indexLabel: String(row.indexOrder).padStart(2, "0"),
-    ticker: row.ticker,
-    companyName: row.companyName,
-    sectorTag: row.sectorTag,
-    status: row.status,
-    baseTargetPrice: val.base.targetPrice,
-    riskRewardRatio: val.riskRewardRatio,
-  };
-}
-
-export async function listThesisSummaries(
-  db: KanonDb,
-  userId: string = DEFAULT_WORKSPACE_USER_ID,
-): Promise<ThesisSummary[]> {
-  const rows = await db
-    .select()
-    .from(thesesTable)
-    .where(eq(thesesTable.userId, userId))
-    .orderBy(asc(thesesTable.indexOrder));
-  if (rows.length === 0) return [];
-  const ids = rows.map((r) => r.id);
-  const vals = await db
-    .select()
-    .from(valuationScenariosTable)
-    .where(inArray(valuationScenariosTable.thesisId, ids));
-  const valMap = new Map(vals.map((v) => [v.thesisId, v]));
-  return rows.map((row) => mapRowToSummary(row, valMap.get(row.id)));
-}
-
 export async function getThesisById(
   db: KanonDb,
   id: string,
@@ -241,9 +207,8 @@ export async function getThesisById(
   const where = userId
     ? and(eq(thesesTable.id, id), eq(thesesTable.userId, userId))
     : eq(thesesTable.id, id);
-  const [[row], children] = await Promise.all([
-    db.select().from(thesesTable).where(where),
-    loadThesisChildren(db, [id]),
-  ]);
-  return row ? hydrateWithChildren(row, children) : null;
+  const [row] = await db.select().from(thesesTable).where(where).limit(1);
+  if (!row) return null;
+  const children = await loadThesisChildren(db, [row.id]);
+  return hydrateWithChildren(row, children);
 }

@@ -12,7 +12,7 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { readByokConfig, writeByokConfig } from "../lib/byok-storage";
+import { readByokConfig, writeByokConfig } from "@/shared/lib/client-provider-storage";
 import { AccountSecurityPane } from "./account/account-security-pane";
 import { McpTokensPane } from "./account/mcp-tokens-pane";
 import { EngineSettingsPane } from "./settings-engine-pane";

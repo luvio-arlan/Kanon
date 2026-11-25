@@ -3,7 +3,7 @@ import { getKanonDb } from "@kanon/core/db";
 import { NextResponse } from "next/server";
 import { requireMcpAuthContext } from "../_lib/auth-session";
 import { apiHeaders, jsonOk, readJsonBody } from "../_lib/http";
-import { checkPersistentRateLimit } from "../_lib/request-guards";
+import { checkPersistentRateLimit, verifySameOrigin } from "../_lib/request-guards";
 import {
   executeMcpToolCall,
   listMcpResources,
@@ -118,11 +118,16 @@ async function dispatchRpcMethod(params: {
   if (method === "tools/list") {
     return rpcSuccess(id, { tools: MCP_TOOL_DEFINITIONS }, startedAt);
   }
-  return dispatchWorkspaceRpc(params);
+  return dispatchWorkspaceRpc(params).catch((err) => {
+    void err;
+    return rpcError(id, -32603, "Internal server error while executing MCP method.", startedAt);
+  });
 }
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt, { allowBearerBypass: true });
+  if (originErr) return originErr;
   const rateErr = await checkPersistentRateLimit(request, MCP_RATE_POLICY, startedAt);
   if (rateErr) return rateErr;
   const auth = await requireMcpAuthContext(request, startedAt);

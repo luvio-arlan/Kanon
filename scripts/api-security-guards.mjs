@@ -1,19 +1,83 @@
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 
-const MUTATION_EXPORT_RE = /export\s+async\s+function\s+(?:POST|PATCH|PUT|DELETE)\b/;
-const BEARER_ONLY_ALLOWLIST = new Set(["apps/web/src/app/api/mcp/route.ts"]);
+const MUTATION_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
 function walkRouteFiles(dirPath, results) {
   if (!fs.existsSync(dirPath)) return;
   for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
     const full = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      walkRouteFiles(full, results);
-    } else if (entry.isFile() && entry.name === "route.ts") {
-      results.push(full);
-    }
+    if (entry.isDirectory()) walkRouteFiles(full, results);
+    else if (entry.isFile() && entry.name === "route.ts") results.push(full);
   }
+}
+
+function isExported(node) {
+  return Boolean(node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword));
+}
+
+function getFnLikeBody(init) {
+  if (!init) return null;
+  if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) return init.body;
+  return null;
+}
+
+function collectDeclFunctions(stmt, onFound) {
+  if (ts.isFunctionDeclaration(stmt) && stmt.name && stmt.body) {
+    onFound(stmt.name.text, stmt.name, stmt.body);
+    return;
+  }
+  if (!ts.isVariableStatement(stmt)) return;
+  for (const decl of stmt.declarationList.declarations) {
+    const body = ts.isIdentifier(decl.name) ? getFnLikeBody(decl.initializer) : null;
+    if (body) onFound(decl.name.text, decl.name, body);
+  }
+}
+
+function collectHelperCallMap(sf) {
+  const localFns = new Map();
+  for (const stmt of sf.statements) {
+    collectDeclFunctions(stmt, (name, _node, body) => localFns.set(name, body));
+  }
+  return localFns;
+}
+
+function collectExportedMutationHandlers(sf) {
+  const handlers = [];
+  for (const stmt of sf.statements) {
+    if (!isExported(stmt)) continue;
+    collectDeclFunctions(stmt, (name, nameNode, body) => {
+      if (MUTATION_METHODS.has(name)) {
+        handlers.push({ name, pos: nameNode.getStart(sf), body });
+      }
+    });
+  }
+  return handlers;
+}
+
+function callSatisfiesGuard(callExpr, localFns, seen) {
+  if (!ts.isIdentifier(callExpr.expression)) return false;
+  const callee = callExpr.expression.text;
+  if (callee === "verifySameOrigin") return true;
+  const helperBody = localFns.get(callee);
+  if (!helperBody || seen.has(callee)) return false;
+  seen.add(callee);
+  return nodeCallsVerifySameOrigin(helperBody, localFns, seen);
+}
+
+function nodeCallsVerifySameOrigin(root, localFns, seen = new Set()) {
+  let found = false;
+  function visit(node) {
+    if (found) return;
+    if (ts.isCallExpression(node) && callSatisfiesGuard(node, localFns, seen)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(root);
+  return found;
 }
 
 export function checkApiMutationCsrfGuard(rootDir, errors) {
@@ -23,12 +87,17 @@ export function checkApiMutationCsrfGuard(rootDir, errors) {
 
   for (const filePath of routes) {
     const rel = path.relative(rootDir, filePath).split(path.sep).join("/");
-    if (BEARER_ONLY_ALLOWLIST.has(rel)) continue;
     const content = fs.readFileSync(filePath, "utf8");
-    if (!MUTATION_EXPORT_RE.test(content)) continue;
-    if (!/\bverifySameOrigin\s*\(/.test(content)) {
+    const sf = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true);
+    const handlers = collectExportedMutationHandlers(sf);
+    if (handlers.length === 0) continue;
+
+    const localFns = collectHelperCallMap(sf);
+    for (const handler of handlers) {
+      if (nodeCallsVerifySameOrigin(handler.body, localFns)) continue;
+      const line = sf.getLineAndCharacterOfPosition(handler.pos).line + 1;
       errors.push(
-        `${rel}:1 [api-mutation-csrf-guard] API route exports a mutation handler (POST/PATCH/PUT/DELETE) without calling verifySameOrigin(request, startedAt).`,
+        `${rel}:${line} [api-mutation-csrf-guard] Exported ${handler.name} handler does not call verifySameOrigin(request, startedAt).`,
       );
     }
   }

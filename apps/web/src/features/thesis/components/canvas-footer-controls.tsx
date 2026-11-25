@@ -1,6 +1,6 @@
 "use client";
 
-import type { GlossaryTerm, ThesisDetail, ThesisSummary } from "@kanon/core";
+import type { GlossaryTerm, PublicUser, ThesisDetail, ThesisSummary } from "@kanon/core";
 import { Button, CommandMenu, DialogModal, useTheme } from "@kanon/ui";
 import { IconAlertTriangle, IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import dynamic from "next/dynamic";
@@ -101,6 +101,7 @@ export function useCanvasShellActions(params: {
   allTheses: readonly ThesisSummary[];
   glossary: readonly GlossaryTerm[];
   onSelectStep: (step: StepId) => void;
+  onFlushPending?: () => Promise<void>;
   onToggleFocus: () => void;
   onOpenAgent: () => void;
   onOpenAi: () => void;
@@ -108,11 +109,15 @@ export function useCanvasShellActions(params: {
 }) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
-  const { ctrl, onSelectStep } = params;
+  const { ctrl, onSelectStep, onFlushPending } = params;
   const commandGroups = useMemo(() => {
     const trigger = (step: StepId, action: "red_team" | "earnings_digest" | "investment_memo") => {
       onSelectStep(step);
       void ctrl.runCopilot(action);
+    };
+    const navigateSafe = (href: string) => {
+      if (onFlushPending) void onFlushPending().finally(() => router.push(href));
+      else router.push(href);
     };
     return buildCanvasCommandGroups({
       currentThesis: ctrl.thesis,
@@ -120,8 +125,8 @@ export function useCanvasShellActions(params: {
       glossary: params.glossary,
       theme,
       onSelectStep,
-      onSwitchThesis: (id) => router.push(`/thesis/${id}`),
-      onGoHome: () => router.push("/"),
+      onSwitchThesis: (id) => navigateSafe(`/thesis/${id}`),
+      onGoHome: () => navigateSafe("/"),
       onOpenAgent: params.onOpenAgent,
       onRunRedTeam: () => trigger(2, "red_team"),
       onRunDigest: () => trigger(3, "earnings_digest"),
@@ -130,7 +135,7 @@ export function useCanvasShellActions(params: {
       onToggleFocus: params.onToggleFocus,
       onToggleTheme: toggleTheme,
     });
-  }, [ctrl, params, router, onSelectStep, theme, toggleTheme]);
+  }, [ctrl, params, router, onSelectStep, onFlushPending, theme, toggleTheme]);
   async function handleConfirmDelete() {
     if (!(await ctrl.deleteCurrentThesis())) return;
     params.onCloseDelete();
@@ -142,6 +147,7 @@ export function useCanvasShellActions(params: {
 
 export interface CanvasOverlaysProps {
   thesis: ThesisDetail;
+  currentUser?: PublicUser;
   deleting: boolean;
   commandOpen: boolean;
   aiModalOpen: boolean;
@@ -172,6 +178,7 @@ export function CanvasOverlays(props: CanvasOverlaysProps) {
       {aiMounted ? (
         <AiSettingsModal
           open={props.aiModalOpen}
+          currentUser={props.currentUser}
           onOpenChange={props.onAiModalOpen}
           onChanged={props.onByokChanged}
           thesisContext={ctx}

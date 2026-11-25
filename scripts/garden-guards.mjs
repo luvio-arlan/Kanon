@@ -50,26 +50,34 @@ export function checkUniversalDirDensity(rootDir, errors) {
   for (const r of roots) walkDir(r);
 }
 
+function scanMigrationFile(rootDir, fullPath, errors) {
+  const rel = path.relative(rootDir, fullPath).split(path.sep).join("/");
+  const lines = fs.readFileSync(fullPath, "utf8").split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!DESTRUCTIVE_SQL_RE.test(lines[i] ?? "")) continue;
+    addError(
+      errors,
+      rel,
+      i + 1,
+      "expand-only-migrations",
+      "Destructive SQL violates expand-only migration rule. Add nullable/defaulted columns or new tables instead so rollbacks stay zero-downtime.",
+    );
+  }
+}
+
 export function checkExpandOnlyMigrations(rootDir, errors) {
   const migDir = path.join(rootDir, "packages/core/src/db/migrations");
-  if (!fs.existsSync(migDir)) return;
-  for (const entry of fs.readdirSync(migDir, { withFileTypes: true })) {
-    if (!entry.isFile() || !/\.(ts|sql)$/.test(entry.name)) continue;
-    const fullPath = path.join(migDir, entry.name);
-    const rel = path.relative(rootDir, fullPath).split(path.sep).join("/");
-    const lines = fs.readFileSync(fullPath, "utf8").split("\n");
-    for (let i = 0; i < lines.length; i += 1) {
-      if (DESTRUCTIVE_SQL_RE.test(lines[i] ?? "")) {
-        addError(
-          errors,
-          rel,
-          i + 1,
-          "expand-only-migrations",
-          "Destructive SQL violates expand-only migration rule. Add nullable/defaulted columns or new tables instead so rollbacks stay zero-downtime.",
-        );
+  function walk(dirPath) {
+    if (!fs.existsSync(dirPath)) return;
+    for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) walk(fullPath);
+      else if (entry.isFile() && /\.(ts|sql)$/.test(entry.name)) {
+        scanMigrationFile(rootDir, fullPath, errors);
       }
     }
   }
+  walk(migDir);
 }
 
 function checkDocsLineScripts(line, lineNo, scripts, errors) {

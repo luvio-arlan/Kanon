@@ -110,10 +110,14 @@ export async function authenticateApiToken(
     return null;
   }
 
-  await db
-    .update(apiTokensTable)
-    .set({ lastUsedAt: new Date() })
-    .where(eq(apiTokensTable.id, match.token.id));
+  const now = new Date();
+  const lastUsedMs = match.token.lastUsedAt?.getTime() ?? 0;
+  if (now.getTime() - lastUsedMs >= 5 * 60 * 1000) {
+    await db
+      .update(apiTokensTable)
+      .set({ lastUsedAt: now })
+      .where(eq(apiTokensTable.id, match.token.id));
+  }
 
   return {
     user: toPublicUser(match.user),

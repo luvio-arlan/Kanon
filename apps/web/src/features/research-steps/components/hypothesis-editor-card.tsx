@@ -59,12 +59,13 @@ function ReorderActions(props: {
   onRemove?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/hyp:opacity-100">
+    <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/hyp:opacity-100 [@media(hover:none)]:opacity-100">
       <button
         type="button"
         disabled={props.index === 0}
         onClick={() => props.onMove(-1)}
         title="上移"
+        aria-label="上移核心假设"
         className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-item text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary disabled:opacity-30"
       >
         <IconArrowUp size={14} stroke={1.5} />
@@ -74,6 +75,7 @@ function ReorderActions(props: {
         disabled={props.index === props.total - 1}
         onClick={() => props.onMove(1)}
         title="下移"
+        aria-label="下移核心假设"
         className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-item text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary disabled:opacity-30"
       >
         <IconArrowDown size={14} stroke={1.5} />
@@ -83,6 +85,7 @@ function ReorderActions(props: {
           type="button"
           onClick={props.onRemove}
           title="移除"
+          aria-label="移除核心假设"
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-item text-ink-muted transition-colors hover:bg-status-fail-soft hover:text-status-fail"
         >
           <IconTrash size={14} stroke={1.5} />

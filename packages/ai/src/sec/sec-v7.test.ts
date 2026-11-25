@@ -141,4 +141,127 @@ describe("KANON v7 SEC 20-F FX/ADR, Quarterly De-cumulation, 10-K TOC & Form 4",
     expect(summary.signal).toBe("cluster_buy");
     expect(summary.openMarketBuysUsd).toBe(2_050_000);
   });
+
+  it("prioritizes 20-F reporting currency over incidental USD facts and derives multi-year Q4s", () => {
+    const facts = {
+      "ifrs-full": {
+        Revenue: {
+          units: {
+            TWD: [{ val: 2_894e9, form: "20-F", fy: 2024, start: "2024-01-01", end: "2024-12-31" }],
+          },
+        },
+        CashAndCashEquivalents: {
+          units: {
+            USD: [{ val: 5e9, form: "20-F", fy: 2024, end: "2024-12-31" }],
+          },
+        },
+      },
+    };
+    const norm = resolveCurrencyNormalization(facts, "TSM");
+    expect(norm.currency).toBe("TWD");
+
+    const multiYearFacts = {
+      "us-gaap": {
+        Revenues: {
+          units: {
+            USD: [
+              {
+                val: 15e9,
+                form: "10-Q",
+                fy: 2024,
+                start: "2024-01-01",
+                end: "2024-03-31",
+                frame: "CY2024Q1",
+              },
+              {
+                val: 16e9,
+                form: "10-Q",
+                fy: 2024,
+                start: "2024-04-01",
+                end: "2024-06-30",
+                frame: "CY2024Q2",
+              },
+              {
+                val: 17e9,
+                form: "10-Q",
+                fy: 2024,
+                start: "2024-07-01",
+                end: "2024-09-30",
+                frame: "CY2024Q3",
+              },
+              { val: 48e9, form: "10-Q", fy: 2024, start: "2024-01-01", end: "2024-09-30" },
+              {
+                val: 70e9,
+                form: "10-K",
+                fy: 2024,
+                start: "2024-01-01",
+                end: "2024-12-31",
+                frame: "CY2024",
+              },
+              {
+                val: 20e9,
+                form: "10-Q",
+                fy: 2025,
+                start: "2025-01-01",
+                end: "2025-03-31",
+                frame: "CY2025Q1",
+              },
+              {
+                val: 22e9,
+                form: "10-Q",
+                fy: 2025,
+                start: "2025-04-01",
+                end: "2025-06-30",
+                frame: "CY2025Q2",
+              },
+              {
+                val: 25e9,
+                form: "10-Q",
+                fy: 2025,
+                start: "2025-07-01",
+                end: "2025-09-30",
+                frame: "CY2025Q3",
+              },
+              { val: 67e9, form: "10-Q", fy: 2025, start: "2025-01-01", end: "2025-09-30" },
+              {
+                val: 100e9,
+                form: "10-K",
+                fy: 2025,
+                start: "2025-01-01",
+                end: "2025-12-31",
+                frame: "CY2025",
+              },
+            ],
+          },
+        },
+      },
+    };
+    const annuals = extractAnnualHistory(multiYearFacts);
+    const qs = extractQuarterlyHistory(multiYearFacts, undefined, annuals);
+    expect(qs.find((q) => q.periodLabel === "2024 Q4")?.revenue).toBe(22e9);
+    expect(qs.find((q) => q.periodLabel === "2025 Q4")?.revenue).toBe(33e9);
+  });
+
+  it("handles Form 4 footnoteId tags and 10b5-1 negation without false positives", () => {
+    const xmlNegated = `
+      <ownershipDocument>
+        <reportingOwner><reportingOwnerId><rptOwnerName>Jensen Huang</rptOwnerName></reportingOwnerId>
+        <reportingOwnerRelationship><isOfficer>1</isOfficer><officerTitle>CEO</officerTitle></reportingOwnerRelationship></reportingOwner>
+        <nonDerivativeTable><nonDerivativeTransaction>
+          <transactionDate><value>2026-09-10</value><footnoteId id="F1"/></transactionDate>
+          <transactionCoding><transactionCode>S</transactionCode></transactionCoding>
+          <transactionAmounts>
+            <transactionShares><value>10000</value><footnoteId id="F2"/></transactionShares>
+            <transactionPricePerShare><value>130.5</value><footnoteId id="F3"/></transactionPricePerShare>
+          </transactionAmounts>
+        </nonDerivativeTransaction></nonDerivativeTable>
+        <footnotes><footnote id="F1">This sale was not effected pursuant to a Rule 10b5-1 trading plan.</footnote></footnotes>
+      </ownershipDocument>
+    `;
+    const txs = parseForm4Transactions(xmlNegated, "2026-09-11");
+    expect(txs).toHaveLength(1);
+    expect(txs[0]?.shares).toBe(10000);
+    expect(txs[0]?.price).toBe(130.5);
+    expect(txs[0]?.is10b51).toBe(false);
+  });
 });

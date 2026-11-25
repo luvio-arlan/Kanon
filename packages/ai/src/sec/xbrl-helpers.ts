@@ -1,13 +1,6 @@
-export interface SecFactUnit {
-  val?: number;
-  form?: string;
-  fy?: number;
-  fp?: string;
-  start?: string;
-  end?: string;
-  filed?: string;
-  frame?: string;
-}
+import { isValidAnnualRow, resolvePeriodYear, type SecFactUnit } from "./xbrl-period-utils";
+
+export type { SecFactUnit };
 
 export type XbrlFactsNamespace = Record<
   string,
@@ -25,6 +18,11 @@ export interface CurrencyNormalization {
   currency: string;
   fxToUsd: number;
   adrRatio: number;
+}
+
+export interface MatchedUnitList {
+  list: SecFactUnit[];
+  matchedCurrency: string;
 }
 
 const FX_TO_USD: Record<string, number> = {
@@ -70,14 +68,6 @@ export function formatUsdCompact(value: number): string {
   return `${sign}$${abs.toFixed(0)}`;
 }
 
-export function diffDays(start?: string, end?: string): number | null {
-  if (!start || !end) return null;
-  const s = Date.parse(start);
-  const e = Date.parse(end);
-  if (!Number.isFinite(s) || !Number.isFinite(e)) return null;
-  return Math.round((e - s) / 86_400_000);
-}
-
 const CURRENCY_PROBE_TAGS = [
   "RevenueFromContractWithCustomerExcludingAssessedTax",
   "Revenues",
@@ -110,67 +100,57 @@ export function resolveCurrencyNormalization(
   scanCurrencyCounts(facts?.["us-gaap"], counts);
   scanCurrencyCounts(facts?.["ifrs-full"], counts);
   let currency = "USD";
-  if ((counts.get("USD") ?? 0) === 0 && counts.size > 0) {
-    currency = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "USD";
+  if (counts.size > 0) {
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const top = sorted[0];
+    const usdCount = counts.get("USD") ?? 0;
+    currency = top && (top[0] === "USD" || top[1] > usdCount) ? top[0] : "USD";
   }
   const upperTicker = ticker?.trim().toUpperCase() ?? "";
   const adrRatio = currency === "USD" ? 1 : (ADR_RATIO_BY_TICKER[upperTicker] ?? 1);
   return { currency, fxToUsd: FX_TO_USD[currency] ?? 1, adrRatio };
 }
 
-export function pickUnitList(
+export function pickUnitListWithCurrency(
   units: Record<string, SecFactUnit[] | undefined> | undefined,
   unitKind: UnitKind,
   currency: string,
-): SecFactUnit[] | undefined {
+): MatchedUnitList | undefined {
   if (!units) return undefined;
-  if (unitKind === "shares") return units.shares;
+  if (unitKind === "shares") {
+    return units.shares ? { list: units.shares, matchedCurrency: currency } : undefined;
+  }
   if (unitKind === "perShare") {
-    return units[`${currency}/shares`] ?? units["USD/shares"];
+    if (units[`${currency}/shares`]) {
+      return { list: units[`${currency}/shares`] ?? [], matchedCurrency: currency };
+    }
+    return units["USD/shares"] ? { list: units["USD/shares"], matchedCurrency: "USD" } : undefined;
   }
-  return units[currency] ?? units.USD;
+  if (units[currency]) return { list: units[currency], matchedCurrency: currency };
+  return units.USD ? { list: units.USD, matchedCurrency: "USD" } : undefined;
 }
 
-export function scaleByNorm(val: number, unitKind: UnitKind, norm: CurrencyNormalization): number {
+export function scaleByNorm(
+  val: number,
+  unitKind: UnitKind,
+  norm: CurrencyNormalization,
+  matchedCurrency?: string,
+): number {
+  const effectiveFx = matchedCurrency === "USD" ? 1 : norm.fxToUsd;
+  const effectiveAdr = matchedCurrency === "USD" ? 1 : norm.adrRatio;
   if (unitKind === "shares") return val / norm.adrRatio;
-  if (unitKind === "perShare") return val * norm.fxToUsd * norm.adrRatio;
-  return val * norm.fxToUsd;
+  if (unitKind === "perShare") return val * effectiveFx * effectiveAdr;
+  return val * effectiveFx;
 }
 
-function isValidAnnualRow(
-  row: SecFactUnit,
-  kind: "flow" | "instant",
-): row is { val: number; fy: number; end?: string; filed?: string; frame?: string } {
-  const annualForm = row.form === "10-K" || row.form === "20-F";
-  if (!annualForm || typeof row.val !== "number" || typeof row.fy !== "number") return false;
-  if (kind === "instant") {
-    return !row.start || (diffDays(row.start, row.end) ?? 0) <= 5;
-  }
-  if (row.frame && /^CY\d{4}$/.test(row.frame)) return true;
-  const days = diffDays(row.start, row.end);
-  if (days !== null) return days >= 320 && days <= 395;
-  return !row.fp || row.fp === "FY";
-}
-
-function resolvePeriodYear(row: { fy: number; end?: string; frame?: string }): number {
-  const frameMatch = row.frame ? /^CY(\d{4})$/.exec(row.frame) : null;
-  if (frameMatch?.[1]) return Number(frameMatch[1]);
-  if (row.end && /^\d{4}-\d{2}-\d{2}/.test(row.end)) {
-    const yr = Number(row.end.slice(0, 4));
-    const mo = Number(row.end.slice(5, 7));
-    return mo === 1 ? yr - 1 : yr;
-  }
-  return row.fy;
-}
-
-function indexAnnualRows(
-  list: readonly SecFactUnit[],
+function indexAnnualEntries(
+  matched: MatchedUnitList,
   kind: "flow" | "instant",
   unitKind: UnitKind,
   norm: CurrencyNormalization,
-): Map<number, number> {
+): Map<number, { val: number; end: string }> {
   const byYear = new Map<number, { filed: string; filingFy: number; end: string; val: number }>();
-  for (const row of list) {
+  for (const row of matched.list) {
     if (!isValidAnnualRow(row, kind)) continue;
     const periodYr = resolvePeriodYear(row);
     const filed = row.filed ?? "";
@@ -185,30 +165,43 @@ function indexAnnualRows(
         filed,
         filingFy: row.fy,
         end,
-        val: scaleByNorm(row.val, unitKind, norm),
+        val: scaleByNorm(row.val, unitKind, norm, matched.matchedCurrency),
       });
     }
   }
-  return new Map([...byYear.entries()].map(([fy, v]) => [fy, v.val]));
+  return new Map([...byYear.entries()].map(([fy, v]) => [fy, { val: v.val, end: v.end }]));
 }
 
-function collectFromNamespace(
+function collectEntriesFromNs(
   ns: XbrlFactsNamespace | undefined,
   tags: readonly string[],
   unitKind: UnitKind,
   kind: "flow" | "instant",
   norm: CurrencyNormalization,
-): Map<number, number> {
+): Map<number, { val: number; end: string }> {
   if (!ns) return new Map();
-  const merged = new Map<number, number>();
+  const merged = new Map<number, { val: number; end: string }>();
   for (const tag of tags) {
-    const list = pickUnitList(ns[tag]?.units, unitKind, norm.currency);
-    if (!list) continue;
-    for (const [yr, val] of indexAnnualRows(list, kind, unitKind, norm).entries()) {
-      if (!merged.has(yr)) merged.set(yr, val);
+    const matched = pickUnitListWithCurrency(ns[tag]?.units, unitKind, norm.currency);
+    if (!matched) continue;
+    for (const [yr, entry] of indexAnnualEntries(matched, kind, unitKind, norm).entries()) {
+      if (!merged.has(yr)) merged.set(yr, entry);
     }
   }
   return merged;
+}
+
+export function collectAnnualEntryMap(
+  facts: SecFactsPayload | undefined,
+  usTags: readonly string[],
+  ifrsTags: readonly string[] = [],
+  unitKind: UnitKind = "monetary",
+  kind: "flow" | "instant" = "flow",
+  norm: CurrencyNormalization = { currency: "USD", fxToUsd: 1, adrRatio: 1 },
+): Map<number, { val: number; end: string }> {
+  const usMap = collectEntriesFromNs(facts?.["us-gaap"], usTags, unitKind, kind, norm);
+  if (usMap.size > 0) return usMap;
+  return collectEntriesFromNs(facts?.["ifrs-full"], ifrsTags, unitKind, kind, norm);
 }
 
 export function collectAnnualMap(
@@ -219,7 +212,6 @@ export function collectAnnualMap(
   kind: "flow" | "instant" = "flow",
   norm: CurrencyNormalization = { currency: "USD", fxToUsd: 1, adrRatio: 1 },
 ): Map<number, number> {
-  const usMap = collectFromNamespace(facts?.["us-gaap"], usTags, unitKind, kind, norm);
-  if (usMap.size > 0) return usMap;
-  return collectFromNamespace(facts?.["ifrs-full"], ifrsTags, unitKind, kind, norm);
+  const entries = collectAnnualEntryMap(facts, usTags, ifrsTags, unitKind, kind, norm);
+  return new Map([...entries.entries()].map(([fy, entry]) => [fy, entry.val]));
 }

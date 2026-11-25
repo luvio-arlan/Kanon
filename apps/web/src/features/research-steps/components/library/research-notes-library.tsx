@@ -1,57 +1,11 @@
 "use client";
 
 import type { ResearchNote } from "@kanon/core";
-import { AgentThinking, Badge, Button, Card, Textarea } from "@kanon/ui";
-import { IconPlus, IconScissors, IconSparkles, IconTrash } from "@tabler/icons-react";
-import { useState } from "react";
+import { AgentThinking, Button, Card, Textarea } from "@kanon/ui";
+import { IconPlus, IconScissors, IconSparkles } from "@tabler/icons-react";
+import { useRef, useState } from "react";
 import { apiCreateResearchNote, apiDeleteResearchNote } from "../../lib/notes-api";
-import {
-  EMPTY_NOTE_DRAFT,
-  NewNoteComposer,
-  NOTE_KIND_LABELS,
-  type NoteDraft,
-} from "./note-composer";
-
-function NoteRowItem({
-  note,
-  active,
-  onSelect,
-  onDelete,
-}: {
-  note: ResearchNote;
-  active: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3 px-6 py-3.5 transition-colors hover:bg-canvas/45 sm:px-7">
-      <button type="button" onClick={onSelect} className="min-w-0 flex-1 cursor-pointer text-left">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={active ? "coral" : "titanium"}>{NOTE_KIND_LABELS[note.kind]}</Badge>
-          <span className="font-mono text-xs text-ink-muted">{note.periodLabel}</span>
-          <span className="truncate text-sm font-medium text-ink-primary">{note.title}</span>
-        </div>
-        {note.guidancePromised ? (
-          <div className="mt-1 font-mono text-xs text-ink-secondary">
-            {note.guidanceMetric || "指引"}：承诺 {note.guidancePromised} → 兑现{" "}
-            {note.guidanceDelivered || "待验证"}
-          </div>
-        ) : null}
-        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-secondary">
-          {note.content}
-        </p>
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        title="移除"
-        className="shrink-0 cursor-pointer rounded-item p-1.5 text-ink-muted hover:bg-status-fail-soft hover:text-status-fail"
-      >
-        <IconTrash size={13} stroke={1.5} />
-      </button>
-    </div>
-  );
-}
+import { EMPTY_NOTE_DRAFT, NewNoteComposer, type NoteDraft, NoteRowItem } from "./note-composer";
 
 function LibraryHeader(p: {
   count: number;
@@ -87,28 +41,53 @@ function LibraryHeader(p: {
   );
 }
 
+function NotesExpandToggle(p: { total: number; showAll: boolean; onToggle: () => void }) {
+  if (p.total <= 6) return null;
+  return (
+    <div className="px-6 py-2.5 text-center sm:px-7">
+      <button
+        type="button"
+        onClick={p.onToggle}
+        className="cursor-pointer text-xs font-medium text-ink-secondary hover:text-ink-primary"
+      >
+        {p.showAll ? "收起较早纪要" : `展开全部 ${p.total} 篇纪要`}
+      </button>
+    </div>
+  );
+}
+
 function NotesListSection(p: {
   notes: readonly ResearchNote[];
   selectedId: string | null;
+  deletingIds: readonly string[];
+  showAll: boolean;
   activeText: string;
   digestLoading: boolean;
+  onToggleShowAll: () => void;
   onSelect: (note: ResearchNote) => void;
   onDelete: (id: string) => void;
   onText: (t: string) => void;
 }) {
+  const visible = p.showAll ? p.notes : p.notes.slice(0, 6);
   return (
     <>
       {p.notes.length > 0 ? (
         <div className="divide-y divide-hairline border-b border-hairline">
-          {p.notes.slice(0, 6).map((note) => (
+          {visible.map((note) => (
             <NoteRowItem
               key={note.id}
               note={note}
               active={p.selectedId === note.id}
+              deleting={p.deletingIds.includes(note.id)}
               onSelect={() => p.onSelect(note)}
               onDelete={() => p.onDelete(note.id)}
             />
           ))}
+          <NotesExpandToggle
+            total={p.notes.length}
+            showAll={p.showAll}
+            onToggle={p.onToggleShowAll}
+          />
         </div>
       ) : null}
       <div className="space-y-3 px-6 py-4 transition-colors focus-within:bg-canvas/45 sm:px-7">
@@ -140,7 +119,11 @@ function useNotesLibraryState(props: ResearchNotesLibraryProps) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState<NoteDraft>(EMPTY_NOTE_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(props.notes[0]?.id ?? null);
+  const notesRef = useRef(props.notes);
+  notesRef.current = props.notes;
 
   const handleCreate = async () => {
     setSaving(true);
@@ -148,16 +131,22 @@ function useNotesLibraryState(props: ResearchNotesLibraryProps) {
       setSaving(false),
     );
     if (!created) return;
-    props.onNotesChange([created, ...props.notes]);
+    props.onNotesChange([created, ...notesRef.current]);
     setSelectedId(created.id);
     props.onActiveTextChange(created.content);
     setDraft(EMPTY_NOTE_DRAFT);
     setComposerOpen(false);
   };
   const handleDelete = async (noteId: string) => {
-    if (!(await apiDeleteResearchNote(props.thesisId, noteId))) return;
-    props.onNotesChange(props.notes.filter((n) => n.id !== noteId));
-    if (selectedId === noteId) setSelectedId(null);
+    if (deletingIds.includes(noteId)) return;
+    setDeletingIds((prev) => [...prev, noteId]);
+    try {
+      if (!(await apiDeleteResearchNote(props.thesisId, noteId))) return;
+      props.onNotesChange(notesRef.current.filter((n) => n.id !== noteId));
+      if (selectedId === noteId) setSelectedId(null);
+    } finally {
+      setDeletingIds((prev) => prev.filter((id) => id !== noteId));
+    }
   };
   return {
     composerOpen,
@@ -165,6 +154,9 @@ function useNotesLibraryState(props: ResearchNotesLibraryProps) {
     draft,
     setDraft,
     saving,
+    showAll,
+    setShowAll,
+    deletingIds,
     selectedId,
     setSelectedId,
     handleCreate,
@@ -196,8 +188,11 @@ export function ResearchNotesLibrary(props: ResearchNotesLibraryProps) {
       <NotesListSection
         notes={props.notes}
         selectedId={s.selectedId}
+        deletingIds={s.deletingIds}
+        showAll={s.showAll}
         activeText={props.activeText}
         digestLoading={props.digestLoading}
+        onToggleShowAll={() => s.setShowAll((v) => !v)}
         onSelect={(note) => {
           s.setSelectedId(note.id);
           props.onActiveTextChange(note.content);

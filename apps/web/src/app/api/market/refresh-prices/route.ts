@@ -6,16 +6,16 @@ import {
   type ThesisDetail,
 } from "@kanon/core";
 import {
+  batchUpdatePriceAnchors,
   buildMarketQuoteCacheKey,
   getKanonDb,
   listTheses,
-  updateThesisStep,
   upsertCachedMarketQuotes,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonOk } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
-import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
+import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -61,8 +61,8 @@ async function applyMarketQuotes(params: {
 }) {
   let updatedCount = 0;
   const skippedTickers: string[] = [];
-  const updatedMap = new Map<string, ThesisDetail>();
   const quotesRecord: Record<string, MarketQuoteSnapshot> = {};
+  const batchEntries: Array<{ thesisId: string; currentPrice: number; label: string }> = [];
 
   for (const item of params.active) {
     const res = params.rawQuotes.get(item.ticker);
@@ -74,16 +74,11 @@ async function applyMarketQuotes(params: {
     const nextPrice =
       params.mode === "extended" ? res.quote.effectivePrice : res.quote.regularPrice;
     if (Math.abs(nextPrice - item.currentPrice) >= 0.01) {
-      const next = await updateThesisStep(
-        params.db,
-        item.id,
-        { step: "price_anchor", currentPrice: nextPrice, label: params.label },
-        params.userId,
-      );
-      if (next) updatedMap.set(item.id, next);
+      batchEntries.push({ thesisId: item.id, currentPrice: nextPrice, label: params.label });
     }
     updatedCount += 1;
   }
+  const updatedMap = await batchUpdatePriceAnchors(params.db, params.userId, batchEntries);
   return { updatedCount, skippedTickers, updatedMap, quotesRecord };
 }
 
@@ -91,7 +86,7 @@ export async function POST(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
   if (originErr) return originErr;
-  const rateErr = checkRateLimit(request, REFRESH_RATE_POLICY, startedAt);
+  const rateErr = await checkPersistentRateLimit(request, REFRESH_RATE_POLICY, startedAt);
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;

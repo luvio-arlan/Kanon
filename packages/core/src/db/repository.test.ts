@@ -38,6 +38,11 @@ import {
   listGlossaryTerms,
 } from "./repositories/discipline-mutations";
 import {
+  createResearchNote,
+  listResearchNotes,
+  updateResearchNote,
+} from "./repositories/library/research-notes-store";
+import {
   buildMarketQuoteCacheKey,
   getCachedMarketQuotes,
   upsertCachedMarketQuotes,
@@ -56,13 +61,18 @@ import {
   listCachedSecFilingDocsByTicker,
   upsertCachedSecFilingDoc,
 } from "./repositories/sec/filing-docs-cache-store";
+import {
+  getSecSnapshotForUser,
+  upsertUserSecOverride,
+} from "./repositories/sec/user-sec-overrides-store";
 import { consumePersistentRateLimit } from "./repositories/security/rate-limit-store";
+import { listThesisSummaries } from "./repositories/thesis/thesis-lookups";
 import {
   createThesis,
   updateThesisStep,
   updateThesisStepChecked,
 } from "./repositories/thesis-mutations";
-import { getThesisById, listTheses, listThesisSummaries } from "./repositories/thesis-queries";
+import { getThesisById, listTheses } from "./repositories/thesis-queries";
 import * as schema from "./schema";
 
 describe("KANON PostgreSQL Repository & DDL Parity", () => {
@@ -648,5 +658,134 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
 
     await deleteThesis(db, target.id);
     await deleteThesis(db, importedV3.thesis.id);
+  });
+
+  it("isolates per-user SEC overrides, preserves partial note PATCH, remaps archive review IDs, and rejects malformed OCC", async () => {
+    const { user: userA } = await registerUser(db, {
+      phone: "13900001111",
+      password: "Password123!",
+      confirmPassword: "Password123!",
+      displayName: "Tenant A",
+    });
+    const { user: userB } = await registerUser(db, {
+      phone: "13900002222",
+      password: "Password123!",
+      confirmPassword: "Password123!",
+      displayName: "Tenant B",
+    });
+
+    await upsertUserSecOverride(db, userA.id, {
+      ticker: "ISO1",
+      cik: "MANUAL-ISO1",
+      entityName: "Tenant A Custom Corp",
+      source: "manual-verified",
+      reportingCurrency: "HKD",
+      fxToUsd: 0.128,
+      adrRatio: 1,
+      fetchedAt: "2026-11-26T00:00:00.000Z",
+      filings: [],
+      facts: [],
+      annuals: [
+        {
+          fiscalYear: "FY2025",
+          revenue: 10e9,
+          grossProfit: 6e9,
+          grossMarginPct: 60,
+          netIncome: 3e9,
+          operatingCashFlow: 4e9,
+          capex: 1e9,
+          freeCashFlow: 3e9,
+          dilutedEps: 3.5,
+        },
+      ],
+      quarterlies: [],
+      insiderSummary: null,
+    });
+    expect((await getSecSnapshotForUser(db, "ISO1", userA.id))?.entityName).toBe(
+      "Tenant A Custom Corp",
+    );
+    expect(await getSecSnapshotForUser(db, "ISO1", userB.id)).toBeNull();
+    expect(await getSecSnapshot(db, "ISO1")).toBeNull();
+
+    const thesis = await createThesis(
+      db,
+      { ticker: "ISO1", companyName: "Iso One", sectorTag: "Software", currentPrice: 100 },
+      userA.id,
+    );
+    const createdNote = await createResearchNote(db, {
+      thesisId: thesis.id,
+      userId: userA.id,
+      input: {
+        kind: "earnings_call",
+        periodLabel: "FY26 Q2",
+        title: "Original Title",
+        content: "Original body content",
+        guidanceMetric: "Gross Margin",
+        guidancePromised: "70%",
+        guidanceDelivered: "71%",
+      },
+    });
+    const patchedNote = await updateResearchNote(db, {
+      thesisId: thesis.id,
+      userId: userA.id,
+      input: { noteId: createdNote.id, title: "Updated Title" },
+    });
+    expect(patchedNote?.title).toBe("Updated Title");
+    expect(patchedNote?.content).toBe("Original body content");
+    expect(patchedNote?.guidanceMetric).toBe("Gross Margin");
+    expect(patchedNote?.guidancePromised).toBe("70%");
+
+    const invalidOcc = await updateThesisStepChecked(
+      db,
+      thesis.id,
+      { step: "price_anchor", currentPrice: 105 },
+      userA.id,
+      "not-a-valid-date",
+    );
+    expect(invalidOcc.kind).toBe("invalid_version");
+
+    const origHyp = thesis.hypotheses[0];
+    if (!origHyp) throw new Error("Expected initial hypothesis");
+    const createdReview = await createQuarterlyReview(
+      db,
+      thesis.id,
+      {
+        quarterLabel: "FY26 Q2",
+        summary: "Strong quarter",
+        hypothesisVerdicts: [
+          {
+            hypothesisId: origHyp.id,
+            title: origHyp.title,
+            verdict: "strengthened",
+            evidence: "Beat target",
+          },
+        ],
+        applyStatusUpdates: false,
+      },
+      userA.id,
+    );
+    if (!createdReview) throw new Error("Expected quarterly review to be created");
+    const notesBeforeExport = await listResearchNotes(db, thesis.id, userA.id);
+    const copy = await importThesisArchive(
+      db,
+      {
+        archive: {
+          schemaVersion: "kanon-archive/v3",
+          thesis: { ...thesis, ticker: "ISO2" },
+          quarterlyReviews: [createdReview.review],
+          researchNotes: notesBeforeExport,
+        },
+        mode: "create_copy",
+      },
+      userA.id,
+    );
+    const restoredNotes = await listResearchNotes(db, copy.thesis.id, userA.id);
+    expect(restoredNotes).toHaveLength(1);
+    expect(restoredNotes[0]?.title).toBe("Updated Title");
+    const restoredReviews = await listQuarterlyReviews(db, copy.thesis.id);
+    expect(restoredReviews[0]?.hypothesisVerdicts[0]?.hypothesisId).toBe(
+      copy.thesis.hypotheses[0]?.id,
+    );
+    expect(restoredReviews[0]?.hypothesisVerdicts[0]?.hypothesisId).not.toBe(origHyp.id);
   });
 });

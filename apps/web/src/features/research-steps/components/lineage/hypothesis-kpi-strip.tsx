@@ -104,6 +104,7 @@ function KpiRuleEditor({
         type="button"
         onClick={onClear}
         title="解除自动核验"
+        aria-label="解除自动核验"
         className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-item text-ink-muted hover:bg-muted hover:text-ink-primary"
       >
         <IconX size={12} stroke={1.5} />

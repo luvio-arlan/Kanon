@@ -9,8 +9,8 @@
 - **Buy-Side Methodology (Variant Perception, Key Debate, Unit Economics, Pre-Mortem)**: Great research isolates (1) what consensus prices in, (2) our concrete variant perception, (3) the 1–2 binary key debates over 18 months, and (4) an explicit pre-mortem narrative before risking capital.
 - **Web Craft & Motion Physics (Linear, Stripe, Emil Kowalski, Rauno Freiberg)**:
   - Sub-300ms transitions; `0ms` zero-friction for high-frequency keyboard shortcuts.
-  - Tactile button press `scale(0.97)` at `160ms ease-out`; overlays enter from `scale(0.95)` origin-aware (never `scale(0)`).
-  - Subtle `2px` optical blur bridge on step transitions to eliminate harsh content flashes.
+  - Crisp color/border feedback on buttons (zero `active:scale-*` press jitter); overlays enter from `scale(0.96)` origin-aware (never `scale(0)`).
+  - Pure opacity/transform transitions on step switches (zero GPU `filter: blur(...)` repaint jank).
 - **Agentic & Local-First Systems**:
   - Hybrid separation: deterministic math/XBRL in Postgres + `@kanon/core/math`, narrative synthesis via structured tool-calling (`MCP-ready` tool registry) with strict `maxSteps` caps and SSE live reasoning traces.
   - Evolution path from optimized RSC + lightweight summary projections + optimistic UI (v3.0) toward ElectricSQL/Zero delta sync (v5.0).
@@ -27,7 +27,10 @@
   - Atomic multi-proposal Agent apply (`applyAgentProposalsAtomic`), `expectedUpdatedAt` OCC (`409 CONFLICT`), `BroadcastChannel` tab sync, lossless Archive v3 export/import, and persistent Postgres `rate_limit_buckets` + `verifySameOrigin` CSRF gate across all mutations.
   - Step 2/3 bidirectional `cross_checks.hypothesis_id` lineage (0009), 3-bar Expectations Contrast chart, custom probability normalization, Portfolio Cognitive Calibration (`calm / hesitant / fomo / fearful` win rates), and Weekly IC Digest (`GET /api/portfolio/calibration`).
   - Scoped Streamable HTTP MCP Server v2 (`6 read + 3 read_write tools` via `/api/mcp`) and print-grade `@media print` A4 IC Memo typography.
-- **v5.0 (Institutional Team OS)**:
+- **v7.0 (Implemented Now)**:
+  - Linked 3-scenario operating model + SOTP + grid-bracketed RONIC Reverse-DCF + 5Y benchmarks, per-user isolated `user_sec_overrides` (0012), persistent `research_notes` (0011) with full Archive v3 parity, and SSRF-hardened BYOK AI provider fetch with nonce-delimited prompt evidence.
+  - Tree-shaken `@kanon/ui/{theme,charts}` subpath exports, lazy `public-*.ts` feature entrypoints, AST per-handler CSRF verification, recursive expand-only migration checks, and WCAG 2.1 AA / Dark-to-Light `@media print` typography.
+- **v8.0+ (Institutional Team OS)**:
   - Local-First sub-50ms sync engine (ElectricSQL / Zero) on Postgres WAL.
   - External MCP Server connectors (live market feeds, SEC Form 4/13F, Google Drive/Notion sync).
   - Multi-analyst workspaces with RBAC/RLS and inline IC memo commenting.

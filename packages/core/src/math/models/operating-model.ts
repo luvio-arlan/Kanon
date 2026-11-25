@@ -44,9 +44,8 @@ function projectFlows(startRev: number, years: number, caseDrv: OperatingCaseDri
     rev *= 1 + revGrowth;
     endingEbit = rev * (caseDrv.targetOperatingMarginPct / 100);
     endingNetIncome = endingEbit * (1 - tax);
-    const sbc = rev * (caseDrv.sbcPctOfRev / 100);
     const capexDrag = rev * (caseDrv.capexPctOfRev / 100) * 0.35;
-    endingOwnerFcf = endingNetIncome - sbc - capexDrag;
+    endingOwnerFcf = endingNetIncome - capexDrag;
     cumulativeFcf += endingOwnerFcf;
   }
   return { rev, cumulativeFcf, endingEbit, endingNetIncome, endingOwnerFcf };
@@ -61,29 +60,26 @@ function simulateCase(
   const startShares = Math.max(0.01, baseInput.currentSharesM);
   const shareFactor = Math.max(0.5, 1 + caseDrv.annualShareChangePct / 100);
   const retention = Math.min(1, Math.max(0, cashRetentionPct / 100));
+  const tax = Math.min(0.45, Math.max(0, caseDrv.taxRatePct / 100));
   const f = projectFlows(Math.max(0.01, baseInput.currentRevenueB), years, caseDrv);
 
   const endingSharesM = roundTo(Math.max(0.01, startShares * shareFactor ** years), 1);
-  const endingNetCashB = roundTo(
-    baseInput.cashB - baseInput.totalDebtB + f.cumulativeFcf * retention,
-    2,
-  );
+  const retainedCash = f.cumulativeFcf >= 0 ? f.cumulativeFcf * retention : f.cumulativeFcf;
+  const endingNetCashB = roundTo(baseInput.cashB - baseInput.totalDebtB + retainedCash, 2);
   const impliedEps = roundTo((f.endingNetIncome * 1000) / endingSharesM, 2);
-  const peTargetPrice = roundTo(Math.max(0.01, impliedEps * caseDrv.terminalMultiple), 2);
-  const evFcfTargetPrice = roundTo(
-    (Math.max(0.1, f.endingOwnerFcf * caseDrv.terminalMultiple + endingNetCashB) * 1000) /
-      endingSharesM,
-    2,
-  );
-  const evEbitTargetPrice = roundTo(
-    (Math.max(0.1, f.endingEbit * caseDrv.terminalMultiple + endingNetCashB) * 1000) /
-      endingSharesM,
-    2,
-  );
-  const cagrPct = roundTo(
-    ((evFcfTargetPrice / Math.max(0.01, baseInput.currentPrice)) ** (1 / years) - 1) * 100,
-    1,
-  );
+  const peTargetPrice = roundTo(Math.max(0, impliedEps * caseDrv.terminalMultiple), 2);
+  const evFcfEquityB = Math.max(0, f.endingOwnerFcf * caseDrv.terminalMultiple + endingNetCashB);
+  const evFcfTargetPrice = roundTo((evFcfEquityB * 1000) / endingSharesM, 2);
+  const evEbitMultiple = caseDrv.terminalMultiple * (1 - tax);
+  const evEbitEquityB = Math.max(0, f.endingEbit * evEbitMultiple + endingNetCashB);
+  const evEbitTargetPrice = roundTo((evEbitEquityB * 1000) / endingSharesM, 2);
+  const cagrPct =
+    evFcfTargetPrice <= 0
+      ? -100
+      : roundTo(
+          ((evFcfTargetPrice / Math.max(0.01, baseInput.currentPrice)) ** (1 / years) - 1) * 100,
+          1,
+        );
 
   return {
     endingRevenueB: roundTo(f.rev, 2),

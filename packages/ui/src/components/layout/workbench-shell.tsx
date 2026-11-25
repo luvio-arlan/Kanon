@@ -3,7 +3,7 @@
 import { IconMenu2, IconX } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "../../lib/cn";
 import { KANON_DRAWER_SPRING, KANON_TRANSITION_FAST } from "../../lib/motion";
 import { KanonMark } from "../primitives/kanon-mark";
@@ -11,6 +11,7 @@ import { KanonMark } from "../primitives/kanon-mark";
 export interface WorkbenchShellProps {
   sidebar: (ctx: {
     collapsed: boolean;
+    isMobile: boolean;
     onToggleCollapse: () => void;
     closeMobile: () => void;
   }) => ReactNode;
@@ -53,6 +54,41 @@ function MobileTopBar({
   );
 }
 
+function useEscapeClose(open: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+}
+
+function MobileDrawerPanel({ onClose, content }: { onClose: () => void; content: ReactNode }) {
+  return (
+    <motion.div
+      initial={{ x: -296, opacity: 0.6 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: -296, opacity: 0 }}
+      transition={KANON_DRAWER_SPRING}
+      className="relative z-10 flex h-full w-[296px] max-w-[85vw] p-3"
+    >
+      <div className="kanon-surface-specular relative flex h-full w-full flex-col overflow-hidden rounded-card border border-strong bg-sidebar shadow-overlay">
+        <button
+          type="button"
+          aria-label="关闭侧栏"
+          onClick={onClose}
+          className="absolute right-3 top-3 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary"
+        >
+          <IconX size={16} stroke={1.5} />
+        </button>
+        {content}
+      </div>
+    </motion.div>
+  );
+}
+
 function MobileSidebarDrawer({
   open,
   onClose,
@@ -62,10 +98,16 @@ function MobileSidebarDrawer({
   onClose: () => void;
   content: ReactNode;
 }) {
+  useEscapeClose(open, onClose);
   return (
     <AnimatePresence>
       {open ? (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="导航侧栏"
+          className="fixed inset-0 z-50 flex lg:hidden"
+        >
           <motion.button
             type="button"
             aria-label="关闭侧栏"
@@ -76,25 +118,7 @@ function MobileSidebarDrawer({
             transition={KANON_TRANSITION_FAST}
             className="kanon-backdrop absolute inset-0 cursor-pointer"
           />
-          <motion.div
-            initial={{ x: -296, opacity: 0.6 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -296, opacity: 0 }}
-            transition={KANON_DRAWER_SPRING}
-            className="relative z-10 flex h-full w-[296px] max-w-[85vw] p-3"
-          >
-            <div className="kanon-surface-specular relative flex h-full w-full flex-col overflow-hidden rounded-card border border-strong bg-sidebar shadow-overlay">
-              <button
-                type="button"
-                aria-label="关闭侧栏"
-                onClick={onClose}
-                className="absolute right-3 top-3 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-muted hover:text-ink-primary"
-              >
-                <IconX size={16} stroke={1.5} />
-              </button>
-              {content}
-            </div>
-          </motion.div>
+          <MobileDrawerPanel onClose={onClose} content={content} />
         </div>
       ) : null}
     </AnimatePresence>
@@ -128,8 +152,15 @@ export function WorkbenchShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const toggleCollapse = () => setCollapsed((v) => !v);
   const closeMobile = () => setMobileOpen(false);
-  const desktopBar = sidebar({ collapsed, onToggleCollapse: toggleCollapse, closeMobile });
-  const mobileBar = sidebar({ collapsed: false, onToggleCollapse: toggleCollapse, closeMobile });
+  const desktopBar = sidebar({
+    collapsed,
+    isMobile: false,
+    onToggleCollapse: toggleCollapse,
+    closeMobile,
+  });
+  const mobileBar = mobileOpen
+    ? sidebar({ collapsed: false, isMobile: true, onToggleCollapse: toggleCollapse, closeMobile })
+    : null;
 
   return (
     <div

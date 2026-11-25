@@ -202,6 +202,7 @@ export {
   ThesisStatusSchema,
   type ThesisSummary,
   ThesisSummarySchema,
+  TickerSymbolSchema,
   type TradeAction,
   TradeActionSchema,
   type UpdateThesisStepInput,

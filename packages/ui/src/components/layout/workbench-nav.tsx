@@ -140,6 +140,7 @@ export function SidebarNavItem({
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
+      aria-label={collapsed ? label : undefined}
       title={collapsed ? label : undefined}
       className={cn(
         "group relative flex w-full cursor-pointer items-center justify-between gap-2 rounded-control text-left transition-colors",

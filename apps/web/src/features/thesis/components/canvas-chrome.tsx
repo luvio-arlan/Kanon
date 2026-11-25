@@ -38,8 +38,10 @@ export interface ResearchSidebarProps {
   allTheses: readonly ThesisSummary[];
   activeStep: StepId;
   collapsed: boolean;
+  isMobile?: boolean;
   onToggleCollapse: () => void;
   onCloseMobile: () => void;
+  onBeforeSwitch?: () => Promise<void>;
   onSelectStep: (step: StepId) => void;
   onOpenAgent: () => void;
   onOpenCommand: () => void;
@@ -58,6 +60,7 @@ function SidebarTopHeader(p: { collapsed: boolean; onToggleCollapse: () => void 
       <Link
         href="/"
         title="返回研究工作台"
+        aria-label="返回研究工作台"
         className="inline-flex items-center gap-2 text-sm font-medium text-ink-secondary transition-colors hover:text-ink-primary"
       >
         <IconArrowLeft size={16} stroke={1.5} />
@@ -131,12 +134,14 @@ export function ResearchSidebar(props: ResearchSidebarProps) {
           thesis={props.thesis}
           allTheses={props.allTheses}
           collapsed={props.collapsed}
+          onBeforeSwitch={props.onBeforeSwitch}
         />
         <div className={props.collapsed ? "px-2" : "px-3"}>
           <StepRail
             activeStep={props.activeStep}
             thesis={props.thesis}
             collapsed={props.collapsed}
+            layoutId={props.isMobile ? "research-step-tab-mobile" : "research-step-tab"}
             onSelect={(step) => {
               props.onSelectStep(step);
               props.onCloseMobile();

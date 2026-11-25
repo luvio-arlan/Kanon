@@ -35,32 +35,54 @@ const PolygonSnapshotSchema = z.object({
     .optional(),
 });
 
-function inferPolygonSession(regularPrice: number, livePrice: number): MarketSessionState {
-  if (Math.abs(livePrice - regularPrice) >= 0.01) return "POST";
-  return "REGULAR";
+function inferPolygonSession(
+  regularPrice: number,
+  livePrice: number,
+  asOfMs: number,
+  hasUpdatedTimestamp: boolean,
+): MarketSessionState {
+  if (Math.abs(livePrice - regularPrice) < 0.01) return "REGULAR";
+  if (!hasUpdatedTimestamp) return "POST";
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(
+    fmt.formatToParts(new Date(asOfMs)).map((p) => [p.type, p.value]),
+  );
+  const mins = Number(parts.hour ?? 16) * 60 + Number(parts.minute ?? 0);
+  if (mins >= 570 && mins < 960) return "REGULAR";
+  return mins >= 240 && mins < 570 ? "PRE" : "POST";
 }
 
 function buildPolygonFields(
   snap: NonNullable<z.infer<typeof PolygonSnapshotSchema>["ticker"]>,
   regularPrice: number,
   effectivePrice: number,
+  sessionState: MarketSessionState,
 ) {
   const prevClose = snap.prevDay?.c ?? null;
   const regDelta = computePriceDelta(regularPrice, prevClose);
-  const extPrice = Math.abs(effectivePrice - regularPrice) >= 0.01 ? effectivePrice : null;
+  const extPrice =
+    sessionState !== "REGULAR" && Math.abs(effectivePrice - regularPrice) >= 0.01
+      ? effectivePrice
+      : null;
   const extDelta = computePriceDelta(extPrice, regularPrice);
+  const isPre = sessionState === "PRE";
   return {
     previousClose: prevClose ? roundTo(prevClose, 2) : null,
     regularChange:
       snap.todaysChange !== undefined ? roundTo(snap.todaysChange, 2) : regDelta.change,
     regularChangePct:
       snap.todaysChangePerc !== undefined ? roundTo(snap.todaysChangePerc, 2) : regDelta.changePct,
-    preMarketPrice: null,
-    preMarketChange: null,
-    preMarketChangePct: null,
-    postMarketPrice: extPrice,
-    postMarketChange: extDelta.change,
-    postMarketChangePct: extDelta.changePct,
+    preMarketPrice: isPre ? extPrice : null,
+    preMarketChange: isPre ? extDelta.change : null,
+    preMarketChangePct: isPre ? extDelta.changePct : null,
+    postMarketPrice: isPre ? null : extPrice,
+    postMarketChange: isPre ? null : extDelta.change,
+    postMarketChangePct: isPre ? null : extDelta.changePct,
   };
 }
 
@@ -78,14 +100,20 @@ function buildPolygonSnapshot(
   const regularPrice = roundTo(rawRegular, 2);
   const effectivePrice = roundTo(liveTrade ?? regularPrice, 2);
   const asOfMs = snap.updated ? Math.floor(snap.updated / 1_000_000) : Date.now();
+  const sessionState = inferPolygonSession(
+    regularPrice,
+    effectivePrice,
+    asOfMs,
+    snap.updated !== undefined,
+  );
   return {
     ok: true,
     quote: {
       ticker,
       currency: "USD",
-      sessionState: inferPolygonSession(regularPrice, effectivePrice),
+      sessionState,
       regularPrice,
-      ...buildPolygonFields(snap, regularPrice, effectivePrice),
+      ...buildPolygonFields(snap, regularPrice, effectivePrice, sessionState),
       effectivePrice,
       dayHigh: snap.day?.h && snap.day.h > 0 ? roundTo(snap.day.h, 2) : null,
       dayLow: snap.day?.l && snap.day.l > 0 ? roundTo(snap.day.l, 2) : null,

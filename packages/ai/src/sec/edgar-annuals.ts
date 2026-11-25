@@ -1,6 +1,7 @@
 import { roundTo, type SecAnnualFinancial, type SecFinancialFact } from "@kanon/core";
 import {
   type CurrencyNormalization,
+  collectAnnualEntryMap,
   collectAnnualMap,
   formatUsdCompact,
   resolveCurrencyNormalization,
@@ -8,6 +9,29 @@ import {
 } from "./xbrl-helpers";
 
 export { formatUsdCompact, resolveCurrencyNormalization, type SecFactsPayload };
+
+function extractTotalDebtMap(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
+  const inst = (us: readonly string[], ifrs: readonly string[]) =>
+    collectAnnualMap(facts, us, ifrs, "monetary", "instant", norm);
+  const aggregate = inst(
+    ["LongTermDebtAndCapitalLeaseObligations", "LongTermDebt"],
+    ["Borrowings"],
+  );
+  const noncurrent = inst(
+    ["LongTermDebtNoncurrent"],
+    ["NoncurrentBorrowings", "LongtermBorrowings"],
+  );
+  const current = inst(
+    ["LongTermDebtCurrent", "DebtCurrent", "ShortTermBorrowings"],
+    ["CurrentBorrowings", "CurrentPortionOfLongtermBorrowings"],
+  );
+  const merged = new Map<number, number>(aggregate);
+  for (const fy of new Set([...noncurrent.keys(), ...current.keys()])) {
+    if (merged.has(fy)) continue;
+    merged.set(fy, (noncurrent.get(fy) ?? 0) + (current.get(fy) ?? 0));
+  }
+  return merged;
+}
 
 function extractBalanceSheetMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
   const inst = (us: readonly string[], ifrs: readonly string[]) =>
@@ -17,15 +41,7 @@ function extractBalanceSheetMaps(facts: SecFactsPayload | undefined, norm: Curre
       ["CashCashEquivalentsAndShortTermInvestments", "CashAndCashEquivalentsAtCarryingValue"],
       ["CashAndCashEquivalents"],
     ),
-    debt: inst(
-      [
-        "LongTermDebtAndCapitalLeaseObligations",
-        "LongTermDebt",
-        "LongTermDebtNoncurrent",
-        "DebtCurrent",
-      ],
-      ["Borrowings", "LongtermBorrowings"],
-    ),
+    debt: extractTotalDebtMap(facts, norm),
     equity: inst(
       [
         "StockholdersEquity",
@@ -53,19 +69,10 @@ function extractBalanceSheetMaps(facts: SecFactsPayload | undefined, norm: Curre
   };
 }
 
-function extractIncomeCashMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
+function extractCashFlowMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
   const flow = (us: readonly string[], ifrs: readonly string[]) =>
     collectAnnualMap(facts, us, ifrs, "monetary", "flow", norm);
   return {
-    rev: flow(
-      ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
-      ["Revenue"],
-    ),
-    gp: flow(["GrossProfit"], ["GrossProfit"]),
-    cogs: flow(["CostOfRevenue", "CostOfGoodsAndServicesSold"], ["CostOfSales"]),
-    ebit: flow(["OperatingIncomeLoss"], ["ProfitLossFromOperatingActivities"]),
-    rd: flow(["ResearchAndDevelopmentExpense"], ["ResearchAndDevelopmentExpense"]),
-    ni: flow(["NetIncomeLoss"], ["ProfitLoss"]),
     ocf: flow(
       ["NetCashProvidedByUsedInOperatingActivities"],
       ["CashFlowsFromUsedInOperatingActivities"],
@@ -80,6 +87,38 @@ function extractIncomeCashMaps(facts: SecFactsPayload | undefined, norm: Currenc
       ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
       ["ExpenseFromSharebasedPaymentTransactionsWithEmployees"],
     ),
+  };
+}
+
+function extractIncomeCashMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
+  const flow = (us: readonly string[], ifrs: readonly string[]) =>
+    collectAnnualMap(facts, us, ifrs, "monetary", "flow", norm);
+  const revEntries = collectAnnualEntryMap(
+    facts,
+    ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
+    ["Revenue"],
+    "monetary",
+    "flow",
+    norm,
+  );
+  const niEntries = collectAnnualEntryMap(
+    facts,
+    ["NetIncomeLoss"],
+    ["ProfitLoss"],
+    "monetary",
+    "flow",
+    norm,
+  );
+  return {
+    revEntries,
+    niEntries,
+    rev: new Map([...revEntries.entries()].map(([k, v]) => [k, v.val])),
+    gp: flow(["GrossProfit"], ["GrossProfit"]),
+    cogs: flow(["CostOfRevenue", "CostOfGoodsAndServicesSold"], ["CostOfSales"]),
+    ebit: flow(["OperatingIncomeLoss"], ["ProfitLossFromOperatingActivities"]),
+    rd: flow(["ResearchAndDevelopmentExpense"], ["ResearchAndDevelopmentExpense"]),
+    ni: new Map([...niEntries.entries()].map(([k, v]) => [k, v.val])),
+    ...extractCashFlowMaps(facts, norm),
     eps: collectAnnualMap(
       facts,
       ["EarningsPerShareDiluted"],
@@ -105,8 +144,10 @@ function buildAnnualRow(
   const g = readYearVal(ic.gp, fy) ?? (r !== null && cogs !== null ? r - cogs : null);
   const o = readYearVal(ic.ocf, fy);
   const c = readYearVal(ic.capex, fy);
+  const endDate = ic.revEntries.get(fy)?.end || ic.niEntries.get(fy)?.end || undefined;
   return {
     fiscalYear: `FY${fy}`,
+    ...(endDate ? { periodEndDate: endDate } : {}),
     revenue: r,
     grossProfit: g,
     grossMarginPct: r && r > 0 && g !== null ? roundTo((g / r) * 100, 1) : null,

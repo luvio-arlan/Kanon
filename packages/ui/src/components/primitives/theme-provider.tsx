@@ -8,6 +8,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { flushSync } from "react-dom";
@@ -112,23 +113,28 @@ async function runCircularReveal(apply: () => void, origin?: ThemeOrigin): Promi
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>("light");
   const [mounted, setMounted] = useState(false);
+  const themeRef = useRef<ThemeMode>(theme);
+  themeRef.current = theme;
 
   useEffect(() => {
-    setThemeState(readInitialTheme());
+    const initial = readInitialTheme();
+    themeRef.current = initial;
+    setThemeState(initial);
     setMounted(true);
   }, []);
 
   const setTheme = useCallback((next: ThemeMode) => {
+    themeRef.current = next;
     setThemeState(next);
     applyThemeToDom(next);
   }, []);
 
   const toggleTheme = useCallback(
     (origin?: ThemeOrigin) => {
-      const next: ThemeMode = theme === "dark" ? "light" : "dark";
+      const next: ThemeMode = themeRef.current === "dark" ? "light" : "dark";
       void runCircularReveal(() => setTheme(next), origin);
     },
-    [setTheme, theme],
+    [setTheme],
   );
 
   const value = useMemo(

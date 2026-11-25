@@ -24,13 +24,44 @@ export function jsonError(message: string, status: number, startedAt: number, co
   });
 }
 
+const DEFAULT_MAX_JSON_BYTES = 256 * 1024;
+
 export async function readJsonBody(
   request: Request,
   startedAt: number,
+  maxBytes: number = DEFAULT_MAX_JSON_BYTES,
 ): Promise<{ ok: true; data: unknown } | { ok: false; response: NextResponse }> {
+  const contentType = request.headers.get("content-type")?.trim().toLowerCase();
+  if (contentType && !contentType.includes("application/json") && !contentType.includes("+json")) {
+    return {
+      ok: false,
+      response: jsonError(
+        "请求须使用 application/json 格式。",
+        415,
+        startedAt,
+        "UNSUPPORTED_MEDIA",
+      ),
+    };
+  }
+  const declaredLen = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLen) && declaredLen > maxBytes) {
+    return {
+      ok: false,
+      response: jsonError("请求体体积超出安全上限。", 413, startedAt, "PAYLOAD_TOO_LARGE"),
+    };
+  }
   try {
-    return { ok: true, data: await request.json() };
-  } catch {
+    const rawText = await request.text();
+    if (Buffer.byteLength(rawText, "utf8") > maxBytes) {
+      return {
+        ok: false,
+        response: jsonError("请求体体积超出安全上限。", 413, startedAt, "PAYLOAD_TOO_LARGE"),
+      };
+    }
+    const parsed: unknown = JSON.parse(rawText);
+    return { ok: true, data: parsed };
+  } catch (err) {
+    void err;
     return { ok: false, response: jsonError("请求体不是合法 JSON。", 400, startedAt, "BAD_JSON") };
   }
 }

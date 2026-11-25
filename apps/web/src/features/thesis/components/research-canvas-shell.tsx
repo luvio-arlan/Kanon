@@ -3,6 +3,7 @@
 import type {
   GlossaryTerm,
   InboundCrossCheck,
+  PublicUser,
   QuarterlyReview,
   ResearchNote,
   SavedAgentRun,
@@ -26,6 +27,7 @@ import { StepFooterNav, useCanvasShellActions } from "./canvas-footer-controls";
 import { CanvasStepRenderer } from "./canvas-step-renderer";
 
 export interface ResearchCanvasShellProps {
+  currentUser?: PublicUser;
   initialThesis: ThesisDetail;
   initialStep?: StepId;
   allTheses: readonly ThesisSummary[];
@@ -57,6 +59,7 @@ function useCanvasBindings(props: ResearchCanvasShellProps) {
     allTheses: props.allTheses,
     glossary: props.glossary,
     onSelectStep: ui.jumpToStep,
+    onFlushPending: ui.flushPending,
     onToggleFocus: ui.toggleFocus,
     onOpenAgent: () => ui.setModal("agent", true),
     onOpenAi: () => ui.setModal("ai", true),
@@ -161,8 +164,10 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
             allTheses={props.allTheses}
             activeStep={ui.nav.step}
             collapsed={ctx.collapsed}
+            isMobile={ctx.isMobile}
             onToggleCollapse={ctx.onToggleCollapse}
             onCloseMobile={ctx.closeMobile}
+            onBeforeSwitch={ui.flushPending}
             onSelectStep={ui.jumpToStep}
             onOpenAgent={openAgent}
             onOpenCommand={() => ui.setModal("cmd", true)}
@@ -178,6 +183,7 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
         ui={ui}
         actions={actions}
         agent={agent}
+        currentUser={props.currentUser}
         onApplyProposals={applyProposals}
       />
     </>

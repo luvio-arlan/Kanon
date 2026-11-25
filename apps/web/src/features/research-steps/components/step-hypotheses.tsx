@@ -78,87 +78,21 @@ function HypothesesRedTeamSlot({
   );
 }
 
-function HypothesesLensBody(p: {
-  props: StepHypothesesProps;
-  draft: Hypothesis[];
-  setDraft: React.Dispatch<React.SetStateAction<Hypothesis[]>>;
-  onAdd: () => void;
-}) {
-  const { props, draft, setDraft } = p;
+function AddHypothesisButton({ visible, onAdd }: { visible: boolean; onAdd: () => void }) {
+  if (!visible) return null;
   return (
-    <>
-      <div className="space-y-4">
-        {draft.map((item, idx) => (
-          <HypothesisEditorCard
-            key={item.id}
-            index={idx}
-            total={draft.length}
-            item={item}
-            glossary={props.glossary}
-            annuals={props.annuals}
-            quarterlies={props.quarterlies}
-            linkedChecks={props.thesis.crossChecks.filter((cc) => cc.hypothesisId === item.id)}
-            onChange={(n) => setDraft((prev) => prev.map((it, i) => (i === idx ? n : it)))}
-            onMove={(delta) => setDraft((prev) => swapHypotheses(prev, idx, delta))}
-            onRemove={
-              draft.length > 3
-                ? () => setDraft((prev) => prev.filter((_, i) => i !== idx))
-                : undefined
-            }
-          />
-        ))}
-      </div>
-      {draft.length < 5 ? (
-        <button
-          type="button"
-          onClick={p.onAdd}
-          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-panel border border-hairline bg-surface/60 py-3 text-xs font-medium text-ink-secondary transition-colors duration-150 ease-[var(--ease-kanon)] hover:border-strong hover:bg-surface hover:text-ink-primary"
-        >
-          <IconPlus size={14} stroke={1.5} />
-          <span>增补核心假设</span>
-        </button>
-      ) : null}
-      <HypothesesRedTeamSlot
-        loading={props.redTeamLoading}
-        report={props.redTeam}
-        onPromote={props.onPromoteRedTeamRule}
-      />
-    </>
-  );
-}
-
-function StepTwoStage(p: {
-  lens: StepTwoLens;
-  props: StepHypothesesProps;
-  draft: Hypothesis[];
-  setDraft: React.Dispatch<React.SetStateAction<Hypothesis[]>>;
-  onAdd: () => void;
-}) {
-  return (
-    <motion.div
-      key={p.lens}
-      variants={KANON_LENS_VARIANTS}
-      initial="enter"
-      animate="center"
-      className="min-h-[360px] space-y-5"
+    <button
+      type="button"
+      onClick={onAdd}
+      className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-panel border border-hairline bg-surface/60 py-3 text-xs font-medium text-ink-secondary transition-colors duration-150 ease-[var(--ease-kanon)] hover:border-strong hover:bg-surface hover:text-ink-primary"
     >
-      {p.lens === "catalysts" ? (
-        <CatalystLedgerSection
-          thesisId={p.props.thesis.id}
-          serverCatalysts={p.props.thesis.catalysts}
-          serverVersion={p.props.thesis.updatedAt}
-          onSyncChange={p.props.onSyncChange}
-          onSave={p.props.onSaveCatalysts}
-        />
-      ) : (
-        <HypothesesLensBody props={p.props} draft={p.draft} setDraft={p.setDraft} onAdd={p.onAdd} />
-      )}
-    </motion.div>
+      <IconPlus size={14} stroke={1.5} />
+      <span>增补核心假设</span>
+    </button>
   );
 }
 
-export function StepHypotheses(props: StepHypothesesProps) {
-  const [lens, setLens] = useState<StepTwoLens>("hypotheses");
+function HypothesesLensBody({ props }: { props: StepHypothesesProps }) {
   const d = useThesisStepDraft({
     storageKey: `kanon-draft:${props.thesis.id}:step2`,
     serverValue: props.thesis.hypotheses,
@@ -170,6 +104,41 @@ export function StepHypotheses(props: StepHypothesesProps) {
   });
   const addExtra = () =>
     d.setDraft((prev) => [...prev, buildExtraHypothesis(props.thesis.id, prev.length + 1)]);
+  return (
+    <>
+      <div className="space-y-4">
+        {d.draft.map((item, idx) => (
+          <HypothesisEditorCard
+            key={item.id}
+            index={idx}
+            total={d.draft.length}
+            item={item}
+            glossary={props.glossary}
+            annuals={props.annuals}
+            quarterlies={props.quarterlies}
+            linkedChecks={props.thesis.crossChecks.filter((cc) => cc.hypothesisId === item.id)}
+            onChange={(n) => d.setDraft((prev) => prev.map((it, i) => (i === idx ? n : it)))}
+            onMove={(delta) => d.setDraft((prev) => swapHypotheses(prev, idx, delta))}
+            onRemove={
+              d.draft.length > 3
+                ? () => d.setDraft((prev) => prev.filter((_, i) => i !== idx))
+                : undefined
+            }
+          />
+        ))}
+      </div>
+      <AddHypothesisButton visible={d.draft.length < 5} onAdd={addExtra} />
+      <HypothesesRedTeamSlot
+        loading={props.redTeamLoading}
+        report={props.redTeam}
+        onPromote={props.onPromoteRedTeamRule}
+      />
+    </>
+  );
+}
+
+export function StepHypotheses(props: StepHypothesesProps) {
+  const [lens, setLens] = useState<StepTwoLens>("hypotheses");
 
   return (
     <div className="space-y-6">
@@ -179,17 +148,29 @@ export function StepHypotheses(props: StepHypothesesProps) {
         value={lens}
         onChange={setLens}
         items={[
-          { id: "hypotheses", label: "核心假设", count: d.draft.length },
+          { id: "hypotheses", label: "核心假设", count: props.thesis.hypotheses.length },
           { id: "catalysts", label: "催化剂日程", count: props.thesis.catalysts.length },
         ]}
       />
-      <StepTwoStage
-        lens={lens}
-        props={props}
-        draft={d.draft}
-        setDraft={d.setDraft}
-        onAdd={addExtra}
-      />
+      <motion.div
+        key={lens}
+        variants={KANON_LENS_VARIANTS}
+        initial="enter"
+        animate="center"
+        className="min-h-[360px] space-y-5"
+      >
+        {lens === "catalysts" ? (
+          <CatalystLedgerSection
+            thesisId={props.thesis.id}
+            serverCatalysts={props.thesis.catalysts}
+            serverVersion={props.thesis.updatedAt}
+            onSyncChange={props.onSyncChange}
+            onSave={props.onSaveCatalysts}
+          />
+        ) : (
+          <HypothesesLensBody props={props} />
+        )}
+      </motion.div>
     </div>
   );
 }

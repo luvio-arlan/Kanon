@@ -1,22 +1,13 @@
 "use client";
 
-import {
-  evaluatePasswordStrength,
-  PASSWORD_MAX_LENGTH,
-  type PublicUser,
-  type SessionSummary,
-} from "@kanon/core";
+import { evaluatePasswordStrength, PASSWORD_MAX_LENGTH, type PublicUser } from "@kanon/core";
 import { Badge, Button, Input, SettingsCard, SettingsRow, SettingsSectionLabel } from "@kanon/ui";
-import { IconCheck, IconDevices, IconKey, IconLogout2 } from "@tabler/icons-react";
+import { IconCheck, IconKey } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import {
-  apiChangePassword,
-  apiListSessions,
-  apiRevokeOtherSessions,
-  apiUpdateProfile,
-} from "../../lib/account-api";
+import { apiChangePassword, apiUpdateProfile } from "../../lib/account-api";
+import { SessionsSection } from "./sessions-section";
 
 function ProfileSection({ user }: { user?: PublicUser }) {
   const router = useRouter();
@@ -28,10 +19,7 @@ function ProfileSection({ user }: { user?: PublicUser }) {
     setSaving(true);
     try {
       const res = await apiUpdateProfile(name.trim());
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
+      if (!res.ok) return void toast.error(res.error);
       toast.success("已更新研究员称呼");
       router.refresh();
     } finally {
@@ -49,13 +37,13 @@ function ProfileSection({ user }: { user?: PublicUser }) {
           </SettingsRow>
         ) : null}
         <SettingsRow label="研究员称呼" description="显示在工作台侧栏与投研备忘录落款">
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <Input
               value={name}
               maxLength={24}
               onChange={(e) => setName(e.target.value)}
               placeholder="输入称呼"
-              className="w-40"
+              className="w-full sm:w-40"
             />
             <Button variant="outline" size="sm" loading={saving} onClick={() => void handleSave()}>
               {!saving ? <IconCheck size={14} stroke={1.5} /> : null}
@@ -79,10 +67,7 @@ function usePasswordForm() {
     setSaving(true);
     try {
       const res = await apiChangePassword({ currentPassword, newPassword, confirmPassword });
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
+      if (!res.ok) return void toast.error(res.error);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -95,7 +80,6 @@ function usePasswordForm() {
       setSaving(false);
     }
   }
-
   return {
     currentPassword,
     setCurrentPassword,
@@ -156,69 +140,6 @@ function PasswordSection() {
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function useSessionsController() {
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [revoking, setRevoking] = useState(false);
-
-  useEffect(() => {
-    void apiListSessions().then((res) => {
-      if (res.ok) setSessions(res.sessions);
-    });
-  }, []);
-
-  async function revokeOthers() {
-    setRevoking(true);
-    try {
-      const res = await apiRevokeOtherSessions();
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
-      setSessions((prev) => prev.filter((s) => s.isCurrent));
-      toast.success(`已安全注销其余 ${res.revokedCount} 个会话`);
-    } finally {
-      setRevoking(false);
-    }
-  }
-
-  return { sessions, revoking, revokeOthers };
-}
-
-function SessionsSection() {
-  const { sessions, revoking, revokeOthers } = useSessionsController();
-  const otherCount = sessions.filter((s) => !s.isCurrent).length;
-  return (
-    <div>
-      <SettingsSectionLabel>活跃设备会话</SettingsSectionLabel>
-      <SettingsCard>
-        <SettingsRow
-          label={`当前共 ${sessions.length || 1} 个活跃会话`}
-          description={
-            otherCount > 0 ? `除本机外另有 ${otherCount} 个有效登录会话` : "仅当前设备处于登录状态"
-          }
-        >
-          <div className="flex items-center gap-2">
-            <Badge variant="titanium" className="inline-flex items-center gap-1">
-              <IconDevices size={13} stroke={1.5} />
-              <span>{sessions.length || 1}</span>
-            </Badge>
-            <Button
-              variant="outline"
-              size="sm"
-              loading={revoking}
-              disabled={otherCount === 0}
-              onClick={() => void revokeOthers()}
-            >
-              {!revoking ? <IconLogout2 size={14} stroke={1.5} /> : null}
-              <span>注销其他设备</span>
-            </Button>
-          </div>
-        </SettingsRow>
-      </SettingsCard>
     </div>
   );
 }

@@ -1,9 +1,16 @@
 import { z } from "zod";
-import { type AgentProposal, AgentProposalTargetSchema } from "./types";
+import type { AgentProposal } from "./types";
+
+const SafeLlmProposalTargetSchema = z.enum([
+  "variant_perception",
+  "key_debate",
+  "pre_mortem",
+  "exit_rule",
+]);
 
 export const LlmProposalDraftSchema = z.object({
   id: z.string().min(2).max(40),
-  target: AgentProposalTargetSchema,
+  target: SafeLlmProposalTargetSchema,
   title: z.string().min(4).max(80),
   content: z.string().min(12).max(420),
   rationale: z.string().min(6).max(200),
@@ -12,18 +19,27 @@ export const LlmProposalDraftSchema = z.object({
 
 export type LlmProposalDraft = z.infer<typeof LlmProposalDraftSchema>;
 
-const NUMERIC_FIGURE_RE = /(?:\$\d+(?:\.\d+)?|\d+(?:\.\d+)?%|\d+(?:\.\d+)?x)/gi;
+const NUMERIC_FIGURE_RE = /(?:\$\d[\d,]*(?:\.\d+)?[BMK]?|\d[\d,]*(?:\.\d+)?(?:%|bps|x|×|倍|亿))/gi;
+
+function escapeRegex(raw: string): string {
+  return raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function extractNormalizedFigures(text: string): string[] {
-  return (text.match(NUMERIC_FIGURE_RE) ?? []).map((s) => s.toLowerCase());
+  return (text.match(NUMERIC_FIGURE_RE) ?? []).map((s) => s.replaceAll(",", "").toLowerCase());
+}
+
+function figureExistsInCorpus(fig: string, normalizedCorpus: string): boolean {
+  const re = new RegExp(`(?<![\\d.])${escapeRegex(fig)}(?![\\d.])`, "i");
+  return re.test(normalizedCorpus);
 }
 
 export function isProposalGrounded(draft: LlmProposalDraft, evidenceCorpus: string): boolean {
-  const figures = extractNormalizedFigures(draft.content);
+  const combined = `${draft.title}\n${draft.content}\n${draft.rationale}`;
+  const figures = extractNormalizedFigures(combined);
   if (figures.length === 0) return true;
-  const lowerCorpus = evidenceCorpus.toLowerCase();
-  const ungrounded = figures.filter((fig) => !lowerCorpus.includes(fig));
-  return ungrounded.length <= 1;
+  const normalizedCorpus = evidenceCorpus.replaceAll(",", "").toLowerCase();
+  return figures.every((fig) => figureExistsInCorpus(fig, normalizedCorpus));
 }
 
 function pickGroundedLlmProposals(

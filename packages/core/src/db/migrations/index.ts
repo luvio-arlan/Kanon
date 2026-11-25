@@ -9,6 +9,7 @@ import { KANON_SEC_FILING_DOCS_CACHE_SQL } from "./0008-sec-filing-docs-cache";
 import { KANON_CROSS_CHECK_HYPOTHESIS_LINK_SQL } from "./0009-cross-check-hypothesis-link";
 import { KANON_HEAL_RUNAWAY_VALUATION_SQL } from "./0010-heal-runaway-valuation";
 import { KANON_V7_RESEARCH_OS_SQL } from "./0011-v7-research-os";
+import { KANON_USER_SEC_OVERRIDES_SQL } from "./v2/0012-user-sec-overrides";
 
 export interface KanonMigration {
   id: string;
@@ -87,13 +88,23 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
       "Expand-only v7 research notes library, hypothesis KPI rules, Form 4/FX SEC fields & trade-position sync columns",
     sql: KANON_V7_RESEARCH_OS_SQL,
   },
+  {
+    id: "0012_user_sec_overrides",
+    description:
+      "Expand-only tenant-isolated manual SEC financial overrides table (prevents cross-tenant cache poisoning)",
+    sql: KANON_USER_SEC_OVERRIDES_SQL,
+  },
 ];
 
 export const KANON_POSTGRES_DDL = KANON_MIGRATIONS.map((m) => m.sql).join("\n\n");
 
-export async function runKanonMigrations(execSql: (sql: string) => Promise<void>): Promise<void> {
+export async function runKanonMigrations(
+  execSql: (sql: string) => Promise<void>,
+  appliedIds?: ReadonlySet<string>,
+): Promise<void> {
   await execSql(MIGRATIONS_META_SQL);
   for (const migration of KANON_MIGRATIONS) {
+    if (appliedIds?.has(migration.id)) continue;
     await execSql(migration.sql);
     const safeId = migration.id.replaceAll("'", "''");
     const safeDesc = migration.description.replaceAll("'", "''");

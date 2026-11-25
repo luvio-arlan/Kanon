@@ -22,13 +22,8 @@ const ROLE_OPTIONS: ReadonlyArray<{ id: PortfolioRole; label: string }> = [
   { id: "core", label: "核心持仓" },
   { id: "exited", label: "已清仓" },
 ];
-
-const ROLE_LABEL: Record<PortfolioRole, string> = {
-  watchlist: "观察名单",
-  starter: "试探仓",
-  core: "核心持仓",
-  exited: "已清仓",
-};
+const roleLabelOf = (role: PortfolioRole) =>
+  ROLE_OPTIONS.find((opt) => opt.id === role)?.label ?? role;
 
 interface PositionDraft {
   role: PortfolioRole;
@@ -174,7 +169,7 @@ function PositionPanelHeader({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-ink-primary">组合仓位与纪律上限</span>
-        <Badge variant={overCap ? "fail" : "titanium"}>{ROLE_LABEL[role]}</Badge>
+        <Badge variant={overCap ? "fail" : "titanium"}>{roleLabelOf(role)}</Badge>
         {overCap ? <Badge variant="warn">超上限</Badge> : null}
       </div>
       <button
@@ -189,16 +184,24 @@ function PositionPanelHeader({
   );
 }
 
-export function PositionEditorPanel({ thesis, onUpdated }: PositionEditorPanelProps) {
+function usePositionEditor(thesis: ThesisDetail, onUpdated: (updated: ThesisDetail) => void) {
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<PositionDraft>(() => toDraft(thesis));
-  const kelly = suggestKellyCappedWeight(thesis);
-  const overCap = thesis.currentWeightPct > thesis.targetMaxWeightPct;
 
   useEffect(() => {
-    setDraft(toDraft(thesis));
-  }, [thesis]);
+    setDraft({
+      role: thesis.portfolioRole,
+      weight: String(thesis.currentWeightPct),
+      cap: String(thesis.targetMaxWeightPct),
+      cost: thesis.avgCostBasis !== null ? String(thesis.avgCostBasis) : "",
+    });
+  }, [
+    thesis.portfolioRole,
+    thesis.currentWeightPct,
+    thesis.targetMaxWeightPct,
+    thesis.avgCostBasis,
+  ]);
 
   async function handleSave() {
     const parsedCost = Number(draft.cost);
@@ -214,23 +217,30 @@ export function PositionEditorPanel({ thesis, onUpdated }: PositionEditorPanelPr
       setExpanded(false);
     }
   }
+  return { expanded, setExpanded, saving, draft, setDraft, handleSave };
+}
+
+export function PositionEditorPanel({ thesis, onUpdated }: PositionEditorPanelProps) {
+  const ed = usePositionEditor(thesis, onUpdated);
+  const kelly = suggestKellyCappedWeight(thesis);
+  const overCap = thesis.currentWeightPct > thesis.targetMaxWeightPct;
 
   return (
     <div className="space-y-3 rounded-card border border-hairline bg-surface p-4">
       <PositionPanelHeader
         role={thesis.portfolioRole}
         overCap={overCap}
-        expanded={expanded}
-        onToggle={() => setExpanded((v) => !v)}
+        expanded={ed.expanded}
+        onToggle={() => ed.setExpanded((v) => !v)}
       />
       <PositionSummaryGrid thesis={thesis} kelly={kelly} />
-      {expanded ? (
+      {ed.expanded ? (
         <PositionEditForm
-          draft={draft}
-          saving={saving}
+          draft={ed.draft}
+          saving={ed.saving}
           rationale={kelly.rationale}
-          onPatch={(p) => setDraft((prev) => ({ ...prev, ...p }))}
-          onSave={handleSave}
+          onPatch={(p) => ed.setDraft((prev) => ({ ...prev, ...p }))}
+          onSave={ed.handleSave}
         />
       ) : null}
     </div>

@@ -12,7 +12,7 @@ export type RedTeamChallenge = z.infer<typeof RedTeamChallengeSchema>;
 export const RedTeamReportSchema = z.object({
   ticker: z.string().min(1).max(10),
   thesisSummary: z.string().min(10),
-  challenges: z.tuple([RedTeamChallengeSchema, RedTeamChallengeSchema, RedTeamChallengeSchema]),
+  challenges: z.array(RedTeamChallengeSchema).min(3).max(3),
 });
 export type RedTeamReport = z.infer<typeof RedTeamReportSchema>;
 

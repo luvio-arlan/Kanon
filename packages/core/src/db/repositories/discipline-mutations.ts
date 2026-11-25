@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import {
   type CreateDisciplineEntryInput,
   CreateDisciplineEntrySchema,
@@ -117,10 +117,23 @@ export async function deleteThesis(
   thesisId: string,
   userId?: string,
 ): Promise<boolean> {
-  const existing = await getThesisById(db, thesisId, userId);
-  if (!existing) return false;
-  await db.delete(thesesTable).where(eq(thesesTable.id, thesisId));
-  return true;
+  const where = userId
+    ? and(eq(thesesTable.id, thesisId), eq(thesesTable.userId, userId))
+    : eq(thesesTable.id, thesisId);
+  const deleted = await db.delete(thesesTable).where(where).returning();
+  return deleted.length > 0;
+}
+
+function mergeSecFinancialPayload(parsed: SecSnapshot, existing: SecSnapshot | null) {
+  return {
+    reportingCurrency: parsed.reportingCurrency ?? "USD",
+    fxToUsd: parsed.fxToUsd ?? 1,
+    adrRatio: parsed.adrRatio ?? 1,
+    facts: parsed.facts.length > 0 ? parsed.facts : (existing?.facts ?? []),
+    annuals: parsed.annuals.length > 0 ? parsed.annuals : (existing?.annuals ?? []),
+    quarterlies: parsed.quarterlies.length > 0 ? parsed.quarterlies : (existing?.quarterlies ?? []),
+    insiderSummary: parsed.insiderSummary ?? null,
+  };
 }
 
 export async function upsertSecSnapshot(
@@ -128,42 +141,23 @@ export async function upsertSecSnapshot(
   rawSnapshot: SecSnapshot,
 ): Promise<SecSnapshot> {
   const parsed = SecSnapshotSchema.parse(rawSnapshot);
+  const ticker = parsed.ticker.toUpperCase();
+  const existing = parsed.annuals.length === 0 ? await getSecSnapshot(db, ticker) : null;
+  const merged = mergeSecFinancialPayload(parsed, existing);
   const fetchedAt = new Date(parsed.fetchedAt);
+  const rowPayload = {
+    cik: parsed.cik,
+    entityName: parsed.entityName,
+    source: parsed.source,
+    filings: parsed.filings,
+    ...merged,
+    fetchedAt,
+  };
   await db
     .insert(secFilingsCacheTable)
-    .values({
-      ticker: parsed.ticker.toUpperCase(),
-      cik: parsed.cik,
-      entityName: parsed.entityName,
-      source: parsed.source,
-      reportingCurrency: parsed.reportingCurrency ?? "USD",
-      fxToUsd: parsed.fxToUsd ?? 1,
-      adrRatio: parsed.adrRatio ?? 1,
-      filings: parsed.filings,
-      facts: parsed.facts,
-      annuals: parsed.annuals,
-      quarterlies: parsed.quarterlies,
-      insiderSummary: parsed.insiderSummary ?? null,
-      fetchedAt,
-    })
-    .onConflictDoUpdate({
-      target: secFilingsCacheTable.ticker,
-      set: {
-        cik: parsed.cik,
-        entityName: parsed.entityName,
-        source: parsed.source,
-        reportingCurrency: parsed.reportingCurrency ?? "USD",
-        fxToUsd: parsed.fxToUsd ?? 1,
-        adrRatio: parsed.adrRatio ?? 1,
-        filings: parsed.filings,
-        facts: parsed.facts,
-        annuals: parsed.annuals,
-        quarterlies: parsed.quarterlies,
-        insiderSummary: parsed.insiderSummary ?? null,
-        fetchedAt,
-      },
-    });
-  return parsed;
+    .values({ ticker, ...rowPayload })
+    .onConflictDoUpdate({ target: secFilingsCacheTable.ticker, set: rowPayload });
+  return { ...parsed, ticker, ...merged };
 }
 
 const GLOSSARY_CACHE = new WeakMap<KanonDb, GlossaryTerm[]>();

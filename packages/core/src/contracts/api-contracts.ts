@@ -115,12 +115,13 @@ export const QuarterlyReviewCreateResponseSchema = z.object({
 
 export const ThesisArchiveImportRequestSchema = z.object({
   archive: z.object({
-    schemaVersion: z.string().optional(),
+    schemaVersion: z.string().max(40).optional(),
     thesis: ThesisDetailSchema,
     secSnapshot: SecSnapshotSchema.nullable().optional(),
-    quarterlyReviews: z.array(QuarterlyReviewSchema).optional(),
-    copilotOutputs: z.array(SavedCopilotOutputSchema).optional(),
-    agentRuns: z.array(SavedAgentRunSchema).optional(),
+    quarterlyReviews: z.array(QuarterlyReviewSchema).max(60).optional(),
+    copilotOutputs: z.array(SavedCopilotOutputSchema).max(12).optional(),
+    agentRuns: z.array(SavedAgentRunSchema).max(30).optional(),
+    researchNotes: z.array(ResearchNoteSchema).max(200).optional(),
   }),
   mode: z.enum(["create_copy", "overwrite"]).default("create_copy"),
 });

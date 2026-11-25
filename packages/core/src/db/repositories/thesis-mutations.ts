@@ -169,11 +169,14 @@ async function dispatchStepWrite(
   thesisId: string,
   parsed: UpdateThesisStepInput,
   now: Date,
+  userId?: string,
 ): Promise<string> {
   if (parsed.step === "business_filter") return writeBusinessFilterStep(tx, thesisId, parsed, now);
   if (parsed.step === "hypotheses") return writeHypothesesStep(tx, thesisId, parsed, now);
   if (parsed.step === "catalysts") return writeCatalystsStep(tx, thesisId, parsed, now);
-  if (parsed.step === "cross_checks") return writeCrossChecksStep(tx, thesisId, parsed, now);
+  if (parsed.step === "cross_checks") {
+    return writeCrossChecksStep(tx, thesisId, parsed, now, userId);
+  }
   if (parsed.step === "price_anchor") return writePriceAnchorStep(tx, thesisId, parsed, now);
   if (parsed.step === "portfolio") return writePortfolioStep(tx, thesisId, parsed, now);
   return writeValuationStep(tx, thesisId, parsed, now);
@@ -182,6 +185,7 @@ async function dispatchStepWrite(
 export type CheckedStepUpdateResult =
   | { kind: "ok"; thesis: ThesisDetail; revisions: ThesisRevision[] }
   | { kind: "not_found" }
+  | { kind: "invalid_version" }
   | { kind: "conflict"; serverUpdatedAt: string };
 
 async function verifyStepRowAccess(
@@ -196,16 +200,17 @@ async function verifyStepRowAccess(
   const [row] = await tx
     .select({ id: thesesTable.id, updatedAt: thesesTable.updatedAt })
     .from(thesesTable)
-    .where(whereClause);
+    .where(whereClause)
+    .for("update");
   if (!row) return { ok: false, result: { kind: "not_found" } };
-  if (expectedUpdatedAt) {
-    const diffMs = Math.abs(row.updatedAt.getTime() - new Date(expectedUpdatedAt).getTime());
-    if (Number.isFinite(diffMs) && diffMs > 1000) {
-      return {
-        ok: false,
-        result: { kind: "conflict", serverUpdatedAt: row.updatedAt.toISOString() },
-      };
-    }
+  if (!expectedUpdatedAt) return { ok: true };
+  const expectedMs = Date.parse(expectedUpdatedAt);
+  if (!Number.isFinite(expectedMs)) return { ok: false, result: { kind: "invalid_version" } };
+  if (Math.abs(row.updatedAt.getTime() - expectedMs) > 5) {
+    return {
+      ok: false,
+      result: { kind: "conflict", serverUpdatedAt: row.updatedAt.toISOString() },
+    };
   }
   return { ok: true };
 }
@@ -222,7 +227,7 @@ export async function updateThesisStepChecked(
   return runInTransaction(db, async (tx) => {
     const access = await verifyStepRowAccess(tx, thesisId, userId, expectedUpdatedAt);
     if (!access.ok) return access.result;
-    const summary = await dispatchStepWrite(tx, thesisId, parsed, now);
+    const summary = await dispatchStepWrite(tx, thesisId, parsed, now, userId);
     const updated = await getThesisById(tx, thesisId, userId);
     if (!updated) return { kind: "not_found" };
     await recordThesisRevision(tx, updated, parsed.step, summary);

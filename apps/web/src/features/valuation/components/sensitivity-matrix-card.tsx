@@ -1,9 +1,8 @@
 "use client";
 
 import type { SensitivityCell, SensitivityMatrix } from "@kanon/core";
-import { Card, cn, KANON_LENS_VARIANTS, SegmentedTabs } from "@kanon/ui";
-import { motion } from "framer-motion";
-import { useState } from "react";
+import { Card, cn, SegmentedTabs } from "@kanon/ui";
+import { useEffect, useState } from "react";
 
 const MATRIX_SLOTS = ["bear", "low-mid", "base", "high-mid", "bull"] as const;
 
@@ -55,7 +54,7 @@ function MatrixCellButton(props: {
           isFlashing && "kanon-cell-flash",
         )}
       >
-        <motion.div key={metric} variants={KANON_LENS_VARIANTS} initial="enter" animate="center">
+        <div>
           <div className="text-base font-medium">
             {metric === "price" ? `$${cell.targetPrice.toFixed(0)}` : `${cell.cagrPct.toFixed(1)}%`}
           </div>
@@ -64,7 +63,7 @@ function MatrixCellButton(props: {
               ? `${sign}${cell.returnPct.toFixed(0)}%`
               : `$${cell.targetPrice.toFixed(0)}`}
           </div>
-        </motion.div>
+        </div>
       </button>
     </td>
   );
@@ -215,6 +214,11 @@ export function SensitivityMatrixCard({
   const [hovered, setHovered] = useState<HoverCoord | null>(null);
   const [metric, setMetric] = useState<MatrixMetric>("price");
   const [flashKey, setFlashKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flashKey) return;
+    const t = setTimeout(() => setFlashKey(null), 650);
+    return () => clearTimeout(t);
+  }, [flashKey]);
   const activeCell = hovered ? matrix.rows[hovered.r]?.[hovered.c] : null;
   const caption = activeCell
     ? `EPS $${activeCell.eps.toFixed(2)} × ${activeCell.pe}x → $${activeCell.targetPrice.toFixed(1)} · CAGR ${activeCell.cagrPct.toFixed(1)}%`

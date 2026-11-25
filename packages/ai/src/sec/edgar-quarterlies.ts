@@ -1,8 +1,7 @@
 import { roundTo, type SecAnnualFinancial, type SecQuarterlyFinancial } from "@kanon/core";
 import {
   type CurrencyNormalization,
-  diffDays,
-  pickUnitList,
+  pickUnitListWithCurrency,
   resolveCurrencyNormalization,
   type SecFactsPayload,
   type SecFactUnit,
@@ -10,59 +9,26 @@ import {
   type UnitKind,
   type XbrlFactsNamespace,
 } from "./xbrl-helpers";
-
-interface QuarterPoint {
-  periodLabel: string;
-  endDate: string;
-  val: number;
-}
-interface YtdBucket {
-  endDate: string;
-  val: number;
-  filed: string;
-}
-
-const QUARTER_FRAME_RE = /^CY(\d{4})Q([1-4])$/;
-const VALID_Q_FORMS = new Set(["10-Q", "10-K", "6-K", "20-F"]);
-
-function parseQuarterLabel(row: SecFactUnit): string | null {
-  const m = row.frame ? QUARTER_FRAME_RE.exec(row.frame) : null;
-  if (m?.[1] && m[2]) return `${m[1]} Q${m[2]}`;
-  if (!row.end) return null;
-  const month = Number(row.end.slice(5, 7));
-  if (!Number.isFinite(month)) return null;
-  return `${row.end.slice(0, 4)} Q${month <= 3 ? 1 : month <= 6 ? 2 : month <= 9 ? 3 : 4}`;
-}
-
-function classifyDuration(row: SecFactUnit): "q1" | "m6" | "m9" | null {
-  const days = diffDays(row.start, row.end);
-  if (days === null) return null;
-  if (days >= 70 && days <= 115) return "q1";
-  if (days >= 160 && days <= 205) return "m6";
-  return days >= 250 && days <= 295 ? "m9" : null;
-}
-
-function shiftQuarterLabel(label: string, delta: number): string | null {
-  const m = /^(\d{4})\s+Q([1-4])$/.exec(label);
-  if (!m?.[1] || !m[2]) return null;
-  const total = Number(m[1]) * 4 + (Number(m[2]) - 1) + delta;
-  return `${Math.floor(total / 4)} Q${(((total % 4) + 4) % 4) + 1}`;
-}
-
-function upsertYtd(map: Map<string, YtdBucket>, label: string, next: YtdBucket) {
-  const prev = map.get(label);
-  if (!prev || next.filed > prev.filed || next.endDate > prev.endDate) map.set(label, next);
-}
-
-function upsertStandalone(map: Map<string, QuarterPoint>, next: QuarterPoint) {
-  const prev = map.get(next.periodLabel);
-  if (!prev || next.endDate > prev.endDate) map.set(next.periodLabel, next);
-}
+import {
+  addThreeMonthsClamped,
+  classifyDuration,
+  decumulateYtd,
+  diffDays,
+  parseQuarterLabel,
+  QUARTER_FRAME_RE,
+  type QuarterPoint,
+  shiftQuarterLabel,
+  upsertStandalone,
+  upsertYtd,
+  VALID_Q_FORMS,
+  type YtdBucket,
+} from "./xbrl-period-utils";
 
 function recordQuarterRow(
   row: SecFactUnit,
   unitKind: UnitKind,
   norm: CurrencyNormalization,
+  matchedCurrency: string,
   buckets: {
     standalone: Map<string, QuarterPoint>;
     ytd6: Map<string, YtdBucket>;
@@ -72,32 +38,16 @@ function recordQuarterRow(
   if (typeof row.val !== "number" || !row.end || !VALID_Q_FORMS.has(row.form ?? "")) return;
   const label = parseQuarterLabel(row);
   if (!label) return;
-  const val = scaleByNorm(row.val, unitKind, norm);
+  const val = scaleByNorm(row.val, unitKind, norm, matchedCurrency);
+  const filed = row.filed ?? "";
   const dur = classifyDuration(row);
   if ((row.frame && QUARTER_FRAME_RE.test(row.frame)) || dur === "q1") {
-    upsertStandalone(buckets.standalone, { periodLabel: label, endDate: row.end, val });
+    upsertStandalone(buckets.standalone, { periodLabel: label, endDate: row.end, val, filed });
     return;
   }
-  const ytd = { endDate: row.end, val, filed: row.filed ?? "" };
+  const ytd = { endDate: row.end, val, filed };
   if (dur === "m6") upsertYtd(buckets.ytd6, label, ytd);
   if (dur === "m9") upsertYtd(buckets.ytd9, label, ytd);
-}
-
-function decumulateYtd(
-  standalone: Map<string, QuarterPoint>,
-  ytd6: Map<string, YtdBucket>,
-  ytd9: Map<string, YtdBucket>,
-): Map<string, QuarterPoint> {
-  const out = new Map(standalone);
-  for (const [label, b6] of ytd6.entries()) {
-    const q1 = out.has(label) ? undefined : out.get(shiftQuarterLabel(label, -1) ?? "");
-    if (q1) out.set(label, { periodLabel: label, endDate: b6.endDate, val: b6.val - q1.val });
-  }
-  for (const [label, b9] of ytd9.entries()) {
-    const b6 = out.has(label) ? undefined : ytd6.get(shiftQuarterLabel(label, -1) ?? "");
-    if (b6) out.set(label, { periodLabel: label, endDate: b9.endDate, val: b9.val - b6.val });
-  }
-  return out;
 }
 
 function mergeMapIfMissing<V>(target: Map<string, V>, source: Map<string, V>) {
@@ -114,36 +64,51 @@ function collectFromNamespace(
   const ytd9 = new Map<string, YtdBucket>();
   if (!ns) return { points, ytd9 };
   for (const tag of tags) {
-    const list = pickUnitList(ns[tag]?.units, unitKind, norm.currency);
-    if (!list) continue;
+    const matched = pickUnitListWithCurrency(ns[tag]?.units, unitKind, norm.currency);
+    if (!matched) continue;
     const b = {
       standalone: new Map<string, QuarterPoint>(),
       ytd6: new Map<string, YtdBucket>(),
       ytd9: new Map<string, YtdBucket>(),
     };
-    for (const row of list) recordQuarterRow(row, unitKind, norm, b);
+    for (const row of matched.list)
+      recordQuarterRow(row, unitKind, norm, matched.matchedCurrency, b);
     mergeMapIfMissing(points, decumulateYtd(b.standalone, b.ytd6, b.ytd9));
     mergeMapIfMissing(ytd9, b.ytd9);
   }
   return { points, ytd9 };
 }
 
-function deriveQ4ForYear(
+function matchesAnnualYtd9(
+  ann: SecAnnualFinancial,
   fyYear: number,
-  fyVal: number,
+  q3Label: string,
+  b9: YtdBucket,
+): boolean {
+  if (ann.periodEndDate) {
+    const gap = diffDays(b9.endDate, ann.periodEndDate);
+    return gap !== null && gap >= 70 && gap <= 125;
+  }
+  return Number(q3Label.slice(0, 4)) === fyYear;
+}
+
+function deriveQ4ForAnnual(
   points: Map<string, QuarterPoint>,
   ytd9: Map<string, YtdBucket>,
+  ann: SecAnnualFinancial,
+  fyVal: number,
+  fyYear: number,
 ) {
   for (const [q3Label, b9] of ytd9.entries()) {
-    if (Math.abs(Number(q3Label.slice(0, 4)) - fyYear) > 1) continue;
+    if (!matchesAnnualYtd9(ann, fyYear, q3Label, b9)) continue;
     const q4Label = shiftQuarterLabel(q3Label, 1);
-    const d = new Date(b9.endDate);
-    if (!q4Label || points.has(q4Label) || Number.isNaN(d.getTime())) continue;
-    d.setMonth(d.getMonth() + 3);
+    const q4End = ann.periodEndDate || addThreeMonthsClamped(b9.endDate);
+    if (!q4Label || !q4End || points.has(q4Label)) continue;
     points.set(q4Label, {
       periodLabel: q4Label,
-      endDate: d.toISOString().slice(0, 10),
+      endDate: q4End,
       val: fyVal - b9.val,
+      filed: b9.filed,
     });
   }
 }
@@ -157,7 +122,8 @@ function injectDerivedQ4(
   for (const ann of annuals) {
     const fyVal = readAnnual(ann);
     const fyYear = Number(ann.fiscalYear.replace(/^FY/i, ""));
-    if (fyVal !== null && Number.isFinite(fyYear)) deriveQ4ForYear(fyYear, fyVal, points, ytd9);
+    if (fyVal === null || !Number.isFinite(fyYear)) continue;
+    deriveQ4ForAnnual(points, ytd9, ann, fyVal, fyYear);
   }
 }
 
@@ -191,6 +157,7 @@ function collectAllQuarterlySeries(
       ["Revenue"],
     ),
     gp: q(["GrossProfit"], ["GrossProfit"]),
+    cogs: q(["CostOfRevenue", "CostOfGoodsAndServicesSold"], ["CostOfSales"]),
     ebit: q(["OperatingIncomeLoss"], ["ProfitLossFromOperatingActivities"]),
     ni: q(["NetIncomeLoss"], ["ProfitLoss"]),
     ocf: q(
@@ -202,6 +169,30 @@ function collectAllQuarterlySeries(
       ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
     ),
     eps: q(["EarningsPerShareDiluted"], ["DilutedEarningsLossPerShare"], "perShare"),
+  };
+}
+
+function buildQuarterlyRow(
+  pt: QuarterPoint,
+  s: ReturnType<typeof collectAllQuarterlySeries>,
+): SecQuarterlyFinancial {
+  const k = pt.periodLabel;
+  const cogs = s.cogs.points.get(k)?.val ?? null;
+  const g = s.gp.points.get(k)?.val ?? (cogs !== null ? pt.val - cogs : null);
+  const o = s.ocf.points.get(k)?.val ?? null;
+  const c = s.capex.points.get(k)?.val ?? null;
+  return {
+    periodLabel: k,
+    endDate: pt.endDate,
+    revenue: pt.val,
+    grossProfit: g,
+    grossMarginPct: pt.val > 0 && g !== null ? roundTo((g / pt.val) * 100, 1) : null,
+    operatingIncome: s.ebit.points.get(k)?.val ?? null,
+    netIncome: s.ni.points.get(k)?.val ?? null,
+    freeCashFlow: o !== null && c !== null ? o - Math.abs(c) : null,
+    dilutedEps: s.eps.points.get(k)?.val ?? null,
+    revenueYoYPct: null,
+    grossMarginYoYBps: null,
   };
 }
 
@@ -218,28 +209,10 @@ export function extractQuarterlyHistory(
     injectDerivedQ4(s.ni.points, s.ni.ytd9, annuals, (a) => a.netIncome);
     injectDerivedQ4(s.ocf.points, s.ocf.ytd9, annuals, (a) => a.operatingCashFlow);
     injectDerivedQ4(s.capex.points, s.capex.ytd9, annuals, (a) => a.capex);
+    injectDerivedQ4(s.eps.points, s.eps.ytd9, annuals, (a) => a.dilutedEps);
   }
   const labels = [...s.rev.points.values()]
     .sort((a, b) => a.endDate.localeCompare(b.endDate))
     .slice(-12);
-  const built: SecQuarterlyFinancial[] = labels.map((pt) => {
-    const k = pt.periodLabel;
-    const g = s.gp.points.get(k)?.val ?? null;
-    const o = s.ocf.points.get(k)?.val ?? null;
-    const c = s.capex.points.get(k)?.val ?? null;
-    return {
-      periodLabel: k,
-      endDate: pt.endDate,
-      revenue: pt.val,
-      grossProfit: g,
-      grossMarginPct: pt.val > 0 && g !== null ? roundTo((g / pt.val) * 100, 1) : null,
-      operatingIncome: s.ebit.points.get(k)?.val ?? null,
-      netIncome: s.ni.points.get(k)?.val ?? null,
-      freeCashFlow: o !== null && c !== null ? o - Math.abs(c) : null,
-      dilutedEps: s.eps.points.get(k)?.val ?? null,
-      revenueYoYPct: null,
-      grossMarginYoYBps: null,
-    };
-  });
-  return enrichYoY(built).slice(-8);
+  return enrichYoY(labels.map((pt) => buildQuarterlyRow(pt, s))).slice(-8);
 }

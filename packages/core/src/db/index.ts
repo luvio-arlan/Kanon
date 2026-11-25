@@ -5,6 +5,7 @@ export {
   getKanonDb,
   type KanonDb,
   type KanonDbEngine,
+  pingKanonDb,
   runInTransaction,
 } from "./client";
 export {
@@ -30,7 +31,10 @@ export {
   applyAgentProposalsAtomic,
   listAgentRuns,
 } from "./repositories/agent/agent-apply-store";
-export { importThesisArchive } from "./repositories/archive-importer";
+export {
+  ArchiveTickerConflictError,
+  importThesisArchive,
+} from "./repositories/archive-importer";
 export {
   authenticateUser,
   createUserSession,
@@ -75,9 +79,19 @@ export {
   upsertCachedSecFilingDoc,
 } from "./repositories/sec/filing-docs-cache-store";
 export {
+  getSecSnapshotForUser,
+  upsertUserSecOverride,
+} from "./repositories/sec/user-sec-overrides-store";
+export {
   consumePersistentRateLimit,
   type RateLimitCheckResult,
 } from "./repositories/security/rate-limit-store";
+export {
+  assertThesisOwnership,
+  batchUpdatePriceAnchors,
+  getThesisByTicker,
+  listThesisSummaries,
+} from "./repositories/thesis/thesis-lookups";
 export { loadThesisCanvasBootstrap } from "./repositories/thesis-canvas-bootstrap";
 export {
   type CheckedStepUpdateResult,
@@ -85,11 +99,7 @@ export {
   updateThesisStep,
   updateThesisStepChecked,
 } from "./repositories/thesis-mutations";
-export {
-  getThesisById,
-  listTheses,
-  listThesisSummaries,
-} from "./repositories/thesis-queries";
+export { getThesisById, listTheses } from "./repositories/thesis-queries";
 export {
   agentRunsTable,
   apiTokensTable,
@@ -110,6 +120,7 @@ export {
   sessionsTable,
   thesesTable,
   thesisRevisionsTable,
+  userSecOverridesTable,
   usersTable,
   valuationScenariosTable,
 } from "./schema";

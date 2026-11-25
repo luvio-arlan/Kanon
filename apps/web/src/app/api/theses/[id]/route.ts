@@ -2,14 +2,21 @@ import { UpdateThesisStepSchema } from "@kanon/core";
 import {
   deleteThesis,
   getKanonDb,
-  getSecSnapshot,
+  getSecSnapshotForUser,
   getThesisById,
   listThesisRevisions,
   updateThesisStepChecked,
 } from "@kanon/core/db";
 import { NextResponse } from "next/server";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
-import { apiHeaders, formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
+import {
+  apiHeaders,
+  formatZodError,
+  isUniqueConstraintError,
+  jsonError,
+  jsonOk,
+  readJsonBody,
+} from "../../_lib/http";
 import { verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +37,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
   }
   const [secSnapshot, revisions] = await Promise.all([
-    getSecSnapshot(db, thesis.ticker),
+    getSecSnapshotForUser(db, thesis.ticker, auth.user.id),
     listThesisRevisions(db, id),
   ]);
   return jsonOk({ thesis, secSnapshot, revisions }, startedAt);
@@ -59,15 +66,26 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const db = await getKanonDb();
-  const result = await updateThesisStepChecked(
-    db,
-    id,
-    parsed.data,
-    auth.user.id,
-    extractExpectedUpdatedAt(body.data),
-  );
+  let result: Awaited<ReturnType<typeof updateThesisStepChecked>>;
+  try {
+    result = await updateThesisStepChecked(
+      db,
+      id,
+      parsed.data,
+      auth.user.id,
+      extractExpectedUpdatedAt(body.data),
+    );
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      return jsonError("记录标识冲突，请刷新后重试。", 409, startedAt, "CONFLICT");
+    }
+    throw err;
+  }
   if (result.kind === "not_found") {
     return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
+  }
+  if (result.kind === "invalid_version") {
+    return jsonError("无效的版本时间戳。", 400, startedAt, "INVALID_VERSION");
   }
   if (result.kind === "conflict") {
     return NextResponse.json(

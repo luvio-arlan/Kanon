@@ -106,7 +106,7 @@ export function InvestmentMemoCard({ memo, loading, onGenerate }: InvestmentMemo
 
   return (
     <Card className="p-6 sm:p-8">
-      <div className="print-only mb-4 flex items-center justify-between border-b border-hairline pb-2 font-mono text-xs tracking-wider text-ink-muted">
+      <div className="print-only-flex mb-4 items-center justify-between border-b border-hairline pb-2 font-mono text-xs tracking-wider text-ink-muted">
         <span>KANON · IC RESEARCH MEMORANDUM</span>
         <span>{new Date().toISOString().slice(0, 10)}</span>
       </div>
@@ -120,7 +120,7 @@ export function InvestmentMemoCard({ memo, loading, onGenerate }: InvestmentMemo
         />
       </div>
       {loading ? (
-        <ComposerLoader active radius={16} className="mt-5">
+        <ComposerLoader active radius={20} className="mt-5">
           <div className="flex items-center justify-center rounded-card border border-hairline bg-muted/45 px-5 py-8">
             <AgentThinking variant="infinity" label="正在基于前 4 步一阶档案凝练 IC 投研备忘录" />
           </div>

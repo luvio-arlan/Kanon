@@ -54,7 +54,7 @@ export interface EvOwnerFcfResult {
 }
 
 function evTargetPerShare(fcfB: number, mult: number, netCashB: number, sharesM: number): number {
-  const equityValB = Math.max(0.1, fcfB * mult + netCashB);
+  const equityValB = Math.max(0, fcfB * mult + netCashB);
   return roundTo((equityValB * 1000) / sharesM, 2);
 }
 
@@ -64,7 +64,7 @@ export function calculateEvOwnerFcfValuation(input: EvOwnerFcfInput): EvOwnerFcf
   const years = Math.max(1, input.horizonYears);
   const netCashB = input.cashB - input.totalDebtB;
   const currentMarketCapB = roundTo((price * shares) / 1000, 2);
-  const currentEvB = roundTo(Math.max(0.1, currentMarketCapB - netCashB), 2);
+  const currentEvB = roundTo(currentMarketCapB - netCashB, 2);
   const bearTargetPrice = evTargetPerShare(
     input.bearOwnerFcfB,
     input.bearEvMultiple,
@@ -84,7 +84,8 @@ export function calculateEvOwnerFcfValuation(input: EvOwnerFcfInput): EvOwnerFcf
     shares,
   );
   const baseUpsidePct = roundTo(((baseTargetPrice - price) / price) * 100, 1);
-  const baseCagrPct = roundTo(((baseTargetPrice / price) ** (1 / years) - 1) * 100, 1);
+  const baseCagrPct =
+    baseTargetPrice <= 0 ? -100 : roundTo(((baseTargetPrice / price) ** (1 / years) - 1) * 100, 1);
   const riskRewardRatio =
     baseTargetPrice <= price
       ? 0
@@ -154,6 +155,43 @@ function classifyReverseDcfVerdict(
   return requiredCagrPct >= 25 ? "demanding" : "fair";
 }
 
+function solveImpliedGrowthRate(
+  base: number,
+  price: number,
+  discount: number,
+  years: number,
+  terminalMult: number,
+  ronicRate: number | null,
+): number {
+  const evalPv = (g: number) =>
+    presentValueAtGrowth(base, g, discount, years, terminalMult, ronicRate);
+  const minG = -0.4;
+  const maxG = 1.5;
+  const steps = 38;
+  let low = minG;
+  let high = maxG;
+  let prevG = minG;
+  let prevDiff = evalPv(minG) - price;
+  for (let s = 1; s <= steps; s += 1) {
+    const curG = minG + ((maxG - minG) * s) / steps;
+    const curDiff = evalPv(curG) - price;
+    if ((prevDiff <= 0 && curDiff >= 0) || (prevDiff >= 0 && curDiff <= 0)) {
+      low = prevG;
+      high = curG;
+      break;
+    }
+    prevG = curG;
+    prevDiff = curDiff;
+  }
+  const lowBelow = evalPv(low) < price;
+  for (let i = 0; i < 48; i += 1) {
+    const mid = (low + high) / 2;
+    if (evalPv(mid) < price === lowBelow) low = mid;
+    else high = mid;
+  }
+  return (low + high) / 2;
+}
+
 export function calculateTrueReverseDcf(input: ReverseDcfInput): ReverseDcfResult {
   const price = Math.max(0.01, input.currentPrice);
   const base = Math.max(0.05, input.baseMetricPerShare);
@@ -164,15 +202,14 @@ export function calculateTrueReverseDcf(input: ReverseDcfInput): ReverseDcfResul
   const ronicRate =
     typeof input.ronicPct === "number" && input.ronicPct >= 5 ? input.ronicPct / 100 : null;
 
-  let low = -0.4;
-  let high = 1.5;
-  for (let i = 0; i < 60; i += 1) {
-    const mid = (low + high) / 2;
-    const pv = presentValueAtGrowth(base, mid, discount, years, terminalMult, ronicRate);
-    if (pv < price) low = mid;
-    else high = mid;
-  }
-  const requiredRate = (low + high) / 2;
+  const requiredRate = solveImpliedGrowthRate(
+    base,
+    price,
+    discount,
+    years,
+    terminalMult,
+    ronicRate,
+  );
   const requiredCagrPct = roundTo(requiredRate * 100, 1);
   const impliedTerminalPrice = roundTo(base * (1 + requiredRate) ** years * terminalMult, 1);
   const hist =
@@ -200,49 +237,7 @@ export function calculateTrueReverseDcf(input: ReverseDcfInput): ReverseDcfResul
   };
 }
 
-export interface TsrDecompositionResult {
-  fundamentalGrowthPct: number;
-  multipleReRatePct: number;
-  capitalReturnPct: number;
-  totalAnnualizedTsrPct: number;
-}
-
-export function calculateTsrDecomposition(params: {
-  currentPrice: number;
-  trailingEps: number | null;
-  forwardEps: number;
-  forwardPe: number;
-  horizonYears: number;
-  annualCapitalReturnPct?: number;
-}): TsrDecompositionResult {
-  const years = Math.max(1, params.horizonYears);
-  const price = Math.max(0.01, params.currentPrice);
-  const capitalReturnPct = roundTo(params.annualCapitalReturnPct ?? 0, 1);
-  const validTrailing =
-    typeof params.trailingEps === "number" && params.trailingEps > 0 ? params.trailingEps : null;
-  const safeForwardEps = Math.max(0.01, params.forwardEps);
-  const safeForwardPe = Math.max(0.1, params.forwardPe);
-  if (!validTrailing) {
-    const priceCagr = roundTo(((safeForwardEps * safeForwardPe) / price) ** (1 / years) - 1, 4);
-    const total = roundTo(priceCagr * 100 + capitalReturnPct, 1);
-    return {
-      fundamentalGrowthPct: roundTo(priceCagr * 100, 1),
-      multipleReRatePct: 0,
-      capitalReturnPct,
-      totalAnnualizedTsrPct: total,
-    };
-  }
-  const currentPe = price / validTrailing;
-  const epsCagr = (safeForwardEps / validTrailing) ** (1 / years) - 1;
-  const peCagr = (safeForwardPe / currentPe) ** (1 / years) - 1;
-  const fundamentalGrowthPct = roundTo(epsCagr * 100, 1);
-  const multipleReRatePct = roundTo(peCagr * 100, 1);
-  const compoundedPricePct = ((1 + epsCagr) * (1 + peCagr) - 1) * 100;
-  const totalAnnualizedTsrPct = roundTo(compoundedPricePct + capitalReturnPct, 1);
-  return {
-    fundamentalGrowthPct,
-    multipleReRatePct,
-    capitalReturnPct,
-    totalAnnualizedTsrPct,
-  };
-}
+export {
+  calculateTsrDecomposition,
+  type TsrDecompositionResult,
+} from "./models/tsr-decomposition";

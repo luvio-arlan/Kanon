@@ -61,7 +61,7 @@ function RegisterSubmitFooter(props: {
       <button
         type="submit"
         disabled={!props.canSubmit}
-        className="kanon-cta-sheen group inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-pill bg-ink-primary px-6 text-sm font-medium text-ink-inverse shadow-button-primary transition-[opacity,transform] duration-200 hover:opacity-92 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-35"
+        className="kanon-cta-sheen group inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-pill bg-ink-primary px-6 text-sm font-medium text-ink-inverse shadow-button-primary transition-[opacity,background-color] duration-200 hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-35"
       >
         {props.submitting ? <IconLoader2 size={15} stroke={1.5} className="animate-spin" /> : null}
         <span>创建独立空间</span>

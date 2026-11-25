@@ -9,7 +9,7 @@ import {
   ThesisMutationResponseSchema,
 } from "@kanon/core";
 import { toast } from "sonner";
-import { buildMarketHeaders } from "@/features/ai-settings";
+import { buildMarketHeaders } from "@/shared/lib/client-provider-storage";
 import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
 export interface NewThesisDraft {

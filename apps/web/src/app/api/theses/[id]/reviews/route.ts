@@ -1,8 +1,8 @@
 import { CreateQuarterlyReviewSchema, QuarterlyReviewCreateResponseSchema } from "@kanon/core";
 import {
+  assertThesisOwnership,
   createQuarterlyReview,
   getKanonDb,
-  getThesisById,
   listQuarterlyReviews,
   listThesisRevisions,
 } from "@kanon/core/db";
@@ -23,8 +23,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { id } = await context.params;
   const db = await getKanonDb();
-  const thesis = await getThesisById(db, id, auth.user.id);
-  if (!thesis) {
+  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
     return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
   }
   const reviews = await listQuarterlyReviews(db, id);

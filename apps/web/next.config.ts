@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
       "recharts",
       "sonner",
       "@kanon/ui",
+      "@kanon/core",
     ],
   },
   async headers() {
@@ -30,11 +31,14 @@ const nextConfig: NextConfig = {
         key: "Content-Security-Policy",
         value: [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+          isProd
+            ? "script-src 'self' 'unsafe-inline'"
+            : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https:",
           "font-src 'self' data: https://fonts.gstatic.com",
           "connect-src 'self' https:",
+          "object-src 'none'",
           "frame-ancestors 'none'",
           "base-uri 'self'",
           "form-action 'self'",

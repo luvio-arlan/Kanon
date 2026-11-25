@@ -4,10 +4,13 @@ import { fetchSecWithRetry } from "./sec-http";
 const VALID_CODES = new Set(["P", "S", "M", "A", "G"]);
 
 function readXmlTag(xml: string, tag: string): string {
-  const m = new RegExp(`<${tag}[^>]*>\\s*(?:<value>)?([^<]+)(?:</value>)?\\s*</${tag}>`, "i").exec(
-    xml,
-  );
-  return m?.[1]?.trim() ?? "";
+  const withVal = new RegExp(
+    `<${tag}\\b[^>]*>[\\s\\S]*?<value>\\s*([^<]+?)\\s*</value>[\\s\\S]*?</${tag}>`,
+    "i",
+  ).exec(xml);
+  if (withVal?.[1]) return withVal[1].trim();
+  const direct = new RegExp(`<${tag}\\b[^>]*>\\s*([^<]+?)\\s*</${tag}>`, "i").exec(xml);
+  return direct?.[1]?.trim() ?? "";
 }
 
 function normalizeForm4XmlUrl(documentUrl: string): string {
@@ -37,13 +40,22 @@ function parseSingleNonDerivBlock(
   };
 }
 
+function detect10b51Flag(xml: string): boolean {
+  const explicit = /<aff10b5One>\s*([^<\s]+)\s*<\/aff10b5One>/i.exec(xml);
+  if (explicit?.[1]) return explicit[1] === "1" || /^true$/i.test(explicit[1]);
+  if (/not\s+(?:effected|adopted|made|executed|pursuant)[^.]{0,50}10b5-1/i.test(xml)) {
+    return false;
+  }
+  return /pursuant\s+to\s+(?:a\s+)?(?:rule\s+)?10b5-1/i.test(xml);
+}
+
 function parseForm4Transactions(xml: string, filingDate: string): SecInsiderTx[] {
   const insiderName = readXmlTag(xml, "rptOwnerName") || "内部人";
   const officerTitle = readXmlTag(xml, "officerTitle");
   const dirTag = readXmlTag(xml, "isDirector");
   const role =
     officerTitle || (dirTag === "1" || /true/i.test(dirTag) ? "董事" : "持股 10% 以上股东");
-  const is10b51 = /<aff10b5One>\s*(?:1|true)\s*<\/aff10b5One>/i.test(xml) || /10b5-1/i.test(xml);
+  const is10b51 = detect10b51Flag(xml);
   const blocks =
     xml.match(/<nonDerivativeTransaction\b[\s\S]*?<\/nonDerivativeTransaction>/gi) ?? [];
   const meta = { insiderName, role, filingDate, is10b51 };
@@ -99,32 +111,45 @@ export function summarizeForm4Transactions(txs: readonly SecInsiderTx[]): SecIns
   };
 }
 
+function isSecArchiveUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    return (
+      parsed.origin === "https://www.sec.gov" && parsed.pathname.startsWith("/Archives/edgar/data/")
+    );
+  } catch (err) {
+    void err;
+    return false;
+  }
+}
+
 export async function fetchForm4InsiderSummary(
   filings: readonly SecFilingItem[],
   fetchImpl: typeof fetch,
 ): Promise<SecInsiderSummary | null> {
   const form4s = filings
-    .filter((f) => f.form === "4" && f.documentUrl.includes("sec.gov/Archives/edgar/data/"))
+    .filter((f) => f.form === "4" && isSecArchiveUrl(f.documentUrl))
     .slice(0, 5);
   if (form4s.length === 0) return null;
 
-  const results = await Promise.allSettled(
-    form4s.map(async (item) => {
-      const xmlUrl = normalizeForm4XmlUrl(item.documentUrl);
-      const res = await fetchSecWithRetry(
-        xmlUrl,
-        { accept: "application/xml,text/xml;q=0.9", timeoutMs: 3500, maxRetries: 0 },
-        fetchImpl,
-      );
-      if (!res.ok) return [] as SecInsiderTx[];
-      const xml = await res.text();
-      return parseForm4Transactions(xml, item.filingDate);
-    }),
-  );
-
   const allTxs: SecInsiderTx[] = [];
-  for (const r of results) {
-    if (r.status === "fulfilled") allTxs.push(...r.value);
+  for (let i = 0; i < form4s.length; i += 2) {
+    const batch = form4s.slice(i, i + 2);
+    const results = await Promise.allSettled(
+      batch.map(async (item) => {
+        const xmlUrl = normalizeForm4XmlUrl(item.documentUrl);
+        const res = await fetchSecWithRetry(
+          xmlUrl,
+          { accept: "application/xml,text/xml;q=0.9", timeoutMs: 3500, maxRetries: 0 },
+          fetchImpl,
+        );
+        if (!res.ok) return [] as SecInsiderTx[];
+        return parseForm4Transactions(await res.text(), item.filingDate);
+      }),
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled") allTxs.push(...r.value);
+    }
   }
   return allTxs.length > 0 ? summarizeForm4Transactions(allTxs) : null;
 }

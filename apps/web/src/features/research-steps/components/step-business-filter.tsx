@@ -193,16 +193,20 @@ export function StepBusinessFilter(props: StepBusinessFilterProps) {
   const nextStatus: ThesisStatus = thesis.status === "archived_veto" ? "active" : "archived_veto";
   const patchFilter = (patch: Partial<BusinessFilter>) =>
     d.setDraft((prev) => ({ ...prev, filter: { ...prev.filter, ...patch } }));
-  const toggleArchive = () =>
+  const toggleArchive = () => {
+    const nextSummary = d.draft.summary.trim() || thesis.convictionSummary;
+    const nextFilter: BusinessFilter = {
+      ...d.draft.filter,
+      vetoReason:
+        nextStatus === "archived_veto" ? d.draft.filter.notes || "暂未通过商业质量初筛" : "",
+    };
+    d.setDraft({ filter: nextFilter, summary: nextSummary });
     void onSave({
       status: nextStatus,
-      convictionSummary: d.draft.summary.trim() || thesis.convictionSummary,
-      businessFilter: {
-        ...d.draft.filter,
-        vetoReason:
-          nextStatus === "archived_veto" ? d.draft.filter.notes || "暂未通过商业质量初筛" : "",
-      },
+      convictionSummary: nextSummary,
+      businessFilter: nextFilter,
     });
+  };
   return (
     <div className="space-y-6">
       <StepOneMasthead

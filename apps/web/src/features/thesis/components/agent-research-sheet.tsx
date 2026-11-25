@@ -4,22 +4,14 @@ import type {
   AgentAskResponse,
   AgentBriefing,
   AgentPartialSynthesis,
-  AgentProposal,
   AgentTraceStep,
   SavedAgentRun,
 } from "@kanon/core";
-import { Badge, Button, cn, KANON_ROW_ITEM, KANON_ROW_STAGGER, KanonMark, Sheet } from "@kanon/ui";
-import {
-  IconCheck,
-  IconChecks,
-  IconPlayerPlay,
-  IconPlayerStop,
-  IconSparkles,
-} from "@tabler/icons-react";
-import { motion } from "framer-motion";
-import { useState } from "react";
+import { Button, KanonMark, Sheet } from "@kanon/ui";
+import { IconPlayerPlay, IconPlayerStop, IconSparkles } from "@tabler/icons-react";
 import { AgentAskPanel } from "./agent/agent-ask-panel";
 import { AgentHistoryBar } from "./agent/agent-history-bar";
+import { AgentProposalsSection } from "./agent/agent-proposals-section";
 import { AgentBriefingCard, AgentStreamingCard } from "./agent-briefing-card";
 import { AgentTraceLogSection } from "./agent-trace-log";
 
@@ -44,63 +36,6 @@ export interface AgentResearchSheetProps {
   onApplyProposals: (proposalIds: readonly string[]) => Promise<void>;
 }
 
-const TARGET_LABELS: Record<AgentProposal["target"], string> = {
-  variant_perception: "预期差",
-  key_debate: "核心分歧",
-  pre_mortem: "逆向推演",
-  hypothesis_update: "核心假设",
-  catalyst_draft: "催化剂",
-  cross_check_draft: "产业链互证",
-  exit_rule: "离场条件",
-};
-
-function ProposalRow({
-  proposal,
-  applied,
-  onApply,
-}: {
-  proposal: AgentProposal;
-  applied: boolean;
-  onApply: () => Promise<void>;
-}) {
-  return (
-    <motion.div
-      variants={KANON_ROW_ITEM}
-      className={cn(
-        "px-5 py-4 transition-colors duration-200 sm:px-6",
-        applied && "bg-status-pass-soft/20",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-ink-primary">{proposal.title}</span>
-            <Badge variant="titanium">{TARGET_LABELS[proposal.target]}</Badge>
-          </div>
-          {proposal.beforePreview ? (
-            <p className="text-xs text-ink-muted line-through opacity-75">
-              {proposal.beforePreview}
-            </p>
-          ) : null}
-        </div>
-        <Button
-          variant={applied ? "ghost" : "outline"}
-          size="xs"
-          disabled={applied}
-          onClick={() => void onApply()}
-          className="shrink-0 whitespace-nowrap"
-        >
-          <IconCheck size={13} stroke={1.5} />
-          <span>{applied ? "已采纳" : "采纳"}</span>
-        </Button>
-      </div>
-      <p className="mt-2.5 border-l-2 border-accent-coral/55 pl-3 text-sm leading-[1.7] text-ink-secondary">
-        {proposal.content}
-      </p>
-    </motion.div>
-  );
-}
-
 function AgentEmptyState({ onRun }: { onRun: () => Promise<void> }) {
   return (
     <div className="flex min-h-[340px] flex-col items-center justify-center rounded-panel border border-hairline bg-surface px-6 py-12 text-center">
@@ -120,55 +55,6 @@ function AgentEmptyState({ onRun }: { onRun: () => Promise<void> }) {
         </Button>
       </div>
     </div>
-  );
-}
-
-function ProposalsSection({
-  proposals,
-  appliedIds,
-  onApplyProposals,
-}: {
-  proposals: readonly AgentProposal[];
-  appliedIds: readonly string[];
-  onApplyProposals: (proposalIds: readonly string[]) => Promise<void>;
-}) {
-  const [batching, setBatching] = useState(false);
-  const pending = proposals.filter((p) => !appliedIds.includes(p.id));
-  const applyAll = async () => {
-    setBatching(true);
-    try {
-      await onApplyProposals(pending.map((p) => p.id));
-    } finally {
-      setBatching(false);
-    }
-  };
-  return (
-    <motion.section
-      variants={KANON_ROW_STAGGER}
-      initial="hidden"
-      animate="visible"
-      className="overflow-hidden rounded-panel border border-hairline bg-surface"
-    >
-      <div className="flex items-center justify-between gap-2 border-b border-hairline px-5 py-3.5 sm:px-6">
-        <span className="text-xs font-medium text-ink-muted">修订提案 · {proposals.length}</span>
-        {pending.length >= 2 ? (
-          <Button variant="ghost" size="xs" loading={batching} onClick={() => void applyAll()}>
-            {!batching ? <IconChecks size={13} stroke={1.5} /> : null}
-            <span>全部采纳 ({pending.length})</span>
-          </Button>
-        ) : null}
-      </div>
-      <div className="divide-y divide-hairline">
-        {proposals.map((prop) => (
-          <ProposalRow
-            key={prop.id}
-            proposal={prop}
-            applied={appliedIds.includes(prop.id)}
-            onApply={() => onApplyProposals([prop.id])}
-          />
-        ))}
-      </div>
-    </motion.section>
   );
 }
 
@@ -193,7 +79,7 @@ function SheetBody(props: AgentResearchSheetProps) {
       />
       {props.briefing ? <AgentBriefingCard briefing={props.briefing} /> : null}
       {props.briefing && props.briefing.proposals.length > 0 ? (
-        <ProposalsSection
+        <AgentProposalsSection
           proposals={props.briefing.proposals}
           appliedIds={props.appliedIds}
           onApplyProposals={props.onApplyProposals}

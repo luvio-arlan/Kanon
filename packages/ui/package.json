@@ -3,8 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
     ".": "./src/index.ts",
+    "./theme": "./src/theme.ts",
+    "./charts": "./src/charts/sec-financial-chart.tsx",
     "./tokens.css": "./src/styles/tokens.css"
   },
   "scripts": {

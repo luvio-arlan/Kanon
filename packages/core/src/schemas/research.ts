@@ -30,12 +30,12 @@ export const BusinessFilterSchema = z.object({
   pricingPower: FilterVerdictSchema,
   capitalReturn: FilterVerdictSchema,
   governance: FilterVerdictSchema,
-  notes: z.string(),
-  vetoReason: z.string(),
-  consensusView: z.string().default(""),
-  variantPerception: z.string().default(""),
-  keyDebate: z.string().default(""),
-  preMortem: z.string().default(""),
+  notes: z.string().max(4000),
+  vetoReason: z.string().max(2000),
+  consensusView: z.string().max(4000).default(""),
+  variantPerception: z.string().max(4000).default(""),
+  keyDebate: z.string().max(4000).default(""),
+  preMortem: z.string().max(4000).default(""),
 });
 export type BusinessFilter = z.infer<typeof BusinessFilterSchema>;
 
@@ -123,17 +123,20 @@ export const SavedCopilotOutputSchema = z.object({
 });
 export type SavedCopilotOutput = z.infer<typeof SavedCopilotOutputSchema>;
 
+export const TickerSymbolSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(10)
+  .transform((v) => v.toUpperCase())
+  .refine((v) => /^[A-Z0-9.-]{1,10}$/.test(v), "请输入有效的证券代码（字母/数字/./-）");
+
 export const CreateThesisInputSchema = z.object({
-  ticker: z
-    .string()
-    .trim()
-    .min(1)
-    .max(10)
-    .transform((v) => v.toUpperCase()),
+  ticker: TickerSymbolSchema,
   companyName: z.string().trim().min(1).max(60),
   sectorTag: z.string().trim().min(1).max(40),
   currentPrice: z.number().finite().positive().max(MAX_VALUATION_PRICE),
-  convictionSummary: z.string().trim().min(1).max(280).optional(),
+  convictionSummary: z.string().trim().min(1).max(2000).optional(),
   latestSecEps: z.number().finite().positive().max(MAX_VALUATION_EPS).optional(),
   priceHistory: z.array(SparklinePointSchema).min(2).max(12).optional(),
 });
@@ -171,7 +174,7 @@ export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
   z.object({
     step: z.literal("business_filter"),
     status: ThesisStatusSchema,
-    convictionSummary: z.string().trim().min(1),
+    convictionSummary: z.string().trim().min(1).max(2000),
     businessFilter: BusinessFilterSchema,
   }),
   z.object({ step: z.literal("hypotheses"), hypotheses: z.array(HypothesisSchema).min(3).max(5) }),
@@ -182,7 +185,7 @@ export const UpdateThesisStepSchema = z.discriminatedUnion("step", [
     valuationInput: ValuationScenarioInputSchema,
     modelMode: ValuationModelModeSchema.optional(),
     driverInputs: ValuationDriverInputsSchema.nullable().optional(),
-    priceHistory: z.array(SparklinePointSchema).min(2).optional(),
+    priceHistory: z.array(SparklinePointSchema).min(2).max(24).optional(),
   }),
   z.object({
     step: z.literal("price_anchor"),

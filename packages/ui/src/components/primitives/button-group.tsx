@@ -38,7 +38,7 @@ export function ButtonGroup({
     <fieldset
       aria-label={ariaLabel}
       className={cn(
-        "m-0 items-center gap-0.5 rounded-control border border-hairline bg-muted/80 p-1 shadow-input",
+        "m-0 min-w-0 max-w-full items-center gap-0.5 rounded-control border border-hairline bg-muted/80 p-1 shadow-input",
         equalWidth ? "inline-grid auto-cols-fr grid-flow-col" : "inline-flex",
         className,
       )}

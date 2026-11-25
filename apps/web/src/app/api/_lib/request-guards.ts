@@ -24,14 +24,20 @@ function getRateStore(): Map<string, RateBucketState> {
   return globalThis.__kanonRateBuckets;
 }
 
+const SAFE_IP_RE = /^[a-fA-F0-9:.]{2,45}$/;
+
+function sanitizeIp(raw: string | null): string | null {
+  const candidate = raw?.split(",")[0]?.trim() ?? "";
+  return SAFE_IP_RE.test(candidate) ? candidate : null;
+}
+
 export function extractClientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  const realIp = request.headers.get("x-real-ip")?.trim();
-  return realIp || "local";
+  return (
+    sanitizeIp(request.headers.get("x-vercel-forwarded-for")) ??
+    sanitizeIp(request.headers.get("x-real-ip")) ??
+    sanitizeIp(request.headers.get("x-forwarded-for")) ??
+    "local"
+  );
 }
 
 function pruneExpiredBuckets(store: Map<string, RateBucketState>, now: number): void {
@@ -104,10 +110,26 @@ export async function checkPersistentRateLimit(
   }
 }
 
-export function verifySameOrigin(request: Request, startedAt: number): NextResponse | null {
+function matchesRequestHost(request: Request): boolean {
+  const rawHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  const host = rawHost.split(",")[0]?.trim() ?? "";
+  const candidate = request.headers.get("origin")?.trim() || request.headers.get("referer")?.trim();
+  if (!candidate || !host) return true;
+  try {
+    return new URL(candidate).host.toLowerCase() === host.toLowerCase();
+  } catch (err) {
+    void err;
+    return false;
+  }
+}
+
+export function verifySameOrigin(
+  request: Request,
+  startedAt: number,
+  options?: { allowBearerBypass?: boolean },
+): NextResponse | null {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
-  if (request.headers.get("authorization")?.startsWith("Bearer ")) return null;
 
   const secFetchSite = request.headers.get("sec-fetch-site")?.trim().toLowerCase();
   if (secFetchSite === "cross-site") {
@@ -118,24 +140,8 @@ export function verifySameOrigin(request: Request, startedAt: number): NextRespo
       "ORIGIN_MISMATCH",
     );
   }
-
-  const host = (
-    request.headers.get("x-forwarded-host") ||
-    request.headers.get("host") ||
-    ""
-  ).trim();
-  const origin = request.headers.get("origin")?.trim();
-  const referer = request.headers.get("referer")?.trim();
-  const candidate = origin || referer;
-  if (!candidate || !host) return null;
-
-  try {
-    const parsedOrigin = new URL(candidate);
-    if (parsedOrigin.host.toLowerCase() === host.toLowerCase()) {
-      return null;
-    }
-  } catch (err) {
-    void err;
-  }
+  const hasBearer = /^bearer\s+\S/i.test(request.headers.get("authorization")?.trim() ?? "");
+  if (options?.allowBearerBypass && hasBearer) return null;
+  if (matchesRequestHost(request)) return null;
   return jsonError("跨站请求来源校验未通过，请刷新页面后重试。", 403, startedAt, "ORIGIN_MISMATCH");
 }

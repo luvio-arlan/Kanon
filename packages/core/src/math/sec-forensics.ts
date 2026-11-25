@@ -1,6 +1,8 @@
 import type { SecAnnualFinancial, SecQuarterlyFinancial } from "../schemas/research";
 import {
+  buildLeverageFlag,
   type CapitalAllocationProfile,
+  checkWorkingCapitalFlags,
   computeCapitalAllocation,
   computeIncrementalRoic,
   computeOcfToNetIncome,
@@ -8,19 +10,14 @@ import {
   computeSloanAccrualPct,
   computeWorkingCapitalCycle,
   type ForensicGrade,
+  type ForensicRedFlag,
+  makeForensicFlag,
   scoreForensicQuality,
   type WorkingCapitalCycle,
 } from "./sec-forensics-metrics";
 import { roundTo } from "./valuation-scenarios";
 
-export type { CapitalAllocationProfile, ForensicGrade, WorkingCapitalCycle };
-
-export interface ForensicRedFlag {
-  id: string;
-  severity: "warn" | "fail";
-  label: string;
-  detail: string;
-}
+export type { CapitalAllocationProfile, ForensicGrade, ForensicRedFlag, WorkingCapitalCycle };
 
 export interface SecForensicReport {
   latestFiscalYear: string;
@@ -70,12 +67,28 @@ function computeReturnMetrics(latest: SecAnnualFinancial) {
   return { roicPct, roePct, netCash, debtToEquityPct };
 }
 
+function parseFiscalYearNum(fiscalYear: string): number | null {
+  const n = Number(fiscalYear.replace(/[^0-9]/g, ""));
+  return Number.isFinite(n) && n >= 1900 && n <= 2200 ? n : null;
+}
+
 function computeShareCagr(annuals: readonly SecAnnualFinancial[]): number | null {
   const rows = annuals.filter((r) => typeof r.dilutedShares === "number" && r.dilutedShares > 0);
-  const firstS = rows[0]?.dilutedShares;
-  const lastS = rows[rows.length - 1]?.dilutedShares;
-  if (rows.length < 2 || !firstS || !lastS) return null;
-  return roundTo(((lastS / firstS) ** (1 / (rows.length - 1)) - 1) * 100, 2);
+  if (rows.length < 2) return null;
+  for (let i = 1; i < rows.length; i += 1) {
+    const prevS = rows[i - 1]?.dilutedShares ?? 0;
+    const curS = rows[i]?.dilutedShares ?? 0;
+    if (prevS > 0 && (curS / prevS >= 1.8 || prevS / curS >= 1.8)) return null;
+  }
+  const firstRow = rows[0];
+  const lastRow = rows[rows.length - 1];
+  const firstS = firstRow?.dilutedShares;
+  const lastS = lastRow?.dilutedShares;
+  if (!firstRow || !lastRow || !firstS || !lastS) return null;
+  const fyStart = parseFiscalYearNum(firstRow.fiscalYear);
+  const fyEnd = parseFiscalYearNum(lastRow.fiscalYear);
+  const span = fyStart && fyEnd && fyEnd > fyStart ? fyEnd - fyStart : rows.length - 1;
+  return roundTo(((lastS / firstS) ** (1 / span) - 1) * 100, 2);
 }
 
 function computeSbcAndShares(annuals: readonly SecAnnualFinancial[], latest: SecAnnualFinancial) {
@@ -94,36 +107,29 @@ function computeSbcAndShares(annuals: readonly SecAnnualFinancial[], latest: Sec
   };
 }
 
-function checkWorkingCapitalFlag(
-  prev: SecAnnualFinancial | undefined,
-  latest: SecAnnualFinancial,
-): ForensicRedFlag | null {
-  if (!prev?.revenue || !latest.revenue || prev.revenue <= 0) return null;
-  const revYoY = ((latest.revenue - prev.revenue) / prev.revenue) * 100;
-  const checkItem = (
-    label: string,
-    pVal: number | null | undefined,
-    cVal: number | null | undefined,
-  ) => {
-    if (!pVal || !cVal || pVal <= 0) return null;
-    const growth = ((cVal - pVal) / pVal) * 100;
-    if (growth - revYoY >= 15) {
-      return {
-        id: `wc-${label}`,
-        severity: "warn" as const,
-        label: `${label}增速高于营收`,
-        detail: `最新年度${label}同比 +${roundTo(growth, 1)}%，显著快于营收增速 +${roundTo(revYoY, 1)}%，建议核查渠道库存或回款节奏。`,
-      };
-    }
-    return null;
-  };
-  return (
-    checkItem("存货", prev.inventory, latest.inventory) ??
-    checkItem("应收账款", prev.accountsReceivable, latest.accountsReceivable)
-  );
+function detectCashAndDilutionFlags(p: {
+  latest: SecAnnualFinancial;
+  ownerFcf: number | null;
+  sbcPctOfOcf: number | null;
+  shareChangeCagrPct: number | null;
+}): ForensicRedFlag[] {
+  const flags: ForensicRedFlag[] = [];
+  if ((p.sbcPctOfOcf ?? 0) >= 25) {
+    const detail = `股权激励占经营现金流 ${p.sbcPctOfOcf}%，估值时建议扣除 SBC 按 Owner FCF 计算。`;
+    flags.push(makeForensicFlag("sbc-heavy", "warn", "SBC 现金流吞噬偏高", detail));
+  }
+  if ((p.shareChangeCagrPct ?? 0) >= 2.5) {
+    const detail = `稀释股本年化扩张 +${p.shareChangeCagrPct}%，长期复利会向员工期权分流。`;
+    flags.push(makeForensicFlag("share-dilution", "warn", "股本持续净稀释", detail));
+  }
+  if ((p.latest.netIncome ?? 0) > 0 && p.ownerFcf !== null && p.ownerFcf < 0) {
+    const detail = "扣除资本开支与 SBC 后 Owner FCF 为负，需重点核验资本开支回报周期与盈利质量。";
+    flags.push(makeForensicFlag("negative-owner-fcf", "fail", "账面盈利但真实 FCF 转负", detail));
+  }
+  return flags;
 }
 
-function buildRedFlags(params: {
+function detectForensicFlags(p: {
   annuals: readonly SecAnnualFinancial[];
   latest: SecAnnualFinancial;
   ownerFcf: number | null;
@@ -133,53 +139,13 @@ function buildRedFlags(params: {
   netCash: number | null;
   sloanAccrualPct: number | null;
 }): ForensicRedFlag[] {
-  const flags: ForensicRedFlag[] = [];
-  if ((params.sbcPctOfOcf ?? 0) >= 25) {
-    flags.push({
-      id: "sbc-heavy",
-      severity: "warn",
-      label: "SBC 现金流吞噬偏高",
-      detail: `股权激励占经营现金流 ${params.sbcPctOfOcf}%，估值时建议扣除 SBC 按 Owner FCF 计算。`,
-    });
-  }
-  if ((params.shareChangeCagrPct ?? 0) >= 2.5) {
-    flags.push({
-      id: "share-dilution",
-      severity: "warn",
-      label: "股本持续净稀释",
-      detail: `稀释股本年化扩张 +${params.shareChangeCagrPct}%，长期复利会向员工期权分流。`,
-    });
-  }
-  if ((params.latest.netIncome ?? 0) > 0 && params.ownerFcf !== null && params.ownerFcf < 0) {
-    flags.push({
-      id: "negative-owner-fcf",
-      severity: "fail",
-      label: "账面盈利但真实 FCF 转负",
-      detail: "扣除资本开支与 SBC 后 Owner FCF 为负，需重点核验资本开支回报周期与盈利质量。",
-    });
-  }
-  if ((params.debtToEquityPct ?? 0) >= 150 && (params.netCash ?? 0) < 0) {
-    flags.push({
-      id: "high-leverage",
-      severity: "warn",
-      label: "资产负债表杠杆偏高",
-      detail: `总负债/股东权益达 ${params.debtToEquityPct}% 且处于净负债状态，需审视下行周期偿债压力。`,
-    });
-  }
-  const wcFlag = checkWorkingCapitalFlag(params.annuals[params.annuals.length - 2], params.latest);
-  if (wcFlag) flags.push(wcFlag);
-  return flags;
-}
-
-function detectForensicFlags(params: Parameters<typeof buildRedFlags>[0]): ForensicRedFlag[] {
-  const flags = buildRedFlags(params);
-  if ((params.sloanAccrualPct ?? 0) >= 10) {
-    flags.push({
-      id: "accrual-anomaly",
-      severity: "warn",
-      label: "Sloan 应计项占比偏高",
-      detail: `净利与经营现金流差额占营收 ${params.sloanAccrualPct}%，盈利现金含金量偏弱，建议核查收入确认政策。`,
-    });
+  const flags = detectCashAndDilutionFlags(p);
+  const lev = buildLeverageFlag(p.latest, p.debtToEquityPct, p.netCash);
+  if (lev) flags.push(lev);
+  flags.push(...checkWorkingCapitalFlags(p.annuals[p.annuals.length - 2], p.latest));
+  if ((p.sloanAccrualPct ?? 0) >= 10) {
+    const detail = `净利与经营现金流差额占营收 ${p.sloanAccrualPct}%，盈利现金含金量偏弱，建议核查收入确认政策。`;
+    flags.push(makeForensicFlag("accrual-anomaly", "warn", "Sloan 应计项占比偏高", detail));
   }
   return flags;
 }

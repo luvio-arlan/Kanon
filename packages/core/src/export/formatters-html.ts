@@ -1,5 +1,6 @@
 import { calculateImpliedExpectations } from "../math/implied-expectations";
 import { analyzeSecQuality } from "../math/sec-analytics";
+import { analyzeSecForensics } from "../math/sec-forensics";
 import type { ThesisDetail } from "../schemas/research";
 import type { ThesisExportExtras } from "./formatters-sections";
 
@@ -24,9 +25,18 @@ function buildFilterHtml(thesis: ThesisDetail): string {
     ["资本回报与现金流质量", VERDICT_CN[f.capitalReturn] ?? f.capitalReturn],
     ["治理透明度与资本配置", VERDICT_CN[f.governance] ?? f.governance],
   ];
-  return rows
+  const table = `<table><thead><tr><th>商业模式维度</th><th>评审结论</th></tr></thead><tbody>${rows
     .map(([k, v]) => `<tr><td>${k}</td><td><strong>${escapeHtml(v)}</strong></td></tr>`)
-    .join("");
+    .join("")}</tbody></table>`;
+  const variantRows = [
+    f.consensusView ? `<li><strong>市场一致预期：</strong>${escapeHtml(f.consensusView)}</li>` : "",
+    f.variantPerception
+      ? `<li><strong>核心预期差：</strong>${escapeHtml(f.variantPerception)}</li>`
+      : "",
+    f.keyDebate ? `<li><strong>未来 18 个月核心分歧：</strong>${escapeHtml(f.keyDebate)}</li>` : "",
+    f.preMortem ? `<li><strong>逆向压力推演：</strong>${escapeHtml(f.preMortem)}</li>` : "",
+  ].filter(Boolean);
+  return variantRows.length > 0 ? `${table}<ul>${variantRows.join("")}</ul>` : table;
 }
 
 function buildScenarioHtml(thesis: ThesisDetail): string {
@@ -57,6 +67,65 @@ function buildExpectationsHtml(thesis: ThesisDetail, extras?: ThesisExportExtras
   return `<p><strong>安全边际：</strong>${exp.marginOfSafetyPct}% ｜ <strong>15% CAGR 买点：</strong>$${exp.hurdleEntry15.toFixed(2)} ｜ <strong>20% CAGR 买点：</strong>$${exp.hurdleEntry20.toFixed(2)}${impliedLine}</p>`;
 }
 
+function buildForensicsSectionHtml(extras?: ThesisExportExtras): string | null {
+  const forensics = analyzeSecForensics(
+    extras?.secSnapshot?.annuals ?? [],
+    extras?.secSnapshot?.quarterlies ?? [],
+  );
+  if (!forensics) return null;
+  const flags = forensics.redFlags
+    .map(
+      (f) =>
+        `<li><strong>[${escapeHtml(f.severity)}] ${escapeHtml(f.label)}：</strong>${escapeHtml(f.detail)}</li>`,
+    )
+    .join("");
+  return `<h2>五、SEC 财务法证评级</h2><p><strong>评分：</strong>${forensics.forensicScore}/100（${escapeHtml(forensics.forensicGradeLabel)}） · ROIC ${forensics.roicPct ?? "—"}% · SBC/OCF ${forensics.sbcPctOfOcf ?? "—"}%</p>${flags ? `<ul>${flags}</ul>` : ""}`;
+}
+
+function buildReviewSectionHtml(extras?: ThesisExportExtras): string | null {
+  const latestReview = extras?.quarterlyReviews?.[0];
+  const latestRun = extras?.agentRuns?.[0];
+  if (!latestReview && !latestRun) return null;
+  const items = [
+    latestReview
+      ? `<li><strong>${escapeHtml(latestReview.quarterLabel)} 季度复盘：</strong>${escapeHtml(latestReview.summary)}</li>`
+      : "",
+    latestRun
+      ? `<li><strong>投委会裁决（置信度 ${latestRun.briefing.convictionScore}）：</strong>${escapeHtml(latestRun.briefing.verdict)}</li>`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("");
+  return `<h2>七、最新复盘与投委会结论</h2><ul>${items}</ul>`;
+}
+
+function buildExtraSectionsHtml(thesis: ThesisDetail, extras?: ThesisExportExtras): string[] {
+  const sections: string[] = [];
+  if (thesis.crossChecks.length > 0) {
+    const ccItems = thesis.crossChecks
+      .map(
+        (cc) =>
+          `<li><strong>${escapeHtml(cc.peerCompany)}</strong>（${escapeHtml(cc.topic)} · ${escapeHtml(cc.sourceAnchor)}）：${escapeHtml(cc.statement)} → ${escapeHtml(cc.takeaway)}</li>`,
+      )
+      .join("");
+    sections.push(`<h2>三、一阶资料与产业链交叉印证</h2><ul>${ccItems}</ul>`);
+  }
+  const forensicsHtml = buildForensicsSectionHtml(extras);
+  if (forensicsHtml) sections.push(forensicsHtml);
+  if (thesis.catalysts.length > 0) {
+    const catHtml = thesis.catalysts
+      .map(
+        (c) =>
+          `<li><strong>[${escapeHtml(c.status)}] ${escapeHtml(c.dateLabel)} · ${escapeHtml(c.title)}</strong> — ${escapeHtml(c.verificationMetric)}</li>`,
+      )
+      .join("");
+    sections.push(`<h2>六、催化剂日程</h2><ul>${catHtml}</ul>`);
+  }
+  const reviewHtml = buildReviewSectionHtml(extras);
+  if (reviewHtml) sections.push(reviewHtml);
+  return sections;
+}
+
 export function formatGoogleDocHtml(thesis: ThesisDetail, extras?: ThesisExportExtras): string {
   const { valuation } = thesis;
   const ratio =
@@ -67,6 +136,7 @@ export function formatGoogleDocHtml(thesis: ThesisDetail, extras?: ThesisExportE
         `<li><strong>${escapeHtml(h.title)}</strong>（${escapeHtml(h.metricLabel)}：${escapeHtml(h.threshold)}）<br/>${escapeHtml(h.note)}</li>`,
     )
     .join("");
+  const omittedDisc = Math.max(0, thesis.disciplineEntries.length - 5);
   const discHtml = thesis.disciplineEntries
     .slice(0, 5)
     .map(
@@ -85,11 +155,14 @@ export function formatGoogleDocHtml(thesis: ThesisDetail, extras?: ThesisExportE
     `<p><strong>赛道：</strong>${escapeHtml(thesis.sectorTag)} ｜ <strong>当前价：</strong>$${thesis.currentPrice.toFixed(2)} ｜ <strong>赔率比：</strong>${ratio} ｜ <strong>期望目标价：</strong>$${valuation.expectedTargetPrice.toFixed(2)}</p>`,
     buildExpectationsHtml(thesis, extras),
     `<h2>一、核心投资论点与商业质量评估</h2><p>${escapeHtml(thesis.convictionSummary)}</p>`,
-    `<table><thead><tr><th>商业模式维度</th><th>评审结论</th></tr></thead><tbody>${buildFilterHtml(thesis)}</tbody></table>`,
-    `<h2>二、三条可证伪核心假设</h2><ol>${hypHtml}</ol>`,
-    `<h2>三、${thesis.horizonYears} 年三情景估值赔率表</h2>`,
+    buildFilterHtml(thesis),
+    `<h2>二、可证伪核心假设（${thesis.hypotheses.length} 条）</h2><ol>${hypHtml}</ol>`,
+    `<h2>四、${thesis.horizonYears} 年三情景估值赔率表</h2>`,
     `<table><thead><tr><th>情景</th><th>EPS</th><th>PE</th><th>目标价</th><th>权重</th><th>年化 CAGR</th></tr></thead><tbody>${buildScenarioHtml(thesis)}</tbody></table>`,
-    discHtml ? `<h2>四、交易纪律与复盘留痕</h2><ul>${discHtml}</ul>` : "",
+    ...buildExtraSectionsHtml(thesis, extras),
+    discHtml
+      ? `<h2>八、交易纪律与复盘留痕</h2><ul>${discHtml}${omittedDisc > 0 ? `<li><em>（其余 ${omittedDisc} 条历史记录已归档至 JSON 备份）</em></li>` : ""}</ul>`
+      : "",
     "<p><em>由 KANON（卡农）机构投研操作系统生成 · Conviction, composed.</em></p>",
     "</body></html>",
   ]

@@ -37,7 +37,7 @@ function NudgeButton({
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-badge border border-hairline bg-surface text-ink-muted transition-colors duration-150 hover:border-strong hover:bg-muted/60 hover:text-ink-primary active:bg-muted disabled:opacity-35"
+      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-badge border border-hairline bg-surface text-ink-muted transition-colors duration-150 hover:border-strong hover:bg-muted/60 hover:text-ink-primary active:bg-muted disabled:opacity-35"
     >
       {kind === "dec" ? <IconMinus size={11} stroke={1.5} /> : <IconPlus size={11} stroke={1.5} />}
     </button>

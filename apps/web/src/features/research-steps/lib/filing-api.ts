@@ -6,7 +6,10 @@ export async function fetchLiveSecFiling(params: {
   accession?: string;
   form?: string;
   refresh?: boolean;
-}): Promise<{ ok: true; data: SecFilingReaderResponse } | { ok: false; error: string }> {
+  signal?: AbortSignal;
+}): Promise<
+  { ok: true; data: SecFilingReaderResponse } | { ok: false; error: string; code?: string }
+> {
   const qs = new URLSearchParams();
   if (params.accession) qs.set("accession", params.accession);
   if (params.form) qs.set("form", params.form);
@@ -15,5 +18,6 @@ export async function fetchLiveSecFiling(params: {
   return kanonFetch(
     `/api/sec/${encodeURIComponent(params.ticker.toUpperCase())}/filing${suffix}`,
     SecFilingReaderResponseSchema,
+    { signal: params.signal },
   );
 }

@@ -126,11 +126,13 @@ export function StepRail({
   activeStep,
   thesis,
   collapsed = false,
+  layoutId = "research-step-tab",
   onSelect,
 }: {
   activeStep: StepId;
   thesis: ThesisDetail;
   collapsed?: boolean;
+  layoutId?: string;
   onSelect: (step: StepId) => void;
 }) {
   const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
@@ -151,7 +153,7 @@ export function StepRail({
             code={step.code}
             active={activeStep === step.id}
             collapsed={collapsed}
-            layoutId="research-step-tab"
+            layoutId={layoutId}
             trailing={
               readiness.steps[idx]?.complete ? (
                 <IconCheck size={14} stroke={1.5} className="text-status-pass" />

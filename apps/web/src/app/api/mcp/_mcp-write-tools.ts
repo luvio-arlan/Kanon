@@ -9,9 +9,8 @@ import {
 } from "@kanon/core";
 import {
   createQuarterlyReview,
+  getThesisByTicker,
   type KanonDb,
-  listTheses,
-  recordThesisRevision,
   updateThesisStep,
 } from "@kanon/core/db";
 
@@ -117,8 +116,7 @@ export function isMcpWriteTool(name: string): boolean {
 async function resolveThesisByTicker(db: KanonDb, userId: string, args: Record<string, unknown>) {
   const ticker = typeof args.ticker === "string" ? args.ticker.trim().toUpperCase() : "";
   if (!ticker) return { error: "Missing required argument: ticker" } as const;
-  const theses = await listTheses(db, userId);
-  const match = theses.find((t) => t.ticker.toUpperCase() === ticker);
+  const match = await getThesisByTicker(db, ticker, userId);
   if (!match) return { error: `未找到标的 ${ticker} 的研究档案。` } as const;
   return { thesis: match } as const;
 }
@@ -127,7 +125,7 @@ async function runAppendCrossCheck(db: KanonDb, userId: string, args: Record<str
   const resolved = await resolveThesisByTicker(db, userId, args);
   if ("error" in resolved) return { isError: true, payload: { error: resolved.error } };
   const candidate: CrossCheck = {
-    id: `cc-mcp-${crypto.randomUUID().slice(0, 6)}`,
+    id: `${resolved.thesis.id}-cc-mcp-${crypto.randomUUID().slice(0, 6)}`,
     peerCompany: typeof args.peerCompany === "string" ? args.peerCompany.trim() : "",
     peerRole: (typeof args.peerRole === "string"
       ? args.peerRole
@@ -144,20 +142,12 @@ async function runAppendCrossCheck(db: KanonDb, userId: string, args: Record<str
   const parsed = CrossCheckSchema.safeParse(candidate);
   if (!parsed.success)
     return { isError: true, payload: { error: parsed.error.issues[0]?.message } };
-  const updated = await updateThesisStep(
+  await updateThesisStep(
     db,
     resolved.thesis.id,
     { step: "cross_checks", crossChecks: [...resolved.thesis.crossChecks, parsed.data] },
     userId,
   );
-  if (updated) {
-    await recordThesisRevision(
-      db,
-      updated,
-      "cross_checks",
-      `来源：MCP 外部协作 · 新增 ${parsed.data.peerCompany} 交叉印证`,
-    );
-  }
   return { payload: { ok: true, id: parsed.data.id, ticker: resolved.thesis.ticker } };
 }
 
@@ -165,7 +155,7 @@ async function runAddCatalyst(db: KanonDb, userId: string, args: Record<string, 
   const resolved = await resolveThesisByTicker(db, userId, args);
   if ("error" in resolved) return { isError: true, payload: { error: resolved.error } };
   const candidate: ThesisCatalyst = {
-    id: `cat-mcp-${crypto.randomUUID().slice(0, 6)}`,
+    id: `${resolved.thesis.id}-cat-mcp-${crypto.randomUUID().slice(0, 6)}`,
     title: typeof args.title === "string" ? args.title.trim() : "",
     dateLabel: typeof args.dateLabel === "string" ? args.dateLabel.trim() : "",
     category: (typeof args.category === "string"
@@ -183,20 +173,12 @@ async function runAddCatalyst(db: KanonDb, userId: string, args: Record<string, 
   const parsed = ThesisCatalystSchema.safeParse(candidate);
   if (!parsed.success)
     return { isError: true, payload: { error: parsed.error.issues[0]?.message } };
-  const updated = await updateThesisStep(
+  await updateThesisStep(
     db,
     resolved.thesis.id,
     { step: "catalysts", catalysts: [...resolved.thesis.catalysts, parsed.data] },
     userId,
   );
-  if (updated) {
-    await recordThesisRevision(
-      db,
-      updated,
-      "catalysts",
-      `来源：MCP 外部协作 · 新增催化剂 ${parsed.data.title}`,
-    );
-  }
   return { payload: { ok: true, id: parsed.data.id, ticker: resolved.thesis.ticker } };
 }
 

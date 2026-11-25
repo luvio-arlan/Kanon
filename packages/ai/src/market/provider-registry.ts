@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type {
   MarketDataSource,
   MarketProviderPreference,
@@ -10,6 +11,8 @@ import type { MarketAdapterCredentials, MarketDataAdapter, MarketSnapshotResult 
 import { yahooFinanceAdapter } from "./yahoo-adapter";
 
 const QUOTE_TTL_MS = 60 * 1000;
+const MAX_SNAPSHOT_CACHE = 500;
+const MAX_QUOTE_CONCURRENCY = 5;
 const snapshotCache = new Map<string, { expiresAt: number; result: MarketSnapshotResult }>();
 
 const ADAPTER_MAP: Record<MarketDataSource, MarketDataAdapter> = {
@@ -44,8 +47,25 @@ function buildAdapterChain(creds?: MarketAdapterCredentials): MarketDataAdapter[
 
 function cacheKey(ticker: string, creds?: MarketAdapterCredentials): string {
   const pref = resolveConfiguredProvider(creds);
-  const hasCustomKey = Boolean(creds?.apiKey?.trim());
-  return `${ticker}:${pref}:${hasCustomKey ? "byok" : "env"}`;
+  const rawKey = creds?.apiKey?.trim();
+  if (!rawKey) return `${ticker}:${pref}:env`;
+  const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex").slice(0, 12);
+  return `${ticker}:${pref}:byok:${keyHash}`;
+}
+
+function setBoundedCache(key: string, result: MarketSnapshotResult): void {
+  const now = Date.now();
+  if (snapshotCache.size >= MAX_SNAPSHOT_CACHE) {
+    for (const [k, entry] of snapshotCache.entries()) {
+      if (entry.expiresAt <= now) snapshotCache.delete(k);
+    }
+    while (snapshotCache.size >= MAX_SNAPSHOT_CACHE) {
+      const oldestKey = snapshotCache.keys().next().value;
+      if (!oldestKey) break;
+      snapshotCache.delete(oldestKey);
+    }
+  }
+  snapshotCache.set(key, { expiresAt: now + QUOTE_TTL_MS, result });
 }
 
 export function clearMarketQuoteCache(): void {
@@ -82,7 +102,7 @@ export async function fetchMarketQuote(
     const apiKey = i === 0 ? options?.creds?.apiKey : undefined;
     const res = await adapter.fetchQuote(ticker, apiKey, fetchImpl);
     if (res.ok) {
-      snapshotCache.set(key, { expiresAt: Date.now() + QUOTE_TTL_MS, result: res });
+      setBoundedCache(key, res);
       return res;
     }
     lastFail = res;
@@ -99,10 +119,15 @@ export async function fetchMarketQuotes(
   },
 ): Promise<Map<string, MarketSnapshotResult>> {
   const unique = [...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean))];
-  const entries = await Promise.all(
-    unique.map(async (ticker) => [ticker, await fetchMarketQuote(ticker, options)] as const),
-  );
-  return new Map(entries);
+  const results = new Map<string, MarketSnapshotResult>();
+  for (let i = 0; i < unique.length; i += MAX_QUOTE_CONCURRENCY) {
+    const batch = unique.slice(i, i + MAX_QUOTE_CONCURRENCY);
+    const entries = await Promise.all(
+      batch.map(async (ticker) => [ticker, await fetchMarketQuote(ticker, options)] as const),
+    );
+    for (const [ticker, res] of entries) results.set(ticker, res);
+  }
+  return results;
 }
 
 export async function testMarketProviderConnection(params: {

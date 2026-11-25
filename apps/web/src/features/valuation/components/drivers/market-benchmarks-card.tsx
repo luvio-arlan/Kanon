@@ -7,10 +7,10 @@ import {
   type StreetConsensus,
   type ValuationBand,
 } from "@kanon/core";
-import { Badge, Card } from "@kanon/ui";
-import { IconChartBar, IconWorld } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-import { buildMarketHeaders } from "@/features/ai-settings";
+import { Badge, Button, Card } from "@kanon/ui";
+import { IconChartBar, IconRefresh, IconWorld } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
+import { buildMarketHeaders } from "@/shared/lib/client-provider-storage";
 import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
 function ConsensusCard({ c }: { c: StreetConsensus }) {
@@ -140,6 +140,38 @@ function PeerBenchmarksTable({
   );
 }
 
+function useMarketBenchmarks(ticker: string, currentPrice: number) {
+  const [data, setData] = useState<MarketBenchmarkResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const prevTickerRef = useRef(ticker);
+
+  useEffect(() => {
+    const tickerChanged = prevTickerRef.current !== ticker;
+    prevTickerRef.current = ticker;
+    const delayMs = tickerChanged || reloadNonce > 0 ? 0 : 450;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      setLoading(true);
+      void kanonFetch(
+        `/api/market/benchmarks?ticker=${encodeURIComponent(ticker)}&price=${currentPrice}`,
+        MarketBenchmarkResponseSchema,
+        { headers: buildMarketHeaders(), signal: ctrl.signal },
+      ).then((res) => {
+        if (ctrl.signal.aborted) return;
+        if (res.ok) setData(res.data);
+        setLoading(false);
+      });
+    }, delayMs);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [ticker, currentPrice, reloadNonce]);
+
+  return { data, loading, retry: () => setReloadNonce((n) => n + 1) };
+}
+
 export function MarketBenchmarksCard({
   ticker,
   currentPrice,
@@ -147,32 +179,18 @@ export function MarketBenchmarksCard({
   ticker: string;
   currentPrice: number;
 }) {
-  const [data, setData] = useState<MarketBenchmarkResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    void kanonFetch(
-      `/api/market/benchmarks?ticker=${encodeURIComponent(ticker)}&price=${currentPrice}`,
-      MarketBenchmarkResponseSchema,
-      { headers: buildMarketHeaders() },
-    ).then((res) => {
-      if (!active) return;
-      if (res.ok) setData(res.data);
-      setLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, [ticker, currentPrice]);
-
-  if (loading)
+  const { data, loading, retry } = useMarketBenchmarks(ticker, currentPrice);
+  if (loading && !data) {
     return <div className="kanon-shimmer h-56 w-full rounded-card border border-hairline" />;
+  }
   if (!data) {
     return (
-      <Card className="p-6 text-center text-sm text-ink-muted">
-        暂无行业可比与一致预期数据，请稍后重试。
+      <Card className="flex flex-col items-center gap-3 p-6 text-center text-sm text-ink-muted">
+        <span>暂无行业可比与一致预期数据，请稍后重试。</span>
+        <Button variant="outline" size="xs" onClick={retry}>
+          <IconRefresh size={13} stroke={1.5} />
+          <span>重新加载</span>
+        </Button>
       </Card>
     );
   }

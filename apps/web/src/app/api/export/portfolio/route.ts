@@ -1,6 +1,7 @@
 import { formatPortfolioCsv } from "@kanon/core";
 import { getKanonDb, listTheses } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
+import { apiHeaders } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export async function GET() {
   const csv = formatPortfolioCsv(theses);
   return new Response(csv, {
     headers: {
+      ...apiHeaders(startedAt),
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": 'attachment; filename="kanon-portfolio-odds.csv"',
     },

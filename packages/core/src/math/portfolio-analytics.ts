@@ -64,7 +64,7 @@ function computeSectorExposures(active: readonly ThesisDetail[]): SectorExposure
     const sector = primarySectorName(item.sectorTag);
     const curr = map.get(sector) ?? { weightPct: 0, count: 0 };
     map.set(sector, {
-      weightPct: roundTo(curr.weightPct + item.currentWeightPct, 1),
+      weightPct: roundTo(curr.weightPct + Math.max(0, item.currentWeightPct), 1),
       count: curr.count + 1,
     });
   }
@@ -87,7 +87,7 @@ function computePositionMetrics(active: readonly ThesisDetail[]) {
     totalWeightPct > 0
       ? roundTo(
           active.reduce(
-            (sum, item) => sum + item.currentWeightPct * item.valuation.base.cagrPct,
+            (sum, item) => sum + Math.max(0, item.currentWeightPct) * item.valuation.base.cagrPct,
             0,
           ) / totalWeightPct,
           1,
@@ -135,7 +135,7 @@ export function suggestKellyCappedWeight(thesis: ThesisDetail): KellyWeightSugge
   if (boundedMax < 2) {
     return {
       minPct: 0,
-      maxPct: Math.min(cap, Math.max(1, boundedMax)),
+      maxPct: boundedMax === 0 ? 0 : Math.min(cap, boundedMax),
       rationale: "当前赔率或预警折扣后仓位偏低，仅宜观察或极小试探仓。",
     };
   }

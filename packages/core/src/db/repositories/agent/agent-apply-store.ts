@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { AgentBriefingSchema, type AgentProposal } from "../../../contracts/ai-contracts";
 import type { SavedAgentRun } from "../../../contracts/api-contracts";
 import type { ThesisDetail, ThesisRevision } from "../../../schemas/research";
@@ -58,7 +58,7 @@ async function applyHypothesisProposal(tx: KanonDb, thesis: ThesisDetail, prop: 
   await tx
     .update(hypothesesTable)
     .set({ status: prop.meta?.hypothesisStatus ?? targetHyp.status, note: prop.content })
-    .where(eq(hypothesesTable.id, targetHyp.id));
+    .where(and(eq(hypothesesTable.id, targetHyp.id), eq(hypothesesTable.thesisId, thesis.id)));
 }
 
 async function applySingleProposal(
@@ -162,7 +162,8 @@ async function loadAuthorizedRunContext(
     .select({ run: agentRunsTable, ownerId: thesesTable.userId })
     .from(agentRunsTable)
     .innerJoin(thesesTable, eq(agentRunsTable.thesisId, thesesTable.id))
-    .where(eq(agentRunsTable.id, runId));
+    .where(eq(agentRunsTable.id, runId))
+    .for("update");
   if (!row || (userId && row.ownerId !== userId)) return null;
   const parsed = AgentBriefingSchema.safeParse(row.run.briefingJson);
   const thesis = await getThesisById(tx, row.run.thesisId, userId);
@@ -182,11 +183,12 @@ export async function applyAgentProposalsAtomic(
     const ctx = await loadAuthorizedRunContext(tx, params.runId, params.userId);
     if (!ctx) return null;
 
-    const requested = new Set(params.proposalIds);
+    const validIds = new Set(ctx.proposals.map((p) => p.id));
+    const requested = new Set(params.proposalIds.filter((id) => validIds.has(id)));
     const pending = ctx.proposals.filter(
       (p) => requested.has(p.id) && !ctx.appliedProposalIds.includes(p.id),
     );
-    const nextApplied = [...new Set([...ctx.appliedProposalIds, ...params.proposalIds])];
+    const nextApplied = [...new Set([...ctx.appliedProposalIds, ...requested])];
     const promotedExitRules = await applyPendingBatch(tx, ctx.thesis, pending);
 
     await tx

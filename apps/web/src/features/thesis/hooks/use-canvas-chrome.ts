@@ -3,8 +3,8 @@
 import type { ThesisSummary } from "@kanon/core";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readByokConfig } from "@/features/ai-settings";
 import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
+import { readByokConfig } from "@/shared/lib/client-provider-storage";
 import type { StepId } from "../components/canvas-chrome";
 import { useCanvasShortcuts } from "./use-canvas-shortcuts";
 

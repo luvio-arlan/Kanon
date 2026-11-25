@@ -116,8 +116,15 @@ export const CreateResearchNoteSchema = z.object({
 });
 export type CreateResearchNoteInput = z.input<typeof CreateResearchNoteSchema>;
 
-export const UpdateResearchNoteSchema = CreateResearchNoteSchema.partial().extend({
+export const UpdateResearchNoteSchema = z.object({
   noteId: z.string().min(1),
+  kind: ResearchNoteKindSchema.optional(),
+  periodLabel: z.string().trim().min(1).max(32).optional(),
+  title: z.string().trim().min(1).max(120).optional(),
+  content: z.string().trim().min(1).max(20_000).optional(),
+  guidanceMetric: z.string().trim().max(80).optional(),
+  guidancePromised: z.string().trim().max(160).optional(),
+  guidanceDelivered: z.string().trim().max(160).optional(),
 });
 export type UpdateResearchNoteInput = z.input<typeof UpdateResearchNoteSchema>;
 

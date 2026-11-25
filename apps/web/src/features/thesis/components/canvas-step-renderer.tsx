@@ -20,11 +20,11 @@ const StepSkeleton = () => (
 );
 
 const StepHypotheses = dynamic(
-  () => import("@/features/research-steps").then((m) => m.StepHypotheses),
+  () => import("@/features/research-steps/public-step2").then((m) => m.StepHypotheses),
   { ssr: false, loading: StepSkeleton },
 );
 const StepFirstPrinciples = dynamic(
-  () => import("@/features/research-steps").then((m) => m.StepFirstPrinciples),
+  () => import("@/features/research-steps/public-step3").then((m) => m.StepFirstPrinciples),
   { ssr: false, loading: StepSkeleton },
 );
 const ValuationWorkbench = dynamic(

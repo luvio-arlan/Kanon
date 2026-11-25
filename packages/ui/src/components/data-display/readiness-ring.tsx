@@ -65,10 +65,13 @@ export function ReadinessRing({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
+  const accessibleLabel = label ?? `研究成熟度 ${clamped}%`;
   return (
     <span
+      role="img"
+      aria-label={accessibleLabel}
       className={cn("inline-flex items-center gap-1.5", className)}
-      title={label ?? `研究成熟度 ${clamped}%`}
+      title={accessibleLabel}
     >
       <RingGraphic
         size={size}

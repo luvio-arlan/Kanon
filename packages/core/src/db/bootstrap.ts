@@ -15,32 +15,22 @@ export type KanonDb = PgliteDatabase<typeof schema> | PostgresJsDatabase<typeof 
 
 interface BootstrapProbeRow {
   mig_count: number;
-  demo_count: number;
   glossary_count: number;
-  sec_count: number;
-  rev_count: number;
 }
 
 export async function isExternalDbBootstrapped(sqlClient: postgres.Sql): Promise<boolean> {
   const expectedMigIds = KANON_MIGRATIONS.map((m) => m.id);
-  const expectedSecCount = SEED_SEC_SNAPSHOTS.length + PRESET_SEC_SNAPSHOTS.length;
   try {
     const rows = await sqlClient<BootstrapProbeRow[]>`
       SELECT
         (SELECT count(*)::int FROM schema_migrations WHERE id = ANY(${expectedMigIds})) AS mig_count,
-        (SELECT count(*)::int FROM theses WHERE user_id = ${DEFAULT_WORKSPACE_USER_ID}) AS demo_count,
-        (SELECT count(*)::int FROM glossary_terms) AS glossary_count,
-        (SELECT count(*)::int FROM sec_filings_cache) AS sec_count,
-        (SELECT count(*)::int FROM thesis_revisions) AS rev_count
+        (SELECT count(*)::int FROM glossary_terms) AS glossary_count
     `;
     const stats = rows[0];
     if (!stats) return false;
     return (
       stats.mig_count === expectedMigIds.length &&
-      stats.demo_count >= SEED_THESIS_RECORDS.length &&
-      stats.glossary_count >= SEED_GLOSSARY_TERMS.length &&
-      stats.sec_count >= expectedSecCount &&
-      stats.rev_count > 0
+      stats.glossary_count >= SEED_GLOSSARY_TERMS.length
     );
   } catch (probeErr) {
     void probeErr;
@@ -63,10 +53,7 @@ async function seedSecAndRevisions(db: KanonDb): Promise<void> {
         quarterlies: snap.quarterlies ?? [],
         fetchedAt: new Date(snap.fetchedAt),
       })
-      .onConflictDoUpdate({
-        target: schema.secFilingsCacheTable.ticker,
-        set: { annuals: snap.annuals, quarterlies: snap.quarterlies ?? [] },
-      });
+      .onConflictDoNothing({ target: schema.secFilingsCacheTable.ticker });
   }
   const existingRevs = await db
     .select({ id: schema.thesisRevisionsTable.id })

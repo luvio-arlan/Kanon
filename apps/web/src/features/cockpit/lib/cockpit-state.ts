@@ -4,7 +4,7 @@ import { calculateImpliedExpectations, type GlossaryTerm, type ThesisDetail } fr
 import { useTheme } from "@kanon/ui";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readByokConfig } from "@/features/ai-settings";
+import { readByokConfig } from "@/shared/lib/client-provider-storage";
 import type {
   CockpitFilter,
   CockpitFilterCounts,
@@ -68,13 +68,17 @@ function sortTheses(items: readonly ThesisDetail[], sortBy: CockpitSortBy): Thes
 }
 
 function useCockpitCollection(initialTheses: ThesisDetail[]) {
+  const [prevInitial, setPrevInitial] = useState(initialTheses);
   const [theses, setTheses] = useState<ThesisDetail[]>(initialTheses);
   const [filter, setFilter] = useState<CockpitFilter>("all");
   const [sortBy, setSortBy] = useState<CockpitSortBy>("index");
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<CockpitViewMode>("cards");
   const [previewThesis, setPreviewThesis] = useState<ThesisDetail | null>(null);
-
+  if (prevInitial !== initialTheses) {
+    setPrevInitial(initialTheses);
+    setTheses(initialTheses);
+  }
   const visibleTheses = useMemo(
     () =>
       sortTheses(
@@ -92,7 +96,6 @@ function useCockpitCollection(initialTheses: ThesisDetail[]) {
     setFilter("all");
     setQuery("");
   }, []);
-
   return {
     theses,
     setTheses,
@@ -162,6 +165,7 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const externalOverlayOpenRef = useRef(false);
   const collection = useCockpitCollection(initialTheses);
   const [modals, setModals] = useState({ cmd: false, create: false, ai: false });
   const [hasByok, setHasByok] = useState(false);
@@ -173,17 +177,18 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
   const setModal = useCallback((key: "cmd" | "create" | "ai", open: boolean) => {
     setModals((prev) => ({ ...prev, [key]: open }));
   }, []);
-  const selection = useCardSelection(collection.visibleTheses, (id) =>
-    router.push(`/thesis/${id}`),
-  );
+  const openThesis = useCallback((id: string) => router.push(`/thesis/${id}`), [router]);
+  const selection = useCardSelection(collection.visibleTheses, openThesis);
+  const isCardsView = collection.viewMode === "cards";
   useCockpitShortcuts({
     disabled: modals.cmd || modals.create || modals.ai || collection.previewThesis !== null,
+    pausedRef: externalOverlayOpenRef,
     onNewThesis: () => setModal("create", true),
     onToggleView: () => collection.setViewMode((v) => (v === "cards" ? "table" : "cards")),
     onToggleTheme: toggleTheme,
     onFocusSearch: () => searchInputRef.current?.focus(),
-    onMoveSelection: selection.moveSelection,
-    onOpenSelected: selection.openSelected,
+    onMoveSelection: isCardsView ? selection.moveSelection : undefined,
+    onOpenSelected: isCardsView ? selection.openSelected : undefined,
   });
   const commandGroups = useCockpitCommandGroups({
     theses: collection.theses,
@@ -191,11 +196,12 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
     theme,
     setModal,
     toggleTheme,
-    openThesis: (id) => router.push(`/thesis/${id}`),
+    openThesis,
   });
   return {
     router,
     searchInputRef,
+    externalOverlayOpenRef,
     modals,
     setModal,
     hasByok,

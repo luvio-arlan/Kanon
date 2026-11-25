@@ -9,6 +9,7 @@ import {
   thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
+import { resolveAllowedLinkedIds, resolveSafeChildId } from "./thesis/thesis-lookups";
 
 export async function writeBusinessFilterStep(
   tx: KanonDb,
@@ -37,10 +38,17 @@ export async function writeHypothesesStep(
   parsed: Extract<UpdateThesisStepInput, { step: "hypotheses" }>,
   now: Date,
 ): Promise<string> {
+  const existing = await tx
+    .select({ id: hypothesesTable.id })
+    .from(hypothesesTable)
+    .where(eq(hypothesesTable.thesisId, thesisId));
+  const owned = new Set(existing.map((r) => r.id));
+  const used = new Set<string>();
   await tx.delete(hypothesesTable).where(eq(hypothesesTable.thesisId, thesisId));
   await tx.insert(hypothesesTable).values(
     parsed.hypotheses.map((h, idx) => ({
       ...h,
+      id: resolveSafeChildId(h.id, thesisId, "h", owned, used),
       kpiRule: h.kpiRule ?? null,
       thesisId,
       sortOrder: idx,
@@ -60,11 +68,21 @@ export async function writeCatalystsStep(
   parsed: Extract<UpdateThesisStepInput, { step: "catalysts" }>,
   now: Date,
 ): Promise<string> {
+  const existing = await tx
+    .select({ id: thesisCatalystsTable.id })
+    .from(thesisCatalystsTable)
+    .where(eq(thesisCatalystsTable.thesisId, thesisId));
+  const owned = new Set(existing.map((r) => r.id));
+  const used = new Set<string>();
   await tx.delete(thesisCatalystsTable).where(eq(thesisCatalystsTable.thesisId, thesisId));
   if (parsed.catalysts.length > 0) {
-    await tx
-      .insert(thesisCatalystsTable)
-      .values(parsed.catalysts.map((item) => ({ ...item, thesisId })));
+    await tx.insert(thesisCatalystsTable).values(
+      parsed.catalysts.map((item) => ({
+        ...item,
+        id: resolveSafeChildId(item.id, thesisId, "cat", owned, used),
+        thesisId,
+      })),
+    );
   }
   await tx
     .update(thesesTable)
@@ -79,14 +97,28 @@ export async function writeCrossChecksStep(
   thesisId: string,
   parsed: Extract<UpdateThesisStepInput, { step: "cross_checks" }>,
   now: Date,
+  userId?: string,
 ): Promise<string> {
+  const [existing, allowedLinks] = await Promise.all([
+    tx
+      .select({ id: crossChecksTable.id })
+      .from(crossChecksTable)
+      .where(eq(crossChecksTable.thesisId, thesisId)),
+    resolveAllowedLinkedIds(tx, userId, parsed.crossChecks),
+  ]);
+  const owned = new Set(existing.map((r) => r.id));
+  const used = new Set<string>();
   await tx.delete(crossChecksTable).where(eq(crossChecksTable.thesisId, thesisId));
   if (parsed.crossChecks.length > 0) {
     await tx.insert(crossChecksTable).values(
       parsed.crossChecks.map((item) => ({
         ...item,
+        id: resolveSafeChildId(item.id, thesisId, "cc", owned, used),
         thesisId,
-        linkedThesisId: item.linkedThesisId ?? null,
+        linkedThesisId:
+          item.linkedThesisId && (!allowedLinks || allowedLinks.has(item.linkedThesisId))
+            ? item.linkedThesisId
+            : null,
         hypothesisId: item.hypothesisId ?? null,
       })),
     );

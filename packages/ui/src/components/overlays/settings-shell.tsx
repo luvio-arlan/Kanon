@@ -59,7 +59,7 @@ export function SettingsRow({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[56px] w-full items-center justify-between gap-4 border-b border-hairline py-3 pr-4 last:border-b-0">
+    <div className="flex min-h-[56px] w-full flex-col items-stretch justify-between gap-3 border-b border-hairline py-3 pr-4 last:border-b-0 sm:flex-row sm:items-center sm:gap-4">
       <div className="min-w-0">
         <div className="text-sm font-medium text-ink-primary">{label}</div>
         {description ? <div className="mt-0.5 text-xs text-ink-muted">{description}</div> : null}
@@ -82,6 +82,7 @@ function SettingsNavButton<T extends string>({
     <button
       type="button"
       aria-current={active ? "page" : undefined}
+      aria-label={tab.label}
       title={tab.label}
       onClick={onSelect}
       className={cn(
@@ -130,9 +131,6 @@ function SettingsNavRail<T extends string>({
       aria-label="设置分类"
       className="flex w-14 shrink-0 flex-col gap-1 border-r border-hairline bg-sidebar p-2.5 sm:w-52 sm:p-3"
     >
-      <div className="hidden px-2.5 pb-2 pt-1.5 font-mono text-xs tracking-[0.08em] text-ink-muted sm:block">
-        SETTINGS
-      </div>
       {tabs.map((tab) => (
         <SettingsNavButton
           key={tab.id}
@@ -164,7 +162,7 @@ function SettingsBodyPane({
       <div className="relative min-h-0 flex-1">
         <div
           onScroll={fade.onScroll}
-          className="kanon-scroll-thin h-full overflow-y-auto px-7 py-6"
+          className="kanon-scroll-thin h-full overflow-y-auto px-4 py-5 sm:px-7 sm:py-6"
         >
           <motion.div
             key={activeTab}
@@ -183,7 +181,7 @@ function SettingsBodyPane({
 
 function SettingsPanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
   return (
-    <header className="flex shrink-0 items-center justify-between border-b border-hairline px-7 pb-4 pt-6">
+    <header className="flex shrink-0 items-center justify-between border-b border-hairline px-4 pb-4 pt-5 sm:px-7 sm:pt-6">
       <h2 className="text-lg font-semibold tracking-[-0.02em] text-ink-primary">{title}</h2>
       <button
         type="button"

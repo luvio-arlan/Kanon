@@ -3,8 +3,9 @@
 import type { PublicUser } from "@kanon/core";
 import { CommandMenu } from "@kanon/ui";
 import dynamic from "next/dynamic";
-import { readByokConfig, type SettingsTabId } from "@/features/ai-settings";
+import type { SettingsTabId } from "@/features/ai-settings";
 import { useHasOpened } from "@/shared/hooks/use-has-opened";
+import { readByokConfig } from "@/shared/lib/client-provider-storage";
 import { withOverlayCommandItems } from "../../data/command-actions";
 import type { useCockpitState } from "../../lib/cockpit-state";
 import type { LiveMarketQuotesState } from "../../lib/use-live-market-quotes";
@@ -15,19 +16,19 @@ const AiSettingsModal = dynamic(
   { ssr: false },
 );
 const CompareThesesSheet = dynamic(
-  () => import("@/features/portfolio").then((m) => m.CompareThesesSheet),
+  () => import("@/features/portfolio/public-sheets").then((m) => m.CompareThesesSheet),
   { ssr: false },
 );
 const ImportArchiveModal = dynamic(
-  () => import("@/features/portfolio").then((m) => m.ImportArchiveModal),
+  () => import("@/features/portfolio/public-sheets").then((m) => m.ImportArchiveModal),
   { ssr: false },
 );
 const PortfolioCalibrationSheet = dynamic(
-  () => import("@/features/portfolio").then((m) => m.PortfolioCalibrationSheet),
+  () => import("@/features/portfolio/public-sheets").then((m) => m.PortfolioCalibrationSheet),
   { ssr: false },
 );
 const PortfolioStressSheet = dynamic(
-  () => import("@/features/portfolio").then((m) => m.PortfolioStressSheet),
+  () => import("@/features/portfolio/public-sheets").then((m) => m.PortfolioStressSheet),
   { ssr: false },
 );
 const NewThesisModal = dynamic(() => import("../new-thesis-modal").then((m) => m.NewThesisModal), {

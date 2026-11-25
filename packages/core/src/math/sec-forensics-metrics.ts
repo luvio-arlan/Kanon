@@ -113,7 +113,8 @@ function resolveCogs(latest: SecAnnualFinancial): number | null {
     return latest.costOfRevenue;
   }
   if (latest.revenue && latest.grossProfit !== null) {
-    return Math.max(1, latest.revenue - latest.grossProfit);
+    const implied = latest.revenue - latest.grossProfit;
+    return implied > 0 ? implied : null;
   }
   return null;
 }
@@ -172,4 +173,55 @@ export function computeCapitalAllocation(latest: SecAnnualFinancial): CapitalAll
     buybackPctOfOcf: pct(latest.shareRepurchases),
     dividendPctOfOcf: pct(latest.dividendsPaid),
   };
+}
+
+export interface ForensicRedFlag {
+  id: string;
+  severity: "warn" | "fail";
+  label: string;
+  detail: string;
+}
+
+export function makeForensicFlag(
+  id: string,
+  severity: "warn" | "fail",
+  label: string,
+  detail: string,
+): ForensicRedFlag {
+  return { id, severity, label, detail };
+}
+
+export function checkWorkingCapitalFlags(
+  prev: SecAnnualFinancial | undefined,
+  latest: SecAnnualFinancial,
+): ForensicRedFlag[] {
+  if (!prev?.revenue || !latest.revenue || prev.revenue <= 0) return [];
+  const revYoY = ((latest.revenue - prev.revenue) / prev.revenue) * 100;
+  const pairs: ReadonlyArray<[string, number | null | undefined, number | null | undefined]> = [
+    ["存货", prev.inventory, latest.inventory],
+    ["应收账款", prev.accountsReceivable, latest.accountsReceivable],
+  ];
+  return pairs.flatMap(([label, pVal, cVal]) => {
+    if (!pVal || !cVal || pVal <= 0) return [];
+    const growth = ((cVal - pVal) / pVal) * 100;
+    if (growth - revYoY < 15) return [];
+    const detail = `最新年度${label}同比 +${roundTo(growth, 1)}%，显著快于营收增速 +${roundTo(revYoY, 1)}%，建议核查渠道库存或回款节奏。`;
+    return [makeForensicFlag(`wc-${label}`, "warn", `${label}增速高于营收`, detail)];
+  });
+}
+
+export function buildLeverageFlag(
+  latest: SecAnnualFinancial,
+  debtToEquityPct: number | null,
+  netCash: number | null,
+): ForensicRedFlag | null {
+  const negEq =
+    typeof latest.stockholdersEquity === "number" &&
+    latest.stockholdersEquity <= 0 &&
+    (latest.totalDebt ?? 0) > 0;
+  if (!negEq && !((debtToEquityPct ?? 0) >= 150 && (netCash ?? 0) < 0)) return null;
+  const detail = negEq
+    ? "股东权益为负且存在有息负债，需审视下行周期偿债与再融资压力。"
+    : `总负债/股东权益达 ${debtToEquityPct}% 且处于净负债状态，需审视下行周期偿债压力。`;
+  return makeForensicFlag("high-leverage", "warn", "资产负债表杠杆偏高", detail);
 }

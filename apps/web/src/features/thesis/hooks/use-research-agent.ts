@@ -47,8 +47,10 @@ function useAgentRunner(params: {
         toast.error("投研 Agent 连接中断，请重试");
       }
     } finally {
-      if (abortRef.current === ctrl) abortRef.current = null;
-      setRunning(false);
+      if (abortRef.current === ctrl) {
+        abortRef.current = null;
+        setRunning(false);
+      }
     }
   }, [loadHistory, setAppliedIds, setRunning, setters, thesisId]);
 

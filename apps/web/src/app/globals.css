@@ -2,6 +2,11 @@
 @import "@kanon/ui/tokens.css";
 @source "../../../../packages/ui/src";
 
+.print-only,
+.print-only-flex {
+  display: none;
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -10,8 +15,8 @@
 
   html,
   html body {
-    background: var(--color-surface);
-    color: var(--color-ink-primary);
+    background: var(--bg-surface);
+    color: var(--ink-primary);
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -24,14 +29,22 @@
     display: block;
   }
 
-  body .kanon-ambient-canvas {
-    background: var(--color-surface);
+  .print-only-flex {
+    display: flex;
+  }
+
+  body .kanon-ambient-canvas,
+  body main {
+    height: auto;
     min-height: auto;
+    overflow: visible;
+    background: var(--bg-surface);
+    background-image: none;
   }
 
   body article,
-  body section,
-  body [data-slot="card"] {
+  body tr,
+  body .print-keep-together {
     box-shadow: none;
     border-color: var(--border-hairline);
     break-inside: avoid;
@@ -42,8 +55,4 @@
     orphans: 3;
     widows: 3;
   }
-}
-
-.print-only {
-  display: none;
 }

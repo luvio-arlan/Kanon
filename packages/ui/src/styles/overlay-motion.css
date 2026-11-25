@@ -1,31 +1,31 @@
 /* Placement-aware overlay choreography — exits always faster than entrances, reduced-motion guarded */
 
 @layer components {
-  .popover__content[data-placement^="bottom"],
+  .popover[data-placement^="bottom"],
   .dropdown__popover[data-placement^="bottom"] {
     transform-origin: top center;
   }
 
-  .popover__content[data-placement^="top"],
+  .popover[data-placement^="top"],
   .dropdown__popover[data-placement^="top"] {
     transform-origin: bottom center;
   }
 
-  .popover__content[data-entering="true"],
-  .dropdown__popover[data-entering="true"] {
+  .popover[data-entering="true"][data-placement],
+  .dropdown__popover[data-entering="true"][data-placement] {
     animation: kanon-popover-enter var(--duration-tactile) var(--ease-kanon) both;
   }
 
-  .popover__content[data-exiting="true"],
-  .dropdown__popover[data-exiting="true"] {
+  .popover[data-exiting="true"][data-placement],
+  .dropdown__popover[data-exiting="true"][data-placement] {
     animation: kanon-popover-exit 100ms var(--ease-exit) forwards;
   }
 
-  .kanon-tooltip[data-entering="true"] {
+  .kanon-tooltip[data-entering="true"][data-placement] {
     animation: kanon-tooltip-enter var(--duration-surface) var(--ease-kanon) both;
   }
 
-  .kanon-tooltip[data-exiting="true"] {
+  .kanon-tooltip[data-exiting="true"][data-placement] {
     animation: kanon-tooltip-exit 100ms var(--ease-exit) forwards;
   }
 
@@ -54,12 +54,12 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .popover__content[data-entering="true"],
-    .popover__content[data-exiting="true"],
-    .dropdown__popover[data-entering="true"],
-    .dropdown__popover[data-exiting="true"],
-    .kanon-tooltip[data-entering="true"],
-    .kanon-tooltip[data-exiting="true"],
+    .popover[data-entering="true"][data-placement],
+    .popover[data-exiting="true"][data-placement],
+    .dropdown__popover[data-entering="true"][data-placement],
+    .dropdown__popover[data-exiting="true"][data-placement],
+    .kanon-tooltip[data-entering="true"][data-placement],
+    .kanon-tooltip[data-exiting="true"][data-placement],
     .kanon-backdrop[data-entering="true"],
     .kanon-backdrop[data-exiting="true"],
     .kanon-sheet-container[data-entering="true"],
@@ -91,8 +91,8 @@
 
 @keyframes kanon-dialog-enter {
   from {
-    opacity: 0;
-    transform: scale(0.97) translateY(6px);
+    opacity: 0.96;
+    transform: scale(0.98) translateY(4px);
   }
   to {
     opacity: 1;

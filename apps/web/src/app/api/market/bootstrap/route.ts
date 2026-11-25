@@ -1,10 +1,14 @@
 import { fetchMarketQuote, fetchMarketSparkline, fetchSecEdgarSnapshot } from "@kanon/ai";
 import { MarketBootstrapResponseSchema, type MarketQuoteSnapshot } from "@kanon/core";
-import { getKanonDb, getSecSnapshot, upsertSecSnapshot } from "@kanon/core/db";
+import { getKanonDb, getSecSnapshotForUser, upsertSecSnapshot } from "@kanon/core/db";
+import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
+import { checkPersistentRateLimit } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
+
+const BOOTSTRAP_RATE_POLICY = { bucket: "market_bootstrap", maxRequests: 25, windowMs: 60 * 1000 };
 
 function latestAnnualEps(annuals: ReadonlyArray<{ dilutedEps: number | null }>): number | null {
   for (let i = annuals.length - 1; i >= 0; i -= 1) {
@@ -36,8 +40,22 @@ function buildBootstrapNotice(
     : "未自动检索到外部数据，请手动补全公司名称与当前参考价。";
 }
 
+async function resolveBootstrapSec(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  secLive: Awaited<ReturnType<typeof fetchSecEdgarSnapshot>>,
+  secCached: Awaited<ReturnType<typeof getSecSnapshotForUser>>,
+) {
+  if (secCached?.source === "manual-verified") return secCached;
+  if (secLive.ok) return upsertSecSnapshot(db, secLive.data);
+  return secCached;
+}
+
 export async function GET(request: Request) {
   const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+  const rateErr = await checkPersistentRateLimit(request, BOOTSTRAP_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
   const rawTicker = new URL(request.url).searchParams.get("ticker")?.trim().toUpperCase() ?? "";
   if (!/^[A-Z0-9.-]{1,10}$/.test(rawTicker)) {
     return jsonError("请输入有效的美股代码（如 NVDA / AVGO）。", 400, startedAt, "INVALID");
@@ -47,19 +65,18 @@ export async function GET(request: Request) {
   const [secLive, quoteRes, secCached, sparkline] = await Promise.all([
     fetchSecEdgarSnapshot(rawTicker),
     fetchMarketQuote(rawTicker, { creds: parseMarketHeaders(request) }),
-    getSecSnapshot(db, rawTicker),
+    getSecSnapshotForUser(db, rawTicker, auth.user.id),
     fetchMarketSparkline(rawTicker),
   ]);
-  const snapshot = secLive.ok ? await upsertSecSnapshot(db, secLive.data) : secCached;
+  const snapshot = await resolveBootstrapSec(db, secLive, secCached);
   const quote = quoteRes.ok ? quoteRes.quote : null;
-  const companyName = snapshot?.entityName || quote?.companyName || "";
   const latestEps = latestAnnualEps(snapshot?.annuals ?? []);
   const years = snapshot?.annuals.length ?? 0;
 
   return jsonOk(
     MarketBootstrapResponseSchema.parse({
       ticker: rawTicker,
-      companyName,
+      companyName: snapshot?.entityName || quote?.companyName || "",
       currentPrice: quote?.effectivePrice ?? null,
       priceSource: quote?.source ?? "none",
       latestEps,

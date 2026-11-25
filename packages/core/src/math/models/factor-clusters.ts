@@ -199,6 +199,23 @@ const FACTOR_RULES: readonly FactorClusterRule[] = [
   },
 ];
 
+const KEYWORD_MATCH_ORDER = [
+  "healthcare_bio",
+  "financials",
+  "ai_semis",
+  "cloud_saas",
+  "industrials_energy",
+  "consumer_staples_retail",
+  "consumer_internet",
+] as const;
+
+function matchesKeyword(lower: string, kw: string): boolean {
+  if (/^[a-z0-9]+$/.test(kw)) {
+    return new RegExp(`\\b${kw}`, "i").test(lower);
+  }
+  return lower.includes(kw);
+}
+
 export function classifyEconomicFactor(sectorTag: string, ticker?: string): string {
   const upperTicker = ticker?.trim().toUpperCase() ?? "";
   if (upperTicker) {
@@ -207,8 +224,9 @@ export function classifyEconomicFactor(sectorTag: string, ticker?: string): stri
     }
   }
   const lower = sectorTag.toLowerCase();
-  for (const rule of FACTOR_RULES) {
-    if (rule.keywords.some((kw) => lower.includes(kw))) return rule.label;
+  for (const id of KEYWORD_MATCH_ORDER) {
+    const rule = FACTOR_RULES.find((r) => r.id === id);
+    if (rule?.keywords.some((kw) => matchesKeyword(lower, kw))) return rule.label;
   }
   return sectorTag.trim() || "其他行业因子";
 }

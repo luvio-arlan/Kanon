@@ -5,8 +5,8 @@ import {
   type MarketQuoteSnapshot,
   MarketQuotesResponseSchema,
 } from "@kanon/core";
-import { useCallback, useEffect, useState } from "react";
-import { buildMarketHeaders } from "@/features/ai-settings";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { buildMarketHeaders } from "@/shared/lib/client-provider-storage";
 import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
 export interface LiveMarketQuotesState {
@@ -26,17 +26,24 @@ export function useLiveMarketQuotes(tickers: readonly string[]): LiveMarketQuote
   const [activeSource, setActiveSource] = useState<MarketDataSource | "none">("none");
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchBatch = useCallback(
     async (force = false) => {
       if (!tickerKey) return;
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
       setLoading(true);
       const url = `/api/market/quotes?tickers=${encodeURIComponent(tickerKey)}${force ? "&refresh=1" : ""}`;
       const res = await kanonFetch(url, MarketQuotesResponseSchema, {
         headers: buildMarketHeaders(),
         fallbackError: "实时行情暂不可用",
-      }).finally(() => setLoading(false));
-      if (!res.ok) return;
+        signal: ctrl.signal,
+      }).finally(() => {
+        if (abortRef.current === ctrl) setLoading(false);
+      });
+      if (ctrl.signal.aborted || !res.ok) return;
       setQuotes(res.data.quotes);
       setActiveSource(res.data.activeSource);
       setFetchedAt(res.data.fetchedAt);
@@ -46,6 +53,7 @@ export function useLiveMarketQuotes(tickers: readonly string[]): LiveMarketQuote
 
   useEffect(() => {
     void fetchBatch(false);
+    return () => abortRef.current?.abort();
   }, [fetchBatch]);
 
   const mergeQuotes = useCallback((next: Record<string, MarketQuoteSnapshot>) => {

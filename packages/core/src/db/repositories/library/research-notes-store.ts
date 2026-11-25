@@ -79,10 +79,20 @@ export async function updateResearchNote(
   params: { thesisId: string; userId: string; input: UpdateResearchNoteInput },
 ): Promise<ResearchNote | null> {
   const parsed = UpdateResearchNoteSchema.parse(params.input);
-  const { noteId, ...fields } = parsed;
+  const { noteId, ...rawFields } = parsed;
+  const patch: Partial<typeof researchNotesTable.$inferInsert> = { updatedAt: new Date() };
+  if (rawFields.kind !== undefined) patch.kind = rawFields.kind;
+  if (rawFields.periodLabel !== undefined) patch.periodLabel = rawFields.periodLabel;
+  if (rawFields.title !== undefined) patch.title = rawFields.title;
+  if (rawFields.content !== undefined) patch.content = rawFields.content;
+  if (rawFields.guidanceMetric !== undefined) patch.guidanceMetric = rawFields.guidanceMetric;
+  if (rawFields.guidancePromised !== undefined) patch.guidancePromised = rawFields.guidancePromised;
+  if (rawFields.guidanceDelivered !== undefined) {
+    patch.guidanceDelivered = rawFields.guidanceDelivered;
+  }
   const [updated] = await db
     .update(researchNotesTable)
-    .set({ ...fields, updatedAt: new Date() })
+    .set(patch)
     .where(
       and(
         eq(researchNotesTable.id, noteId),

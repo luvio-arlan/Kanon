@@ -7,6 +7,11 @@ import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-g
 export const dynamic = "force-dynamic";
 
 const LOGIN_RATE_POLICY = { bucket: "auth_login", maxRequests: 25, windowMs: 15 * 60 * 1000 };
+const LOGIN_ACCOUNT_RATE_POLICY = {
+  bucket: "auth_login_acct",
+  maxRequests: 12,
+  windowMs: 15 * 60 * 1000,
+};
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
@@ -26,6 +31,14 @@ export async function POST(request: Request) {
       "INVALID",
     );
   }
+
+  const acctRateErr = await checkPersistentRateLimit(
+    request,
+    LOGIN_ACCOUNT_RATE_POLICY,
+    startedAt,
+    parsed.data.phone,
+  );
+  if (acctRateErr) return acctRateErr;
 
   const db = await getKanonDb();
   const result = await authenticateUser(db, parsed.data);

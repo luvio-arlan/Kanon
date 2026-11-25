@@ -34,16 +34,18 @@ import type {
   ValuationModelMode,
 } from "../schemas/research";
 import type { HypothesisStatus, SparklinePoint } from "../schemas/thesis";
-import type { HypothesisKpiRule } from "../schemas/v7-research-os";
+import type { HypothesisKpiRule, ResearchNoteKind } from "../schemas/v7-research-os";
+import { glossaryTermsTable } from "./schema-extensions";
 
 export {
   type ApiTokenScope,
   apiTokensTable,
+  glossaryTermsTable,
   marketQuotesCacheTable,
   rateLimitBucketsTable,
-  researchNotesTable,
   secFilingDocumentsCacheTable,
   sessionsTable,
+  userSecOverridesTable,
   usersTable,
 } from "./schema-extensions";
 
@@ -138,13 +140,21 @@ export const disciplineEntriesTable = pgTable("discipline_entries", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const glossaryTermsTable = pgTable("glossary_terms", {
-  term: text("term").primaryKey(),
-  fullName: text("full_name").notNull(),
-  category: text("category").notNull(),
-  plainSummary: text("plain_summary").notNull(),
-  filingContext: text("filing_context").notNull(),
-  example: text("example").notNull(),
+export const researchNotesTable = pgTable("research_notes", {
+  id: text("id").primaryKey(),
+  thesisId: text("thesis_id")
+    .notNull()
+    .references(() => thesesTable.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  kind: text("kind").$type<ResearchNoteKind>().notNull().default("earnings_call"),
+  periodLabel: text("period_label").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  guidanceMetric: text("guidance_metric").notNull().default(""),
+  guidancePromised: text("guidance_promised").notNull().default(""),
+  guidanceDelivered: text("guidance_delivered").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const secFilingsCacheTable = pgTable("sec_filings_cache", {

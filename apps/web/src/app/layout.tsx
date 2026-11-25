@@ -1,4 +1,4 @@
-import { THEME_INIT_SCRIPT, ThemeProvider, Toaster } from "@kanon/ui";
+import { THEME_INIT_SCRIPT, ThemeProvider, Toaster } from "@kanon/ui/theme";
 import type { Metadata } from "next";
 import { Geist, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
@@ -26,7 +26,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "KANON 卡农 — 在噪音里，谱出自己的确定性",
-  description: "面向长期主义者的美股投资逻辑操作系统：可证伪核心假设、三情景估值赔率与交易纪律。",
+  description:
+    "面向严肃基本面投资者的投研操作系统：可证伪核心假设、SEC XBRL 法证核验、三情景估值赔率与零杠杆交易纪律。",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

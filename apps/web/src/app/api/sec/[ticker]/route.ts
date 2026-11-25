@@ -2,24 +2,40 @@ import { fetchSecEdgarSnapshot, formatUsdCompact } from "@kanon/ai";
 import {
   type SecFinancialFact,
   SecSnapshotSchema,
+  TickerSymbolSchema,
   UpsertManualSecSnapshotSchema,
 } from "@kanon/core";
-import { getKanonDb, getSecSnapshot, upsertSecSnapshot } from "@kanon/core/db";
+import {
+  getKanonDb,
+  getSecSnapshot,
+  getSecSnapshotForUser,
+  upsertSecSnapshot,
+  upsertUserSecOverride,
+} from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
-import { verifySameOrigin } from "../../_lib/request-guards";
+import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
+
+const SEC_SYNC_RATE_POLICY = { bucket: "sec_sync", maxRequests: 20, windowMs: 60 * 1000 };
 
 interface RouteContext {
   params: Promise<{ ticker: string }>;
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const startedAt = performance.now();
-  const { ticker } = await context.params;
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+  const rateErr = await checkPersistentRateLimit(request, SEC_SYNC_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
+  const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
+  if (!parsedTicker.success) {
+    return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
+  }
   const db = await getKanonDb();
-  const snapshot = await getSecSnapshot(db, ticker);
+  const snapshot = await getSecSnapshotForUser(db, parsedTicker.data, auth.user.id);
   return jsonOk({ snapshot }, startedAt);
 }
 
@@ -27,7 +43,15 @@ export async function POST(request: Request, context: RouteContext) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
   if (originErr) return originErr;
-  const { ticker } = await context.params;
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+  const rateErr = await checkPersistentRateLimit(request, SEC_SYNC_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
+  const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
+  if (!parsedTicker.success) {
+    return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
+  }
+  const ticker = parsedTicker.data;
   const db = await getKanonDb();
   const fetched = await fetchSecEdgarSnapshot(ticker);
 
@@ -43,7 +67,7 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const cached = await getSecSnapshot(db, ticker);
+  const cached = await getSecSnapshotForUser(db, ticker, auth.user.id);
   return jsonOk(
     {
       snapshot: cached,
@@ -111,7 +135,11 @@ export async function PUT(request: Request, context: RouteContext) {
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 
-  const { ticker } = await context.params;
+  const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
+  if (!parsedTicker.success) {
+    return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
+  }
+  const upper = parsedTicker.data;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = UpsertManualSecSnapshotSchema.safeParse(body.data);
@@ -124,7 +152,6 @@ export async function PUT(request: Request, context: RouteContext) {
     );
   }
   const db = await getKanonDb();
-  const upper = ticker.trim().toUpperCase();
   const existing = await getSecSnapshot(db, upper);
   const sortedAnnuals = [...parsed.data.annuals].sort((a, b) =>
     a.fiscalYear.localeCompare(b.fiscalYear),
@@ -144,9 +171,9 @@ export async function PUT(request: Request, context: RouteContext) {
     quarterlies: existing?.quarterlies ?? [],
     insiderSummary: existing?.insiderSummary ?? null,
   });
-  const saved = await upsertSecSnapshot(db, snapshot);
+  const saved = await upsertUserSecOverride(db, auth.user.id, snapshot);
   return jsonOk(
-    { snapshot: saved, notice: `已保存 ${saved.entityName} 手动核验财务数据` },
+    { snapshot: saved, notice: `已保存 ${saved.entityName} 个人核验财务数据` },
     startedAt,
   );
 }

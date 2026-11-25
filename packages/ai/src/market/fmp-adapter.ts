@@ -60,14 +60,32 @@ function resolveFreshAftermarket(
   return after.price;
 }
 
+function getUsEasternSession(now = new Date()): "PRE" | "REGULAR" | "POST" | "CLOSED" {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(now).map((p) => [p.type, p.value]));
+  if (parts.weekday === "Sat" || parts.weekday === "Sun") return "CLOSED";
+  const mins = Number(parts.hour ?? 0) * 60 + Number(parts.minute ?? 0);
+  if (mins >= 570 && mins < 960) return "REGULAR";
+  if (mins >= 240 && mins < 570) return "PRE";
+  if (mins >= 960 && mins < 1200) return "POST";
+  return "CLOSED";
+}
+
 function buildFmpExtended(
   item: z.infer<typeof FmpQuoteItemSchema>,
   regularPrice: number,
   afterPrice: number | null,
+  isPre: boolean,
 ) {
   const previousClose = item.previousClose ? roundTo(item.previousClose, 2) : null;
   const regDelta = computePriceDelta(regularPrice, previousClose);
-  const postDelta = computePriceDelta(afterPrice, regularPrice);
+  const extDelta = computePriceDelta(afterPrice, regularPrice);
   const low52 = item.yearLow ? roundTo(item.yearLow, 2) : null;
   const high52 = item.yearHigh ? roundTo(item.yearHigh, 2) : null;
   const effectivePrice = afterPrice ?? regularPrice;
@@ -76,12 +94,12 @@ function buildFmpExtended(
     regularChange: item.change !== undefined ? roundTo(item.change, 2) : regDelta.change,
     regularChangePct:
       item.changePercentage !== undefined ? roundTo(item.changePercentage, 2) : regDelta.changePct,
-    preMarketPrice: null,
-    preMarketChange: null,
-    preMarketChangePct: null,
-    postMarketPrice: afterPrice,
-    postMarketChange: postDelta.change,
-    postMarketChangePct: postDelta.changePct,
+    preMarketPrice: isPre ? afterPrice : null,
+    preMarketChange: isPre ? extDelta.change : null,
+    preMarketChangePct: isPre ? extDelta.changePct : null,
+    postMarketPrice: isPre ? null : afterPrice,
+    postMarketChange: isPre ? null : extDelta.change,
+    postMarketChangePct: isPre ? null : extDelta.changePct,
     effectivePrice,
     fiftyTwoWeekHigh: high52,
     fiftyTwoWeekLow: low52,
@@ -93,12 +111,15 @@ function buildFmpSnapshot(
   ticker: string,
   item: z.infer<typeof FmpQuoteItemSchema>,
   afterPrice: number | null,
+  sessionHint: "PRE" | "REGULAR" | "POST" | "CLOSED",
   latencyMs: number,
 ): MarketSnapshotResult {
   if (!item.price) {
     return { ok: false, ticker, source: "fmp", reason: "FMP 未返回有效股价" };
   }
   const regularPrice = roundTo(item.price, 2);
+  const isPre = afterPrice !== null && sessionHint === "PRE";
+  const sessionState = afterPrice !== null ? (isPre ? "PRE" : "POST") : "REGULAR";
   return {
     ok: true,
     quote: {
@@ -106,9 +127,9 @@ function buildFmpSnapshot(
       companyName: item.name?.trim() || undefined,
       exchange: item.exchange?.trim() || undefined,
       currency: "USD",
-      sessionState: afterPrice !== null ? "POST" : "REGULAR",
+      sessionState,
       regularPrice,
-      ...buildFmpExtended(item, regularPrice, afterPrice),
+      ...buildFmpExtended(item, regularPrice, afterPrice, isPre),
       dayHigh: item.dayHigh ? roundTo(item.dayHigh, 2) : null,
       dayLow: item.dayLow ? roundTo(item.dayLow, 2) : null,
       volume: item.volume ?? null,
@@ -130,11 +151,13 @@ export const fmpAdapter: MarketDataAdapter = {
       return { ok: false, ticker, source: "fmp", reason: "未配置 FMP API Key" };
     }
     const started = performance.now();
+    const sessionHint = getUsEasternSession();
     try {
       const url = `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(ticker)}&apikey=${encodeURIComponent(token)}`;
+      const fetchExtended = sessionHint !== "REGULAR" || fetchImpl !== fetch;
       const [res, afterPrice] = await Promise.all([
         fetchImpl(url, { signal: AbortSignal.timeout(4500) }),
-        tryFmpAftermarket(ticker, token, fetchImpl),
+        fetchExtended ? tryFmpAftermarket(ticker, token, fetchImpl) : Promise.resolve(null),
       ]);
       const latencyMs = Math.max(1, Math.round(performance.now() - started));
       if (!res.ok) {
@@ -149,6 +172,7 @@ export const fmpAdapter: MarketDataAdapter = {
         ticker,
         first,
         resolveFreshAftermarket(first.timestamp, afterPrice),
+        sessionHint,
         latencyMs,
       );
     } catch (err) {

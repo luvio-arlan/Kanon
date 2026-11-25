@@ -43,6 +43,18 @@ function IndeterminateSweep() {
   );
 }
 
+function ProgressLabelRow({ label, valueLabel }: { label?: ReactNode; valueLabel?: ReactNode }) {
+  if (!label && !valueLabel) return null;
+  return (
+    <div className="flex items-baseline justify-between gap-2 text-xs">
+      <span className="min-w-0 truncate text-ink-secondary">{label}</span>
+      {valueLabel ? (
+        <span className="shrink-0 font-mono text-ink-muted tabular-nums">{valueLabel}</span>
+      ) : null}
+    </div>
+  );
+}
+
 export function ProgressBar({
   value = 0,
   max = 100,
@@ -59,19 +71,13 @@ export function ProgressBar({
   return (
     <div
       role="progressbar"
+      aria-label={typeof label === "string" ? label : "进度"}
       aria-valuemin={0}
       aria-valuemax={safeMax}
       aria-valuenow={indeterminate ? undefined : Math.round(value)}
       className={cn("flex w-full flex-col gap-1.5", className)}
     >
-      {label || valueLabel ? (
-        <div className="flex items-baseline justify-between gap-2 text-xs">
-          <span className="min-w-0 truncate text-ink-secondary">{label}</span>
-          {valueLabel ? (
-            <span className="shrink-0 font-mono text-ink-muted tabular-nums">{valueLabel}</span>
-          ) : null}
-        </div>
-      ) : null}
+      <ProgressLabelRow label={label} valueLabel={valueLabel} />
       <div
         className={cn(
           "relative w-full rounded-pill bg-titanium/80",

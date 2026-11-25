@@ -10,33 +10,21 @@ import {
 import { extractQuarterlyHistory } from "./edgar-quarterlies";
 import { fetchForm4InsiderSummary } from "./form4-parser";
 import { fetchSecWithRetry } from "./sec-http";
+import { KNOWN_CIK_MAP } from "./xbrl-period-utils";
 
 export { formatUsdCompact };
 
 const FINANCIAL_FORMS = new Set(["10-K", "10-Q", "20-F", "DEF 14A"]);
-const GOVERNANCE_FORMS = new Set(["8-K", "4"]);
+const GOVERNANCE_FORMS = new Set(["8-K"]);
+const FORM4_FORMS = new Set(["4"]);
 
-const KNOWN_CIK_MAP: Record<string, string> = {
-  MU: "0000723125",
-  NVDA: "0001045810",
-  TSM: "0001046179",
-  AAPL: "0000320193",
-  MSFT: "0000789019",
-  AMZN: "0001018724",
-  GOOGL: "0001652044",
-  META: "0001326801",
-  AVGO: "0001730168",
-  AMD: "0000002488",
-  ASML: "0000937966",
-  TSLA: "0001318605",
-  COST: "0000909832",
-};
-
-const SecTickerRowSchema = z.object({
-  ticker: z.string().optional(),
-  cik_str: z.union([z.number(), z.string()]).optional(),
-});
-const SecTickerTableSchema = z.record(z.string(), SecTickerRowSchema);
+const SecTickerTableSchema = z.record(
+  z.string(),
+  z.object({
+    ticker: z.string().optional(),
+    cik_str: z.union([z.number(), z.string()]).optional(),
+  }),
+);
 
 const SecSubmissionsSchema = z.object({
   name: z.string().optional(),
@@ -84,31 +72,39 @@ const SecCompanyFactsSchema = z.object({
 
 const CIK_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 let dynamicCikCache: { expiresAt: number; map: Map<string, string> } | null = null;
+let inflightCikFetch: Promise<Map<string, string> | null> | null = null;
+
+async function loadDynamicCikMap(fetchImpl: typeof fetch): Promise<Map<string, string> | null> {
+  if (dynamicCikCache && Date.now() < dynamicCikCache.expiresAt) return dynamicCikCache.map;
+  if (inflightCikFetch) return inflightCikFetch;
+  inflightCikFetch = (async () => {
+    const res = await fetchSecWithRetry(
+      "https://www.sec.gov/files/company_tickers.json",
+      { timeoutMs: 6000, maxRetries: 1 },
+      fetchImpl,
+    );
+    if (!res.ok) return null;
+    const parsedTable = SecTickerTableSchema.safeParse(await res.json());
+    if (!parsedTable.success) return null;
+    const map = new Map<string, string>();
+    for (const row of Object.values(parsedTable.data)) {
+      if (row.ticker && row.cik_str !== undefined) {
+        map.set(row.ticker.toUpperCase(), String(row.cik_str).padStart(10, "0"));
+      }
+    }
+    dynamicCikCache = { expiresAt: Date.now() + CIK_CACHE_TTL_MS, map };
+    return map;
+  })().finally(() => {
+    inflightCikFetch = null;
+  });
+  return inflightCikFetch;
+}
 
 async function resolveCik(ticker: string, fetchImpl: typeof fetch): Promise<string | null> {
   const upper = ticker.trim().toUpperCase();
   if (KNOWN_CIK_MAP[upper]) return KNOWN_CIK_MAP[upper];
-  if (dynamicCikCache && Date.now() < dynamicCikCache.expiresAt) {
-    return dynamicCikCache.map.get(upper) ?? null;
-  }
-
-  const res = await fetchSecWithRetry(
-    "https://www.sec.gov/files/company_tickers.json",
-    { timeoutMs: 6000, maxRetries: 1 },
-    fetchImpl,
-  );
-  if (!res.ok) return null;
-  const rawTable: unknown = await res.json();
-  const parsedTable = SecTickerTableSchema.safeParse(rawTable);
-  if (!parsedTable.success) return null;
-  const map = new Map<string, string>();
-  for (const row of Object.values(parsedTable.data)) {
-    if (row.ticker && row.cik_str !== undefined) {
-      map.set(row.ticker.toUpperCase(), String(row.cik_str).padStart(10, "0"));
-    }
-  }
-  dynamicCikCache = { expiresAt: Date.now() + CIK_CACHE_TTL_MS, map };
-  return map.get(upper) ?? null;
+  const map = await loadDynamicCikMap(fetchImpl);
+  return map?.get(upper) ?? null;
 }
 
 function buildFilingItem(
@@ -118,7 +114,9 @@ function buildFilingItem(
   index: number,
 ): SecFilingItem | null {
   const form = recent.form?.[index] ?? "";
-  if (!FINANCIAL_FORMS.has(form) && !GOVERNANCE_FORMS.has(form)) return null;
+  if (!FINANCIAL_FORMS.has(form) && !GOVERNANCE_FORMS.has(form) && !FORM4_FORMS.has(form)) {
+    return null;
+  }
   const accessionNumber = recent.accessionNumber?.[index] ?? "";
   const primaryDoc = recent.primaryDocument?.[index] ?? "";
   const accClean = accessionNumber.replaceAll("-", "");
@@ -138,15 +136,18 @@ function buildFilingItem(
 
 function pushFilingBucket(
   item: SecFilingItem,
-  financial: SecFilingItem[],
-  governance: SecFilingItem[],
+  buckets: { financial: SecFilingItem[]; governance: SecFilingItem[]; form4s: SecFilingItem[] },
 ) {
-  if (FINANCIAL_FORMS.has(item.form) && financial.length < 6) {
-    financial.push(item);
+  if (FINANCIAL_FORMS.has(item.form) && buckets.financial.length < 6) {
+    buckets.financial.push(item);
     return;
   }
-  if (GOVERNANCE_FORMS.has(item.form) && governance.length < 4) {
-    governance.push(item);
+  if (GOVERNANCE_FORMS.has(item.form) && buckets.governance.length < 4) {
+    buckets.governance.push(item);
+    return;
+  }
+  if (FORM4_FORMS.has(item.form) && buckets.form4s.length < 6) {
+    buckets.form4s.push(item);
   }
 }
 
@@ -154,17 +155,21 @@ function extractRecentFilings(cik: string, data: SecSubmissionsResponse): SecFil
   const recent = data.filings?.recent;
   if (!recent?.form || !recent.filingDate || !recent.accessionNumber) return [];
   const cikNumeric = String(Number(cik));
-  const financial: SecFilingItem[] = [];
-  const governance: SecFilingItem[] = [];
-  for (
-    let i = 0;
-    i < recent.form.length && (financial.length < 6 || governance.length < 4);
-    i += 1
-  ) {
+  const buckets = {
+    financial: [] as SecFilingItem[],
+    governance: [] as SecFilingItem[],
+    form4s: [] as SecFilingItem[],
+  };
+  for (let i = 0; i < recent.form.length; i += 1) {
+    const full =
+      buckets.financial.length >= 6 && buckets.governance.length >= 4 && buckets.form4s.length >= 6;
+    if (full) break;
     const item = buildFilingItem(cik, cikNumeric, recent, i);
-    if (item) pushFilingBucket(item, financial, governance);
+    if (item) pushFilingBucket(item, buckets);
   }
-  return [...financial, ...governance].sort((a, b) => b.filingDate.localeCompare(a.filingDate));
+  return [...buckets.financial, ...buckets.governance, ...buckets.form4s].sort((a, b) =>
+    b.filingDate.localeCompare(a.filingDate),
+  );
 }
 
 async function buildSnapshotFromResponses(
@@ -181,8 +186,14 @@ async function buildSnapshotFromResponses(
   if (!subParsed.success) {
     return { ok: false, error: "SEC EDGAR 披露索引格式异常，已保留本地缓存。" };
   }
-  const factsParsed = factsRes.ok ? SecCompanyFactsSchema.safeParse(await factsRes.json()) : null;
-  const factsPayload: SecFactsPayload | undefined = factsParsed?.success
+  if (!factsRes.ok) {
+    return {
+      ok: false,
+      error: `SEC XBRL 财务数据接口返回状态 ${factsRes.status}，已保留现有缓存。`,
+    };
+  }
+  const factsParsed = SecCompanyFactsSchema.safeParse(await factsRes.json());
+  const factsPayload: SecFactsPayload | undefined = factsParsed.success
     ? factsParsed.data.facts
     : undefined;
   const norm = resolveCurrencyNormalization(factsPayload, upper);
@@ -215,15 +226,12 @@ export async function fetchSecEdgarSnapshot(
   try {
     const cik = await resolveCik(upper, fetchImpl);
     if (!cik) return { ok: false, error: `未在 SEC EDGAR 找到代码 ${upper} 对应的 CIK 编号。` };
+    const opts = { timeoutMs: 7000, maxRetries: 2 };
     const [subRes, factsRes] = await Promise.all([
-      fetchSecWithRetry(
-        `https://data.sec.gov/submissions/CIK${cik}.json`,
-        { timeoutMs: 7000, maxRetries: 2 },
-        fetchImpl,
-      ),
+      fetchSecWithRetry(`https://data.sec.gov/submissions/CIK${cik}.json`, opts, fetchImpl),
       fetchSecWithRetry(
         `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`,
-        { timeoutMs: 7000, maxRetries: 2 },
+        opts,
         fetchImpl,
       ),
     ]);

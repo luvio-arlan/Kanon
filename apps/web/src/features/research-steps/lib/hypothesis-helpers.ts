@@ -1,7 +1,20 @@
 import type { Hypothesis } from "@kanon/core";
 
+function isHypothesisItem(val: unknown): val is Hypothesis {
+  if (!val || typeof val !== "object") return false;
+  const r = val as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.title === "string" &&
+    typeof r.metricLabel === "string" &&
+    typeof r.threshold === "string" &&
+    typeof r.status === "string" &&
+    typeof r.note === "string"
+  );
+}
+
 export function isHypothesisArray(val: unknown): val is Hypothesis[] {
-  return Array.isArray(val) && val.length >= 3 && val.length <= 5;
+  return Array.isArray(val) && val.length >= 3 && val.length <= 5 && val.every(isHypothesisItem);
 }
 
 export function buildExtraHypothesis(thesisId: string, nextNum: number): Hypothesis {

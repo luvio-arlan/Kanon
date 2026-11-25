@@ -36,6 +36,7 @@ const COLLOQUIAL_COPY_RE =
   /事前验尸|商业模式滤镜|商业滤镜|水电煤|死因链条|红队挑刺|红队拷问|苛刻空头|恐慌想割|法证体检|法证排雷|印钞机|烧钱黑洞|拍脑袋|一票否决|真·反向/;
 const DASHED_BANNER_RE =
   /\bborder-dashed\b.*\bbg-(?:accent-coral|status-)|\bbg-(?:accent-coral|status-).*\bborder-dashed\b/;
+const PRESS_SCALE_RE = /\bactive:scale-/;
 
 const NESTING_KINDS = new Set([
   ts.SyntaxKind.IfStatement,
@@ -130,6 +131,19 @@ function checkEditorialLineRules(relPath, line, lineNo, flags, errors) {
       lineNo,
       "semantic-radius-only",
       "Raw Tailwind radius breaks concentric corner geometry. Use KANON semantic radius tokens (rounded-card, rounded-panel, rounded-control, rounded-item, rounded-badge, rounded-pill) (.rules/editorial-craft.md §2).",
+    );
+  }
+  if (
+    !flags.isTestFile &&
+    /^(?:apps\/web\/src|packages\/ui\/src)\//.test(relPath) &&
+    PRESS_SCALE_RE.test(line)
+  ) {
+    addError(
+      errors,
+      relPath,
+      lineNo,
+      "no-press-scale",
+      "active:scale-* causes jittery micro-shrink on editorial buttons. Use crisp color/border feedback only (.rules/editorial-craft.md §2).",
     );
   }
 }

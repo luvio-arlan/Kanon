@@ -36,6 +36,7 @@ export function CompanySwitcherTile(p: {
   thesis: ThesisDetail;
   allTheses: readonly ThesisSummary[];
   collapsed: boolean;
+  onBeforeSwitch?: () => Promise<void>;
 }) {
   const router = useRouter();
   const items: ActionMenuItem[] = p.allTheses.map((item) => ({
@@ -45,7 +46,12 @@ export function CompanySwitcherTile(p: {
     selected: item.id === p.thesis.id,
     icon: <IconTrendingUp size={15} stroke={1.5} />,
     onSelect: () => {
-      if (item.id !== p.thesis.id) router.push(`/thesis/${item.id}`);
+      if (item.id === p.thesis.id) return;
+      if (p.onBeforeSwitch) {
+        void p.onBeforeSwitch().finally(() => router.push(`/thesis/${item.id}`));
+      } else {
+        router.push(`/thesis/${item.id}`);
+      }
     },
   }));
 

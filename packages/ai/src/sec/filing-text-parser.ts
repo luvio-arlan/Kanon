@@ -18,14 +18,19 @@ const HTML_ENTITY_MAP: Record<string, string> = {
   "&ndash;": "-",
 };
 
+function safeCodePoint(code: number): string {
+  if (!Number.isFinite(code) || code < 0x20 || code > 0x10ffff) return " ";
+  return String.fromCodePoint(code);
+}
+
 function decodeEntities(raw: string): string {
   const named = raw.replace(/&[a-z0-9#]+;/gi, (entity) => {
     const mapped = HTML_ENTITY_MAP[entity.toLowerCase()];
     if (mapped) return mapped;
     const numMatch = /^&#(\d+);$/.exec(entity);
-    if (numMatch?.[1]) return String.fromCharCode(Number(numMatch[1]));
+    if (numMatch?.[1]) return safeCodePoint(Number(numMatch[1]));
     const hexMatch = /^&#x([0-9a-f]+);$/i.exec(entity);
-    if (hexMatch?.[1]) return String.fromCharCode(Number.parseInt(hexMatch[1], 16));
+    if (hexMatch?.[1]) return safeCodePoint(Number.parseInt(hexMatch[1], 16));
     return " ";
   });
   return named.replace(/\s+/g, " ").trim();
@@ -36,15 +41,17 @@ export function countBuySideSignals(text: string): number {
   return matches ? matches.length : 0;
 }
 
+const ITEM_HEADING_RE = /^item\s+(?:1a|1|2|3\.?d|4|5|7)\b/i;
+
 function isTocLine(text: string): boolean {
-  if (/^item\s+(?:1a|1|2|7)\b/i.test(text) && /\s+\d{1,3}$/.test(text)) return true;
+  if (ITEM_HEADING_RE.test(text) && /\s+\d{1,3}$/.test(text)) return true;
   if (/\.{3,}\s*\d{1,3}$/.test(text)) return true;
   return false;
 }
 
 function isKeepableParagraph(text: string): boolean {
   if (isTocLine(text)) return false;
-  if (/^item\s+(?:1a|1|2|7)\b/i.test(text) && text.length <= 180) return true;
+  if (ITEM_HEADING_RE.test(text) && text.length <= 180) return true;
   if (text.length < 75 || text.length > 1800) return false;
   return (text.match(/[A-Za-z]/g) ?? []).length >= 45;
 }
@@ -68,23 +75,26 @@ export function stripSecHtmlToParagraphs(rawHtml: string): string[] {
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
     paragraphs.push(text);
-    if (paragraphs.length >= 600) break;
+    if (paragraphs.length >= 2500) break;
   }
   return paragraphs;
 }
 
 function classifyHeading(text: string): SecFilingSectionCategory | null {
   const compact = text.toLowerCase();
-  if (/^item\s+(?:7|2)\b/.test(compact) && /management|discussion|analysis|results/.test(compact)) {
+  if (
+    /^item\s+(?:7|2|5)\b/.test(compact) &&
+    /management|discussion|analysis|results|operating\s+and\s+financial\s+review/.test(compact)
+  ) {
     return "mda";
   }
-  if (/^item\s+1a\b/.test(compact) && /risk\s+factors?/.test(compact)) {
+  if (/^item\s+(?:1a|3\.?d)\b/.test(compact) && /risk\s+factors?/.test(compact)) {
     return "risk_factors";
   }
   if (
-    /^item\s+1\b/.test(compact) &&
+    /^item\s+(?:1|4)\b/.test(compact) &&
     !/^item\s+1a\b/.test(compact) &&
-    /business|overview/.test(compact)
+    /business|overview|information\s+on\s+the\s+company/.test(compact)
   ) {
     return "business";
   }

@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#F6F5F1" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#07080A" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" id="themeColorMeta" content="#F6F5F1" />
   <title>KANON · 卡农 — Conviction, composed.</title>
   <meta name="description" content="KANON（卡农）— 面向独立价值投资者与买方投研机构的投资逻辑操作系统。在噪音里，谱出自己的确定性。kanon.hk · By Caius Lu." />
   <meta name="author" content="Caius Lu" />
@@ -13,6 +12,23 @@
   <meta property="og:description" content="在噪音里，谱出自己的确定性。面向独立价值投资者与买方投研机构的投资逻辑操作系统。" />
   <meta property="og:url" content="https://kanon.hk" />
   <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://kanon.hk/assets/hero-titanium-monolith.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="KANON · 卡农 — Conviction, composed." />
+  <meta name="twitter:description" content="在噪音里，谱出自己的确定性。面向独立价值投资者与买方投研机构的投资逻辑操作系统。" />
+  <meta name="twitter:image" content="https://kanon.hk/assets/hero-titanium-monolith.jpg" />
+  <script>
+    (() => {
+      try {
+        const stored = localStorage.getItem("kanon-marketing-theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const theme = stored === "dark" || stored === "light" ? stored : (prefersDark ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+        const meta = document.getElementById("themeColorMeta");
+        if (meta) meta.setAttribute("content", theme === "dark" ? "#07080A" : "#F6F5F1");
+      } catch {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
@@ -31,8 +47,8 @@
       --bg-drawer: #0c0e12;
       --surface: #14161c;
       --ink: #f3f1eb;
-      --ink-2: #989aa3;
-      --ink-3: #5d606a;
+      --ink-2: #a5a8b2;
+      --ink-3: #868995;
       --ink-inv: #07080a;
       --titanium: #e5e3dd;
       --hairline: rgba(229, 227, 221, 0.10);
@@ -54,15 +70,15 @@
       --bg-drawer: #efede7;
       --surface: #e8e5dd;
       --ink: #111113;
-      --ink-2: #575a64;
-      --ink-3: #8c909b;
+      --ink-2: #525560;
+      --ink-3: #646773;
       --ink-inv: #f6f5f1;
       --titanium: #2a2926;
       --hairline: rgba(17, 17, 19, 0.09);
       --hairline-2: rgba(17, 17, 19, 0.20);
-      --coral: #d95a38;
-      --coral-soft: rgba(217, 90, 56, 0.11);
-      --emerald: #059669;
+      --coral: #c44928;
+      --coral-soft: rgba(196, 73, 40, 0.11);
+      --emerald: #047857;
       --scrim-x: linear-gradient(96deg, #f6f5f1 0%, rgba(246, 245, 241, 0.94) 48%, rgba(246, 245, 241, 0.52) 78%, rgba(246, 245, 241, 0.72) 100%);
       --scrim-y: linear-gradient(180deg, rgba(246, 245, 241, 0.42) 0%, transparent 20%, transparent 52%, #f6f5f1 90%, #f6f5f1 100%);
       --glass: rgba(246, 245, 241, 0.78);
@@ -293,14 +309,17 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
       transform: translateY(-10px);
-      transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+      transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 360ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 320ms;
     }
     .mobile-drawer.open {
       opacity: 1;
+      visibility: visible;
       pointer-events: auto;
       transform: translateY(0);
+      transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 360ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 0s;
     }
     .mobile-nav-list {
       display: flex;
@@ -1615,7 +1634,7 @@
       </nav>
 
       <div class="nav-right">
-        <button class="theme-btn" id="soundToggle" title="交互音效开/关" aria-label="Toggle Interaction Sound">
+        <button class="theme-btn" id="soundToggle" title="交互音效开/关" aria-label="Toggle Interaction Sound" aria-pressed="true">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" id="soundIcon" aria-hidden="true">
             <path d="M2.5 6h2.8L9 3v10l-3.7-3H2.5V6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
             <path d="M11.6 5.4a3.6 3.6 0 0 1 0 5.2M13.5 3.8a6 6 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
@@ -1629,7 +1648,7 @@
         </button>
         <a class="nav-login" href="https://app.kanon.hk/login">登录</a>
         <a class="nav-cta-solid" href="https://app.kanon.hk/register">开启空间</a>
-        <button class="menu-btn" id="mobileMenuBtn" aria-label="打开导航菜单" aria-expanded="false">
+        <button class="menu-btn" id="mobileMenuBtn" aria-label="打开导航菜单" aria-expanded="false" aria-controls="mobileDrawer">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" id="menuIconSvg" aria-hidden="true">
             <path d="M2.5 5.2h11M2.5 10.8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />
           </svg>
@@ -1639,7 +1658,7 @@
   </header>
 
   <!-- Mobile Full-Screen Editorial Navigation Drawer -->
-  <div class="mobile-drawer" id="mobileDrawer" aria-hidden="true">
+  <div class="mobile-drawer" id="mobileDrawer" aria-hidden="true" inert>
     <nav class="mobile-nav-list" style="display:flex;" aria-label="Mobile Navigation">
       <a class="mobile-nav-link" href="#statement"><span>投研理念</span><span class="m-idx num">01</span></a>
       <a class="mobile-nav-link" href="#instrument"><span>研究工作台</span><span class="m-idx num">02</span></a>
@@ -1659,12 +1678,13 @@
     </div>
   </div>
 
+  <main>
   <!-- ======================================================================
        ACT 00: MONUMENTAL HERO
        ====================================================================== -->
   <section class="hero" id="top">
     <div class="hero-bg" aria-hidden="true">
-      <img src="./assets/hero-titanium-monolith.jpg" alt="" id="heroImg" />
+      <img src="./assets/hero-titanium-monolith.jpg" alt="" id="heroImg" width="1376" height="768" fetchpriority="high" />
     </div>
     <canvas id="silkCanvas" aria-hidden="true"></canvas>
 
@@ -1709,7 +1729,7 @@
 
   <div class="aperture-wrap">
     <figure class="fullbleed-photo aperture-target" aria-label="Architectural Sanctuary">
-      <img src="./assets/sanctuary-architecture.jpg" alt="Minimalist concrete and titanium reading sanctuary" id="sanctuaryImg" loading="lazy" />
+      <img src="./assets/sanctuary-architecture.jpg" alt="Minimalist concrete and titanium reading sanctuary" id="sanctuaryImg" width="1376" height="768" loading="lazy" />
       <figcaption class="photo-caption-bar">
         <div class="wrap photo-caption-inner">
           <span>KANON · 卡农</span>
@@ -1729,23 +1749,23 @@
       </div>
 
       <div class="inst-bar">
-        <div class="inst-tabs" id="instTabs" role="tablist">
-          <button class="inst-tab" data-tab="vp" role="tab"><span class="t-num num">01</span>预期差</button>
-          <button class="inst-tab" data-tab="red" role="tab"><span class="t-num num">02</span>反向质询</button>
-          <button class="inst-tab active" data-tab="val" role="tab"><span class="t-num num">03</span>估值矩阵</button>
-          <button class="inst-tab" data-tab="lock" role="tab"><span class="t-num num">04</span>零杠杆纪律</button>
+        <div class="inst-tabs" id="instTabs" role="tablist" aria-label="核心投研仪器">
+          <button class="inst-tab" data-tab="vp" role="tab" aria-selected="false" tabindex="-1"><span class="t-num num">01</span>预期差</button>
+          <button class="inst-tab" data-tab="red" role="tab" aria-selected="false" tabindex="-1"><span class="t-num num">02</span>反向质询</button>
+          <button class="inst-tab active" data-tab="val" role="tab" aria-selected="true" tabindex="0"><span class="t-num num">03</span>估值矩阵</button>
+          <button class="inst-tab" data-tab="lock" role="tab" aria-selected="false" tabindex="-1"><span class="t-num num">04</span>零杠杆纪律</button>
           <div class="tab-ink-bar" id="tabInkBar" aria-hidden="true"></div>
         </div>
         <div class="ticker-switch num" role="group" aria-label="Switch stock dossier">
-          <button class="ticker-opt active" data-tk="NVDA">NVDA</button>
-          <button class="ticker-opt" data-tk="MU">MU</button>
-          <button class="ticker-opt" data-tk="TSM">TSM</button>
+          <button class="ticker-opt active" data-tk="NVDA" aria-pressed="true">NVDA</button>
+          <button class="ticker-opt" data-tk="MU" aria-pressed="false">MU</button>
+          <button class="ticker-opt" data-tk="TSM" aria-pressed="false">TSM</button>
         </div>
       </div>
 
       <div class="inst-stage">
         <!-- Tab 01: Variant Perception -->
-        <div class="inst-panel" data-panel="vp">
+        <div class="inst-panel" data-panel="vp" role="tabpanel">
           <div class="vp-spread">
             <div class="vp-col">
               <span class="vp-tag mono">MARKET CONSENSUS · 市场一致预期</span>
@@ -1768,7 +1788,7 @@
               <path id="vpAreaPath" class="vp-area-reveal" d="M 10 120 C 240 118, 520 96, 780 62 C 910 45, 1002 32, 1072 26 L 1072 142 L 10 142 Z" fill="url(#vpArea)" />
               <path id="vpCurvePath" class="vp-curve-draw" pathLength="100" d="M 10 120 C 240 118, 520 96, 780 62 C 910 45, 1002 32, 1072 26" stroke="#ea6b4a" stroke-width="2" stroke-linecap="round" />
               <circle id="vpBeaconRing" cx="1072" cy="26" r="6" fill="none" stroke="#ea6b4a" stroke-width="1.5" class="vp-beacon" />
-              <circle id="vpEndpointDot" cx="1072" cy="26" r="4" fill="#ea6b4a" stroke="var(--canvas)" stroke-width="1.5" class="vp-dot" />
+              <circle id="vpEndpointDot" cx="1072" cy="26" r="4" fill="#ea6b4a" stroke="var(--bg)" stroke-width="1.5" class="vp-dot" />
             </svg>
             <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; color:var(--ink-3); margin-top:6px;">
               <span>虚线：市场一致预期隐含轨迹</span>
@@ -1778,7 +1798,7 @@
         </div>
 
         <!-- Tab 02: Red Team -->
-        <div class="inst-panel" data-panel="red">
+        <div class="inst-panel" data-panel="red" role="tabpanel">
           <div class="red-list" id="redList">
             <div class="red-row"><span class="num">01</span><p>当算力需求重心由大规模训练转向高性价比推理，单位 Token 降本压力会否侵蚀 75% 峰值毛利与系统溢价？</p></div>
             <div class="red-row"><span class="num">02</span><p>四大云厂正将自研 ASIC 从固定推理延伸至更广负载，通用 GPU 的边际份额上限位于何处？</p></div>
@@ -1787,13 +1807,13 @@
           <div style="margin-top: 28px;">
             <button class="btn-hero-secondary" id="shuffleBearBtn" style="height:38px; padding:0 18px; font-size:13px;">
               <span>切换反向质询视角</span>
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.4-3.7M13.5 2.8v2.6h-2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.4-3.7M13.5 2.8v2.6h-2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
         </div>
 
         <!-- Tab 03 (Default): Sculptural 5x5 Valuation Light-Matrix -->
-        <div class="inst-panel active" data-panel="val">
+        <div class="inst-panel active" data-panel="val" role="tabpanel">
           <div class="val-sculpture">
             <div>
               <div class="val-eyebrow">三年中性情景目标价</div>
@@ -1805,12 +1825,12 @@
 
               <div class="dial-sliders">
                 <div>
-                  <div class="dial-row-head num"><span>三年远期每股收益（Forward EPS）</span><strong id="vEpsLbl">$6.80</strong></div>
-                  <input class="hair-slider" type="range" id="sEps" min="3.0" max="11.0" step="0.1" value="6.8" />
+                  <div class="dial-row-head num"><label for="sEps">三年远期每股收益（Forward EPS）</label><strong id="vEpsLbl">$6.80</strong></div>
+                  <input class="hair-slider" type="range" id="sEps" aria-label="三年远期每股收益" min="3.0" max="11.0" step="0.1" value="6.8" />
                 </div>
                 <div>
-                  <div class="dial-row-head num"><span>终值市盈率倍数（Exit P/E）</span><strong id="vPeLbl">31×</strong></div>
-                  <input class="hair-slider" type="range" id="sPe" min="15" max="45" step="1" value="31" />
+                  <div class="dial-row-head num"><label for="sPe">终值市盈率倍数（Exit P/E）</label><strong id="vPeLbl">31×</strong></div>
+                  <input class="hair-slider" type="range" id="sPe" aria-label="终值市盈率倍数" min="15" max="45" step="1" value="31" />
                 </div>
               </div>
             </div>
@@ -2031,10 +2051,10 @@
           <div class="acc-body">
             <div class="acc-inner">
               <div class="acc-content">
-                <p class="acc-prose">内置 P/E 与 EV / Owner-FCF 双主锚估值体系，联动熊/中/牛三情景概率加权、5×5 敏感度矩阵与 Reverse-DCF 市场隐含增速反推。同屏对照市场定价与自身基准，量化真实盈亏赔率、IRR 买点阶梯与半凯利参考仓位。</p>
+                <p class="acc-prose">内置 P/E、EV / Owner-FCF、三表经营模型与 SOTP 分部加总四套估值引擎，联动熊/中/牛三情景概率加权、5×5 敏感度矩阵与 RONIC 约束的 Reverse-DCF 隐含增速反推。同屏量化真实盈亏赔率、IRR 买点阶梯、半凯利参考仓位与因子相关性压力测试。</p>
                 <div class="acc-spec-box num">
-                  <div class="acc-spec-line"><span>估值内核</span><strong>三情景加权 · Reverse-DCF · TSR 归因</strong></div>
-                  <div class="acc-spec-line"><span>风控标尺</span><strong class="emerald">10%–25% IRR 买点带与宏观压力测试</strong></div>
+                  <div class="acc-spec-line"><span>估值内核</span><strong>三表经营模型 · SOTP · RONIC Reverse-DCF · TSR 归因</strong></div>
+                  <div class="acc-spec-line"><span>风控标尺</span><strong class="emerald">10%–25% IRR 买点带与组合因子压力测试</strong></div>
                 </div>
               </div>
             </div>
@@ -2088,8 +2108,8 @@
         <article class="acc-item reveal">
           <button class="acc-trigger" aria-expanded="false">
             <span class="acc-idx num">06</span>
-            <span class="acc-title">跨周期认知校准与情绪归因</span>
-            <span class="acc-summary">追踪决策心境与预测偏离，让判断力自身复利</span>
+            <span class="acc-title">跨周期认知校准与多季纪要库</span>
+            <span class="acc-summary">沉淀法说会指引兑现、Brier 评分与 SPY 基准对照</span>
             <span class="acc-plus" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
             </span>
@@ -2097,10 +2117,10 @@
           <div class="acc-body">
             <div class="acc-inner">
               <div class="acc-content">
-                <p class="acc-prose">资产会复利，独立的判断力同样如此。KANON 跨越完整市场周期统计你在冷静、犹豫、追高、承压等不同心境下的决策胜率与收益偏离，结合历史假设命中率与一键生成的每周投委会摘要，清晰勾勒能力圈边界。</p>
+                <p class="acc-prose">资产会复利，独立的判断力同样如此。KANON 持久化归档多季法说会纪要与管理层指引兑现轨迹，跨周期量化你在不同心境下的决策胜率、Brier 概率校准分与相对 SPY 基准的超额表现，并一键生成每周投委会摘要。</p>
                 <div class="acc-spec-box num">
-                  <div class="acc-spec-line"><span>校准维度</span><strong>决策情绪归因胜率 + 跨季度假设验证轨迹</strong></div>
-                  <div class="acc-spec-line"><span>周度复盘</span><strong class="coral">一键生成机构级 IC 投研周报摘要</strong></div>
+                  <div class="acc-spec-line"><span>校准维度</span><strong>法说会纪要库 · Brier 概率校准 · 情绪胜率归因</strong></div>
+                  <div class="acc-spec-line"><span>周度复盘</span><strong class="coral">相对 SPY 基准对照与一键 IC 投研周报摘要</strong></div>
                 </div>
               </div>
             </div>
@@ -2124,21 +2144,22 @@
           <source src="./assets/kanon-brand-film.mp4" type="video/mp4" />
         </video>
         <div class="cinema-veil" id="cinemaVeil">
-          <div class="cinema-play" aria-label="播放品牌影片">
+          <button type="button" class="cinema-play" id="cinemaPlayBtn" aria-label="播放品牌影片">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="margin-left:3px;" aria-hidden="true">
               <path d="M6.5 4.5 19.5 12 6.5 19.5V4.5Z" fill="currentColor" />
             </svg>
-          </div>
+          </button>
           <span style="font-size:13px; letter-spacing:0.18em; color:rgba(243,241,235,0.84);">播放品牌影片 · 00:36</span>
         </div>
       </div>
 
       <div class="cinema-bar num">
         <span id="filmClock">00:00 / 00:36</span>
-        <button id="muteBtn" style="color: var(--ink-2);">声音已开启</button>
+        <button id="muteBtn" aria-pressed="false" style="color: var(--ink-2);">声音已开启</button>
       </div>
     </div>
   </section>
+  </main>
 
   <!-- ======================================================================
        ACT 06: MONUMENTAL CLOSING & AUTHOR COLOPHON
@@ -2163,16 +2184,19 @@
   <!-- Private Access Modal -->
   <div class="scrim" id="accessModal" role="dialog" aria-modal="true" aria-label="机构部署与私密洽谈">
     <div class="modal-box" id="accessBody">
-      <h3 class="serif">Institutional Access.</h3>
-      <p>面向独立价值投资者、家族办公室与买方投研团队开放私有化部署与专属支持。</p>
+      <h3 class="serif" id="accessTitle">Institutional Access.</h3>
+      <p id="accessDesc">面向独立价值投资者、家族办公室与买方投研团队开放私有化部署与专属支持。</p>
       <form id="accessForm">
-        <input class="m-input" id="fName" required placeholder="您的称呼 / Name" />
-        <input class="m-input" id="fEmail" type="email" required placeholder="工作邮箱 / Email" />
+        <input class="m-input" id="fName" aria-label="您的称呼" required placeholder="您的称呼 / Name" />
+        <input class="m-input" id="fEmail" type="email" aria-label="工作邮箱" required placeholder="工作邮箱 / Email" />
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
           <button type="submit" class="btn-hero-primary">提交预约</button>
           <button type="button" id="closeModal" style="font-size:13.5px; color:var(--ink-3);">取消</button>
         </div>
       </form>
+      <div id="accessConfirm" style="display:none; margin-top:14px;">
+        <a class="btn-hero-primary" id="accessMailLink" href="mailto:jensencuda@gmail.com">联系 Caius Lu →</a>
+      </div>
     </div>
   </div>
 
@@ -2304,6 +2328,7 @@
       soundToggle.addEventListener("click", () => {
         const on = KanonAudio.toggle();
         soundToggle.style.opacity = on ? "1" : "0.42";
+        soundToggle.setAttribute("aria-pressed", String(on));
         if (on) KanonAudio.chime(587.33, 0.04, 0.30);
         notify(on ? "交互音效已开启" : "交互音效已静音");
       });
@@ -2435,7 +2460,7 @@
         progressLine.style.width = `${(y / max) * 100}%`;
         header.classList.toggle("scrolled", y > 40);
 
-        if (heroImg && y < vh * 1.3) {
+        if (!reduced && heroImg && y < vh * 1.3) {
           heroImg.style.transform = `scale(${(1.04 + y * 0.00006).toFixed(4)}) translateY(${(y * 0.11).toFixed(1)}px)`;
           if (heroContent) {
             const hp = Math.max(0, Math.min(1, y / (vh * 0.72)));
@@ -2444,7 +2469,7 @@
           }
         }
         // Sanctuary: Architectural vertical shutter slit parts outward + counter-moving caption
-        if (sanctuaryEl && sanctuaryImg) {
+        if (!reduced && sanctuaryEl && sanctuaryImg) {
           const r = sanctuaryEl.getBoundingClientRect();
           const p = Math.max(-1, Math.min(1, (r.top + r.height * 0.5 - vh * 0.5) / (vh * 0.85)));
           const open = Math.max(0, 1 - Math.abs(p));
@@ -2455,7 +2480,7 @@
           sanctuaryEl.style.setProperty("--cap-py", `${(p * -18).toFixed(1)}px`);
         }
         // Optical Prism: Diagonal refractive beam sweeps + split-parallax display title
-        if (prismHero) {
+        if (!reduced && prismHero) {
           const r = prismHero.getBoundingClientRect();
           const p = Math.max(-1, Math.min(1, (r.top + r.height * 0.5 - vh * 0.5) / (vh * 0.9)));
           prismHero.style.setProperty("--prism-py", `${(-4 + p * 6).toFixed(2)}%`);
@@ -2497,6 +2522,7 @@
         tabInkBar.style.transform = `translateX(${active.offsetLeft}px)`;
       }
       function replayVpChart() {
+        if (reduced) return;
         const pairs = [
           ["vpAreaPath", "vp-area-reveal"],
           ["vpCurvePath", "vp-curve-draw"],
@@ -2513,13 +2539,33 @@
           if (el) el.classList.add(cls);
         });
       }
-      tabs.forEach((tb) => tb.addEventListener("click", () => {
+      function activateTab(tb, focusTab = false) {
         KanonAudio.tick(1880, 0.04, 0.026);
-        tabs.forEach((t) => t.classList.toggle("active", t === tb));
+        tabs.forEach((t) => {
+          const isAct = t === tb;
+          t.classList.toggle("active", isAct);
+          t.setAttribute("aria-selected", String(isAct));
+          t.tabIndex = isAct ? 0 : -1;
+        });
         panels.forEach((p) => p.classList.toggle("active", p.dataset.panel === tb.dataset.tab));
         syncTabBar();
         if (tb.dataset.tab === "vp") replayVpChart();
-      }));
+        if (focusTab) tb.focus();
+      }
+      tabs.forEach((tb, idx) => {
+        tb.addEventListener("click", () => activateTab(tb));
+        tb.addEventListener("keydown", (e) => {
+          let nextIdx = -1;
+          if (e.key === "ArrowRight") nextIdx = (idx + 1) % tabs.length;
+          else if (e.key === "ArrowLeft") nextIdx = (idx - 1 + tabs.length) % tabs.length;
+          else if (e.key === "Home") nextIdx = 0;
+          else if (e.key === "End") nextIdx = tabs.length - 1;
+          if (nextIdx >= 0) {
+            e.preventDefault();
+            activateTab(tabs[nextIdx], true);
+          }
+        });
+      });
 
       /* 4. Live Valuation Matrix with 3D Specular Tilt + Rolling Spring Interpolation */
       const PRESETS = {
@@ -2610,7 +2656,7 @@
         const odds = Math.max(0, upside / downside);
         const cagr = (Math.pow(Math.max(0.1, target / cur.price), 1 / 3) - 1) * 100;
 
-        if (instant) {
+        if (instant || reduced) {
           dispPrice = target;
           dispOdds = odds;
           document.getElementById("gPrice").textContent = `$${Math.round(target)}`;
@@ -2628,7 +2674,7 @@
             const val = ev * pv;
             const isCenter = r === 2 && c === 2;
             const ret = (val - cur.price) / cur.price;
-            const opacity = Math.max(0.36, Math.min(0.95, 0.52 + ret * 0.42));
+            const opacity = Math.max(0.68, Math.min(0.98, 0.72 + ret * 0.28));
             const tint = ret > 0.22 ? `rgba(229, 227, 221, ${(0.04 + Math.min(0.09, ret * 0.08)).toFixed(3)})` : "transparent";
             html += `<div class="lm-cell ${isCenter ? "center" : ""}" style="${isCenter ? "" : `background:${tint}; opacity:${opacity.toFixed(2)};`}">$${Math.round(val)}</div>`;
           });
@@ -2636,9 +2682,9 @@
         lightMatrix.innerHTML = html;
       }
 
-      // Live 3D specular tilt on 5x5 Light-Matrix (desktop fine pointer only; zero touch scroll fighting)
+      // Live 3D specular tilt on 5x5 Light-Matrix (desktop fine pointer only; reduced-motion respected)
       const isFinePointer = window.matchMedia("(pointer: fine)").matches;
-      if (isFinePointer) {
+      if (isFinePointer && !reduced) {
         lightMatrix.addEventListener("pointermove", (e) => {
           const r = lightMatrix.getBoundingClientRect();
           const x = (e.clientX - r.left) / r.width;
@@ -2677,7 +2723,11 @@
           activeTk = btn.dataset.tk;
           bearIdx = 0;
           KanonAudio.chime(TK_NOTES[activeTk] || 587.33, 0.036, 0.34);
-          document.querySelectorAll(".ticker-opt").forEach((b) => b.classList.toggle("active", b === btn));
+          document.querySelectorAll(".ticker-opt").forEach((b) => {
+            const on = b === btn;
+            b.classList.toggle("active", on);
+            b.setAttribute("aria-pressed", String(on));
+          });
           sEps.value = PRESETS[activeTk].eps;
           sPe.value = PRESETS[activeTk].pe;
           document.getElementById("vpCons").textContent = PRESETS[activeTk].cons;
@@ -2741,8 +2791,8 @@
         });
       });
 
-      /* Tactile sound on primary buttons & theme toggle (ZERO jittery transform fighting!) */
-      document.querySelectorAll(".btn-hero-primary, .btn-hero-secondary, .nav-cta").forEach((btn) => {
+      /* Tactile sound on primary buttons (ZERO jittery transform fighting!) */
+      document.querySelectorAll(".btn-hero-primary, .btn-hero-secondary").forEach((btn) => {
         btn.addEventListener("click", () => KanonAudio.tick(1720, 0.038, 0.026));
       });
 
@@ -2750,6 +2800,7 @@
       const film = document.getElementById("launchFilm");
       const cinemaBox = document.getElementById("cinemaBox");
       const cinemaVeil = document.getElementById("cinemaVeil");
+      const cinemaPlayBtn = document.getElementById("cinemaPlayBtn");
       const filmClock = document.getElementById("filmClock");
       const muteBtn = document.getElementById("muteBtn");
 
@@ -2757,13 +2808,28 @@
         if (film.paused) film.play().catch(() => {});
         else film.pause();
       }
-      cinemaBox.addEventListener("click", togglePlay);
+      cinemaBox.addEventListener("click", (e) => {
+        if (e.target === film && film.controls) return;
+        togglePlay();
+      });
+      cinemaPlayBtn?.addEventListener("keydown", (e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          togglePlay();
+        }
+      });
       document.getElementById("heroPlayJump").addEventListener("click", () => {
         setTimeout(() => { if (film.paused) film.play().catch(() => {}); }, 550);
       });
-      film.addEventListener("play", () => cinemaVeil.classList.add("hidden"));
+      film.addEventListener("play", () => {
+        film.controls = true;
+        cinemaVeil.classList.add("hidden");
+      });
       film.addEventListener("pause", () => cinemaVeil.classList.remove("hidden"));
-      film.addEventListener("ended", () => cinemaVeil.classList.remove("hidden"));
+      film.addEventListener("ended", () => {
+        film.controls = false;
+        cinemaVeil.classList.remove("hidden");
+      });
       film.addEventListener("timeupdate", () => {
         const s = Math.floor(film.currentTime || 0);
         const d = isFinite(film.duration) && film.duration > 0 ? Math.round(film.duration) : 36;
@@ -2773,13 +2839,18 @@
         e.stopPropagation();
         film.muted = !film.muted;
         muteBtn.textContent = film.muted ? "已静音" : "声音已开启";
+        muteBtn.setAttribute("aria-pressed", String(film.muted));
       });
 
       /* 7. Theme Toggle, Copy Email & Private Access Modal */
       document.getElementById("themeToggle").addEventListener("click", () => {
         KanonAudio.tick(1520, 0.04, 0.03);
         const cur = document.documentElement.getAttribute("data-theme") || "dark";
-        document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+        const next = cur === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        const meta = document.getElementById("themeColorMeta");
+        if (meta) meta.setAttribute("content", next === "dark" ? "#07080A" : "#F6F5F1");
+        try { localStorage.setItem("kanon-marketing-theme", next); } catch {}
       });
 
       const toast = document.getElementById("toast");
@@ -2797,6 +2868,11 @@
       });
 
       const modal = document.getElementById("accessModal");
+      const accessForm = document.getElementById("accessForm");
+      const accessTitle = document.getElementById("accessTitle");
+      const accessDesc = document.getElementById("accessDesc");
+      const accessConfirm = document.getElementById("accessConfirm");
+      const accessMailLink = document.getElementById("accessMailLink");
       const mobileDrawer = document.getElementById("mobileDrawer");
       const mobileMenuBtn = document.getElementById("mobileMenuBtn");
       const menuIconSvg = document.getElementById("menuIconSvg");
@@ -2804,6 +2880,7 @@
       function setDrawer(open) {
         mobileDrawer.classList.toggle("open", open);
         mobileDrawer.setAttribute("aria-hidden", String(!open));
+        mobileDrawer.inert = !open;
         mobileMenuBtn.setAttribute("aria-expanded", String(open));
         document.body.style.overflow = open ? "hidden" : "";
         menuIconSvg.innerHTML = open
@@ -2821,24 +2898,29 @@
         });
       });
 
-      const openM = () => { setDrawer(false); modal.classList.add("open"); };
+      const resetModal = () => {
+        accessTitle.textContent = "Institutional Access.";
+        accessDesc.textContent = "面向独立价值投资者、家族办公室与买方投研团队开放私有化部署与专属支持。";
+        accessForm.style.display = "";
+        accessConfirm.style.display = "none";
+      };
+      const openM = () => { resetModal(); setDrawer(false); modal.classList.add("open"); };
       const closeM = () => { setDrawer(false); modal.classList.remove("open"); };
-      document.getElementById("openAccess")?.addEventListener("click", openM);
       document.getElementById("closingAccess")?.addEventListener("click", openM);
-      document.getElementById("mobileAccessBtn")?.addEventListener("click", openM);
       document.getElementById("closeModal")?.addEventListener("click", closeM);
       modal.addEventListener("click", (e) => { if (e.target === modal) closeM(); });
       window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeM(); });
 
-      document.getElementById("accessForm").addEventListener("submit", (e) => {
+      accessForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const name = document.getElementById("fName").value.trim();
         const email = document.getElementById("fEmail").value.trim();
         const href = `mailto:jensencuda@gmail.com?subject=${encodeURIComponent("[KANON Private Access] " + name)}&body=${encodeURIComponent("Name: " + name + "\nEmail: " + email)}`;
-        document.getElementById("accessBody").innerHTML = `
-          <h3 class="serif">Received.</h3>
-          <p>感谢您，${name.replace(/</g, "&lt;")}。可直接致信创始人 Caius Lu 开启专属沟通。</p>
-          <a class="btn-hero-primary" href="${href}">联系 Caius Lu →</a>`;
+        accessTitle.textContent = "Received.";
+        accessDesc.textContent = `感谢您，${name}。可直接致信创始人 Caius Lu 开启专属沟通。`;
+        accessMailLink.setAttribute("href", href);
+        accessForm.style.display = "none";
+        accessConfirm.style.display = "block";
       });
 
       resize();

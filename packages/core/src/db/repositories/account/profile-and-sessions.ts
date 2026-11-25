@@ -1,7 +1,7 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 import type { SessionSummary } from "../../../contracts/account-contracts";
 import { maskChinaPhone, type PublicUser } from "../../../contracts/auth-contracts";
-import type { KanonDb } from "../../client";
+import { type KanonDb, runInTransaction } from "../../client";
 import { sessionsTable, usersTable } from "../../schema";
 import { hashPassword, hashSessionToken, verifyPassword } from "../auth-crypto";
 
@@ -49,16 +49,13 @@ export async function changeUserPassword(params: {
     return { ok: false, error: "当前密码不正确，请核对后重试。" };
   }
   const nextHash = await hashPassword(params.newPassword);
-  await params.db
-    .update(usersTable)
-    .set({ passwordHash: nextHash, updatedAt: new Date() })
-    .where(eq(usersTable.id, params.userId));
-
-  const revokedOtherSessions = await revokeOtherUserSessions(
-    params.db,
-    params.userId,
-    params.currentRawToken,
-  );
+  const revokedOtherSessions = await runInTransaction(params.db, async (tx) => {
+    await tx
+      .update(usersTable)
+      .set({ passwordHash: nextHash, updatedAt: new Date() })
+      .where(eq(usersTable.id, params.userId));
+    return revokeOtherUserSessions(tx, params.userId, params.currentRawToken);
+  });
   return { ok: true, revokedOtherSessions };
 }
 

@@ -8,44 +8,58 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(target.closest("button, a, [role='button'], [role='menuitem'], [role='tab']"));
+}
+
 function shouldIgnoreEvent(event: KeyboardEvent, disabled: boolean): boolean {
   return (
     disabled || event.metaKey || event.ctrlKey || event.altKey || isEditableTarget(event.target)
   );
 }
 
-export function useCockpitShortcuts(params: {
-  disabled: boolean;
+interface CockpitShortcutHandlers {
   onNewThesis: () => void;
   onToggleView: () => void;
   onToggleTheme: () => void;
   onFocusSearch: () => void;
   onMoveSelection?: (delta: -1 | 1) => void;
   onOpenSelected?: () => void;
-}) {
-  const {
-    disabled,
-    onNewThesis,
-    onToggleView,
-    onToggleTheme,
-    onFocusSearch,
-    onMoveSelection,
-    onOpenSelected,
-  } = params;
+}
+
+function buildShortcutMap(p: CockpitShortcutHandlers): Record<string, (() => void) | undefined> {
+  return {
+    "/": p.onFocusSearch,
+    n: p.onNewThesis,
+    v: p.onToggleView,
+    t: p.onToggleTheme,
+    j: p.onMoveSelection ? () => p.onMoveSelection?.(1) : undefined,
+    k: p.onMoveSelection ? () => p.onMoveSelection?.(-1) : undefined,
+    enter: p.onOpenSelected,
+  };
+}
+
+export function useCockpitShortcuts(
+  params: CockpitShortcutHandlers & { disabled: boolean; pausedRef?: React.RefObject<boolean> },
+) {
+  const { disabled, pausedRef, onNewThesis, onToggleView, onToggleTheme, onFocusSearch } = params;
+  const { onMoveSelection, onOpenSelected } = params;
 
   useEffect(() => {
-    const handlers: Record<string, (() => void) | undefined> = {
-      "/": onFocusSearch,
-      n: onNewThesis,
-      v: onToggleView,
-      t: onToggleTheme,
-      j: onMoveSelection ? () => onMoveSelection(1) : undefined,
-      k: onMoveSelection ? () => onMoveSelection(-1) : undefined,
-      enter: onOpenSelected,
-    };
+    const handlers = buildShortcutMap({
+      onNewThesis,
+      onToggleView,
+      onToggleTheme,
+      onFocusSearch,
+      onMoveSelection,
+      onOpenSelected,
+    });
     function handleKeyDown(event: KeyboardEvent) {
-      if (shouldIgnoreEvent(event, disabled)) return;
-      const action = handlers[event.key.toLowerCase()];
+      if (shouldIgnoreEvent(event, disabled || Boolean(pausedRef?.current))) return;
+      const key = event.key.toLowerCase();
+      if (key === "enter" && isInteractiveTarget(event.target)) return;
+      const action = handlers[key];
       if (!action) return;
       event.preventDefault();
       action();
@@ -54,6 +68,7 @@ export function useCockpitShortcuts(params: {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     disabled,
+    pausedRef,
     onNewThesis,
     onToggleView,
     onToggleTheme,

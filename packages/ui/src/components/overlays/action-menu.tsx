@@ -69,10 +69,10 @@ function ActionMenuEntry({
 }) {
   const toneCls =
     item.tone === "danger"
-      ? "font-medium text-status-fail data-[hovered=true]:bg-status-fail-soft/75"
+      ? "font-medium text-status-fail data-[hovered=true]:bg-status-fail-soft/75 data-[focused=true]:bg-status-fail-soft/75"
       : item.selected
-        ? "bg-muted/65 font-semibold text-ink-primary data-[hovered=true]:bg-muted"
-        : "font-medium text-ink-primary data-[hovered=true]:bg-muted/85";
+        ? "bg-muted/65 font-semibold text-ink-primary data-[hovered=true]:bg-muted data-[focused=true]:bg-muted"
+        : "font-medium text-ink-primary data-[hovered=true]:bg-muted/85 data-[focused=true]:bg-muted/85";
   return (
     <Dropdown.Item
       id={item.id}

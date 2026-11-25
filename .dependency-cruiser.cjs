@@ -55,20 +55,23 @@ module.exports = {
       },
       to: {
         path: "^apps/web/src/features/[^/]+/",
-        pathNot: ["^apps/web/src/features/$1/", "^apps/web/src/features/[^/]+/index\\.tsx?$"],
+        pathNot: [
+          "^apps/web/src/features/$1/",
+          "^apps/web/src/features/[^/]+/(?:index|public-[a-z0-9-]+)\\.tsx?$",
+        ],
       },
     },
     {
       name: "app-routes-must-use-feature-barrels",
       severity: "error",
       comment:
-        "AGENTS.md §2: apps/web/src/app/ routes must stay thin and only import public feature barrels (features/<domain>/index.ts).",
+        "AGENTS.md §2: apps/web/src/app/ routes must stay thin and only import public feature entrypoints (index.ts or public-*.ts).",
       from: {
         path: "^apps/web/src/app/",
       },
       to: {
         path: "^apps/web/src/features/[^/]+/",
-        pathNot: "^apps/web/src/features/[^/]+/index\\.tsx?$",
+        pathNot: "^apps/web/src/features/[^/]+/(?:index|public-[a-z0-9-]+)\\.tsx?$",
       },
     },
     {

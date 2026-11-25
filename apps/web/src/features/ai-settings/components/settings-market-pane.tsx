@@ -13,7 +13,8 @@ import {
 import { IconCheck, IconPlugConnected, IconRefresh } from "@tabler/icons-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { apiTestMarketProvider, readMarketConfig, writeMarketConfig } from "../lib/market-storage";
+import { readMarketConfig, writeMarketConfig } from "@/shared/lib/client-provider-storage";
+import { apiTestMarketProvider } from "../lib/market-storage";
 
 interface ProviderSpec {
   id: MarketProviderPreference;
@@ -138,7 +139,7 @@ function MarketKeyCard({
             value={apiKey}
             onChange={(e) => onApiKey(e.target.value.slice(0, 128))}
             placeholder="输入付费 Key..."
-            className="h-9 w-52 font-mono text-xs"
+            className="h-9 w-full font-mono text-xs sm:w-52"
           />
         </SettingsRow>
       ) : null}

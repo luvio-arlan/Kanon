@@ -1,10 +1,27 @@
-import { integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  doublePrecision,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import type { UserRole } from "../contracts/auth-contracts";
 import type { MarketDataSource, MarketQuoteSnapshot } from "../contracts/market-contracts";
 import type { SecFilingDiff, SecFilingSection } from "../contracts/sec-filing-contracts";
-import type { ResearchNoteKind } from "../schemas/v7-research-os";
+import type { SecAnnualFinancial, SecFinancialFact } from "../schemas/research";
 
 export type ApiTokenScope = "read" | "read_write";
+
+export const glossaryTermsTable = pgTable("glossary_terms", {
+  term: text("term").primaryKey(),
+  fullName: text("full_name").notNull(),
+  category: text("category").notNull(),
+  plainSummary: text("plain_summary").notNull(),
+  filingContext: text("filing_context").notNull(),
+  example: text("example").notNull(),
+});
 
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),
@@ -67,17 +84,21 @@ export const secFilingDocumentsCacheTable = pgTable("sec_filing_documents_cache"
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const researchNotesTable = pgTable("research_notes", {
-  id: text("id").primaryKey(),
-  thesisId: text("thesis_id").notNull(),
-  userId: text("user_id").notNull(),
-  kind: text("kind").$type<ResearchNoteKind>().notNull().default("earnings_call"),
-  periodLabel: text("period_label").notNull(),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  guidanceMetric: text("guidance_metric").notNull().default(""),
-  guidancePromised: text("guidance_promised").notNull().default(""),
-  guidanceDelivered: text("guidance_delivered").notNull().default(""),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const userSecOverridesTable = pgTable(
+  "user_sec_overrides",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    ticker: text("ticker").notNull(),
+    cik: text("cik").notNull(),
+    entityName: text("entity_name").notNull(),
+    reportingCurrency: text("reporting_currency").notNull().default("USD"),
+    fxToUsd: doublePrecision("fx_to_usd").notNull().default(1),
+    adrRatio: doublePrecision("adr_ratio").notNull().default(1),
+    facts: jsonb("facts").$type<SecFinancialFact[]>().notNull().default([]),
+    annuals: jsonb("annuals").$type<SecAnnualFinancial[]>().notNull().default([]),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.ticker] })],
+);

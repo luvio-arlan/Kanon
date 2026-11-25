@@ -37,7 +37,7 @@ export interface SotpValuationResult {
 }
 
 function toTargetPrice(equityB: number, sharesM: number): number {
-  return roundTo((Math.max(0.1, equityB) * 1000) / sharesM, 2);
+  return roundTo((Math.max(0, equityB) * 1000) / sharesM, 2);
 }
 
 function aggregateSegments(segments: readonly SotpSegment[]) {
@@ -72,9 +72,10 @@ export function calculateSotpValuation(input: SotpValuationInput): SotpValuation
   const disc = 1 - Math.min(40, Math.max(0, input.holdingDiscountPct ?? 0)) / 100;
   const { bearEv, baseEv, bullEv, breakdown } = aggregateSegments(input.segments);
 
-  const bearEquityB = roundTo((bearEv + input.netCashB) * disc, 2);
-  const baseEquityB = roundTo((baseEv + input.netCashB) * disc, 2);
-  const bullEquityB = roundTo((bullEv + input.netCashB) * disc, 2);
+  const applyHoldcoDisc = (rawEquity: number) => (rawEquity > 0 ? rawEquity * disc : rawEquity);
+  const bearEquityB = roundTo(applyHoldcoDisc(bearEv + input.netCashB), 2);
+  const baseEquityB = roundTo(applyHoldcoDisc(baseEv + input.netCashB), 2);
+  const bullEquityB = roundTo(applyHoldcoDisc(bullEv + input.netCashB), 2);
   const bearTargetPrice = toTargetPrice(bearEquityB, shares);
   const baseTargetPrice = toTargetPrice(baseEquityB, shares);
   const bullTargetPrice = toTargetPrice(bullEquityB, shares);
@@ -84,6 +85,8 @@ export function calculateSotpValuation(input: SotpValuationInput): SotpValuation
       : bearTargetPrice >= price
         ? null
         : roundTo((baseTargetPrice - price) / (price - bearTargetPrice), 2);
+  const baseCagrPct =
+    baseTargetPrice <= 0 ? -100 : roundTo(((baseTargetPrice / price) ** (1 / years) - 1) * 100, 1);
 
   return {
     segments: breakdown,
@@ -97,7 +100,7 @@ export function calculateSotpValuation(input: SotpValuationInput): SotpValuation
     baseTargetPrice,
     bullTargetPrice,
     baseUpsidePct: roundTo(((baseTargetPrice - price) / price) * 100, 1),
-    baseCagrPct: roundTo(((baseTargetPrice / price) ** (1 / years) - 1) * 100, 1),
+    baseCagrPct,
     riskRewardRatio,
   };
 }
