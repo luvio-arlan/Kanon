@@ -2,6 +2,7 @@
 
 import {
   type AgentBriefing,
+  type AgentPartialSynthesis,
   type AgentProposal,
   type AgentStreamEvent,
   AgentStreamEventSchema,
@@ -46,6 +47,7 @@ async function readEventStream(
 
 interface EventSetters {
   setTraces: React.Dispatch<React.SetStateAction<AgentTraceStep[]>>;
+  setPartial: React.Dispatch<React.SetStateAction<AgentPartialSynthesis | null>>;
   setBriefing: React.Dispatch<React.SetStateAction<AgentBriefing | null>>;
   setRunId: React.Dispatch<React.SetStateAction<string | null>>;
 }
@@ -69,7 +71,12 @@ function dispatchAgentEvent(evt: AgentStreamEvent, setters: EventSetters) {
     setters.setTraces((prev) => upsertTrace(prev, evt.trace));
     return;
   }
+  if (evt.type === "synthesis_partial") {
+    setters.setPartial(evt.partial);
+    return;
+  }
   if (evt.type === "briefing_ready") {
+    setters.setPartial(null);
     setters.setBriefing(evt.briefing);
     if (evt.runId) setters.setRunId(evt.runId);
     return;
@@ -81,12 +88,14 @@ export function useResearchAgent(thesisId: string, initialRun: SavedAgentRun | n
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(initialRun?.id ?? null);
   const [traces, setTraces] = useState<AgentTraceStep[]>(initialRun?.briefing.traces ?? []);
+  const [partial, setPartial] = useState<AgentPartialSynthesis | null>(null);
   const [briefing, setBriefing] = useState<AgentBriefing | null>(initialRun?.briefing ?? null);
   const [appliedIds, setAppliedIds] = useState<string[]>(initialRun?.appliedProposalIds ?? []);
 
   const runAgent = useCallback(async () => {
     setRunning(true);
     setTraces([]);
+    setPartial(null);
     setBriefing(null);
     setAppliedIds([]);
     try {
@@ -104,7 +113,7 @@ export function useResearchAgent(thesisId: string, initialRun: SavedAgentRun | n
         return;
       }
       await readEventStream(res.body.getReader(), (evt) =>
-        dispatchAgentEvent(evt, { setTraces, setBriefing, setRunId }),
+        dispatchAgentEvent(evt, { setTraces, setPartial, setBriefing, setRunId }),
       );
     } finally {
       setRunning(false);
@@ -121,7 +130,7 @@ export function useResearchAgent(thesisId: string, initialRun: SavedAgentRun | n
     [runId],
   );
 
-  return { running, traces, briefing, appliedIds, runAgent, markApplied };
+  return { running, traces, partial, briefing, appliedIds, runAgent, markApplied };
 }
 
 function buildCatalystFromProposal(proposal: AgentProposal): ThesisCatalyst {

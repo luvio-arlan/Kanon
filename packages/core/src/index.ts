@@ -1,6 +1,9 @@
+export * from "./contracts/account-contracts";
 export {
   type AgentBriefing,
   AgentBriefingSchema,
+  type AgentPartialSynthesis,
+  AgentPartialSynthesisSchema,
   type AgentProposal,
   AgentProposalSchema,
   type AgentProposalTarget,
@@ -56,6 +59,7 @@ export {
 } from "./contracts/api-contracts";
 export * from "./contracts/auth-contracts";
 export * from "./contracts/market-contracts";
+export * from "./contracts/sec-filing-contracts";
 export {
   formatGoogleDocHtml,
   formatPortfolioCsv,

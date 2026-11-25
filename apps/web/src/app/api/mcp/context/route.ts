@@ -13,7 +13,7 @@ import {
   listQuarterlyReviews,
   listTheses,
 } from "@kanon/core/db";
-import { requireWorkspaceContext } from "../../_lib/auth-session";
+import { requireMcpAuthContext } from "../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,7 @@ async function buildSingleTickerContext(
 
 export async function GET(request: Request) {
   const startedAt = performance.now();
-  const auth = await requireWorkspaceContext(startedAt);
+  const auth = await requireMcpAuthContext(request, startedAt);
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);

@@ -92,7 +92,7 @@ export const CreateDisciplineEntrySchema = DisciplineEntrySchema.omit({
   id: true,
   createdAt: true,
 }).refine((entry) => entry.action === "pass" || entry.noLeverageConfirmed, {
-  message: "铁律拦截：建仓、加仓或持有操作必须明确确认「零杠杆」原则。",
+  message: "风控约束：建仓、加仓或持有操作必须明确确认「零杠杆」原则。",
   path: ["noLeverageConfirmed"],
 });
 export type CreateDisciplineEntryInput = z.infer<typeof CreateDisciplineEntrySchema>;

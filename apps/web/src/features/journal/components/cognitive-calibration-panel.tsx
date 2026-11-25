@@ -90,7 +90,7 @@ function buildCalibrationCards(report: ReturnType<typeof calculateCognitiveCalib
       label: "零杠杆守约率",
       icon: <IconShieldCheck size={16} stroke={1.5} />,
       value: <RollingNumber value={report.zeroLeverageCompliancePct} suffix="%" decimals={0} />,
-      caption: "契约级铁律执行",
+      caption: "零杠杆契约执行",
       delta: "0.00×",
       deltaTone: "pass" as const,
     },

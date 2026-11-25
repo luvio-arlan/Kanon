@@ -9,6 +9,7 @@ import {
   type ValuationScenarioSummary,
 } from "@kanon/core";
 import { Badge, MarketSessionBadge, RollingNumber, ValuationSparkline } from "@kanon/ui";
+import { useMemo } from "react";
 
 export interface ValuationAnchorPanelProps {
   valuation: ValuationScenarioSummary;
@@ -167,7 +168,7 @@ export function ValuationAnchorPanel({
   liveQuote,
 }: ValuationAnchorPanelProps) {
   const zone = ZONE_STYLE[valuation.convictionZone];
-  const exp = calculateImpliedExpectations({ summary: valuation });
+  const exp = useMemo(() => calculateImpliedExpectations({ summary: valuation }), [valuation]);
 
   return (
     <div className="px-6 pb-5 pt-1">
@@ -180,7 +181,7 @@ export function ValuationAnchorPanel({
         />
         <div className="hidden w-36 shrink-0 sm:block">
           <ValuationSparkline
-            data={[...priceHistory]}
+            data={priceHistory}
             tone={zone.sparkTone}
             targetPrice={valuation.base.targetPrice}
           />

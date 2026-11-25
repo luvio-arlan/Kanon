@@ -24,12 +24,15 @@ const RAW_PALETTE_RE =
   /\b(?:bg|text|border|ring|fill|stroke)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)(?:-\d{2,3})?(?:\/\d{1,3})?\b/;
 const NOISY_MOTION_RE = /\banimate-(?:bounce|ping)\b/;
 const RAW_ZINDEX_RE = /\bz-\[\d{2,}\]/;
+const RAW_RADIUS_RE = /\brounded-(?:sm|md|lg|xl|2xl|3xl)\b/;
 const TINY_TEXT_RE = /\btext-\[(?:[1-9]|1[01])(?:\.\d+)?px\]/;
 const TS_SUPPRESS_RE = /@ts-(?:ignore|nocheck)\b/;
 const TYPE_ESCAPE_RE = /\bas\s+(?:any|never|unknown\s+as)\b/;
 const SPRING_LITERAL_RE = /\b(?:stiffness|damping)\s*:/;
 const BLUR_FILTER_MOTION_RE = /\bfilter\s*:\s*["']blur\(/;
 const USER_DB_JARGON_RE = /\bPostgreSQL\b|\bPostgres\b|落库/;
+const COLLOQUIAL_COPY_RE =
+  /事前验尸|商业模式滤镜|商业滤镜|水电煤|死因链条|红队挑刺|红队拷问|苛刻空头|恐慌想割|法证体检|法证排雷|印钞机|烧钱黑洞|拍脑袋|一票否决|真·反向/;
 const DASHED_BANNER_RE =
   /\bborder-dashed\b.*\bbg-(?:accent-coral|status-)|\bbg-(?:accent-coral|status-).*\bborder-dashed\b/;
 
@@ -99,6 +102,33 @@ function checkEditorialLineRules(relPath, line, lineNo, flags, errors) {
       lineNo,
       "no-user-facing-db-jargon",
       "Avoid exposing Postgres/PostgreSQL/落库 infrastructure jargon in user-facing UI features (.rules/editorial-craft.md §1).",
+    );
+  }
+  if (
+    !flags.isTestFile &&
+    /^(?:apps\/web\/src\/features|packages\/core\/src|packages\/ai\/src)\//.test(relPath) &&
+    COLLOQUIAL_COPY_RE.test(line)
+  ) {
+    addError(
+      errors,
+      relPath,
+      lineNo,
+      "institutional-copy-hygiene",
+      "Colloquial or morbid phrasing forbidden. Use dignified institutional buy-side Chinese (e.g. 商业质量评估, 逆向压力推演, 反向质询, 财务法证, 暂不纳入) (.rules/editorial-craft.md §1).",
+    );
+  }
+  if (
+    !flags.isTestFile &&
+    !flags.isTokenSheet &&
+    /^(?:apps\/web\/src|packages\/ui\/src)\//.test(relPath) &&
+    RAW_RADIUS_RE.test(line)
+  ) {
+    addError(
+      errors,
+      relPath,
+      lineNo,
+      "semantic-radius-only",
+      "Raw Tailwind radius breaks concentric corner geometry. Use KANON semantic radius tokens (rounded-card, rounded-panel, rounded-control, rounded-item, rounded-badge, rounded-pill) (.rules/editorial-craft.md §2).",
     );
   }
 }

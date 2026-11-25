@@ -126,11 +126,11 @@ function StepThreeHeading() {
         <span className="h-[1.5px] w-7 bg-accent-coral" />
         <span className="font-mono text-xs tracking-[0.12em] text-ink-muted">STEP 03</span>
       </div>
-      <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
-        <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
           一阶资料印证
         </h1>
-        <span className="kanon-serif-italic text-2xl">Primary Sources</span>
+        <span className="kanon-editorial-subtitle text-xl">Primary Sources</span>
       </div>
     </header>
   );
@@ -223,6 +223,7 @@ export function StepFirstPrinciples(props: StepFirstPrinciplesProps) {
       <SourceClipperSheet
         open={clipperOpen}
         ticker={props.thesis.ticker}
+        filings={props.secSnapshot?.filings}
         sourceText={transcript}
         digest={props.digest}
         onChangeSource={setTranscript}

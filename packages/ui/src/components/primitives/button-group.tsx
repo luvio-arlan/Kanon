@@ -14,11 +14,11 @@ const TONE_DOT: Record<ButtonGroupTone, string> = {
 };
 
 const TONE_SELECTED: Record<ButtonGroupTone, string> = {
-  neutral: "bg-muted text-ink-primary font-semibold",
-  pass: "bg-status-pass-soft text-status-pass font-semibold",
-  warn: "bg-status-warn-soft text-status-warn font-semibold",
-  fail: "bg-status-fail-soft text-status-fail font-semibold",
-  coral: "bg-accent-coral-soft text-accent-coral font-semibold",
+  neutral: "border-hairline bg-surface text-ink-primary shadow-pill-active font-semibold",
+  pass: "border-status-pass/25 bg-surface text-status-pass shadow-pill-active font-semibold",
+  warn: "border-status-warn/25 bg-surface text-status-warn shadow-pill-active font-semibold",
+  fail: "border-status-fail/25 bg-surface text-status-fail shadow-pill-active font-semibold",
+  coral: "border-accent-coral/25 bg-surface text-accent-coral shadow-pill-active font-semibold",
 };
 
 export interface ButtonGroupProps {
@@ -32,7 +32,7 @@ export function ButtonGroup({ children, ariaLabel, className }: ButtonGroupProps
     <fieldset
       aria-label={ariaLabel}
       className={cn(
-        "isolate m-0 inline-flex items-stretch overflow-hidden rounded-control border border-strong/75 bg-surface p-0 shadow-group divide-x divide-hairline",
+        "m-0 inline-flex items-center gap-0.5 rounded-control border border-hairline bg-muted/75 p-1",
         className,
       )}
     >
@@ -63,24 +63,22 @@ export function ButtonGroupItem({
       type={type}
       aria-pressed={selected}
       className={cn(
-        "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap font-medium select-none",
-        "transition-[background-color,color] duration-150 focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-coral",
+        "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-badge border font-medium leading-none select-none",
+        "transition-[background-color,border-color,color,box-shadow] duration-150 ease-[var(--ease-kanon)] motion-reduce:transition-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral/70",
         "disabled:cursor-not-allowed disabled:opacity-45",
-        size === "sm" ? "h-9 px-3 text-sm" : "h-10 px-4 text-sm",
+        size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3.5 text-xs sm:text-[13px]",
         selected
           ? TONE_SELECTED[tone]
-          : "bg-surface text-ink-secondary hover:bg-muted/65 hover:text-ink-primary",
+          : "border-transparent bg-transparent text-ink-secondary hover:bg-surface/60 hover:text-ink-primary",
         className,
       )}
       {...props}
     >
-      {showDot ? (
+      {showDot && selected ? (
         <span
           aria-hidden="true"
-          className={cn(
-            "h-1.5 w-1.5 shrink-0 rounded-pill transition-opacity",
-            selected ? TONE_DOT[tone] : "bg-ink-muted/40",
-          )}
+          className={cn("h-1.5 w-1.5 shrink-0 rounded-pill", TONE_DOT[tone])}
         />
       ) : null}
       <span>{children}</span>

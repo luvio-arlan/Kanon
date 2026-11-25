@@ -47,12 +47,14 @@ export type InvestmentMemo = z.infer<typeof InvestmentMemoSchema>;
 export const CopilotActionSchema = z.enum(["earnings_digest", "red_team", "investment_memo"]);
 export type CopilotAction = z.infer<typeof CopilotActionSchema>;
 
-export const ByokProviderSchema = z.enum(["gemini", "anthropic", "openai"]);
+export const ByokProviderSchema = z.enum(["gemini", "anthropic", "openai", "openai_compatible"]);
 export type ByokProvider = z.infer<typeof ByokProviderSchema>;
 
 export const LocalByokConfigSchema = z.object({
   provider: ByokProviderSchema,
   apiKey: z.string().trim().min(1),
+  model: z.string().trim().max(100).optional(),
+  baseUrl: z.string().trim().max(240).optional(),
 });
 export type LocalByokConfig = z.infer<typeof LocalByokConfigSchema>;
 
@@ -121,11 +123,22 @@ export const AgentBriefingSchema = z.object({
   convictionScore: z.number().int().min(0).max(100),
   bullSynthesis: z.string().min(8),
   bearCritique: z.string().min(8),
+  bearRebuttal: z.string().min(8).optional(),
   accountingCheck: z.string().min(8),
   traces: z.array(AgentTraceStepSchema),
   proposals: z.array(AgentProposalSchema).max(8),
 });
 export type AgentBriefing = z.infer<typeof AgentBriefingSchema>;
+
+export const AgentPartialSynthesisSchema = z.object({
+  engine: CopilotEngineModeSchema,
+  verdict: z.string().optional(),
+  bullSynthesis: z.string().optional(),
+  bearCritique: z.string().optional(),
+  bearRebuttal: z.string().optional(),
+  accountingCheck: z.string().optional(),
+});
+export type AgentPartialSynthesis = z.infer<typeof AgentPartialSynthesisSchema>;
 
 export const AgentRequestSchema = z.object({
   thesisId: z.string().min(1),
@@ -142,6 +155,10 @@ export const AgentStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("trace_done"),
     trace: AgentTraceStepSchema,
+  }),
+  z.object({
+    type: z.literal("synthesis_partial"),
+    partial: AgentPartialSynthesisSchema,
   }),
   z.object({
     type: z.literal("briefing_ready"),

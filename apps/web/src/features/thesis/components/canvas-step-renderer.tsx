@@ -6,11 +6,34 @@ import type {
   SecAnnualFinancial,
   ThesisSummary,
 } from "@kanon/core";
-import { DisciplineJournal } from "@/features/journal";
-import { StepBusinessFilter, StepFirstPrinciples, StepHypotheses } from "@/features/research-steps";
-import { ValuationWorkbench } from "@/features/valuation";
+import dynamic from "next/dynamic";
+import { StepBusinessFilter } from "@/features/research-steps";
 import type { useResearchCanvas } from "../hooks/use-research-canvas";
 import type { StepId } from "./step-rail";
+
+const StepSkeleton = () => (
+  <div className="space-y-5" aria-hidden="true">
+    <div className="kanon-shimmer h-16 w-72 rounded-control" />
+    <div className="kanon-shimmer h-64 w-full rounded-card border border-hairline" />
+  </div>
+);
+
+const StepHypotheses = dynamic(
+  () => import("@/features/research-steps").then((m) => m.StepHypotheses),
+  { ssr: false, loading: StepSkeleton },
+);
+const StepFirstPrinciples = dynamic(
+  () => import("@/features/research-steps").then((m) => m.StepFirstPrinciples),
+  { ssr: false, loading: StepSkeleton },
+);
+const ValuationWorkbench = dynamic(
+  () => import("@/features/valuation").then((m) => m.ValuationWorkbench),
+  { ssr: false, loading: StepSkeleton },
+);
+const DisciplineJournal = dynamic(
+  () => import("@/features/journal").then((m) => m.DisciplineJournal),
+  { ssr: false, loading: StepSkeleton },
+);
 
 type CanvasController = ReturnType<typeof useResearchCanvas>;
 
@@ -83,7 +106,7 @@ function EarlySteps(p: EarlyStepsProps) {
         saving={p.ctrl.saving}
         onDirtyChange={p.onDirtyChange}
         onSave={(payload) =>
-          p.ctrl.patchStep({ step: "business_filter", ...payload }, "Step 1 商业模式滤镜已保存")
+          p.ctrl.patchStep({ step: "business_filter", ...payload }, "Step 1 商业质量评估已保存")
         }
       />
     );

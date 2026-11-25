@@ -27,7 +27,7 @@ function FilterActionsBar(props: {
         ) : (
           <>
             <IconArchive size={16} stroke={1.5} />
-            <span>一票否决并归档</span>
+            <span>暂不纳入并归档</span>
           </>
         )}
       </Button>
@@ -57,7 +57,7 @@ function NotesField(p: {
 }) {
   return (
     <div className="space-y-2.5">
-      <label htmlFor={p.id} className="block text-[15px] font-semibold text-ink-primary">
+      <label htmlFor={p.id} className="block text-sm font-semibold text-ink-primary">
         {p.label}
       </label>
       <Textarea
@@ -86,17 +86,17 @@ export function BusinessFilterNotesCard(props: {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <NotesField
           id="thesis-summary"
-          label="一句话核心投资论点"
+          label="核心投资论点"
           value={props.summary}
           onChange={props.onSummary}
-          placeholder="用一句话讲清：这家公司为什么能持续赚取超额利润？"
+          placeholder="凝练阐述：这家公司为何能持续创造超额资本回报？"
         />
         <NotesField
           id="filter-notes"
-          label="商业模式补充笔记"
+          label="商业质量补充研判"
           value={props.notes}
           onChange={props.onNotes}
-          placeholder="记录产业链位置、护城河薄弱环节或潜在否决理由..."
+          placeholder="记录产业链地位、竞争壁垒薄弱环节或潜在排除理由..."
         />
       </div>
       <FilterActionsBar

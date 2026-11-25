@@ -52,8 +52,8 @@ function makeStepItem(
 export function calculateResearchReadiness(thesis: ThesisDetail): ResearchReadiness {
   const d = evaluateStepFlags(thesis);
   const steps: ResearchReadiness["steps"] = [
-    makeStepItem(1, "商业模式滤镜", d.step1, "已完成初筛", "待评估 4 维滤镜"),
-    makeStepItem(2, "核心假设拆解", d.step2, "3 条红线已定", "待补全阈值与佐证"),
+    makeStepItem(1, "商业质量评估", d.step1, "已完成初筛", "待评估 4 维质量"),
+    makeStepItem(2, "核心假设拆解", d.step2, "3 条阈值已定", "待补全阈值与佐证"),
     makeStepItem(
       3,
       "一阶资料印证",
@@ -67,7 +67,7 @@ export function calculateResearchReadiness(thesis: ThesisDetail): ResearchReadin
       "零杠杆纪律复盘",
       d.step5,
       `${thesis.disciplineEntries.length} 条复盘`,
-      "待签交易铁律",
+      "待签交易纪律",
     ),
   ];
   const completedCount = steps.filter((s) => s.complete).length;

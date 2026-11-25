@@ -152,6 +152,40 @@ function checkRuntimeAiImport(relPath, sf, node, isClientSlice, errors) {
   }
 }
 
+function checkUiChartNamedImports(relPath, sf, node, errors) {
+  const bindings = node.importClause?.namedBindings;
+  if (!bindings || !ts.isNamedImports(bindings)) return;
+  for (const el of bindings.elements) {
+    if (el.isTypeOnly || el.name.text !== "SecFinancialChart") continue;
+    addError(
+      errors,
+      relPath,
+      getLine(sf, el.getStart(sf)),
+      "no-recharts-in-cockpit",
+      "SecFinancialChart pulls Recharts into Cockpit. Load charts via next/dynamic on secondary screens only (.rules/editorial-craft.md §5).",
+    );
+  }
+}
+
+function checkCockpitPerfImport(relPath, sf, node, errors) {
+  if (!/^apps\/web\/src\/features\/cockpit\//.test(relPath) || !ts.isImportDeclaration(node)) {
+    return;
+  }
+  if (!ts.isStringLiteral(node.moduleSpecifier)) return;
+  const spec = node.moduleSpecifier.text;
+  if (spec === "recharts" || spec.includes("sec-financial-chart")) {
+    addError(
+      errors,
+      relPath,
+      getLine(sf, node.getStart(sf)),
+      "no-recharts-in-cockpit",
+      "Heavy Recharts imports are forbidden in Cockpit to preserve instant first paint. Use pure-SVG <ValuationSparkline> from @kanon/ui instead (.rules/editorial-craft.md §5).",
+    );
+    return;
+  }
+  if (spec === "@kanon/ui") checkUiChartNamedImports(relPath, sf, node, errors);
+}
+
 export function checkGardenAstRules(relPath, sf, isTestFile, errors) {
   if (isTestFile) return;
   const isClientSlice = /^apps\/web\/src\/(?:features|shared)\//.test(relPath);
@@ -176,6 +210,7 @@ export function checkGardenAstRules(relPath, sf, isTestFile, errors) {
       );
     }
     checkRuntimeAiImport(relPath, sf, node, isClientSlice, errors);
+    checkCockpitPerfImport(relPath, sf, node, errors);
     ts.forEachChild(node, walk);
   }
 
@@ -242,12 +277,25 @@ function checkSvgStrokeDrawPaths(html, relPath, strokeDrawClasses, errors) {
   }
 }
 
+const MARKETING_FORBIDDEN_COPY_RE =
+  /事前验尸|商业模式滤镜|商业滤镜|水电煤|死因链条|红队挑刺|红队拷问|苛刻空头|恐慌想割|法证体检|法证排雷|印钞机|烧钱黑洞|拍脑袋|一票否决|落库/;
+
 export function checkMarketingOpticalGuards(rootDir, errors) {
   const relPath = "marketing/index.html";
   const filePath = path.join(rootDir, relPath);
   if (!fs.existsSync(filePath)) return;
   const html = fs.readFileSync(filePath, "utf8");
   checkDistortedSvgCircles(html, relPath, errors);
+  const badCopy = html.match(MARKETING_FORBIDDEN_COPY_RE);
+  if (badCopy) {
+    addError(
+      errors,
+      relPath,
+      lineAtIndex(html, badCopy.index ?? 0),
+      "institutional-copy-hygiene",
+      `Marketing page contains colloquial/infra term "${badCopy[0]}". Use dignified institutional buy-side Chinese (.rules/editorial-craft.md §1).`,
+    );
+  }
 
   const strokeDrawClasses = new Set();
   for (const match of html.matchAll(/\.([a-zA-Z0-9_-]+)\s*\{([^}]*)\}/g)) {
@@ -303,5 +351,97 @@ export function checkEditorialUiHygiene(rootDir, errors) {
         "Global button:focus-visible in editorial.css MUST be wrapped in `@layer base` so Tailwind focus-visible utilities are never overridden (.rules/editorial-craft.md §2).",
       );
     }
+  }
+
+  checkConcentricTokensAndGlossary(rootDir, errors);
+}
+
+const REQUIRED_CONCENTRIC_TOKENS = [
+  "--radius-card",
+  "--radius-panel",
+  "--radius-control",
+  "--radius-item",
+  "--radius-badge",
+  "--shadow-input",
+  "--shadow-dropdown",
+  "--ease-kanon",
+  "--ease-exit",
+  "--ease-overlay",
+  "./overlay-motion.css",
+];
+
+function checkFrostedOpacity(tokensRel, css, errors) {
+  for (const match of css.matchAll(
+    /--glass-(?:topbar|ribbon)\s*:\s*rgba\([^)]*,\s*([0-9.]+)\s*\)/g,
+  )) {
+    const alpha = Number(match[1]);
+    if (Number.isFinite(alpha) && alpha < 0.92) {
+      addError(
+        errors,
+        tokensRel,
+        1,
+        "css-frosted-surface-opacity",
+        `Frosted surface opacity ${alpha} < 0.92 causes text bleed-through on scroll. Keep --glass-topbar and --glass-ribbon >= 0.92 (.rules/postmortems.md).`,
+      );
+    }
+  }
+}
+
+function checkRequiredTokensCss(rootDir, errors) {
+  const tokensRel = "packages/ui/src/styles/tokens.css";
+  const tokensPath = path.join(rootDir, tokensRel);
+  if (!fs.existsSync(tokensPath)) return;
+  const css = fs.readFileSync(tokensPath, "utf8");
+  for (const token of REQUIRED_CONCENTRIC_TOKENS) {
+    if (css.includes(token)) continue;
+    addError(
+      errors,
+      tokensRel,
+      1,
+      "css-concentric-tokens-and-motion",
+      `tokens.css MUST define/import "${token}" for concentric radii, surface elevation, and unified motion curves (.rules/editorial-craft.md §2).`,
+    );
+  }
+  checkFrostedOpacity(tokensRel, css, errors);
+}
+
+function checkOverlayMotionCss(rootDir, errors) {
+  const overlayRel = "packages/ui/src/styles/overlay-motion.css";
+  const overlayPath = path.join(rootDir, overlayRel);
+  if (!fs.existsSync(overlayPath)) {
+    addError(
+      errors,
+      overlayRel,
+      1,
+      "css-concentric-tokens-and-motion",
+      "overlay-motion.css MUST exist with placement-aware overlay transitions and prefers-reduced-motion guards (.rules/editorial-craft.md §2).",
+    );
+    return;
+  }
+  const overlayCss = fs.readFileSync(overlayPath, "utf8");
+  if (!/prefers-reduced-motion:\s*reduce/.test(overlayCss)) {
+    addError(
+      errors,
+      overlayRel,
+      1,
+      "css-concentric-tokens-and-motion",
+      "overlay-motion.css MUST guard all keyframe animations with @media (prefers-reduced-motion: reduce) (.rules/editorial-craft.md §2).",
+    );
+  }
+}
+
+function checkConcentricTokensAndGlossary(rootDir, errors) {
+  checkRequiredTokensCss(rootDir, errors);
+  checkOverlayMotionCss(rootDir, errors);
+  const glossaryRel = "packages/ui/src/components/overlays/glossary-popover-card.tsx";
+  const glossaryPath = path.join(rootDir, glossaryRel);
+  if (fs.existsSync(glossaryPath) && /\bfont-mono\b/.test(fs.readFileSync(glossaryPath, "utf8"))) {
+    addError(
+      errors,
+      glossaryRel,
+      1,
+      "no-jarring-inline-mono-glossary",
+      "GlossaryPopoverCard MUST NOT force font-mono inline in body prose; inherit font family with a quiet dotted underline (.rules/editorial-craft.md §2).",
+    );
   }
 }

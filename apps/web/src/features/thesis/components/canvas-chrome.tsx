@@ -14,6 +14,25 @@ import { type StepId, StepRail } from "./step-rail";
 
 export { type StepId, StepRail };
 
+export function buildMobileChrome(thesis: ThesisDetail, onOpenAgent: () => void) {
+  return {
+    title: (
+      <span className="inline-flex min-w-0 items-center gap-2">
+        <span className="truncate text-base font-semibold text-ink-primary">
+          {thesis.companyName}
+        </span>
+        <span className="font-mono text-xs text-ink-muted">{thesis.ticker}</span>
+      </span>
+    ),
+    actions: (
+      <Button variant="primary" size="sm" onClick={onOpenAgent}>
+        <IconSparkles size={15} stroke={1.5} className="text-accent-coral" />
+        <span>Agent</span>
+      </Button>
+    ),
+  };
+}
+
 export interface ResearchSidebarProps {
   thesis: ThesisDetail;
   allTheses: readonly ThesisSummary[];
@@ -106,7 +125,7 @@ function SidebarBottomFooter(p: ResearchSidebarProps) {
 export function ResearchSidebar(props: ResearchSidebarProps) {
   return (
     <div className="flex h-full flex-col justify-between overflow-hidden">
-      <div className="kanon-scroll-thin flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto pb-3">
+      <div className="kanon-scroll-thin flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pb-2">
         <SidebarTopHeader collapsed={props.collapsed} onToggleCollapse={props.onToggleCollapse} />
         <CompanySwitcherTile
           thesis={props.thesis}

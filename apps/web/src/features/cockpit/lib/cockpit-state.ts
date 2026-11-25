@@ -3,7 +3,7 @@
 import { calculateImpliedExpectations, type GlossaryTerm, type ThesisDetail } from "@kanon/core";
 import { useTheme } from "@kanon/ui";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readByokConfig } from "@/features/ai-settings";
 import type {
   CockpitFilter,
@@ -84,14 +84,14 @@ function useCockpitCollection(initialTheses: ThesisDetail[]) {
     [theses, filter, query, sortBy],
   );
   const filterCounts = useMemo(() => computeFilterCounts(theses, query), [theses, query]);
-  const replaceThesis = (updated: ThesisDetail) => {
+  const replaceThesis = useCallback((updated: ThesisDetail) => {
     setTheses((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     setPreviewThesis((prev) => (prev?.id === updated.id ? updated : prev));
-  };
-  const resetFilters = () => {
+  }, []);
+  const resetFilters = useCallback(() => {
     setFilter("all");
     setQuery("");
-  };
+  }, []);
 
   return {
     theses,
@@ -125,8 +125,11 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
     setHasByok(Boolean(readByokConfig()));
   }, []);
 
-  const setModal = (key: "cmd" | "create" | "ai", open: boolean) =>
-    setModals((prev) => ({ ...prev, [key]: open }));
+  const setModal = useCallback(
+    (key: "cmd" | "create" | "ai", open: boolean) =>
+      setModals((prev) => ({ ...prev, [key]: open })),
+    [],
+  );
 
   useCockpitShortcuts({
     disabled: modals.cmd || modals.create || modals.ai || collection.previewThesis !== null,
@@ -136,16 +139,19 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
     onFocusSearch: () => searchInputRef.current?.focus(),
   });
 
-  const commandGroups = buildCockpitCommandGroups({
-    theses: collection.theses,
-    glossary,
-    theme,
-    onOpenThesis: (item) => router.push(`/thesis/${item.id}`),
-    onNewThesis: () => setModal("create", true),
-    onOpenSettings: () => setModal("ai", true),
-    onToggleTheme: toggleTheme,
-  });
-
+  const commandGroups = useMemo(
+    () =>
+      buildCockpitCommandGroups({
+        theses: collection.theses,
+        glossary,
+        theme,
+        onOpenThesis: (item) => router.push(`/thesis/${item.id}`),
+        onNewThesis: () => setModal("create", true),
+        onOpenSettings: () => setModal("ai", true),
+        onToggleTheme: toggleTheme,
+      }),
+    [collection.theses, glossary, router, setModal, theme, toggleTheme],
+  );
   return {
     router,
     searchInputRef,

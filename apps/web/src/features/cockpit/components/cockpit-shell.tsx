@@ -3,7 +3,6 @@
 import {
   calculatePortfolioAnalytics,
   type GlossaryTerm,
-  type MarketQuoteSnapshot,
   type PublicUser,
   type ThesisDetail,
 } from "@kanon/core";
@@ -16,17 +15,36 @@ import {
 } from "@kanon/ui";
 import { IconPlus } from "@tabler/icons-react";
 import { motion } from "framer-motion";
-import { useMemo } from "react";
-import { CatalystCalendarBoard, PeerExpectationsMatrix } from "@/features/portfolio";
+import dynamic from "next/dynamic";
+import { useMemo, useState } from "react";
+import type { SettingsTabId } from "@/features/ai-settings";
 import { useCockpitState } from "../lib/cockpit-state";
 import { type LiveMarketQuotesState, useLiveMarketQuotes } from "../lib/use-live-market-quotes";
 import { usePortfolioOverlayState } from "../lib/use-portfolio-overlays";
 import { CockpitEmptyState } from "./cockpit-empty-state";
-import { type CockpitFilter, CockpitHeader, type CockpitViewMode } from "./cockpit-header";
+import { CockpitHeader } from "./cockpit-header";
 import { CockpitSidebar } from "./cockpit-sidebar";
 import { CockpitOverlays } from "./overlays/cockpit-overlays";
-import { PortfolioComparisonTable } from "./portfolio-comparison-table";
 import { ThesisBentoCard } from "./thesis-bento-card";
+
+const ViewSkeleton = () => (
+  <div
+    aria-hidden="true"
+    className="kanon-shimmer h-72 w-full rounded-card border border-hairline"
+  />
+);
+const CatalystCalendarBoard = dynamic(
+  () => import("@/features/portfolio").then((m) => m.CatalystCalendarBoard),
+  { ssr: false, loading: ViewSkeleton },
+);
+const PeerExpectationsMatrix = dynamic(
+  () => import("@/features/portfolio").then((m) => m.PeerExpectationsMatrix),
+  { ssr: false, loading: ViewSkeleton },
+);
+const PortfolioComparisonTable = dynamic(
+  () => import("./portfolio-comparison-table").then((m) => m.PortfolioComparisonTable),
+  { ssr: false, loading: ViewSkeleton },
+);
 
 export interface CockpitShellProps {
   initialTheses: ThesisDetail[];
@@ -34,48 +52,38 @@ export interface CockpitShellProps {
   currentUser: PublicUser;
 }
 
-interface CollectionViewProps {
-  theses: readonly ThesisDetail[];
-  allTheses: readonly ThesisDetail[];
-  liveQuotes: Readonly<Record<string, MarketQuoteSnapshot>>;
-  filter: CockpitFilter;
-  query: string;
-  totalActiveCount: number;
-  viewMode: CockpitViewMode;
-  compareIds: readonly string[];
-  onToggleCompare: (id: string) => void;
-  onOpenCompare: () => void;
-  onQuickInspect: (thesis: ThesisDetail) => void;
-  onResetFilters: () => void;
-  onNewThesis: () => void;
-  onCreated: (thesis: ThesisDetail) => void;
+interface MainStageProps {
+  ui: ReturnType<typeof useCockpitState>;
+  ext: ReturnType<typeof usePortfolioOverlayState>;
+  market: LiveMarketQuotesState;
+  analytics: ReturnType<typeof calculatePortfolioAnalytics>;
 }
 
-function renderCollectionBody(p: CollectionViewProps) {
-  if (p.viewMode === "catalysts") return <CatalystCalendarBoard theses={p.allTheses} />;
-  if (p.viewMode === "comps") {
-    return <PeerExpectationsMatrix theses={p.allTheses} liveQuotes={p.liveQuotes} />;
+function renderCollectionBody({ ui, ext, market, analytics }: MainStageProps) {
+  if (ui.viewMode === "catalysts") return <CatalystCalendarBoard theses={ui.theses} />;
+  if (ui.viewMode === "comps") {
+    return <PeerExpectationsMatrix theses={ui.theses} liveQuotes={market.quotes} />;
   }
-  if (p.theses.length === 0) {
+  if (ui.visibleTheses.length === 0) {
     return (
       <CockpitEmptyState
-        filter={p.filter}
-        query={p.query}
-        totalActiveCount={p.totalActiveCount}
-        onResetFilters={p.onResetFilters}
-        onNewThesis={p.onNewThesis}
-        onCreated={p.onCreated}
+        filter={ui.filter}
+        query={ui.query}
+        totalActiveCount={analytics.activeCount}
+        onResetFilters={ui.resetFilters}
+        onNewThesis={() => ui.setModal("create", true)}
+        onCreated={ext.onCreated}
       />
     );
   }
-  if (p.viewMode === "table") {
+  if (ui.viewMode === "table") {
     return (
       <PortfolioComparisonTable
-        theses={p.theses}
-        selectedIds={p.compareIds}
-        onToggleCompare={p.onToggleCompare}
-        onOpenCompare={p.onOpenCompare}
-        onQuickInspect={p.onQuickInspect}
+        theses={ui.visibleTheses}
+        selectedIds={ext.compareIds}
+        onToggleCompare={ext.toggleCompare}
+        onOpenCompare={() => ext.setCompareOpen(true)}
+        onQuickInspect={ui.setPreviewThesis}
       />
     );
   }
@@ -83,16 +91,16 @@ function renderCollectionBody(p: CollectionViewProps) {
     <motion.section
       aria-label="跟踪标的列表"
       variants={KANON_STAGGER_CONTAINER}
-      initial="hidden"
+      initial={false}
       animate="visible"
       className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-2 2xl:grid-cols-3"
     >
-      {p.theses.map((thesis) => (
+      {ui.visibleTheses.map((thesis) => (
         <motion.div key={thesis.id} variants={KANON_FADE_UP_ITEM} className="flex h-full">
           <ThesisBentoCard
             thesis={thesis}
-            liveQuote={p.liveQuotes[thesis.ticker]}
-            onQuickInspect={p.onQuickInspect}
+            liveQuote={market.quotes[thesis.ticker]}
+            onQuickInspect={ui.setPreviewThesis}
           />
         </motion.div>
       ))}
@@ -100,8 +108,8 @@ function renderCollectionBody(p: CollectionViewProps) {
   );
 }
 
-function ThesisCollectionView(p: CollectionViewProps) {
-  const stateKey = `${p.viewMode}:${p.filter}:${p.theses.length === 0 ? "empty" : "list"}`;
+function ThesisCollectionView(p: MainStageProps) {
+  const stateKey = `${p.ui.viewMode}:${p.ui.filter}:${p.ui.visibleTheses.length === 0 ? "empty" : "list"}`;
   return (
     <div className="min-h-[340px]">
       <motion.div
@@ -116,13 +124,7 @@ function ThesisCollectionView(p: CollectionViewProps) {
   );
 }
 
-function buildHeaderProps(p: {
-  ui: ReturnType<typeof useCockpitState>;
-  ext: ReturnType<typeof usePortfolioOverlayState>;
-  market: LiveMarketQuotesState;
-  analytics: ReturnType<typeof calculatePortfolioAnalytics>;
-}) {
-  const { ui, ext, market, analytics } = p;
+function buildHeaderProps({ ui, ext, market, analytics }: MainStageProps) {
   return {
     analytics,
     theses: ui.theses,
@@ -155,38 +157,22 @@ function buildHeaderProps(p: {
   };
 }
 
-function CockpitMainStage(p: {
-  ui: ReturnType<typeof useCockpitState>;
-  ext: ReturnType<typeof usePortfolioOverlayState>;
-  market: LiveMarketQuotesState;
-  analytics: ReturnType<typeof calculatePortfolioAnalytics>;
-}) {
-  const { ui, ext, market, analytics } = p;
+function CockpitMainStage(p: MainStageProps) {
   return (
     <div className="w-full space-y-5 px-5 pb-10 pt-5 sm:px-8 lg:px-9 lg:pt-5">
       <CockpitHeader {...buildHeaderProps(p)} />
-      <ThesisCollectionView
-        theses={ui.visibleTheses}
-        allTheses={ui.theses}
-        liveQuotes={market.quotes}
-        filter={ui.filter}
-        query={ui.query}
-        totalActiveCount={analytics.activeCount}
-        viewMode={ui.viewMode}
-        compareIds={ext.compareIds}
-        onToggleCompare={ext.toggleCompare}
-        onOpenCompare={() => ext.setCompareOpen(true)}
-        onQuickInspect={ui.setPreviewThesis}
-        onResetFilters={ui.resetFilters}
-        onNewThesis={() => ui.setModal("create", true)}
-        onCreated={ext.onCreated}
-      />
+      <ThesisCollectionView {...p} />
     </div>
   );
 }
 
-export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitShellProps) {
+function useCockpitRuntime(initialTheses: ThesisDetail[], glossary: readonly GlossaryTerm[]) {
   const ui = useCockpitState(initialTheses, glossary);
+  const [settingsTab, setSettingsTab] = useState<SettingsTabId>("general");
+  const openSettings = (tab: SettingsTabId = "general") => {
+    setSettingsTab(tab);
+    ui.setModal("ai", true);
+  };
   const activeTickers = useMemo(
     () => ui.theses.filter((t) => t.status === "active").map((t) => t.ticker),
     [ui.theses],
@@ -194,7 +180,14 @@ export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitSh
   const market = useLiveMarketQuotes(activeTickers);
   const ext = usePortfolioOverlayState(ui, market.mergeQuotes);
   const analytics = useMemo(() => calculatePortfolioAnalytics(ui.theses), [ui.theses]);
+  return { ui, settingsTab, openSettings, market, ext, analytics };
+}
 
+export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitShellProps) {
+  const { ui, settingsTab, openSettings, market, ext, analytics } = useCockpitRuntime(
+    initialTheses,
+    glossary,
+  );
   return (
     <>
       <WorkbenchShell
@@ -204,7 +197,7 @@ export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitSh
             <span>新建</span>
           </Button>
         }
-        sidebar={({ collapsed, onToggleCollapse, closeMobile }) => (
+        sidebar={(s) => (
           <CockpitSidebar
             currentUser={currentUser}
             theses={ui.theses}
@@ -212,21 +205,28 @@ export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitSh
             filterCounts={ui.filterCounts}
             viewMode={ui.viewMode}
             refreshingPrices={ext.refreshingPrices}
-            collapsed={collapsed}
-            onToggleCollapse={onToggleCollapse}
-            onCloseMobile={closeMobile}
+            collapsed={s.collapsed}
+            onToggleCollapse={s.onToggleCollapse}
+            onCloseMobile={s.closeMobile}
             onSelectFilter={ui.setFilter}
             onSelectViewMode={ui.setViewMode}
             onOpenCommand={() => ui.setModal("cmd", true)}
             onRefreshPrices={() => void ext.refreshPrices()}
             onOpenStressTest={() => ext.setStressOpen(true)}
-            onOpenSettings={() => ui.setModal("ai", true)}
+            onOpenSettings={() => openSettings("general")}
+            onOpenAccountSettings={() => openSettings("account")}
           />
         )}
       >
         <CockpitMainStage ui={ui} ext={ext} market={market} analytics={analytics} />
       </WorkbenchShell>
-      <CockpitOverlays ui={ui} ext={ext} market={market} />
+      <CockpitOverlays
+        ui={ui}
+        ext={ext}
+        market={market}
+        currentUser={currentUser}
+        settingsTab={settingsTab}
+      />
     </>
   );
 }

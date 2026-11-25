@@ -40,7 +40,7 @@ function StatFooterBand({
       {delta ? (
         <span
           className={cn(
-            "inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-2 py-0.5 font-mono text-xs font-medium tabular-nums",
+            "inline-flex shrink-0 items-center whitespace-nowrap rounded-badge px-2 py-0.5 font-mono text-xs font-medium tabular-nums",
             DELTA_PILL_TONE[deltaTone],
           )}
         >
@@ -79,7 +79,7 @@ export function StatCard({
   );
 
   const shellClass = cn(
-    "kanon-surface-specular flex min-w-0 flex-col rounded-card border border-hairline bg-surface transition-[border-color,box-shadow,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+    "kanon-surface-specular flex min-w-0 flex-col rounded-card border border-hairline bg-surface transition-[border-color,box-shadow,transform] duration-200 ease-[var(--ease-kanon)]",
     onClick &&
       "cursor-pointer text-left hover:-translate-y-[1.5px] hover:border-strong hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral",
     className,

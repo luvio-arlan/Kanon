@@ -16,10 +16,11 @@ import {
 } from "@kanon/ui";
 import { IconArrowRight, IconCheck, IconSparkles } from "@tabler/icons-react";
 import { motion } from "framer-motion";
+import { useMemo } from "react";
 import type { StepId } from "./step-rail";
 
 const STEP_SHORT: ReadonlyArray<{ step: StepId; label: string }> = [
-  { step: 1, label: "商业滤镜" },
+  { step: 1, label: "商业质量" },
   { step: 2, label: "假设催化" },
   { step: 3, label: "一阶印证" },
   { step: 4, label: "估值赔率" },
@@ -33,7 +34,10 @@ function RibbonPriceTelemetry({
   thesis: ThesisDetail;
   quote: MarketQuoteSnapshot | null;
 }) {
-  const exp = calculateImpliedExpectations({ summary: thesis.valuation });
+  const exp = useMemo(
+    () => calculateImpliedExpectations({ summary: thesis.valuation }),
+    [thesis.valuation],
+  );
   const live = quote?.effectivePrice ?? thesis.currentPrice;
   const below15 = live <= exp.hurdleEntry15;
   const ratioText =
@@ -69,7 +73,7 @@ function HorizontalStepPills({
   onSelectStep: (step: StepId) => void;
 }) {
   return (
-    <div className="hidden items-center gap-1 xl:flex" role="tablist" aria-label="五步研究流程">
+    <div className="hidden items-center gap-0.5 2xl:flex" role="tablist" aria-label="五步研究流程">
       {STEP_SHORT.map((item, idx) => {
         const done = completedSteps[idx] ?? false;
         const active = item.step === activeStep;
@@ -81,7 +85,7 @@ function HorizontalStepPills({
             aria-selected={active}
             onClick={() => onSelectStep(item.step)}
             className={cn(
-              "relative inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control px-2.5 text-xs font-medium transition-colors duration-150",
+              "relative inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-control px-2.5 text-xs font-medium transition-colors duration-150 ease-[var(--ease-kanon)]",
               active
                 ? "text-ink-primary"
                 : "text-ink-secondary hover:bg-muted/70 hover:text-ink-primary",
@@ -156,11 +160,11 @@ export function CanvasContextRibbon({
   onSelectStep: (step: StepId) => void;
   onOpenAgent: () => void;
 }) {
-  const readiness = calculateResearchReadiness(thesis);
+  const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
   const nextStep = activeStep < 5 ? ((activeStep + 1) as StepId) : null;
   return (
     <div className="no-print kanon-glass-ribbon sticky top-3 z-20 mb-6 overflow-hidden rounded-card border border-hairline">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
         <RibbonPriceTelemetry thesis={thesis} quote={liveQuote} />
         <HorizontalStepPills
           completedSteps={readiness.steps.map((s) => s.complete)}

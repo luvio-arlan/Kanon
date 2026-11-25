@@ -1,11 +1,16 @@
 "use client";
 
-import type { AgentBriefing, AgentProposal, AgentTraceStep } from "@kanon/core";
+import type {
+  AgentBriefing,
+  AgentPartialSynthesis,
+  AgentProposal,
+  AgentTraceStep,
+} from "@kanon/core";
 import { Badge, Button, cn, KANON_ROW_ITEM, KANON_ROW_STAGGER, Sheet } from "@kanon/ui";
 import { IconCheck, IconChecks, IconPlayerPlay, IconSparkles } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { AgentBriefingCard } from "./agent-briefing-card";
+import { AgentBriefingCard, AgentStreamingCard } from "./agent-briefing-card";
 import { AgentTraceLogSection } from "./agent-trace-log";
 
 export interface AgentResearchSheetProps {
@@ -14,6 +19,7 @@ export interface AgentResearchSheetProps {
   companyName: string;
   running: boolean;
   traces: readonly AgentTraceStep[];
+  partial?: AgentPartialSynthesis | null;
   briefing: AgentBriefing | null;
   appliedIds: readonly string[];
   onOpenChange: (open: boolean) => void;
@@ -23,12 +29,12 @@ export interface AgentResearchSheetProps {
 
 const TARGET_LABELS: Record<AgentProposal["target"], string> = {
   variant_perception: "Step 1 · 预期差",
-  key_debate: "Step 1 · 核心争论",
-  pre_mortem: "Step 1 · 事前验尸",
+  key_debate: "Step 1 · 核心分歧",
+  pre_mortem: "Step 1 · 逆向推演",
   hypothesis_update: "Step 2 · 核心假设",
   catalyst_draft: "Step 2 · 催化剂日程",
   cross_check_draft: "Step 3 · 产业链互证",
-  exit_rule: "Step 5 · 离场红线",
+  exit_rule: "Step 5 · 离场条件",
 };
 
 function ProposalCard({
@@ -91,7 +97,7 @@ function AgentEmptyState({ onRun }: { onRun: () => Promise<void> }) {
         </div>
         <h3 className="mt-3 text-sm font-semibold text-ink-primary">启动投委会深度审计 Agent</h3>
         <p className="mt-1.5 text-xs leading-relaxed text-ink-secondary">
-          自动执行 SEC 法证排雷、Reverse-DCF 压力测试、实时盘前/盘后买点校准、催化剂与价值陷阱审计 8
+          自动执行 SEC 财务法证、Reverse-DCF 压力测试、实时盘前/盘后买点校准、催化剂与价值陷阱核查 8
           步工具调用，输出可一键采纳的修订提案。
         </p>
         <div className="mt-4">
@@ -161,6 +167,7 @@ function SheetBody(props: AgentResearchSheetProps) {
   return (
     <div className="space-y-4">
       <AgentTraceLogSection traces={props.traces} running={props.running} />
+      {props.partial && !props.briefing ? <AgentStreamingCard partial={props.partial} /> : null}
       {props.briefing ? <AgentBriefingCard briefing={props.briefing} /> : null}
       {props.briefing && props.briefing.proposals.length > 0 ? (
         <ProposalsSection

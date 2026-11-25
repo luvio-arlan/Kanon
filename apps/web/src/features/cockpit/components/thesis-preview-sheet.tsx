@@ -118,7 +118,7 @@ function ExpectationsStrip({ thesis }: { thesis: ThesisDetail }) {
 function HypothesesSection({ thesis }: { thesis: ThesisDetail }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-ink-primary">核心假设与证伪红线</h3>
+      <h3 className="text-sm font-semibold text-ink-primary">核心假设与证伪阈值</h3>
       <div className="mt-3 space-y-2.5">
         {thesis.hypotheses.map((item) => (
           <div key={item.id} className="rounded-control border border-hairline bg-surface p-3.5">

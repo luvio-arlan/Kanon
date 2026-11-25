@@ -1,7 +1,7 @@
 "use client";
 
-import type { AgentBriefing } from "@kanon/core";
-import { Badge, ProgressBar, ReadinessRing } from "@kanon/ui";
+import type { AgentBriefing, AgentPartialSynthesis } from "@kanon/core";
+import { AgentThinking, Badge, ProgressBar, ReadinessRing } from "@kanon/ui";
 
 function DebateRoleCard({
   roleLabel,
@@ -75,10 +75,18 @@ export function AgentBriefingCard({ briefing }: { briefing: AgentBriefing }) {
         />
         <DebateRoleCard
           roleLabel="法证空头"
-          tag="BEAR · 下行红线"
+          tag="BEAR · 下行风险"
           tone="warn"
           body={briefing.bearCritique}
         />
+        {briefing.bearRebuttal ? (
+          <DebateRoleCard
+            roleLabel="空头二次质询"
+            tag="CROSS-EXAM · 证伪反演"
+            tone="warn"
+            body={briefing.bearRebuttal}
+          />
+        ) : null}
         <DebateRoleCard
           roleLabel="财务法证官"
           tag="FORENSICS · 现金流"
@@ -86,6 +94,49 @@ export function AgentBriefingCard({ briefing }: { briefing: AgentBriefing }) {
           body={briefing.accountingCheck}
         />
       </div>
+    </div>
+  );
+}
+
+export function AgentStreamingCard({ partial }: { partial: AgentPartialSynthesis }) {
+  return (
+    <div className="space-y-2.5 rounded-card border border-hairline bg-muted/55 p-3 shadow-card">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <AgentThinking variant="wave" label="投委会四角色正在流式辩论..." />
+        <Badge variant="titanium">LIVE</Badge>
+      </div>
+      {partial.verdict ? (
+        <div className="rounded-control border border-hairline bg-surface p-3 text-sm font-semibold text-ink-primary">
+          {partial.verdict}
+        </div>
+      ) : null}
+      {partial.bullSynthesis ? (
+        <DebateRoleCard
+          roleLabel="基本面多头"
+          tag="LONG"
+          tone="pass"
+          body={partial.bullSynthesis}
+        />
+      ) : null}
+      {partial.bearCritique ? (
+        <DebateRoleCard roleLabel="法证空头" tag="BEAR" tone="warn" body={partial.bearCritique} />
+      ) : null}
+      {partial.bearRebuttal ? (
+        <DebateRoleCard
+          roleLabel="空头二次质询"
+          tag="CROSS-EXAM"
+          tone="warn"
+          body={partial.bearRebuttal}
+        />
+      ) : null}
+      {partial.accountingCheck ? (
+        <DebateRoleCard
+          roleLabel="财务法证官"
+          tag="FORENSICS"
+          tone="titanium"
+          body={partial.accountingCheck}
+        />
+      ) : null}
     </div>
   );
 }

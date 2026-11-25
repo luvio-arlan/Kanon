@@ -45,7 +45,7 @@ export const INSTITUTIONAL_THESIS_PRESETS: readonly NewThesisDraft[] = [
     sectorTag: "半导体设备 · EUV 光刻",
     currentPrice: "715",
     convictionSummary:
-      "全球唯一 EUV 与 High-NA 光刻机供应商，设备装机后高毛利服务收入形成长期水电煤现金流。",
+      "全球唯一 EUV 与 High-NA 光刻机供应商，设备装机后高毛利维保与升级服务形成高粘性经常性现金流。",
   },
   {
     ticker: "COST",

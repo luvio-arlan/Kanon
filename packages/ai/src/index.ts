@@ -17,7 +17,9 @@ export {
   type ByokCredentials,
   type CopilotPayloadMap,
   type CopilotRunResult,
+  resolveByokModel,
   runThesisCopilot,
+  sanitizeProviderBaseUrl,
 } from "./copilot/run-copilot";
 export {
   clearMarketQuoteCache,
@@ -56,3 +58,10 @@ export {
   RedTeamReportSchema,
 } from "./schemas/red-team";
 export { fetchSecEdgarSnapshot, formatUsdCompact } from "./sec/edgar-client";
+export { fetchSecFilingReaderData } from "./sec/filing-reader";
+export {
+  computeFilingSectionDiff,
+  countBuySideSignals,
+  extractSecKeySections,
+  stripSecHtmlToParagraphs,
+} from "./sec/filing-text-parser";

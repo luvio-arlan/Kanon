@@ -16,19 +16,38 @@ interface TextSegment {
   term?: GlossaryTerm;
 }
 
+interface CompiledGlossary {
+  termMap: Map<string, GlossaryTerm>;
+  regex: RegExp;
+}
+
+const COMPILED_GLOSSARY_CACHE = new WeakMap<readonly GlossaryTerm[], CompiledGlossary>();
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function tokenizeText(text: string, terms: readonly GlossaryTerm[]): TextSegment[] {
-  if (terms.length === 0) return [{ key: "0", content: text }];
+function compileGlossary(terms: readonly GlossaryTerm[]): CompiledGlossary {
+  const cached = COMPILED_GLOSSARY_CACHE.get(terms);
+  if (cached) return cached;
   const termMap = new Map(terms.map((item) => [item.term, item]));
   const pattern = [...terms]
     .map((item) => item.term)
     .sort((a, b) => b.length - a.length)
     .map(escapeRegex)
     .join("|");
-  const regex = new RegExp(`(?<![A-Za-z0-9])(${pattern})(?![A-Za-z0-9])`, "g");
+  const compiled = {
+    termMap,
+    regex: new RegExp(`(?<![A-Za-z0-9])(${pattern})(?![A-Za-z0-9])`, "g"),
+  };
+  COMPILED_GLOSSARY_CACHE.set(terms, compiled);
+  return compiled;
+}
+
+function tokenizeText(text: string, terms: readonly GlossaryTerm[]): TextSegment[] {
+  if (terms.length === 0) return [{ key: "0", content: text }];
+  const { termMap, regex } = compileGlossary(terms);
+  regex.lastIndex = 0;
 
   const segments: TextSegment[] = [];
   let cursor = 0;

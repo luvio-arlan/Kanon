@@ -25,10 +25,13 @@ export function writeByokConfig(config: LocalByokConfig | null): boolean {
       window.localStorage.removeItem(STORAGE_KEY);
       return true;
     }
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ provider: config.provider, apiKey: config.apiKey.trim() }),
-    );
+    const payload: LocalByokConfig = {
+      provider: config.provider,
+      apiKey: config.apiKey.trim(),
+      ...(config.model?.trim() ? { model: config.model.trim() } : {}),
+      ...(config.baseUrl?.trim() ? { baseUrl: config.baseUrl.trim() } : {}),
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     return true;
   } catch (err) {
     void err;
@@ -42,5 +45,7 @@ export function buildByokHeaders(): Record<string, string> {
   return {
     "x-kanon-ai-provider": cfg.provider,
     "x-kanon-ai-key": cfg.apiKey,
+    ...(cfg.model ? { "x-kanon-ai-model": cfg.model } : {}),
+    ...(cfg.baseUrl ? { "x-kanon-ai-base-url": cfg.baseUrl } : {}),
   };
 }

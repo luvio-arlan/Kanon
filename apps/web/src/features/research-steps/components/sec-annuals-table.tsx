@@ -7,18 +7,17 @@ import {
   type SecQualitySummary,
   type SecQuarterlyFinancial,
 } from "@kanon/core";
-import {
-  Badge,
-  Card,
-  KANON_LENS_VARIANTS,
-  type SecChartDatum,
-  SecFinancialChart,
-  SegmentedTabs,
-} from "@kanon/ui";
+import { Badge, Card, KANON_LENS_VARIANTS, type SecChartDatum, SegmentedTabs } from "@kanon/ui";
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { formatCompact } from "../lib/forensic-cells";
 import { SecForensicsView, SecQuarterliesTable } from "./sec-forensics-views";
+
+const SecFinancialChart = dynamic(() => import("@kanon/ui").then((mod) => mod.SecFinancialChart), {
+  ssr: false,
+  loading: () => <div aria-hidden="true" className="kanon-shimmer m-5 h-52 rounded-panel" />,
+});
 
 type DisplayMode = "table" | "quarters" | "chart" | "forensics";
 
@@ -190,7 +189,7 @@ function SecTableHeader(props: {
           { id: "table", label: "年度" },
           { id: "quarters", label: "季度拐点", count: props.quarterCount || undefined },
           { id: "chart", label: "趋势图" },
-          { id: "forensics", label: "法证体检" },
+          { id: "forensics", label: "法证审阅" },
         ]}
       />
     </div>

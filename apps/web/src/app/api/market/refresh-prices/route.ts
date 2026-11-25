@@ -5,12 +5,21 @@ import {
   RefreshPricesResponseSchema,
   type ThesisDetail,
 } from "@kanon/core";
-import { getKanonDb, listTheses, updateThesisStep } from "@kanon/core/db";
+import {
+  buildMarketQuoteCacheKey,
+  getKanonDb,
+  listTheses,
+  updateThesisStep,
+  upsertCachedMarketQuotes,
+} from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonOk } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
+import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
+
+const REFRESH_RATE_POLICY = { bucket: "market_refresh", maxRequests: 20, windowMs: 60 * 1000 };
 
 function formatAnchorLabel(date: Date, mode: "regular" | "extended"): string {
   const md = `${date.getMonth() + 1}/${date.getDate()}`;
@@ -80,16 +89,21 @@ async function applyMarketQuotes(params: {
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
+  const rateErr = checkRateLimit(request, REFRESH_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 
   const mode = await parseMode(request);
+  const creds = parseMarketHeaders(request);
   const db = await getKanonDb();
   const all = await listTheses(db, auth.user.id);
   const active = all.filter((item) => item.status === "active");
   const rawQuotes = await fetchMarketQuotes(
     active.map((item) => item.ticker),
-    { creds: parseMarketHeaders(request), bypassCache: true },
+    { creds, bypassCache: true },
   );
   const { updatedCount, skippedTickers, updatedMap, quotesRecord } = await applyMarketQuotes({
     db,
@@ -99,6 +113,16 @@ export async function POST(request: Request) {
     mode,
     label: formatAnchorLabel(new Date(), mode),
   });
+  if (!creds?.apiKey) {
+    const providerPref = creds?.provider ?? "auto";
+    await upsertCachedMarketQuotes(
+      db,
+      Object.values(quotesRecord).map((quote) => ({
+        cacheKey: buildMarketQuoteCacheKey(quote.ticker, providerPref),
+        quote,
+      })),
+    );
+  }
 
   const updatedTheses = all.map((item) => updatedMap.get(item.id) ?? item);
   return jsonOk(

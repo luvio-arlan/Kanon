@@ -55,7 +55,7 @@ export function GeneralSettingsPane(p: {
               15% / 20%
             </Badge>
           </SettingsRow>
-          <SettingsRow label="杠杆约束铁律" description="建仓留痕强制确认零杠杆与单票上限">
+          <SettingsRow label="零杠杆风控约束" description="建仓留痕强制确认零杠杆与单票上限">
             <Badge variant="pass">已启用</Badge>
           </SettingsRow>
         </SettingsCard>
@@ -83,7 +83,10 @@ function ThesisExportSection({ thesis }: { thesis: SettingsThesisContext }) {
             <span>导出文档</span>
           </Button>
         </SettingsRow>
-        <SettingsRow label="全量 JSON 备份" description="包含滤镜、假设、估值与 SEC 快照">
+        <SettingsRow
+          label="全量 JSON 备份"
+          description="包含商业质量评估、核心假设、估值与 SEC 快照"
+        >
           <Button variant="outline" size="sm" onClick={go("json")}>
             <IconCode size={15} stroke={1.5} />
             <span>导出 JSON</span>

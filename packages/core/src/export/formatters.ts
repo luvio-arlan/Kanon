@@ -58,10 +58,10 @@ function formatVariantSection(thesis: ThesisDetail): string[] {
   const rows = [
     f.consensusView ? `- **市场一致预期**：${f.consensusView}` : "",
     f.variantPerception ? `- **我的核心预期差**：${f.variantPerception}` : "",
-    f.keyDebate ? `- **未来 18 个月核心争论**：${f.keyDebate}` : "",
-    f.preMortem ? `- **事前验尸（Pre-Mortem）**：${f.preMortem}` : "",
+    f.keyDebate ? `- **未来 18 个月核心分歧**：${f.keyDebate}` : "",
+    f.preMortem ? `- **逆向压力推演**：${f.preMortem}` : "",
   ].filter(Boolean);
-  return rows.length > 0 ? ["", "### 买方预期差与事前验尸", ...rows] : [];
+  return rows.length > 0 ? ["", "### 买方预期差与逆向推演", ...rows] : [];
 }
 
 export function formatThesisMarkdown(thesis: ThesisDetail, extras?: ThesisExportExtras): string {

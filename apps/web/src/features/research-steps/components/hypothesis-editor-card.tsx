@@ -101,7 +101,7 @@ function MetricInputsRow({
         />
       </div>
       <div className="space-y-1.5">
-        <div className="text-xs font-medium text-ink-muted">证伪红线阈值</div>
+        <div className="text-xs font-medium text-ink-muted">证伪阈值</div>
         <Input
           value={item.threshold}
           onChange={(e) => onChange({ ...item, threshold: e.target.value })}

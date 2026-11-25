@@ -1,6 +1,6 @@
 "use client";
 
-import type { ByokProvider } from "@kanon/ai";
+import type { ByokProvider } from "@kanon/core";
 import {
   Badge,
   Button,
@@ -14,11 +14,26 @@ import {
 import { IconChevronDown, IconShieldLock } from "@tabler/icons-react";
 import { useState } from "react";
 
-const PROVIDERS: ReadonlyArray<{ id: ByokProvider; label: string }> = [
-  { id: "gemini", label: "Gemini" },
-  { id: "anthropic", label: "Claude" },
-  { id: "openai", label: "OpenAI" },
+const PROVIDERS: ReadonlyArray<{ id: ByokProvider; label: string; defaultModel: string }> = [
+  { id: "gemini", label: "Gemini", defaultModel: "gemini-2.5-flash" },
+  { id: "anthropic", label: "Claude", defaultModel: "claude-sonnet-4-20250514" },
+  { id: "openai", label: "OpenAI", defaultModel: "gpt-4.1-mini" },
+  { id: "openai_compatible", label: "兼容接口", defaultModel: "deepseek-chat" },
 ];
+
+export interface EngineSettingsPaneProps {
+  provider: ByokProvider;
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+  hasByok: boolean;
+  onProvider: (next: ByokProvider) => void;
+  onApiKey: (next: string) => void;
+  onModel: (next: string) => void;
+  onBaseUrl: (next: string) => void;
+  onClear: () => void;
+  onSave: () => void;
+}
 
 function OverrideFooterBar(p: { hasByok: boolean; onClear: () => void; onSave: () => void }) {
   return (
@@ -41,17 +56,43 @@ function OverrideFooterBar(p: { hasByok: boolean; onClear: () => void; onSave: (
   );
 }
 
-function CustomOverridePanel(p: {
+function EndpointInputs(p: {
   provider: ByokProvider;
-  apiKey: string;
-  hasByok: boolean;
-  onProvider: (next: ByokProvider) => void;
-  onApiKey: (next: string) => void;
-  onClear: () => void;
-  onSave: () => void;
+  model: string;
+  baseUrl: string;
+  defaultModel: string;
+  onModel: (next: string) => void;
+  onBaseUrl: (next: string) => void;
 }) {
   return (
-    <div className="space-y-4 rounded-2xl border border-hairline bg-muted/35 p-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <Input
+        value={p.model}
+        maxLength={100}
+        onChange={(e) => p.onModel(e.target.value)}
+        placeholder={`自定义模型（默认 ${p.defaultModel}）`}
+        className="font-mono"
+      />
+      <Input
+        value={p.baseUrl}
+        maxLength={240}
+        onChange={(e) => p.onBaseUrl(e.target.value)}
+        placeholder={
+          p.provider === "openai_compatible"
+            ? "Base URL（如 https://api.deepseek.com/v1）"
+            : "自定义 Base URL（可选，支持 OpenRouter）"
+        }
+        className="font-mono"
+      />
+    </div>
+  );
+}
+
+function CustomOverridePanel(p: EngineSettingsPaneProps) {
+  const defaultModel =
+    PROVIDERS.find((item) => item.id === p.provider)?.defaultModel ?? "gemini-2.5-flash";
+  return (
+    <div className="space-y-3.5 rounded-panel border border-hairline bg-muted/35 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm font-medium text-ink-primary">模型服务商</span>
         <ButtonGroup ariaLabel="选择模型服务商">
@@ -75,20 +116,20 @@ function CustomOverridePanel(p: {
         placeholder="输入个人 API Key（留空即回退后台默认引擎）"
         className="font-mono"
       />
+      <EndpointInputs
+        provider={p.provider}
+        model={p.model}
+        baseUrl={p.baseUrl}
+        defaultModel={defaultModel}
+        onModel={p.onModel}
+        onBaseUrl={p.onBaseUrl}
+      />
       <OverrideFooterBar hasByok={p.hasByok} onClear={p.onClear} onSave={p.onSave} />
     </div>
   );
 }
 
-export function EngineSettingsPane(p: {
-  provider: ByokProvider;
-  apiKey: string;
-  hasByok: boolean;
-  onProvider: (next: ByokProvider) => void;
-  onApiKey: (next: string) => void;
-  onClear: () => void;
-  onSave: () => void;
-}) {
+export function EngineSettingsPane(p: EngineSettingsPaneProps) {
   const [showCustom, setShowCustom] = useState(p.hasByok);
   return (
     <div className="space-y-6">
@@ -97,13 +138,13 @@ export function EngineSettingsPane(p: {
         <SettingsCard>
           <SettingsRow
             label="智能投研与一阶分析引擎"
-            description="后台统一托管配置，无需用户额外准备密钥即可使用"
+            description="后台统一托管配置，支持流式多角色投委会辩论"
           >
             <Badge variant="pass">{p.hasByok ? "已启用自定义密钥" : "后台已就绪"}</Badge>
           </SettingsRow>
           <SettingsRow
-            label="自定义模型密钥（高级）"
-            description="可选覆盖默认引擎，密钥仅留存在本机浏览器"
+            label="自定义模型与兼容接口（高级）"
+            description="支持自定义模型名、OpenRouter / DeepSeek 等 OpenAI 兼容网关"
           >
             <Button variant="ghost" size="sm" onClick={() => setShowCustom((v) => !v)}>
               <span>{showCustom ? "收起" : "展开配置"}</span>

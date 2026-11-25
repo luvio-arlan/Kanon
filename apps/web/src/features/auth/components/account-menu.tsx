@@ -2,7 +2,7 @@
 
 import type { PublicUser } from "@kanon/core";
 import { ActionMenu, type ActionMenuItem, cn } from "@kanon/ui";
-import { IconArrowUpRight, IconChevronDown, IconLogout } from "@tabler/icons-react";
+import { IconArrowUpRight, IconChevronDown, IconLogout, IconShieldLock } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { logoutAccount } from "../lib/auth-api";
@@ -13,10 +13,24 @@ export interface AccountMenuProps {
   currentUser: PublicUser;
   collapsed?: boolean;
   sidebar?: boolean;
+  onOpenAccountSettings?: () => void;
 }
 
-function buildMemberMenuItems(onLogout: () => void): ActionMenuItem[] {
+function buildMemberMenuItems(
+  onLogout: () => void,
+  onOpenAccountSettings?: () => void,
+): ActionMenuItem[] {
   return [
+    ...(onOpenAccountSettings
+      ? [
+          {
+            id: "account",
+            label: "账号安全与 MCP 令牌",
+            icon: <IconShieldLock size={15} stroke={1.5} />,
+            onSelect: onOpenAccountSettings,
+          },
+        ]
+      : []),
     {
       id: "official",
       label: "访问品牌官网 kanon.hk",
@@ -33,7 +47,38 @@ function buildMemberMenuItems(onLogout: () => void): ActionMenuItem[] {
   ];
 }
 
-export function AccountMenu({ currentUser, collapsed = false, sidebar = false }: AccountMenuProps) {
+function AccountTriggerContent({
+  displayName,
+  collapsed,
+}: {
+  displayName: string;
+  collapsed: boolean;
+}) {
+  return (
+    <span className="inline-flex min-w-0 flex-1 items-center justify-between gap-2">
+      <span className="inline-flex min-w-0 items-center gap-2.5 text-sm font-medium text-ink-primary">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-badge bg-titanium text-xs font-semibold text-ink-primary">
+          {displayName.slice(0, 1)}
+        </span>
+        {!collapsed ? <span className="truncate">{displayName}</span> : null}
+      </span>
+      {!collapsed ? (
+        <IconChevronDown
+          size={14}
+          stroke={1.5}
+          className="kanon-chevron shrink-0 text-ink-muted transition-transform duration-150 ease-[var(--ease-kanon)]"
+        />
+      ) : null}
+    </span>
+  );
+}
+
+export function AccountMenu({
+  currentUser,
+  collapsed = false,
+  sidebar = false,
+  onOpenAccountSettings,
+}: AccountMenuProps) {
   const router = useRouter();
 
   async function handleSignOut() {
@@ -47,30 +92,20 @@ export function AccountMenu({ currentUser, collapsed = false, sidebar = false }:
     router.refresh();
   }
 
+  const triggerCls = sidebar
+    ? collapsed
+      ? "h-10 w-10 justify-center px-0"
+      : "h-11 w-full justify-between px-3"
+    : "h-9 px-3";
+
   return (
     <ActionMenu
       ariaLabel="当前登录账号菜单"
       placement={sidebar ? "top start" : "bottom end"}
-      items={buildMemberMenuItems(() => void handleSignOut())}
-      triggerClassName={cn(
-        sidebar
-          ? collapsed
-            ? "h-10 w-10 justify-center px-0"
-            : "h-11 w-full justify-between px-3"
-          : "h-9 px-3",
-      )}
+      items={buildMemberMenuItems(() => void handleSignOut(), onOpenAccountSettings)}
+      triggerClassName={cn(triggerCls)}
       trigger={
-        <span className="inline-flex min-w-0 flex-1 items-center justify-between gap-2">
-          <span className="inline-flex min-w-0 items-center gap-2.5 text-sm font-medium text-ink-primary">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-titanium text-xs font-semibold text-ink-primary">
-              {currentUser.displayName.slice(0, 1)}
-            </span>
-            {!collapsed ? <span className="truncate">{currentUser.displayName}</span> : null}
-          </span>
-          {!collapsed ? (
-            <IconChevronDown size={14} stroke={1.5} className="shrink-0 text-ink-muted" />
-          ) : null}
-        </span>
+        <AccountTriggerContent displayName={currentUser.displayName} collapsed={collapsed} />
       }
     />
   );

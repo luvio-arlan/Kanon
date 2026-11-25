@@ -49,11 +49,11 @@ export function runPortfolioDisciplineTool(thesis: ThesisDetail): {
       ? {
           id: "prop-first-discipline",
           target: "exit_rule",
-          title: "在建仓前预置首条零杠杆离场红线",
+          title: "在建仓前预置首条零杠杆离场条件",
           beforePreview: "（尚未签署交易纪律卡）",
           content: `严守零杠杆与单票 ${thesis.targetMaxWeightPct}% 仓位上限；若核心假设 01 连续两季失守阈值，无条件减仓复盘。`,
           rationale: "先写退出条件再投入本金，是控制永久性本金损失的底线。",
-          citation: `${thesis.ticker} Step 5 零杠杆铁律`,
+          citation: `${thesis.ticker} Step 5 零杠杆纪律`,
         }
       : undefined,
   };

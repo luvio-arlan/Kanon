@@ -2,11 +2,22 @@ import { testMarketProviderConnection } from "@kanon/ai";
 import { MarketProviderTestRequestSchema, MarketProviderTestResponseSchema } from "@kanon/core";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
+import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
+const PROVIDER_TEST_POLICY = {
+  bucket: "market_provider_test",
+  maxRequests: 20,
+  windowMs: 60 * 1000,
+};
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
+  const rateErr = checkRateLimit(request, PROVIDER_TEST_POLICY, startedAt);
+  if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 

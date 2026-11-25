@@ -15,10 +15,12 @@ export const KANON_TAB_TRANSITION = {
 } as const satisfies Transition;
 
 const KANON_EASE_EDITORIAL = [0.16, 1, 0.3, 1] as const;
+const KANON_EASE_OUT = [0.22, 1, 0.36, 1] as const;
+const KANON_EASE_EXIT = [0.4, 0, 1, 1] as const;
 
 export const KANON_TRANSITION_FAST = {
   duration: 0.15,
-  ease: [0.22, 1, 0.36, 1],
+  ease: KANON_EASE_OUT,
 } as const satisfies Transition;
 
 export const KANON_MASK_RISE: Variants = {
@@ -63,39 +65,34 @@ export const KANON_LENS_VARIANTS: Variants = {
   enter: { opacity: 0 },
   center: {
     opacity: 1,
-    transition: { duration: 0.16, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.16, ease: KANON_EASE_OUT },
   },
   exit: {
     opacity: 0,
-    transition: { duration: 0.08, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.09, ease: KANON_EASE_EXIT },
   },
 };
 
 export const KANON_STEP_VARIANTS: Variants = {
   enter: (direction: number) => ({
     opacity: 0,
-    x: direction * 8,
+    x: direction * 6,
   }),
   center: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.18, ease: KANON_EASE_OUT },
   },
   exit: (direction: number) => ({
     opacity: 0,
-    x: direction * -6,
-    transition: { duration: 0.1, ease: [0.22, 1, 0.36, 1] },
+    x: direction * -4,
+    transition: { duration: 0.09, ease: KANON_EASE_EXIT },
   }),
 };
 
 export const KANON_CARD_HOVER = {
   y: -2,
   transition: KANON_SPRING,
-} as const;
-
-export const KANON_TAP_PRESS = {
-  scale: 0.97,
-  transition: KANON_TRANSITION_FAST,
 } as const;
 
 export const KANON_DRAWER_SPRING = {

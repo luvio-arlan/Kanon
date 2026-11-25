@@ -43,6 +43,7 @@ export interface CockpitSidebarProps {
   onRefreshPrices: () => void;
   onOpenStressTest: () => void;
   onOpenSettings: () => void;
+  onOpenAccountSettings?: () => void;
 }
 
 function SidebarBrandRow(p: { collapsed: boolean; onToggleCollapse: () => void }) {
@@ -124,7 +125,7 @@ const VIEW_DEFS: ReadonlyArray<{
   },
   {
     id: "archived",
-    label: "已否决归档",
+    label: "已归档观察",
     mode: "cards",
     filter: "archived",
     countKey: "archived",
@@ -169,6 +170,37 @@ function PrimaryViewsNav(p: CockpitSidebarProps) {
   );
 }
 
+function SidebarFooterControls(props: CockpitSidebarProps) {
+  return (
+    <div
+      className={cn(
+        "shrink-0 space-y-2 border-t border-hairline py-3",
+        props.collapsed ? "flex flex-col items-center px-2" : "px-3",
+      )}
+    >
+      <SidebarNavItem
+        label="工作台设置"
+        icon={<IconSettings size={17} stroke={1.5} />}
+        collapsed={props.collapsed}
+        onClick={() => {
+          props.onCloseMobile();
+          props.onOpenSettings();
+        }}
+      />
+      <SidebarThemeSwitch collapsed={props.collapsed} />
+      <AccountMenu
+        currentUser={props.currentUser}
+        collapsed={props.collapsed}
+        sidebar
+        onOpenAccountSettings={() => {
+          props.onCloseMobile();
+          props.onOpenAccountSettings?.();
+        }}
+      />
+    </div>
+  );
+}
+
 export function CockpitSidebar(props: CockpitSidebarProps) {
   return (
     <div className="flex h-full flex-col justify-between overflow-hidden">
@@ -196,24 +228,7 @@ export function CockpitSidebar(props: CockpitSidebarProps) {
           />
         </nav>
       </div>
-      <div
-        className={cn(
-          "shrink-0 space-y-2 border-t border-hairline py-3",
-          props.collapsed ? "flex flex-col items-center px-2" : "px-3",
-        )}
-      >
-        <SidebarNavItem
-          label="工作台设置"
-          icon={<IconSettings size={17} stroke={1.5} />}
-          collapsed={props.collapsed}
-          onClick={() => {
-            props.onCloseMobile();
-            props.onOpenSettings();
-          }}
-        />
-        <SidebarThemeSwitch collapsed={props.collapsed} />
-        <AccountMenu currentUser={props.currentUser} collapsed={props.collapsed} sidebar />
-      </div>
+      <SidebarFooterControls {...props} />
     </div>
   );
 }

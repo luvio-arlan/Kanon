@@ -3,14 +3,21 @@
 import type { GlossaryTerm, ThesisDetail, ThesisSummary } from "@kanon/core";
 import { Button, CommandMenu, DialogModal, useTheme } from "@kanon/ui";
 import { IconAlertTriangle, IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { AiSettingsModal } from "@/features/ai-settings";
+import { useMemo } from "react";
+import { useHasOpened } from "@/shared/hooks/use-has-opened";
 import { buildCanvasCommandGroups } from "../data/canvas-commands";
 import type { useResearchCanvas } from "../hooks/use-research-canvas";
 import type { StepId } from "./canvas-chrome";
 
+const AiSettingsModal = dynamic(
+  () => import("@/features/ai-settings").then((m) => m.AiSettingsModal),
+  { ssr: false },
+);
+
 const STEP_NAMES: Record<StepId, string> = {
-  1: "商业模式滤镜",
+  1: "商业质量评估",
   2: "核心假设拆解",
   3: "一阶资料印证",
   4: "三情景估值赔率",
@@ -53,50 +60,36 @@ export function StepFooterNav({
   );
 }
 
-function DeleteThesisDialog({
-  open,
-  companyName,
-  ticker,
-  deleting,
-  onOpenChange,
-  onConfirm,
-}: {
+function DeleteThesisDialog(p: {
   open: boolean;
-  companyName: string;
-  ticker: string;
+  thesis: ThesisDetail;
   deleting: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => Promise<void>;
 }) {
   return (
     <DialogModal
-      open={open}
-      onOpenChange={onOpenChange}
-      title={`永久删除 ${ticker} 研究档案？`}
-      subtitle="删除后该标的的滤镜、假设、估值与纪律记录将被彻底清除"
+      open={p.open}
+      onOpenChange={p.onOpenChange}
+      title={`永久删除 ${p.thesis.ticker} 研究档案？`}
+      subtitle="删除后该标的的商业评估、核心假设、估值模型与纪律记录将被彻底清除"
       icon={<IconAlertTriangle size={18} stroke={1.5} />}
       footer={
         <>
-          <Button variant="outline" size="md" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" size="md" onClick={() => p.onOpenChange(false)}>
             取消
           </Button>
-          <Button
-            variant="coral"
-            size="md"
-            disabled={deleting}
-            onClick={onConfirm}
-            className="border-status-fail/40 bg-status-fail-soft text-status-fail hover:border-status-fail"
-          >
-            {deleting ? "正在删除..." : "确认删除标的"}
+          <Button variant="danger" size="md" disabled={p.deleting} onClick={p.onConfirm}>
+            {p.deleting ? "正在删除..." : "确认删除标的"}
           </Button>
         </>
       }
     >
       <p className="text-sm leading-relaxed text-ink-secondary">
-        如果只是商业模式未通过初筛，建议留在 Step 1
-        点击「一票否决归档」以保留您的研究复盘记忆；确认不再追踪{" "}
+        如果仅因商业质量暂未通过初筛，建议留在 Step 1
+        点击「暂不纳入并归档」以保留研究复盘记忆；确认不再追踪{" "}
         <span className="font-semibold text-ink-primary">
-          {companyName} ({ticker})
+          {p.thesis.companyName} ({p.thesis.ticker})
         </span>{" "}
         后再执行永久删除。
       </p>
@@ -117,26 +110,28 @@ export function useCanvasShellActions(params: {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { ctrl, onSelectStep } = params;
-  const trigger = (step: StepId, action: "red_team" | "earnings_digest" | "investment_memo") => {
-    onSelectStep(step);
-    void ctrl.runCopilot(action);
-  };
-  const commandGroups = buildCanvasCommandGroups({
-    currentThesis: ctrl.thesis,
-    allTheses: params.allTheses,
-    glossary: params.glossary,
-    theme,
-    onSelectStep,
-    onSwitchThesis: (id) => router.push(`/thesis/${id}`),
-    onGoHome: () => router.push("/"),
-    onOpenAgent: params.onOpenAgent,
-    onRunRedTeam: () => trigger(2, "red_team"),
-    onRunDigest: () => trigger(3, "earnings_digest"),
-    onRunMemo: () => trigger(5, "investment_memo"),
-    onOpenSettings: params.onOpenAi,
-    onToggleFocus: params.onToggleFocus,
-    onToggleTheme: toggleTheme,
-  });
+  const commandGroups = useMemo(() => {
+    const trigger = (step: StepId, action: "red_team" | "earnings_digest" | "investment_memo") => {
+      onSelectStep(step);
+      void ctrl.runCopilot(action);
+    };
+    return buildCanvasCommandGroups({
+      currentThesis: ctrl.thesis,
+      allTheses: params.allTheses,
+      glossary: params.glossary,
+      theme,
+      onSelectStep,
+      onSwitchThesis: (id) => router.push(`/thesis/${id}`),
+      onGoHome: () => router.push("/"),
+      onOpenAgent: params.onOpenAgent,
+      onRunRedTeam: () => trigger(2, "red_team"),
+      onRunDigest: () => trigger(3, "earnings_digest"),
+      onRunMemo: () => trigger(5, "investment_memo"),
+      onOpenSettings: params.onOpenAi,
+      onToggleFocus: params.onToggleFocus,
+      onToggleTheme: toggleTheme,
+    });
+  }, [ctrl, params, router, onSelectStep, theme, toggleTheme]);
   async function handleConfirmDelete() {
     if (!(await ctrl.deleteCurrentThesis())) return;
     params.onCloseDelete();
@@ -204,6 +199,7 @@ export interface CanvasOverlaysProps {
 }
 
 export function CanvasOverlays(props: CanvasOverlaysProps) {
+  const aiMounted = useHasOpened(props.aiModalOpen);
   const ctx = {
     id: props.thesis.id,
     ticker: props.thesis.ticker,
@@ -217,17 +213,18 @@ export function CanvasOverlays(props: CanvasOverlaysProps) {
         groups={props.commandGroups}
         placeholder="搜索步骤、指令、标的或术语..."
       />
-      <AiSettingsModal
-        open={props.aiModalOpen}
-        onOpenChange={props.onAiModalOpen}
-        onChanged={props.onByokChanged}
-        thesisContext={ctx}
-        onRequestDelete={() => props.onDeleteOpen(true)}
-      />
+      {aiMounted ? (
+        <AiSettingsModal
+          open={props.aiModalOpen}
+          onOpenChange={props.onAiModalOpen}
+          onChanged={props.onByokChanged}
+          thesisContext={ctx}
+          onRequestDelete={() => props.onDeleteOpen(true)}
+        />
+      ) : null}
       <DeleteThesisDialog
         open={props.deleteOpen}
-        companyName={ctx.companyName}
-        ticker={ctx.ticker}
+        thesis={props.thesis}
         deleting={props.deleting}
         onOpenChange={props.onDeleteOpen}
         onConfirm={props.onConfirmDelete}

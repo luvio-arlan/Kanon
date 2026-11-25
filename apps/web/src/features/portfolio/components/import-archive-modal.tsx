@@ -101,7 +101,7 @@ export function ImportArchiveModal({ open, onOpenChange, onImported }: ImportArc
       open={open}
       onOpenChange={onOpenChange}
       title="导入 JSON 研究备份"
-      subtitle="完整恢复单个标的的商业滤镜、核心假设、产业链互证、三情景估值与 SEC 缓存快照"
+      subtitle="完整恢复单个标的的商业质量评估、核心假设、产业链互证、三情景估值与 SEC 缓存快照"
       footer={
         <ImportModalFooter
           disabled={!rawJson.trim() || importing}

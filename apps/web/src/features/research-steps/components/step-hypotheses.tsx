@@ -15,7 +15,7 @@ import {
   ProgressBar,
   SegmentedTabs,
 } from "@kanon/ui";
-import { IconCheck, IconDeviceFloppy, IconFlame, IconPlus } from "@tabler/icons-react";
+import { IconCheck, IconDeviceFloppy, IconPlus, IconScale } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { DraftStatusBar } from "@/shared/components/draft-status-bar";
@@ -58,16 +58,16 @@ function StepTwoHeader({
             STEP 02 · {count} ITEMS
           </span>
         </div>
-        <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
-          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary">
             核心假设与催化剂
           </h1>
-          <span className="kanon-serif-italic text-2xl">Hypotheses & Catalysts</span>
+          <span className="kanon-editorial-subtitle text-xl">Hypotheses & Catalysts</span>
         </div>
       </div>
       <Button variant="coral" size="md" loading={loading} onClick={onRun}>
-        {!loading ? <IconFlame size={16} stroke={1.5} /> : null}
-        <span>{loading ? "推演中" : "红队挑刺"}</span>
+        {!loading ? <IconScale size={16} stroke={1.5} /> : null}
+        <span>{loading ? "推演中" : "反向质询"}</span>
       </Button>
     </header>
   );
@@ -132,7 +132,7 @@ function HypothesesLensBody(p: {
       {props.redTeamLoading ? (
         <ComposerLoader active radius={18}>
           <div className="space-y-2.5 rounded-card border border-hairline bg-surface p-4 shadow-card">
-            <AgentThinking variant="stars" label="红队空头正在反演核心假设盲区" />
+            <AgentThinking variant="stars" label="正在从空头视角审视核心假设盲区" />
             <ProgressBar indeterminate tone="accent" size="sm" />
           </div>
         </ComposerLoader>

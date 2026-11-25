@@ -1,26 +1,20 @@
-import {
-  type ByokCredentials,
-  ByokProviderSchema,
-  CopilotRequestSchema,
-  runThesisCopilot,
-} from "@kanon/ai";
+import { CopilotRequestSchema, runThesisCopilot } from "@kanon/ai";
 import { getKanonDb, getSecSnapshot, getThesisById, upsertCopilotOutput } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
+import { parseByokHeaders } from "../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
+import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
-function parseByokHeaders(request: Request): ByokCredentials | undefined {
-  const rawProvider = request.headers.get("x-kanon-ai-provider");
-  const apiKey = request.headers.get("x-kanon-ai-key")?.trim();
-  if (!rawProvider || !apiKey) return undefined;
-  const parsed = ByokProviderSchema.safeParse(rawProvider);
-  if (!parsed.success) return undefined;
-  return { provider: parsed.data, apiKey };
-}
+const COPILOT_RATE_POLICY = { bucket: "ai_copilot", maxRequests: 20, windowMs: 60 * 1000 };
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
+  const rateErr = checkRateLimit(request, COPILOT_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 

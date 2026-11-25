@@ -16,8 +16,8 @@ import { buildGlossaryGroup } from "@/features/glossary";
 import type { StepId } from "../components/canvas-chrome";
 
 const STEP_COMMANDS: ReadonlyArray<{ id: StepId; label: string; hint: string }> = [
-  { id: 1, label: "01 · 商业模式滤镜", hint: "初筛" },
-  { id: 2, label: "02 · 核心假设拆解", hint: "红线" },
+  { id: 1, label: "01 · 商业质量评估", hint: "初筛" },
+  { id: 2, label: "02 · 核心假设拆解", hint: "阈值" },
   { id: 3, label: "03 · 一阶资料印证", hint: "财报" },
   { id: 4, label: "04 · 三情景估值赔率", hint: "估值" },
   { id: 5, label: "05 · 纪律与备忘录", hint: "复盘" },
@@ -52,7 +52,7 @@ function buildCopilotActions(p: CanvasCommandParams): CommandActionItem[] {
     },
     {
       id: "run-red-team",
-      label: "启动红队拷问",
+      label: "启动空头反向质询",
       description: "Step 02",
       shortcut: "R",
       icon: <IconFlame size={16} stroke={1.5} />,

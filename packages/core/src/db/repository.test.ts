@@ -5,9 +5,22 @@ import { calculateResearchReadiness } from "../math/research-readiness";
 import { calculateSensitivityMatrix } from "../math/sensitivity-matrix";
 import { createMemoryKanonDb, getDbHealthStats, type KanonDb } from "./client";
 import { KANON_MIGRATIONS } from "./migrations";
+import {
+  authenticateApiToken,
+  createApiToken,
+  listApiTokens,
+  revokeApiToken,
+} from "./repositories/account/api-tokens-store";
+import {
+  changeUserPassword,
+  listUserSessions,
+  revokeOtherUserSessions,
+  updateUserProfile,
+} from "./repositories/account/profile-and-sessions";
 import { importThesisArchive } from "./repositories/archive-importer";
 import {
   authenticateUser,
+  createUserSession,
   getSessionUser,
   registerUser,
   revokeSession,
@@ -19,6 +32,11 @@ import {
   getSecSnapshot,
   listGlossaryTerms,
 } from "./repositories/discipline-mutations";
+import {
+  buildMarketQuoteCacheKey,
+  getCachedMarketQuotes,
+  upsertCachedMarketQuotes,
+} from "./repositories/market/quote-cache-store";
 import {
   createQuarterlyReview,
   getLatestAgentRun,
@@ -305,5 +323,79 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     expect((await getSessionUser(db, regA.sessionToken))?.id).toBe(regA.user.id);
     await revokeSession(db, regA.sessionToken);
     expect(await getSessionUser(db, regA.sessionToken)).toBeNull();
+  });
+
+  it("manages profile updates, password rotation, session eviction, PAT auth, and Postgres quote cache", async () => {
+    const reg = await registerUser(db, {
+      phone: "137 2222 8888",
+      displayName: "原称呼",
+      password: "OldPassword1!",
+      confirmPassword: "OldPassword1!",
+      seedStarterWorkspace: false,
+    });
+    const secondSess = await createUserSession(db, reg.user.id);
+    expect((await listUserSessions(db, reg.user.id, reg.sessionToken)).length).toBe(2);
+
+    const renamed = await updateUserProfile(db, reg.user.id, "新买方研究员");
+    expect(renamed?.displayName).toBe("新买方研究员");
+
+    const pwdRes = await changeUserPassword({
+      db,
+      userId: reg.user.id,
+      currentPassword: "OldPassword1!",
+      newPassword: "NewPassword2@",
+      currentRawToken: reg.sessionToken,
+    });
+    expect(pwdRes.ok).toBe(true);
+    if (pwdRes.ok) expect(pwdRes.revokedOtherSessions).toBe(1);
+    expect(await getSessionUser(db, secondSess.token)).toBeNull();
+    expect(await revokeOtherUserSessions(db, reg.user.id, reg.sessionToken)).toBe(0);
+
+    const createdPat = await createApiToken(db, reg.user.id, {
+      name: "MCP Test",
+      scope: "read",
+      expiresInDays: 30,
+    });
+    expect(createdPat.plaintextToken.startsWith("kanon_pat_")).toBe(true);
+    const verified = await authenticateApiToken(db, createdPat.plaintextToken);
+    expect(verified?.user.id).toBe(reg.user.id);
+    expect((await listApiTokens(db, reg.user.id)).length).toBe(1);
+    expect(await revokeApiToken(db, reg.user.id, createdPat.token.id)).toBe(true);
+    expect(await authenticateApiToken(db, createdPat.plaintextToken)).toBeNull();
+
+    const cacheKey = buildMarketQuoteCacheKey("NVDA", "auto");
+    await upsertCachedMarketQuotes(db, [
+      {
+        cacheKey,
+        quote: {
+          ticker: "NVDA",
+          currency: "USD",
+          sessionState: "REGULAR",
+          regularPrice: 145.5,
+          previousClose: 142,
+          regularChange: 3.5,
+          regularChangePct: 2.46,
+          preMarketPrice: null,
+          preMarketChange: null,
+          preMarketChangePct: null,
+          postMarketPrice: null,
+          postMarketChange: null,
+          postMarketChangePct: null,
+          effectivePrice: 145.5,
+          dayHigh: 147,
+          dayLow: 141,
+          fiftyTwoWeekHigh: 152,
+          fiftyTwoWeekLow: 86,
+          fiftyTwoWeekPositionPct: 90,
+          volume: 42_000_000,
+          source: "yahoo",
+          tier: "free",
+          latencyMs: 40,
+          asOf: "2026-11-24T00:00:00.000Z",
+        },
+      },
+    ]);
+    const cached = await getCachedMarketQuotes(db, [cacheKey]);
+    expect(cached.get("NVDA")?.regularPrice).toBe(145.5);
   });
 });

@@ -7,8 +7,7 @@ export const buttonVariants = tv({
   base: [
     "inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium leading-none",
     "rounded-control text-sm select-none cursor-pointer",
-    "transition-[background-color,border-color,box-shadow,color,filter,transform] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-    "active:translate-y-[0.5px] motion-reduce:active:translate-y-0",
+    "transition-[background-color,border-color,box-shadow,color,filter] duration-150 ease-[var(--ease-kanon)] motion-reduce:transition-none",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-coral focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
     "disabled:pointer-events-none disabled:opacity-45",
   ].join(" "),

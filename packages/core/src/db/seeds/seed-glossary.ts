@@ -39,7 +39,7 @@ export const SEED_GLOSSARY_TERMS: readonly GlossaryTerm[] = [
     fullName: "Return on Invested Capital（投入资本回报率）",
     category: "商业质量",
     plainSummary: "衡量公司每投入 100 元股东与债权人的钱，一年能赚回多少税后经营利润。",
-    filingContext: "判断商业模式是否为「印钞机」还是「烧钱黑洞」的一票否决核心指标。",
+    filingContext: "甄别企业属于高回报复利模式还是高资本消耗模式的核心质量指标。",
     example: "长期 ROIC 稳定高于 20% 且高于资本成本的公司，才具备真正复利能力。",
   },
   {
@@ -64,7 +64,7 @@ export const SEED_GLOSSARY_TERMS: readonly GlossaryTerm[] = [
     fullName: "Compound Annual Growth Rate（年化复合增长率）",
     category: "估值赔率",
     plainSummary: "把跨越多年的总涨幅折算成每年的复利增速，用来横向对比不同持有周期的回报。",
-    filingContext: "KANON 估值计算器自动将 3 年目标价空间折算为年化 CAGR，拒绝模糊拍脑袋。",
+    filingContext: "KANON 估值计算器自动将 3 年目标价空间折算为年化 CAGR，取代模糊的主观估算。",
     example: "3 年累计上涨 62%，对应年化复利约 17.5%。",
   },
   {
@@ -88,7 +88,7 @@ export const SEED_GLOSSARY_TERMS: readonly GlossaryTerm[] = [
     fullName: "SEC Form 10-K（美股官方年度报告）",
     category: "一阶资料",
     plainSummary: "美国证监会强制上市公司提交的完整年度审计报告，包含最硬核的财务明细与风险披露。",
-    filingContext: "Item 1A 风险因素与 Item 7 MD&A 是做红队挑刺与核查商业模式的第一手金矿。",
+    filingContext: "Item 1A 风险因素与 Item 7 MD&A 是开展空头反向质询与商业质量核查的第一手来源。",
     example: "做空或红队反驳前，先读 10-K Item 1A 里管理层自己最怕发生的 3 件事。",
   },
   {
@@ -97,7 +97,7 @@ export const SEED_GLOSSARY_TERMS: readonly GlossaryTerm[] = [
     category: "商业质量",
     plainSummary:
       "让竞争对手即便砸钱也难以抢走客户和利润的结构性壁垒（生态锁定、规模成本、转换成本）。",
-    filingContext: "Step 1 商业模式滤镜的核心判断，缺少护城河的公司不值得花 3 年深度跟踪。",
+    filingContext: "Step 1 商业质量评估的核心维度，缺乏竞争壁垒的企业难以支撑跨周期长期持有。",
     example: "CUDA 十年积累的开发者与算子库生态，让客户迁移成本远高于芯片差价。",
   },
 ];

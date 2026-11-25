@@ -181,6 +181,6 @@ export function buildGroundedInvestmentMemo(
     ],
     exitDiscipline:
       thesis.disciplineEntries[0]?.exitRule ??
-      `严守零杠杆铁律；若「${hLast.title}」触发证伪红线且核心毛利率失守，无条件减仓复盘。`,
+      `严守零杠杆约束；若「${hLast.title}」触发证伪阈值且核心毛利率失守，无条件减仓复盘。`,
   });
 }

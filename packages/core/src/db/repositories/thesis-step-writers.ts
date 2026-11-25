@@ -22,13 +22,13 @@ export async function writeBusinessFilterStep(
       status: parsed.status,
       convictionSummary: parsed.convictionSummary,
       businessFilter: parsed.businessFilter,
-      lastReviewedLabel: "刚刚更新 · 商业模式滤镜",
+      lastReviewedLabel: "刚刚更新 · 商业质量评估",
       updatedAt: now,
     })
     .where(eq(thesesTable.id, thesisId));
   return parsed.status === "archived_veto"
-    ? "商业模式一票否决，已归档观察"
-    : "更新商业模式滤镜与核心投资论点";
+    ? "商业质量暂未通过初筛，已归档观察"
+    : "更新商业质量评估与核心投资论点";
 }
 
 export async function writeHypothesesStep(

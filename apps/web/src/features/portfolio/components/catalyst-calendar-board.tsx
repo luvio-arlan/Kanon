@@ -1,11 +1,13 @@
 "use client";
 
-import type {
-  CatalystCategory,
-  CatalystDirection,
-  CatalystStatus,
-  ThesisCatalyst,
-  ThesisDetail,
+import {
+  type CatalystCategory,
+  type CatalystDirection,
+  type CatalystStatus,
+  evaluatePortfolioReviewRadar,
+  parseCatalystSortKey,
+  type ThesisCatalyst,
+  type ThesisDetail,
 } from "@kanon/core";
 import {
   Badge,
@@ -21,6 +23,7 @@ import { IconArrowUpRight, IconCalendarEvent } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ReviewRadarCard } from "./review-radar-card";
 
 type CatalystFilter = "all" | "upcoming" | "high" | "resolved";
 
@@ -107,6 +110,9 @@ function flattenCatalysts(theses: readonly ThesisDetail[]): FlatCatalystItem[] {
     const rankDiff =
       (a.catalyst.status === "upcoming" ? 0 : 1) - (b.catalyst.status === "upcoming" ? 0 : 1);
     if (rankDiff !== 0) return rankDiff;
+    const dateDiff =
+      parseCatalystSortKey(a.catalyst.dateLabel) - parseCatalystSortKey(b.catalyst.dateLabel);
+    if (dateDiff !== 0) return dateDiff;
     return a.catalyst.impact === "high" && b.catalyst.impact !== "high" ? -1 : 1;
   });
 }
@@ -155,30 +161,34 @@ function CatalystListBody({
 
 export function CatalystCalendarBoard({ theses }: { theses: readonly ThesisDetail[] }) {
   const [filter, setFilter] = useState<CatalystFilter>("upcoming");
+  const radar = useMemo(() => evaluatePortfolioReviewRadar(theses), [theses]);
   const allItems = useMemo(() => flattenCatalysts(theses), [theses]);
   const visible = useMemo(() => filterCatalysts(allItems, filter), [allItems, filter]);
   const upcomingCount = allItems.filter((i) => i.catalyst.status === "upcoming").length;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-5 py-4">
-        <div className="flex items-center gap-2">
-          <IconCalendarEvent size={17} stroke={1.5} className="text-accent-coral" />
-          <span className="text-sm font-semibold text-ink-primary">全仓催化剂与重估日程</span>
+    <div className="space-y-4">
+      <ReviewRadarCard report={radar} />
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-5 py-4">
+          <div className="flex items-center gap-2">
+            <IconCalendarEvent size={17} stroke={1.5} className="text-accent-coral" />
+            <span className="text-sm font-semibold text-ink-primary">全仓催化剂时间轴</span>
+          </div>
+          <SegmentedTabs
+            layoutId="catalyst-board-filter"
+            value={filter}
+            onChange={setFilter}
+            items={[
+              { id: "upcoming", label: "待验证", count: upcomingCount },
+              { id: "high", label: "高影响" },
+              { id: "all", label: "全部", count: allItems.length },
+              { id: "resolved", label: "已归档" },
+            ]}
+          />
         </div>
-        <SegmentedTabs
-          layoutId="catalyst-board-filter"
-          value={filter}
-          onChange={setFilter}
-          items={[
-            { id: "upcoming", label: "待验证", count: upcomingCount },
-            { id: "high", label: "高影响" },
-            { id: "all", label: "全部", count: allItems.length },
-            { id: "resolved", label: "已归档" },
-          ]}
-        />
-      </div>
-      <CatalystListBody filter={filter} visible={visible} />
-    </Card>
+        <CatalystListBody filter={filter} visible={visible} />
+      </Card>
+    </div>
   );
 }

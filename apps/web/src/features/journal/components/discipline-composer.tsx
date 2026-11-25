@@ -49,7 +49,7 @@ function ExitRuleFields(props: {
     <div className="space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label htmlFor="disc-exit-rule" className="text-xs text-ink-muted">
-          认错离场红线（必填）
+          预设离场条件（必填）
         </label>
         {props.redTeamHint && !props.exitRule.trim() ? (
           <button
@@ -58,7 +58,7 @@ function ExitRuleFields(props: {
             className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-coral transition-opacity hover:opacity-80"
           >
             <IconSparkles size={13} stroke={1.5} />
-            <span>引用红队证伪红线</span>
+            <span>引用空头质询条件</span>
           </button>
         ) : null}
       </div>

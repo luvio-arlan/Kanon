@@ -86,7 +86,7 @@ export function SearchField({
         }}
         placeholder={placeholder}
         aria-label={ariaLabel}
-        className="h-10 w-full rounded-control border border-hairline bg-surface pl-9 pr-9 text-sm text-ink-primary shadow-button transition-colors placeholder:text-ink-muted hover:border-strong focus:border-strong focus:outline-none focus:ring-2 focus:ring-accent-coral-soft [&::-webkit-search-cancel-button]:hidden"
+        className="h-10 w-full rounded-control border border-hairline bg-surface pl-9 pr-9 text-sm text-ink-primary shadow-input transition-[border-color,box-shadow,background-color] duration-150 ease-[var(--ease-kanon)] placeholder:text-ink-muted hover:border-strong focus:border-accent-coral focus:outline-none focus:ring-[3px] focus:ring-accent-coral-soft [&::-webkit-search-cancel-button]:hidden"
       />
       <SearchClearButton visible={hasValue} onClear={() => onChange("")} />
     </div>

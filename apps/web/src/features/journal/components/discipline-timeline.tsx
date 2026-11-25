@@ -15,8 +15,8 @@ const ACTION_LABEL: Record<TradeAction, string> = {
 const EMOTION_LABEL: Record<EmotionState, string> = {
   calm: "冷静理性",
   hesitant: "犹豫观望",
-  fomo: "FOMO 焦虑",
-  fearful: "恐慌想割",
+  fomo: "追高焦虑",
+  fearful: "恐慌承压",
 };
 
 function TimelineRow({ entry, currentPrice }: { entry: DisciplineEntry; currentPrice: number }) {
@@ -59,7 +59,7 @@ function TimelineRow({ entry, currentPrice }: { entry: DisciplineEntry; currentP
         </time>
       </div>
       <p className="mt-2 text-sm leading-relaxed text-ink-primary">
-        <span className="text-ink-muted">离场红线：</span>
+        <span className="text-ink-muted">离场条件：</span>
         {entry.exitRule}
       </p>
       {entry.note ? (
@@ -80,7 +80,7 @@ export function DisciplineTimeline({
     return (
       <Card className="p-8 text-center">
         <p className="text-sm text-ink-secondary">
-          暂无交易复盘留痕。每次仓位动作前先签下零杠杆铁律与认错红线。
+          暂无交易复盘留痕。每次仓位调整前请确认零杠杆约束与预设离场条件。
         </p>
       </Card>
     );

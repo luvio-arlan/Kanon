@@ -27,7 +27,7 @@ export function AttentionRadarStrip({
         <button
           type="button"
           onClick={onFocusBuyZone}
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-status-pass/30 bg-status-pass-soft px-3 text-xs font-medium leading-none text-status-pass transition-opacity hover:opacity-85"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-item border border-status-pass/30 bg-status-pass-soft px-3 text-xs font-medium leading-none text-status-pass transition-opacity duration-150 ease-[var(--ease-kanon)] hover:opacity-85"
         >
           <IconTargetArrow size={14} stroke={1.5} />
           <span>15% 安全买点 · {analytics.inBuyZoneCount}</span>
@@ -37,7 +37,7 @@ export function AttentionRadarStrip({
         <button
           type="button"
           onClick={onFocusWarnings}
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-accent-coral/30 bg-accent-coral-soft px-3 text-xs font-medium leading-none text-accent-coral transition-opacity hover:opacity-85"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-item border border-accent-coral/30 bg-accent-coral-soft px-3 text-xs font-medium leading-none text-accent-coral transition-opacity duration-150 ease-[var(--ease-kanon)] hover:opacity-85"
         >
           <IconAlertTriangle size={14} stroke={1.5} />
           <span>假设预警 · {analytics.warningThesisCount}</span>
@@ -47,7 +47,7 @@ export function AttentionRadarStrip({
         <button
           type="button"
           onClick={onOpenStressTest}
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-status-fail/30 bg-status-fail-soft px-3 text-xs font-medium leading-none text-status-fail transition-opacity hover:opacity-85"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-item border border-status-fail/30 bg-status-fail-soft px-3 text-xs font-medium leading-none text-status-fail transition-opacity duration-150 ease-[var(--ease-kanon)] hover:opacity-85"
         >
           <IconShieldExclamation size={14} stroke={1.5} />
           <span>单标的仓位超上限</span>

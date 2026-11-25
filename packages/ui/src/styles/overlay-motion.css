@@ -1,0 +1,178 @@
+/* Placement-aware overlay choreography — exits always faster than entrances, reduced-motion guarded */
+
+@layer components {
+  .popover__content[data-placement^="bottom"],
+  .dropdown__popover[data-placement^="bottom"] {
+    transform-origin: top center;
+  }
+
+  .popover__content[data-placement^="top"],
+  .dropdown__popover[data-placement^="top"] {
+    transform-origin: bottom center;
+  }
+
+  .popover__content[data-entering="true"],
+  .dropdown__popover[data-entering="true"] {
+    animation: kanon-popover-enter var(--duration-tactile) var(--ease-kanon) both;
+  }
+
+  .popover__content[data-exiting="true"],
+  .dropdown__popover[data-exiting="true"] {
+    animation: kanon-popover-exit 100ms var(--ease-exit) forwards;
+  }
+
+  .kanon-tooltip[data-entering="true"] {
+    animation: kanon-tooltip-enter var(--duration-surface) var(--ease-kanon) both;
+  }
+
+  .kanon-tooltip[data-exiting="true"] {
+    animation: kanon-tooltip-exit 100ms var(--ease-exit) forwards;
+  }
+
+  .kanon-backdrop[data-entering="true"] {
+    animation: kanon-backdrop-enter var(--duration-overlay-in) var(--ease-kanon) both;
+  }
+
+  .kanon-backdrop[data-exiting="true"] {
+    animation: kanon-backdrop-exit var(--duration-overlay-out) var(--ease-exit) forwards;
+  }
+
+  .kanon-sheet-container[data-entering="true"] {
+    animation: kanon-sheet-slide-in var(--duration-overlay-in) var(--ease-overlay) both;
+  }
+
+  .kanon-sheet-container[data-exiting="true"] {
+    animation: kanon-sheet-slide-out var(--duration-overlay-out) var(--ease-exit) forwards;
+  }
+
+  .kanon-dialog-container[data-entering="true"] {
+    animation: kanon-dialog-enter var(--duration-overlay-in) var(--ease-overlay) both;
+  }
+
+  .kanon-dialog-container[data-exiting="true"] {
+    animation: kanon-dialog-exit var(--duration-overlay-out) var(--ease-exit) forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .popover__content[data-entering="true"],
+    .popover__content[data-exiting="true"],
+    .dropdown__popover[data-entering="true"],
+    .dropdown__popover[data-exiting="true"],
+    .kanon-tooltip[data-entering="true"],
+    .kanon-tooltip[data-exiting="true"],
+    .kanon-backdrop[data-entering="true"],
+    .kanon-backdrop[data-exiting="true"],
+    .kanon-sheet-container[data-entering="true"],
+    .kanon-sheet-container[data-exiting="true"],
+    .kanon-dialog-container[data-entering="true"],
+    .kanon-dialog-container[data-exiting="true"] {
+      animation: none;
+    }
+  }
+}
+
+@keyframes kanon-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes kanon-backdrop-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes kanon-dialog-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes kanon-dialog-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98) translateY(3px);
+  }
+}
+
+@keyframes kanon-popover-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes kanon-popover-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+}
+
+@keyframes kanon-tooltip-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes kanon-tooltip-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes kanon-sheet-slide-in {
+  from {
+    transform: translateX(40px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes kanon-sheet-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+}

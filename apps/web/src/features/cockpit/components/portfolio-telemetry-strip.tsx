@@ -137,7 +137,7 @@ function buildTelemetryCards(analytics: PortfolioAnalytics, onOpenStressTest: ()
       label: "跟踪标的",
       icon: <IconStack2 size={16} stroke={1.5} />,
       value: <RollingNumber value={analytics.activeCount} decimals={0} />,
-      caption: "平均研究完成度",
+      caption: "研究完成度",
       delta: `${analytics.averageReadinessPct}%`,
       deltaTone: (analytics.averageReadinessPct >= 80 ? "pass" : "neutral") as "pass" | "neutral",
     },
@@ -145,7 +145,7 @@ function buildTelemetryCards(analytics: PortfolioAnalytics, onOpenStressTest: ()
       label: "组合平均赔率",
       icon: <IconScale size={16} stroke={1.5} />,
       value: <OddsValue value={analytics.averageRiskReward} activeCount={analytics.activeCount} />,
-      caption: "高赔率优选标的",
+      caption: "高赔率标的",
       delta: `${analytics.attractiveCount} 只`,
       deltaTone: (analytics.attractiveCount > 0 ? "pass" : "neutral") as "pass" | "neutral",
     },
@@ -153,7 +153,7 @@ function buildTelemetryCards(analytics: PortfolioAnalytics, onOpenStressTest: ()
       label: "平均安全边际",
       icon: <IconShieldCheck size={16} stroke={1.5} />,
       value: <MarginValue value={analytics.averageMarginOfSafetyPct} />,
-      caption: "中性三年复合预期",
+      caption: "三年中性预期",
       delta: cagrDelta,
       deltaTone: ((analytics.averageMarginOfSafetyPct ?? 0) >= 25 ? "pass" : "neutral") as
         | "pass"
@@ -163,7 +163,7 @@ function buildTelemetryCards(analytics: PortfolioAnalytics, onOpenStressTest: ()
       label: "已配仓位",
       icon: <IconChartPie size={16} stroke={1.5} />,
       value: <RollingNumber value={analytics.totalWeightPct} suffix="%" decimals={0} />,
-      caption: "点击运行压力测试",
+      caption: "组合压力测试",
       delta: `现金 ${analytics.cashBufferPct}%`,
       deltaTone: (analytics.overCapTickers.length > 0 ? "fail" : "neutral") as "fail" | "neutral",
       onClick: onOpenStressTest,
@@ -182,7 +182,7 @@ function TelemetryStatGrid({
   return (
     <motion.div
       variants={KANON_STAGGER_CONTAINER}
-      initial="hidden"
+      initial={false}
       animate="visible"
       className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
     >

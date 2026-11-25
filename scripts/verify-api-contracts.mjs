@@ -16,14 +16,22 @@ const KNOWN_ROUTES = [
   "auth/login/route.ts",
   "auth/logout/route.ts",
   "auth/me/route.ts",
+  "auth/password/route.ts",
+  "auth/profile/route.ts",
   "auth/register/route.ts",
+  "auth/sessions/route.ts",
+  "auth/tokens/route.ts",
   "export/portfolio/route.ts",
   "export/thesis/[id]/route.ts",
   "health/route.ts",
   "import/thesis/route.ts",
   "market/bootstrap/route.ts",
+  "market/provider-test/route.ts",
+  "market/quotes/route.ts",
   "market/refresh-prices/route.ts",
   "mcp/context/route.ts",
+  "mcp/route.ts",
+  "sec/[ticker]/filing/route.ts",
   "sec/[ticker]/route.ts",
   "theses/[id]/discipline/route.ts",
   "theses/[id]/reviews/route.ts",
@@ -275,7 +283,8 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
     .filter(Boolean)
     .map((raw) => JSON.parse(raw))
     .find((evt) => evt.type === "briefing_ready");
-  assert.ok(readyLine?.runId && readyLine.briefing.traces.length === 6);
+  assert.ok(readyLine?.runId && readyLine.briefing.traces.length >= 6);
+  assert.ok(typeof readyLine.briefing.bearRebuttal === "string");
 
   const firstPropId = readyLine.briefing.proposals[0]?.id ?? "prop-test";
   const applied = await fetchJson(
@@ -312,6 +321,128 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
   const mcpNvda = await fetchJson("/api/mcp/context?ticker=NVDA", {}, cookieA);
   assert.equal(mcpNvda.status, 200);
   assert.equal(mcpNvda.data.thesis.ticker, "NVDA");
+
+  const csrfRejected = await fetchJson(
+    "/api/auth/profile",
+    {
+      method: "PATCH",
+      headers: { Origin: "https://evil.example" },
+      body: JSON.stringify({ displayName: "Blocked" }),
+    },
+    cookieA,
+  );
+  assert.equal(csrfRejected.status, 403);
+
+  const profilePatch = await fetchJson(
+    "/api/auth/profile",
+    { method: "PATCH", body: JSON.stringify({ displayName: "买方契约测试员" }) },
+    cookieA,
+  );
+  assert.equal(profilePatch.status, 200);
+  assert.equal(profilePatch.data.user.displayName, "买方契约测试员");
+
+  const sessList = await fetchJson("/api/auth/sessions", {}, cookieA);
+  assert.equal(sessList.status, 200);
+  assert.ok(sessList.data.sessions.length >= 1);
+  const sessRevoke = await fetchJson("/api/auth/sessions", { method: "DELETE" }, cookieA);
+  assert.equal(sessRevoke.status, 200);
+
+  const pwdChange = await fetchJson(
+    "/api/auth/password",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword: "Kanon2026!",
+        newPassword: "Kanon2027#",
+        confirmPassword: "Kanon2027#",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(pwdChange.status, 200);
+
+  const createdPat = await fetchJson(
+    "/api/auth/tokens",
+    { method: "POST", body: JSON.stringify({ name: "CI MCP", expiresInDays: 30 }) },
+    cookieA,
+  );
+  assert.equal(createdPat.status, 201);
+  const pat = createdPat.data.plaintextToken;
+  assert.ok(pat.startsWith("kanon_pat_"));
+
+  const patList = await fetchJson("/api/auth/tokens", {}, cookieA);
+  assert.equal(patList.status, 200);
+  assert.equal(patList.data.tokens.length, 1);
+
+  const mcpInit = await fetchJson("/api/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pat}` },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+  });
+  assert.equal(mcpInit.status, 200);
+  assert.equal(mcpInit.data.result.serverInfo.name, "kanon-research-os");
+
+  const mcpTools = await fetchJson("/api/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pat}` },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+  });
+  assert.equal(mcpTools.status, 200);
+  assert.equal(mcpTools.data.result.tools.length, 4);
+
+  const mcpCall = await fetchJson("/api/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pat}` },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "get_thesis_dossier", arguments: { ticker: "NVDA" } },
+    }),
+  });
+  assert.equal(mcpCall.status, 200);
+  assert.equal(mcpCall.data.result.isError, false);
+
+  const mcpResources = await fetchJson("/api/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pat}` },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "resources/list" }),
+  });
+  assert.equal(mcpResources.status, 200);
+  assert.ok(mcpResources.data.result.resources.length >= 2);
+
+  const mcpContextPat = await fetchJson("/api/mcp/context", {
+    headers: { Authorization: `Bearer ${pat}` },
+  });
+  assert.equal(mcpContextPat.status, 200);
+
+  const patRevoke = await fetchJson(
+    `/api/auth/tokens?id=${encodeURIComponent(createdPat.data.token.id)}`,
+    { method: "DELETE" },
+    cookieA,
+  );
+  assert.equal(patRevoke.status, 200);
+
+  const revokedMcp = await fetchJson("/api/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pat}` },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "ping" }),
+  });
+  assert.equal(revokedMcp.status, 401);
+
+  const secFiling = await fetchJson("/api/sec/NVDA/filing", {}, cookieA);
+  assert.equal(secFiling.status, 200);
+  assert.equal(secFiling.data.ticker, "NVDA");
+
+  const marketQuotes = await fetchJson("/api/market/quotes?tickers=NVDA", {}, cookieA);
+  assert.equal(marketQuotes.status, 200);
+
+  const providerTest = await fetchJson(
+    "/api/market/provider-test",
+    { method: "POST", body: JSON.stringify({ provider: "yahoo", ticker: "NVDA" }) },
+    cookieA,
+  );
+  assert.equal(providerTest.status, 200);
 
   const del1 = await fetchJson(`/api/theses/${createdId}`, { method: "DELETE" }, cookieA);
   const del2 = await fetchJson(
@@ -354,6 +485,9 @@ async function main() {
     assert.equal(homeRes.status, 307);
     assert.ok(homeRes.headers.get("location")?.endsWith("/login"));
     assert.equal(loginRes.status, 200);
+    assert.equal(loginRes.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(loginRes.headers.get("x-frame-options"), "DENY");
+    assert.ok(loginRes.headers.get("content-security-policy")?.includes("default-src 'self'"));
     assert.equal(registerRes.status, 200);
     assert.equal(welcomeRes.status, 307);
     assert.ok(welcomeRes.headers.get("location")?.endsWith("/login"));

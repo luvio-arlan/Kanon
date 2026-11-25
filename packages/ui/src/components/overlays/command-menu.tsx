@@ -45,8 +45,8 @@ function CommandRow({
       value={[item.label, item.description ?? "", ...(item.keywords ?? [])].join(" ")}
       onSelect={() => onRun(item)}
       className={cn(
-        "group flex h-10 cursor-pointer items-center justify-between gap-3 rounded-control px-2.5",
-        "text-sm text-ink-primary outline-none transition-colors duration-100",
+        "group flex h-10 cursor-pointer items-center justify-between gap-3 rounded-item px-2.5",
+        "text-sm text-ink-primary outline-none transition-colors duration-150 ease-[var(--ease-kanon)]",
         "data-[selected=true]:bg-muted data-[selected=true]:text-ink-primary",
       )}
     >

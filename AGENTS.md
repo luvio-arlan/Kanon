@@ -30,14 +30,22 @@ packages/
 - **Aesthetic Craft & Copy Restraint**: Follow [.rules/editorial-craft.md](.rules/editorial-craft.md) strictly — Swiss Editorial minimalism (95% monochrome Light/Dark canvas + Natural Titanium + coral focal accent), **zero ornamental microcopy or UI complexity** (no decorative footers, feature/tech taglines, explanatory subtitles, version labels, or redundant slogans). Every visible word must serve an immediate user action; prefer whitespace, typographic hierarchy, and optically accurate motion.
 - **Production Topology**: `https://kanon.hk` (GitHub Pages auto-deployed from `marketing/`) + `https://app.kanon.hk` (Vercel monorepo `apps/web` + Neon Postgres `sin1`). See [deploy/README.md](deploy/README.md) before any deployment or infra change.
 
-## 4. Verification Gates (Single Source of Truth)
+## 4. Verification Gates & Auto-Delivery Protocol (Single Source of Truth)
 
 ```bash
 pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards + knip (zero-skip, zero-ratchet)
 pnpm test         # Vitest: financial math goldens, dynamic DDL parity, zero-leverage & AI/API contracts
 pnpm build        # Full Turborepo production build
+pnpm test:api     # Isolated 28-route API + SSR + Auth/MCP/CSRF contract verification
 pnpm dev          # Local Next.js dev server (persistent PGlite when DATABASE_URL unset)
 pnpm db:push      # Push Drizzle schema to external PostgreSQL (DATABASE_URL)
 ```
+
+**Mandatory Post-Task Delivery Loop** (execute automatically upon finishing every task without waiting for a separate prompt):
+
+1. **Clean dead/junk code**: Remove unused exports, dead files, and temp artifacts; pass `pnpm format && pnpm check` (`knip` zero-issue).
+2. **Sync docs**: Keep `README.md`, `docs/PRD.md`, `marketing/index.html`, `.rules/editorial-craft.md`, and `.rules/postmortems.md` aligned with shipped changes.
+3. **Verify end-to-end**: Pass `pnpm check && pnpm test && pnpm build && pnpm test:api`.
+4. **Push & deploy**: Commit cleanly and `git push origin main` (auto-deploys `https://kanon.hk` when `marketing/` changes), deploy web app from repo root via `npx --yes vercel deploy --prod --yes --regions sin1`, and verify live `https://app.kanon.hk/api/health`.
 
 > Any recurring bug (2+ occurrences) MUST be promoted to an Error-Driven L1/L2/L3 guard and logged in [.rules/postmortems.md](.rules/postmortems.md).

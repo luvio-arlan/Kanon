@@ -144,11 +144,12 @@ function CognitiveDiffPanel({
   const menuItems = baselineOptions.map((r) => ({
     id: r.id,
     label: `${r.createdAt.slice(5, 16).replace("T", " ")} · ${STEP_LABELS[r.step]}`,
+    selected: r.id === older.id,
     onSelect: () => setBaseId(r.id),
   }));
-
+  const olderLabel = `${older.createdAt.slice(5, 16).replace("T", " ")} · ${STEP_LABELS[older.step]}`;
   return (
-    <div className="mb-4 space-y-3 rounded-control border border-hairline bg-muted/50 p-4">
+    <div className="mb-4 space-y-3 rounded-panel border border-hairline bg-muted/50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="font-medium text-ink-primary">认知演进快照对比</span>
         <div className="flex items-center gap-2">
@@ -159,10 +160,12 @@ function CognitiveDiffPanel({
             items={menuItems}
             trigger={
               <>
-                <span className="font-mono">
-                  {older.createdAt.slice(5, 16).replace("T", " ")} · {STEP_LABELS[older.step]}
-                </span>
-                <IconChevronDown size={13} stroke={1.5} />
+                <span className="font-mono">{olderLabel}</span>
+                <IconChevronDown
+                  size={13}
+                  stroke={1.5}
+                  className="kanon-chevron transition-transform duration-150 ease-[var(--ease-kanon)]"
+                />
               </>
             }
           />

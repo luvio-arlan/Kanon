@@ -79,6 +79,15 @@ function checkJsxGuard(relPath, sf, node, ctx, errors) {
   }
   if (tag === "AnimatePresence") checkAnimatePresenceGuard(relPath, sf, node, line, errors);
   if (tag === "input") checkPasswordInputGuard(relPath, sf, node, line, errors);
+  if (tag === "select" && /^apps\/web\/src\/features\//.test(relPath)) {
+    addError(
+      errors,
+      relPath,
+      line,
+      "no-native-select",
+      "Native <select> breaks visual alignment across operating systems. Use @kanon/ui <ActionMenu>, <SegmentedTabs>, or <ButtonGroup> instead (.rules/editorial-craft.md §2).",
+    );
+  }
 }
 
 function checkCallGuard(relPath, sf, node, state, errors) {

@@ -76,7 +76,7 @@ function NavBadgeSlot({ badge, active }: { badge: ReactNode; active: boolean }) 
   return (
     <span
       className={cn(
-        "relative z-10 inline-flex shrink-0 items-center justify-center rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums",
+        "relative z-10 inline-flex shrink-0 items-center justify-center rounded-badge px-1.5 py-0.5 font-mono text-xs tabular-nums",
         active ? "bg-muted text-ink-primary font-medium" : "text-ink-muted",
       )}
     >

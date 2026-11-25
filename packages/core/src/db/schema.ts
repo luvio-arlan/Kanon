@@ -9,7 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-import { DEFAULT_WORKSPACE_USER_ID, type UserRole } from "../contracts/auth-contracts";
+import { DEFAULT_WORKSPACE_USER_ID } from "../contracts/auth-contracts";
 import type {
   Alignment,
   BusinessFilter,
@@ -34,26 +34,13 @@ import type {
 } from "../schemas/research";
 import type { HypothesisStatus, SparklinePoint } from "../schemas/thesis";
 
-export const usersTable = pgTable("users", {
-  id: text("id").primaryKey(),
-  phoneE164: text("phone_e164").notNull().unique(),
-  displayName: text("display_name").notNull(),
-  passwordHash: text("password_hash").notNull(),
-  role: text("role").$type<UserRole>().notNull().default("member"),
-  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const sessionsTable = pgTable("sessions", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  tokenHash: text("token_hash").notNull().unique(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export {
+  type ApiTokenScope,
+  apiTokensTable,
+  marketQuotesCacheTable,
+  sessionsTable,
+  usersTable,
+} from "./schema-extensions";
 
 export const thesesTable = pgTable(
   "theses",

@@ -43,7 +43,7 @@ function buildForensicProposal(
   const highCapex = (quality.capexIntensityPct ?? 0) >= 22;
   if (!topFlag && !highCapex) return undefined;
   const floorGm = Math.max(20, (quality.latestGrossMarginPct ?? 40) - 5).toFixed(0);
-  const title = topFlag ? `针对「${topFlag.label}」增补离场红线` : "增补高资本开支现金流排雷红线";
+  const title = topFlag ? `针对「${topFlag.label}」增补离场条件` : "增补高资本开支现金流风控条件";
   const content = topFlag
     ? `鉴于 ${thesis.ticker} 触发法证提示（${topFlag.label}），若未来两季 Owner FCF 持续弱于净利润且综合毛利率跌破 ${floorGm}%，无条件减半仓复盘。`
     : `鉴于 ${thesis.ticker} CapEx 强度达 ${quality.capexIntensityPct}%，若未来连续两季自由现金流转负且综合毛利率跌破 ${floorGm}%，无条件减半仓复盘。`;
@@ -51,7 +51,7 @@ function buildForensicProposal(
     id: "prop-sec-forensic-exit",
     target: "exit_rule",
     title,
-    beforePreview: thesis.disciplineEntries[0]?.exitRule || "（当前暂无已签署离场红线）",
+    beforePreview: thesis.disciplineEntries[0]?.exitRule || "（当前暂无已签署离场条件）",
     content,
     rationale: topFlag?.detail ?? "重资本扩产周期中，毛利率与 FCF 同步失守往往领先盈利下修。",
     citation,
@@ -71,7 +71,7 @@ function runForensicsTool({ thesis, secSnapshot }: ResearchToolContext): Researc
   const flagSummary =
     forensics.redFlags.length > 0
       ? `触发 ${forensics.redFlags.length} 项法证提醒（${forensics.redFlags.map((f) => f.label).join("、")}）。`
-      : "未触发核心法证排雷红灯。";
+      : "未触发核心财务法证警示。";
   const citation = `SEC ${secSnapshot?.cik ?? thesis.ticker} · ${quality.latestFiscalYear} 10-K/Q XBRL`;
   const finding = `${quality.yearsCovered}年画像「${quality.qualityLabel}」· 法证 ${forensics.forensicScore}分(${forensics.forensicGradeLabel})：ROIC ${forensics.roicPct ?? "—"}%，ROIIC ${forensics.roiicPct ?? "—"}%，Rule of 40 ${forensics.ruleOf40Score ?? "—"}，Sloan 应计 ${forensics.sloanAccrualPct ?? "—"}%，SBC/OCF ${forensics.sbcPctOfOcf ?? "—"}%。${flagSummary}`;
   return {
@@ -103,8 +103,8 @@ function runReverseDcfTool({ thesis, secSnapshot }: ResearchToolContext): Resear
     ? {
         id: "prop-premortem",
         target: "pre_mortem",
-        title: "补全 18 个月事前验尸（Pre-Mortem）剧本",
-        beforePreview: "（当前未填写事前验尸剧本）",
+        title: "补全 18 个月逆向压力推演",
+        beforePreview: "（当前未填写逆向压力推演）",
         content: `假设 18 个月后 ${thesis.companyName} 股价回撤 ${Math.max(25, Math.round(thesis.valuation.downsidePct + 15))}%：核心原因很可能是「${h0Title}」失速且未能达成市场隐含的 ${rdcf.requiredCagrPct}% 增速，估值压缩至悲观 ${thesis.valuation.bear.peMultiple}x（$${thesis.valuation.bear.targetPrice.toFixed(1)}）。`,
         rationale: "机构级风控要求建仓前先写清失败链条，对抗确认偏误。",
         citation,
@@ -148,13 +148,13 @@ function runHypothesisAuditTool({ thesis }: ResearchToolContext): ResearchToolOu
 export const RESEARCH_AGENT_TOOLS: readonly ResearchToolSpec[] = [
   {
     name: "inspect_sec_forensics",
-    label: "核验 SEC 法证评分、ROIC/ROIIC 与 SBC 排雷",
+    label: "核验 SEC 法证评分、ROIC/ROIIC 与 SBC 稀释风险",
     description: "Run deterministic SEC forensic accounting & SBC/working-capital red-flag checks.",
     execute: runForensicsTool,
   },
   {
     name: "stress_test_reverse_dcf",
-    label: "运行真·反向折现现金流与安全买点压力测试",
+    label: "运行反向折现现金流（Reverse-DCF）与安全买点压力测试",
     description: "Run Reverse-DCF implied growth solver and 15%/20% hurdle entry analysis.",
     execute: runReverseDcfTool,
   },
@@ -195,7 +195,7 @@ export const RESEARCH_AGENT_TOOLS: readonly ResearchToolSpec[] = [
   },
   {
     name: "audit_catalyst_and_value_trap",
-    label: "审计催化剂日程与价值陷阱排雷",
+    label: "审计催化剂日程与价值陷阱核查",
     description:
       "Check upcoming hard/soft catalysts to prevent value traps without rerating events.",
     execute: (ctx) => runCatalystValueTrapTool(ctx.thesis),

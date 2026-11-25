@@ -15,8 +15,8 @@ const ACTION_OPTIONS: ReadonlyArray<{ id: TradeAction; label: string }> = [
 const EMOTION_OPTIONS: ReadonlyArray<{ id: EmotionState; label: string }> = [
   { id: "calm", label: "冷静理性" },
   { id: "hesitant", label: "犹豫观望" },
-  { id: "fomo", label: "FOMO 焦虑" },
-  { id: "fearful", label: "恐慌想割" },
+  { id: "fomo", label: "追高焦虑" },
+  { id: "fearful", label: "恐慌承压" },
 ];
 
 export function TradeActionRow({
@@ -171,7 +171,7 @@ export function DisciplineSignatureStrip(props: {
       {props.blocked ? (
         <div className="flex items-center gap-1.5 text-xs font-medium text-status-fail">
           <IconShieldLock size={14} stroke={1.5} />
-          <span>未确认「零杠杆铁律」前禁止提交仓位记录</span>
+          <span>未确认「零杠杆约束」前无法提交仓位记录</span>
         </div>
       ) : null}
     </div>

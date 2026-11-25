@@ -8,11 +8,18 @@ import {
   jsonOk,
   readJsonBody,
 } from "../../_lib/http";
+import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
+const REGISTER_RATE_POLICY = { bucket: "auth_register", maxRequests: 15, windowMs: 15 * 60 * 1000 };
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
+  const rateErr = checkRateLimit(request, REGISTER_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
 

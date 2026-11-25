@@ -12,6 +12,9 @@ export interface RollingNumberProps {
   className?: string;
 }
 
+const FLOW_TIMING = { duration: 260, easing: "cubic-bezier(0.22, 1, 0.36, 1)" } as const;
+const FLOW_OPACITY = { duration: 160, easing: "ease-out" } as const;
+
 export function RollingNumber({
   value,
   decimals = 1,
@@ -26,6 +29,9 @@ export function RollingNumber({
       prefix={prefix}
       suffix={suffix}
       locales="en-US"
+      transformTiming={FLOW_TIMING}
+      spinTiming={FLOW_TIMING}
+      opacityTiming={FLOW_OPACITY}
       format={{
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,

@@ -17,6 +17,7 @@ import {
   disciplineEntriesTable,
   hypothesesTable,
   thesesTable,
+  thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
 import { listCopilotOutputs } from "./copilot-store";
@@ -60,13 +61,23 @@ function buildSummaries(
   });
 }
 
-function fetchThesisChildrenAndValuations(db: KanonDb, id: string, allIds: readonly string[]) {
+function fetchInitialWave(db: KanonDb, id: string, userId: string) {
   return Promise.all([
+    db
+      .select()
+      .from(thesesTable)
+      .where(eq(thesesTable.userId, userId))
+      .orderBy(asc(thesesTable.indexOrder)),
     db
       .select()
       .from(hypothesesTable)
       .where(eq(hypothesesTable.thesisId, id))
       .orderBy(asc(hypothesesTable.sortOrder)),
+    db
+      .select()
+      .from(thesisCatalystsTable)
+      .where(eq(thesisCatalystsTable.thesisId, id))
+      .orderBy(asc(thesisCatalystsTable.createdAt)),
     db
       .select()
       .from(crossChecksTable)
@@ -77,16 +88,6 @@ function fetchThesisChildrenAndValuations(db: KanonDb, id: string, allIds: reado
       .from(disciplineEntriesTable)
       .where(eq(disciplineEntriesTable.thesisId, id))
       .orderBy(desc(disciplineEntriesTable.createdAt)),
-    db
-      .select()
-      .from(valuationScenariosTable)
-      .where(inArray(valuationScenariosTable.thesisId, [...allIds])),
-  ]);
-}
-
-function fetchCanvasSidecars(db: KanonDb, id: string, ticker: string) {
-  return Promise.all([
-    getSecSnapshot(db, ticker),
     listGlossaryTerms(db),
     listCopilotOutputs(db, id),
     listThesisRevisions(db, id),
@@ -101,32 +102,29 @@ export async function loadThesisCanvasBootstrap(
   id: string,
   userId: string,
 ): Promise<ThesisCanvasBootstrap | null> {
-  const rows = await db
-    .select()
-    .from(thesesTable)
-    .where(eq(thesesTable.userId, userId))
-    .orderBy(asc(thesesTable.indexOrder));
+  const wave = await fetchInitialWave(db, id, userId);
+  const [rows, hypotheses, catalysts, crossChecks, disciplineRows, glossary, savedOutputs] = wave;
+  const [, , , , , , , revisions, reviews, latestAgentRun, inboundCrossChecks] = wave;
   const targetRow = rows.find((row) => row.id === id);
   if (!targetRow) return null;
 
   const allIds = rows.map((row) => row.id);
-  const [
-    [hypotheses, crossChecks, disciplineRows, valuations],
-    [secSnapshot, glossary, savedOutputs, revisions, reviews, latestAgentRun, inboundCrossChecks],
-  ] = await Promise.all([
-    fetchThesisChildrenAndValuations(db, id, allIds),
-    fetchCanvasSidecars(db, id, targetRow.ticker),
+  const [secSnapshot, valuations] = await Promise.all([
+    getSecSnapshot(db, targetRow.ticker),
+    db
+      .select()
+      .from(valuationScenariosTable)
+      .where(inArray(valuationScenariosTable.thesisId, allIds)),
   ]);
-
   const valMap = new Map(valuations.map((v) => [v.thesisId, v]));
   const thesis = hydrateThesis({
     row: targetRow,
     hypotheses,
+    catalysts,
     crossChecks,
     valuationRow: valMap.get(id),
     disciplineRows,
   });
-
   return {
     thesis,
     allTheses: buildSummaries(rows, valMap),

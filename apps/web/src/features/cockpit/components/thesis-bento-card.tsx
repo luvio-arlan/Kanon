@@ -19,7 +19,7 @@ import {
 import { IconArrowRight, IconArrowUpRight } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { ValuationAnchorPanel } from "./valuation-anchor-panel";
 
 export interface ThesisBentoCardProps {
@@ -29,7 +29,7 @@ export interface ThesisBentoCardProps {
 }
 
 const STEP_SHORT_NAMES: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: "商业滤镜",
+  1: "商业质量",
   2: "核心假设",
   3: "财报印证",
   4: "估值赔率",
@@ -95,7 +95,7 @@ function CardIdentityHeader({
             催化 {thesis.catalysts.filter((c) => c.status === "upcoming").length}
           </Badge>
         ) : null}
-        {thesis.status === "archived_veto" ? <Badge variant="fail">已否决</Badge> : null}
+        {thesis.status === "archived_veto" ? <Badge variant="fail">已归档</Badge> : null}
       </div>
     </div>
   );
@@ -197,7 +197,11 @@ function CardActionFooter({
   );
 }
 
-export function ThesisBentoCard({ thesis, liveQuote, onQuickInspect }: ThesisBentoCardProps) {
+export const ThesisBentoCard = memo(function ThesisBentoCard({
+  thesis,
+  liveQuote,
+  onQuickInspect,
+}: ThesisBentoCardProps) {
   const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
   const next = resolveNextStepHref(thesis.id, readiness);
 
@@ -206,7 +210,7 @@ export function ThesisBentoCard({ thesis, liveQuote, onQuickInspect }: ThesisBen
       <Card interactive spotlight className="group relative flex w-full flex-col overflow-hidden">
         <div
           aria-hidden="true"
-          className="h-[2px] w-full origin-left scale-x-0 bg-accent-coral transition-transform duration-200 group-hover:scale-x-100"
+          className="h-[2px] w-full origin-left scale-x-0 bg-accent-coral transition-transform duration-200 ease-[var(--ease-kanon)] group-hover:scale-x-100"
         />
         <CardIdentityHeader thesis={thesis} readiness={readiness} targetHref={next.href} />
         <ValuationAnchorPanel
@@ -219,4 +223,4 @@ export function ThesisBentoCard({ thesis, liveQuote, onQuickInspect }: ThesisBen
       </Card>
     </motion.article>
   );
-}
+});

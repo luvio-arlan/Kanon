@@ -45,7 +45,7 @@ export function SegmentedTabs<T extends string>({
             aria-selected={active}
             onClick={() => onChange(item.id)}
             className={cn(
-              "relative inline-flex h-8 cursor-pointer items-center justify-center whitespace-nowrap rounded-badge px-3.5 text-sm font-medium leading-none transition-colors duration-150 focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-coral/70",
+              "relative inline-flex h-8 cursor-pointer items-center justify-center whitespace-nowrap rounded-badge px-3.5 text-sm font-medium leading-none transition-colors duration-150 ease-[var(--ease-kanon)] focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-coral/70",
               active ? "text-ink-primary" : "text-ink-secondary hover:text-ink-primary",
             )}
           >

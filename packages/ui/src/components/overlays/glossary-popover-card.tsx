@@ -24,16 +24,16 @@ export function GlossaryPopoverCard({
       <Popover.Trigger<"span">
         render={(triggerProps) => <span {...triggerProps} />}
         className={cn(
-          "inline cursor-pointer rounded px-1 py-0.5 font-mono text-sm font-medium text-ink-primary",
-          "underline decoration-accent-coral/60 decoration-dashed underline-offset-4",
-          "transition-colors duration-150 hover:bg-accent-coral-soft hover:text-accent-coral",
+          "inline cursor-pointer rounded-badge px-0.5 -mx-0.5 text-inherit",
+          "underline decoration-strong/75 decoration-dotted underline-offset-[4px]",
+          "transition-colors duration-150 ease-[var(--ease-kanon)] hover:bg-accent-coral-soft/65 hover:text-accent-coral hover:decoration-accent-coral",
           className,
         )}
       >
         {triggerText}
       </Popover.Trigger>
       <Popover.Content placement="top" offset={8} className="z-50 max-w-sm">
-        <Popover.Dialog className="rounded-card border border-strong bg-surface-elevated p-4 shadow-overlay">
+        <Popover.Dialog className="rounded-panel border border-strong bg-surface-elevated p-4 shadow-dropdown">
           <Popover.Arrow />
           <div className="flex items-center justify-between gap-2">
             <Popover.Heading className="text-sm font-semibold text-ink-primary">

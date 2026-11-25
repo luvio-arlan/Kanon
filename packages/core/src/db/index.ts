@@ -13,6 +13,18 @@ export {
   type KanonMigration,
   runKanonMigrations,
 } from "./migrations";
+export {
+  authenticateApiToken,
+  createApiToken,
+  listApiTokens,
+  revokeApiToken,
+} from "./repositories/account/api-tokens-store";
+export {
+  changeUserPassword,
+  listUserSessions,
+  revokeOtherUserSessions,
+  updateUserProfile,
+} from "./repositories/account/profile-and-sessions";
 export { importThesisArchive } from "./repositories/archive-importer";
 export {
   authenticateUser,
@@ -31,6 +43,12 @@ export {
   upsertSecSnapshot,
 } from "./repositories/discipline-mutations";
 export {
+  buildMarketQuoteCacheKey,
+  getCachedMarketQuotes,
+  SERVERLESS_QUOTE_CACHE_TTL_MS,
+  upsertCachedMarketQuotes,
+} from "./repositories/market/quote-cache-store";
+export {
   createQuarterlyReview,
   getLatestAgentRun,
   listInboundCrossChecks,
@@ -48,12 +66,14 @@ export {
 } from "./repositories/thesis-queries";
 export {
   agentRunsTable,
+  apiTokensTable,
   copilotOutputsTable,
   crossChecksTable,
   disciplineEntriesTable,
   glossaryTermsTable,
   hypothesesTable,
   insertThesisRowSchema,
+  marketQuotesCacheTable,
   quarterlyReviewsTable,
   secFilingsCacheTable,
   selectGlossaryRowSchema,

@@ -13,51 +13,19 @@
     color: var(--ink-secondary);
   }
 
-  .modal__dialog,
-  .popover__content,
-  .dropdown__popover {
+  .modal__dialog {
     border: 1px solid var(--border-strong);
     background-color: var(--bg-surface-elevated);
     box-shadow: var(--shadow-overlay);
     border-radius: var(--radius-card);
   }
 
-  .popover__content[data-entering="true"],
-  .dropdown__popover[data-entering="true"] {
-    transform-origin: var(--trigger-anchor-point, top);
-    animation: kanon-popover-enter var(--duration-tactile) var(--ease-kanon);
-  }
-
-  .popover__content[data-exiting="true"],
-  .dropdown__popover[data-exiting="true"] {
-    transform-origin: var(--trigger-anchor-point, top);
-    animation: kanon-popover-exit 100ms ease-in forwards;
-  }
-
-  .kanon-sheet-container[data-entering="true"] {
-    animation: kanon-sheet-slide-in var(--duration-overlay-in) var(--ease-kanon);
-  }
-
-  .kanon-sheet-container[data-exiting="true"] {
-    animation: kanon-sheet-slide-out var(--duration-overlay-out) ease-in forwards;
-  }
-
-  .kanon-dialog-container[data-entering="true"] {
-    animation: kanon-dialog-enter var(--duration-overlay-in) var(--ease-overlay);
-  }
-
-  .kanon-dialog-container[data-exiting="true"] {
-    animation: kanon-dialog-exit var(--duration-overlay-out) ease-in forwards;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .popover__content[data-entering="true"],
-    .dropdown__popover[data-entering="true"],
-    .kanon-sheet-container[data-entering="true"],
-    .kanon-sheet-container[data-exiting="true"],
-    .kanon-dialog-container[data-entering="true"] {
-      animation: none;
-    }
+  .popover__content,
+  .dropdown__popover {
+    border: 1px solid var(--border-strong);
+    background-color: var(--bg-surface-elevated);
+    box-shadow: var(--shadow-dropdown);
+    border-radius: var(--radius-panel);
   }
 }
 
@@ -92,12 +60,14 @@
   --radius-card: var(--radius-card);
   --radius-panel: var(--radius-panel);
   --radius-control: var(--radius-control);
+  --radius-item: var(--radius-item);
   --radius-badge: var(--radius-badge);
   --radius-pill: var(--radius-pill);
   --shadow-card: var(--shadow-card);
   --shadow-card-hover: var(--shadow-card-hover);
   --shadow-sidebar: var(--shadow-sidebar);
-  --shadow-group: var(--shadow-group);
+  --shadow-input: var(--shadow-input);
+  --shadow-dropdown: var(--shadow-dropdown);
   --shadow-coral-glow: var(--shadow-coral-glow);
   --shadow-button: var(--shadow-button);
   --shadow-button-primary: var(--shadow-button-primary);

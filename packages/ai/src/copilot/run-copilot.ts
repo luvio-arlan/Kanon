@@ -34,6 +34,8 @@ export type CopilotPayloadMap = {
 export interface ByokCredentials {
   provider: ByokProvider;
   apiKey: string;
+  model?: string;
+  baseUrl?: string;
 }
 
 export interface CopilotRunResult<TAction extends CopilotAction> {
@@ -43,24 +45,74 @@ export interface CopilotRunResult<TAction extends CopilotAction> {
   data: CopilotPayloadMap[TAction];
 }
 
-export function resolveByokModel(byok?: ByokCredentials): LanguageModel | null {
-  if (byok?.apiKey.trim()) {
-    const apiKey = byok.apiKey.trim();
-    if (byok.provider === "gemini") return createGoogleGenerativeAI({ apiKey })("gemini-2.5-flash");
-    if (byok.provider === "anthropic")
-      return createAnthropic({ apiKey })("claude-sonnet-4-20250514");
-    return createOpenAI({ apiKey })("gpt-4.1-mini");
+const DEFAULT_OPENAI_COMPATIBLE_BASE = "https://api.deepseek.com/v1";
+
+export function sanitizeProviderBaseUrl(raw?: string): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    const isMetadata = host === "169.254.169.254" || host.endsWith(".internal");
+    if (isMetadata) return undefined;
+    if (parsed.protocol === "https:" || (parsed.protocol === "http:" && isLocal)) {
+      return parsed.toString().replace(/\/$/, "");
+    }
+    return undefined;
+  } catch (err) {
+    void err;
+    return undefined;
   }
+}
+
+function resolveExplicitByok(byok: ByokCredentials): LanguageModel {
+  const apiKey = byok.apiKey.trim();
+  const model = byok.model?.trim();
+  const baseURL = sanitizeProviderBaseUrl(byok.baseUrl);
+  const opts = baseURL ? { apiKey, baseURL } : { apiKey };
+
+  if (byok.provider === "gemini") {
+    return createGoogleGenerativeAI(opts)(model || "gemini-2.5-flash");
+  }
+  if (byok.provider === "anthropic") {
+    return createAnthropic(opts)(model || "claude-sonnet-4-20250514");
+  }
+  if (byok.provider === "openai_compatible") {
+    return createOpenAI({ apiKey, baseURL: baseURL || DEFAULT_OPENAI_COMPATIBLE_BASE })(
+      model || "deepseek-chat",
+    );
+  }
+  return createOpenAI(opts)(model || "gpt-4.1-mini");
+}
+
+function resolveEnvModel(): LanguageModel | null {
   if (process.env.GEMINI_API_KEY) {
-    return createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY })("gemini-2.5-flash");
+    return createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY })(
+      process.env.KANON_GEMINI_MODEL?.trim() || "gemini-2.5-flash",
+    );
   }
   if (process.env.ANTHROPIC_API_KEY) {
-    return createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })("claude-sonnet-4-20250514");
+    return createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })(
+      process.env.KANON_ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-20250514",
+    );
   }
   if (process.env.OPENAI_API_KEY) {
-    return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })("gpt-4.1-mini");
+    const baseURL = process.env.OPENAI_BASE_URL?.trim();
+    return createOpenAI(
+      baseURL
+        ? { apiKey: process.env.OPENAI_API_KEY, baseURL }
+        : { apiKey: process.env.OPENAI_API_KEY },
+    )(process.env.KANON_OPENAI_MODEL?.trim() || "gpt-4.1-mini");
   }
   return null;
+}
+
+export function resolveByokModel(byok?: ByokCredentials): LanguageModel | null {
+  if (byok?.apiKey.trim()) {
+    return resolveExplicitByok(byok);
+  }
+  return resolveEnvModel();
 }
 
 function buildContextBrief(
@@ -122,7 +174,7 @@ async function runWithModel<TAction extends CopilotAction>(
       model,
       schema: RedTeamReportSchema,
       system,
-      prompt: `切换至苛刻空头分析师视角，针对以下看多逻辑输出 3 个最具杀伤力的反驳问题与证伪路径：\n${context}`,
+      prompt: `切换至审慎空头分析师视角，针对以下看多逻辑输出 3 个最具穿透力的反向质询与证伪路径：\n${context}`,
     });
     return res.object as CopilotPayloadMap[TAction];
   }
@@ -130,7 +182,7 @@ async function runWithModel<TAction extends CopilotAction>(
     model,
     schema: InvestmentMemoSchema,
     system,
-    prompt: `将以下 5 步研究档案凝练为一份供个人长期记忆与投委会复盘的「一页纸投研备忘录」（核心赔率结论、护城河、一阶证据、下季复盘核查清单与认错离场铁律）：\n${context}`,
+    prompt: `将以下 5 步研究档案凝练为一份供长期跟踪与投委会复盘的「一页纸投研备忘录」（核心赔率结论、竞争壁垒、一阶证据、下季复盘核查清单与离场执行纪律）：\n${context}`,
   });
   return res.object as CopilotPayloadMap[TAction];
 }

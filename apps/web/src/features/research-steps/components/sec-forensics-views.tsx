@@ -40,7 +40,9 @@ function ForensicFlagList({ flags }: { flags: readonly ForensicRedFlag[] }) {
     return (
       <div className="flex items-center gap-2 text-xs text-status-pass">
         <IconShieldCheck size={15} stroke={1.5} />
-        <span>法证排雷通过：未触发 SBC 吞噬、股本严重稀释、负真实 FCF 或存货/应收异常背离。</span>
+        <span>
+          财务法证审阅通过：未检出 SBC 过度稀释、股本异常扩张、负真实 FCF 或存货/应收异常背离。
+        </span>
       </div>
     );
   }
@@ -64,7 +66,7 @@ function ForensicFlagList({ flags }: { flags: readonly ForensicRedFlag[] }) {
             <div className="flex items-center gap-2">
               <span className="font-semibold text-ink-primary">{flag.label}</span>
               <Badge variant={flag.severity === "fail" ? "fail" : "warn"}>
-                {flag.severity === "fail" ? "高危" : "留意"}
+                {flag.severity === "fail" ? "高关注" : "留意"}
               </Badge>
             </div>
             <p className="mt-1 leading-relaxed text-ink-secondary">{flag.detail}</p>
@@ -100,7 +102,7 @@ export function SecForensicsView({ report }: { report: SecForensicReport }) {
               </Badge>
             </div>
             <div className="mt-0.5 text-xs text-ink-muted">
-              覆盖 ROIC/ROIIC、Sloan 应计项、Owner FCF 转化与资本结构排雷
+              覆盖 ROIC/ROIIC、Sloan 应计项、Owner FCF 转化与资本结构审阅
             </div>
           </div>
         </div>

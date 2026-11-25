@@ -40,7 +40,7 @@ function SecTooltipCard({ active, payload }: ChartTooltipProps) {
   if (!active || !item) return null;
 
   return (
-    <div className="rounded-control border border-strong bg-surface-elevated px-3.5 py-2.5 shadow-overlay">
+    <div className="rounded-panel border border-strong bg-surface-elevated px-3.5 py-2.5 shadow-dropdown">
       <div className="font-mono text-xs font-semibold text-ink-primary">{item.fiscalYear}</div>
       <div className="mt-1.5 space-y-1 font-mono text-xs tabular-nums">
         <div className="flex items-center justify-between gap-4">
@@ -74,11 +74,11 @@ function ChartLegendRow() {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-4 px-1 text-xs text-ink-muted">
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-2.5 w-2.5 rounded-sm bg-ink-primary/75" />
+        <span className="h-2.5 w-2.5 rounded-badge bg-ink-primary/75" />
         营业收入 ($B)
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-2.5 w-2.5 rounded-sm bg-status-pass/80" />
+        <span className="h-2.5 w-2.5 rounded-badge bg-status-pass/80" />
         自由现金流 ($B)
       </span>
       <span className="inline-flex items-center gap-1.5">

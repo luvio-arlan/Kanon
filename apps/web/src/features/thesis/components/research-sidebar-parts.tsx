@@ -11,6 +11,27 @@ import {
 } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 
+function SwitcherTrigger({ thesis, collapsed }: { thesis: ThesisDetail; collapsed: boolean }) {
+  if (collapsed) return <span>{thesis.ticker.slice(0, 3)}</span>;
+  return (
+    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+      <span className="min-w-0">
+        <span className="block truncate text-base font-semibold text-ink-primary">
+          {thesis.companyName}
+        </span>
+        <span className="mt-0.5 block font-mono text-xs text-ink-muted tabular-nums">
+          {thesis.ticker} · ${thesis.currentPrice.toFixed(1)}
+        </span>
+      </span>
+      <IconChevronDown
+        size={15}
+        stroke={1.5}
+        className="kanon-chevron shrink-0 text-ink-muted transition-transform duration-150 ease-[var(--ease-kanon)]"
+      />
+    </span>
+  );
+}
+
 export function CompanySwitcherTile(p: {
   thesis: ThesisDetail;
   allTheses: readonly ThesisSummary[];
@@ -21,6 +42,7 @@ export function CompanySwitcherTile(p: {
     id: item.id,
     label: `${item.companyName} (${item.ticker})`,
     shortcut: item.riskRewardRatio !== null ? `${item.riskRewardRatio.toFixed(1)}×` : "∞",
+    selected: item.id === p.thesis.id,
     icon: <IconTrendingUp size={15} stroke={1.5} />,
     onSelect: () => {
       if (item.id !== p.thesis.id) router.push(`/thesis/${item.id}`);
@@ -38,23 +60,7 @@ export function CompanySwitcherTile(p: {
             ? "h-10 w-10 justify-center px-0 font-mono text-xs font-semibold"
             : "h-auto w-full justify-between rounded-control bg-surface px-3 py-2.5 text-left shadow-card",
         )}
-        trigger={
-          p.collapsed ? (
-            <span>{p.thesis.ticker.slice(0, 3)}</span>
-          ) : (
-            <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-              <span className="min-w-0">
-                <span className="block truncate text-base font-semibold text-ink-primary">
-                  {p.thesis.companyName}
-                </span>
-                <span className="mt-0.5 block font-mono text-xs text-ink-muted tabular-nums">
-                  {p.thesis.ticker} · ${p.thesis.currentPrice.toFixed(1)}
-                </span>
-              </span>
-              <IconChevronDown size={15} stroke={1.5} className="shrink-0 text-ink-muted" />
-            </span>
-          )
-        }
+        trigger={<SwitcherTrigger thesis={p.thesis} collapsed={p.collapsed} />}
       />
     </div>
   );

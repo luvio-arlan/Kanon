@@ -7,7 +7,7 @@ import type {
   ThesisDetail,
 } from "@kanon/core";
 import { ActionMenu, Button, KANON_TITLE_SWAP, SearchField } from "@kanon/ui";
-import { IconCheck, IconChevronDown, IconPlus } from "@tabler/icons-react";
+import { IconChevronDown, IconPlus } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import type { RefObject } from "react";
 import { AttentionRadarStrip, LiveMarketStrip } from "@/features/portfolio";
@@ -62,7 +62,7 @@ const VIEW_TITLES: Record<string, { zh: string; en: string }> = {
   all: { zh: "研究总览", en: "Convictions" },
   attractive: { zh: "高赔率机会", en: "Asymmetry" },
   attention: { zh: "假设预警", en: "Vigilance" },
-  archived: { zh: "已否决归档", en: "Archive" },
+  archived: { zh: "已归档观察", en: "Archive" },
 };
 
 function SortDropdown({
@@ -76,12 +76,7 @@ function SortDropdown({
   const items = SORT_OPTIONS.map((opt) => ({
     id: opt.id,
     label: opt.label,
-    icon:
-      sortBy === opt.id ? (
-        <IconCheck size={14} stroke={1.5} />
-      ) : (
-        <span className="inline-block w-3.5" />
-      ),
+    selected: sortBy === opt.id,
     onSelect: () => onSortChange(opt.id),
   }));
 
@@ -93,7 +88,11 @@ function SortDropdown({
       trigger={
         <>
           <span>{activeLabel}</span>
-          <IconChevronDown size={14} stroke={1.5} className="text-ink-muted" />
+          <IconChevronDown
+            size={14}
+            stroke={1.5}
+            className="kanon-chevron text-ink-muted transition-transform duration-150 ease-[var(--ease-kanon)]"
+          />
         </>
       }
     />
@@ -148,10 +147,10 @@ function EditorialMasthead(props: CockpitHeaderProps) {
           animate="visible"
           className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1"
         >
-          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink-primary sm:text-[32px]">
+          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-ink-primary sm:text-[30px]">
             {meta.zh}
           </h1>
-          <span className="kanon-serif-italic text-2xl sm:text-[30px]">{meta.en}</span>
+          <span className="kanon-editorial-subtitle text-xl sm:text-2xl">{meta.en}</span>
         </motion.div>
         <AttentionRadarStrip
           analytics={props.analytics}

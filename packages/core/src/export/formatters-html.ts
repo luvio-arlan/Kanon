@@ -16,15 +16,15 @@ function escapeHtml(text: string): string {
     .replaceAll("'", "&#39;");
 }
 
-const VERDICT_CN: Record<string, string> = { pass: "通过", watch: "待观察", veto: "否决" };
+const VERDICT_CN: Record<string, string> = { pass: "通过", watch: "观察", veto: "排除" };
 
 function buildFilterHtml(thesis: ThesisDetail): string {
   const f = thesis.businessFilter;
   const rows: ReadonlyArray<[string, string]> = [
-    ["复购与水电煤属性", VERDICT_CN[f.recurringRevenue] ?? f.recurringRevenue],
-    ["上下游定价权与护城河", VERDICT_CN[f.pricingPower] ?? f.pricingPower],
-    ["ROIC 与 FCF 质量", VERDICT_CN[f.capitalReturn] ?? f.capitalReturn],
-    ["管理层治理与资本配置", VERDICT_CN[f.governance] ?? f.governance],
+    ["收入韧性与客户粘性", VERDICT_CN[f.recurringRevenue] ?? f.recurringRevenue],
+    ["定价权与竞争壁垒", VERDICT_CN[f.pricingPower] ?? f.pricingPower],
+    ["资本回报与现金流质量", VERDICT_CN[f.capitalReturn] ?? f.capitalReturn],
+    ["治理透明度与资本配置", VERDICT_CN[f.governance] ?? f.governance],
   ];
   return rows
     .map(([k, v]) => `<tr><td>${k}</td><td><strong>${escapeHtml(v)}</strong></td></tr>`)
@@ -73,7 +73,7 @@ export function formatGoogleDocHtml(thesis: ThesisDetail, extras?: ThesisExportE
     .slice(0, 5)
     .map(
       (d) =>
-        `<li><code>${escapeHtml(d.createdAt.slice(0, 10))}</code> [${escapeHtml(d.action.toUpperCase())} @ $${d.priceAnchor.toFixed(2)}] 离场红线：${escapeHtml(d.exitRule)}</li>`,
+        `<li><code>${escapeHtml(d.createdAt.slice(0, 10))}</code> [${escapeHtml(d.action.toUpperCase())} @ $${d.priceAnchor.toFixed(2)}] 离场条件：${escapeHtml(d.exitRule)}</li>`,
     )
     .join("");
 
@@ -86,7 +86,7 @@ export function formatGoogleDocHtml(thesis: ThesisDetail, extras?: ThesisExportE
     `<h1>${escapeHtml(thesis.indexLabel)} · ${escapeHtml(thesis.companyName)} (${escapeHtml(thesis.ticker)})</h1>`,
     `<p><strong>赛道：</strong>${escapeHtml(thesis.sectorTag)} ｜ <strong>当前价：</strong>$${thesis.currentPrice.toFixed(2)} ｜ <strong>赔率比：</strong>${ratio} ｜ <strong>期望目标价：</strong>$${valuation.expectedTargetPrice.toFixed(2)}</p>`,
     buildExpectationsHtml(thesis, extras),
-    `<h2>一、核心投资论点与商业模式滤镜</h2><p>${escapeHtml(thesis.convictionSummary)}</p>`,
+    `<h2>一、核心投资论点与商业质量评估</h2><p>${escapeHtml(thesis.convictionSummary)}</p>`,
     `<table><thead><tr><th>商业模式维度</th><th>评审结论</th></tr></thead><tbody>${buildFilterHtml(thesis)}</tbody></table>`,
     `<h2>二、三条可证伪核心假设</h2><ol>${hypHtml}</ol>`,
     `<h2>三、${thesis.horizonYears} 年三情景估值赔率表</h2>`,

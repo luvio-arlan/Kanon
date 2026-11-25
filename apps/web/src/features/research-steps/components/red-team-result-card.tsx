@@ -14,7 +14,8 @@ function RedTeamChallengeRow({
   onPromoteRule?: (rule: string) => void;
 }) {
   const variant = ch.severity === "critical" ? "fail" : ch.severity === "high" ? "warn" : "default";
-  const label = ch.severity === "critical" ? "致命" : ch.severity === "high" ? "高危" : "中危";
+  const label =
+    ch.severity === "critical" ? "核心风险" : ch.severity === "high" ? "高关注" : "常规关注";
   return (
     <div className="rounded-control border border-hairline bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
@@ -34,7 +35,7 @@ function RedTeamChallengeRow({
             onClick={() => onPromoteRule(ch.falsificationPath)}
             className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-accent-coral transition-opacity hover:opacity-80"
           >
-            <span>带入 Step 5 离场红线</span>
+            <span>带入 Step 5 离场条件</span>
             <IconArrowRight size={13} stroke={1.5} />
           </button>
         ) : null}
@@ -53,10 +54,8 @@ export function RedTeamResultCard({
   return (
     <Card tone="titanium" className="space-y-4 p-6">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-ink-primary">
-          红队挑刺 · 苛刻空头反驳（已持久化）
-        </h3>
-        <Badge variant="fail">Devil&apos;s Advocate</Badge>
+        <h3 className="text-base font-semibold text-ink-primary">反向质询 · 空头视角审视</h3>
+        <Badge variant="fail">Counter-Thesis</Badge>
       </div>
       <div className="space-y-3">
         {report.challenges.map((ch, idx) => (

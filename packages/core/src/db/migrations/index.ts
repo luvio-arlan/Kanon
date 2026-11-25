@@ -3,6 +3,7 @@ import { KANON_V4_MIGRATION_SQL } from "./0002-v4-institutional";
 import { KANON_ACCOUNTS_MIGRATION_SQL } from "./0003-accounts-auth";
 import { KANON_PERF_INDEXES_SQL } from "./0004-perf-indexes";
 import { KANON_CATALYSTS_MIGRATION_SQL } from "./0005-catalysts";
+import { KANON_SECURITY_MCP_CACHE_SQL } from "./0006-security-mcp-cache";
 
 export interface KanonMigration {
   id: string;
@@ -45,6 +46,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     id: "0005_catalysts",
     description: "Expand-only institutional catalyst & event tracking table for theses",
     sql: KANON_CATALYSTS_MIGRATION_SQL,
+  },
+  {
+    id: "0006_security_mcp_cache",
+    description:
+      "Expand-only Personal Access Tokens (MCP) & serverless Postgres market quote cache",
+    sql: KANON_SECURITY_MCP_CACHE_SQL,
   },
 ];
 

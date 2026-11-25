@@ -28,7 +28,7 @@ function resolveEmptyCopy(filter: CockpitFilter, query: string) {
     return { title: "暂无高赔率标的", hint: "赔率 ≥ 2.0× 且具安全边际的标的会自动汇总于此" };
   }
   if (filter === "attention") {
-    return { title: "当前无假设预警", hint: "所有核心假设状态清晰，无触发证伪红线项" };
+    return { title: "当前无假设预警", hint: "所有核心假设状态清晰，无触发证伪阈值项" };
   }
   return { title: "当前视图暂无标的", hint: "可返回全部视图或新建一份研究档案" };
 }
@@ -49,11 +49,11 @@ function BenchmarkPresetCard({
       type="button"
       disabled={disabled}
       onClick={onSelect}
-      className="group flex flex-col justify-between rounded-2xl border border-hairline bg-canvas/70 p-4 text-left transition-[border-color,background-color,box-shadow] duration-150 hover:border-strong hover:bg-surface hover:shadow-card disabled:cursor-not-allowed disabled:opacity-55 cursor-pointer"
+      className="group flex cursor-pointer flex-col justify-between rounded-panel border border-hairline bg-canvas/70 p-4 text-left transition-[border-color,background-color,box-shadow] duration-150 ease-[var(--ease-kanon)] hover:border-strong hover:bg-surface hover:shadow-card disabled:cursor-not-allowed disabled:opacity-55"
     >
       <div>
         <div className="flex items-center justify-between gap-2">
-          <span className="rounded-md border border-hairline bg-titanium px-2 py-0.5 font-mono text-xs font-semibold text-ink-primary tabular-nums">
+          <span className="rounded-badge border border-hairline bg-titanium px-2 py-0.5 font-mono text-xs font-semibold text-ink-primary tabular-nums">
             {preset.ticker}
           </span>
           <span className="font-mono text-xs text-ink-muted tabular-nums">

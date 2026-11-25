@@ -23,8 +23,8 @@ export function Tooltip({ content, children, delay = 180, className }: TooltipPr
       <HeroTooltip.Content
         offset={8}
         className={cn(
-          "z-50 max-w-xs rounded-control border border-hairline bg-ink-primary px-2.5 py-1.5",
-          "text-xs text-ink-inverse shadow-overlay",
+          "kanon-tooltip z-50 max-w-xs rounded-item border border-hairline bg-ink-primary px-2.5 py-1.5",
+          "text-xs leading-snug text-ink-inverse shadow-dropdown",
           className,
         )}
       >

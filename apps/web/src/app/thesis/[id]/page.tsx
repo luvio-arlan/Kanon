@@ -5,8 +5,8 @@ import {
   InvestmentMemoSchema,
   type RedTeamReport,
   RedTeamReportSchema,
-} from "@kanon/ai";
-import type { SavedCopilotOutput } from "@kanon/core";
+  type SavedCopilotOutput,
+} from "@kanon/core";
 import { getKanonDb, loadThesisCanvasBootstrap } from "@kanon/core/db";
 import { notFound, redirect } from "next/navigation";
 import { getServerAuthContext } from "@/app/api/_lib/auth-session";

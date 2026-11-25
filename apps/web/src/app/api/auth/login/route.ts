@@ -2,11 +2,18 @@ import { AuthSuccessResponseSchema, LoginRequestSchema } from "@kanon/core";
 import { authenticateUser, getKanonDb } from "@kanon/core/db";
 import { setSessionCookie } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
+import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
+const LOGIN_RATE_POLICY = { bucket: "auth_login", maxRequests: 25, windowMs: 15 * 60 * 1000 };
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
+  const rateErr = checkRateLimit(request, LOGIN_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
 

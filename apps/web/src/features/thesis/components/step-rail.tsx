@@ -19,7 +19,7 @@ import { useMemo } from "react";
 export type StepId = 1 | 2 | 3 | 4 | 5;
 
 const STEPS: ReadonlyArray<{ id: StepId; code: string; title: string }> = [
-  { id: 1, code: "01", title: "商业模式滤镜" },
+  { id: 1, code: "01", title: "商业质量评估" },
   { id: 2, code: "02", title: "核心假设拆解" },
   { id: 3, code: "03", title: "一阶资料印证" },
   { id: 4, code: "04", title: "三情景估值赔率" },
@@ -75,13 +75,13 @@ function ValuationAnchorCard({ thesis }: { thesis: ThesisDetail }) {
     : "font-mono text-ink-secondary tabular-nums";
 
   return (
-    <div className="rounded-control border border-hairline bg-surface p-3.5 shadow-card">
+    <div className="rounded-control border border-hairline bg-surface p-3 shadow-card">
       <AnchorHeadline
         horizonYears={valuation.horizonYears}
         targetPrice={valuation.base.targetPrice}
         ratio={ratio}
       />
-      <div className="mt-3 space-y-2 border-t border-hairline pt-2.5 text-xs">
+      <div className="mt-2.5 space-y-1.5 border-t border-hairline pt-2 text-xs">
         <AnchorMetricRow
           label="当前参考"
           value={
@@ -150,7 +150,7 @@ export function StepRail({
   const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {!collapsed ? (
         <StepProgressHeader
           completedCount={readiness.completedCount}

@@ -18,7 +18,7 @@ function formatMemoClipboard(memo: InvestmentMemo): string {
     `\n【护城河与商业质量】\n${memo.moatAndQuality}`,
     `\n【一阶关键证据】\n${memo.keyEvidence.map((e, i) => `${i + 1}. ${e}`).join("\n")}`,
     `\n【下季财报复盘必查清单】\n${memo.nextQuarterChecklist.map((c, i) => `${i + 1}. ${c}`).join("\n")}`,
-    `\n【交易铁律与认错红线】\n${memo.exitDiscipline}`,
+    `\n【交易纪律与离场条件】\n${memo.exitDiscipline}`,
   ].join("\n");
 }
 
@@ -53,7 +53,7 @@ function MemoArticleBody({ memo }: { memo: InvestmentMemo }) {
         <MemoBulletColumn title="下季财报复盘必查清单" items={memo.nextQuarterChecklist} />
       </div>
       <div className="border-t border-hairline pt-5 text-[15px] leading-relaxed text-ink-primary">
-        <span className="font-medium text-ink-muted">认错离场纪律：</span>
+        <span className="font-medium text-ink-muted">离场执行纪律：</span>
         {memo.exitDiscipline}
       </div>
     </article>

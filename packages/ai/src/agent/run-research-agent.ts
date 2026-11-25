@@ -9,7 +9,7 @@ import {
   type ThesisDetail,
   type ThesisRevision,
 } from "@kanon/core";
-import { generateObject, type LanguageModel } from "ai";
+import { type LanguageModel, streamObject } from "ai";
 import { z } from "zod";
 import { type ByokCredentials, resolveByokModel } from "../copilot/run-copilot";
 import { RESEARCH_AGENT_TOOLS } from "./tool-registry";
@@ -27,8 +27,11 @@ const IcSynthesisSchema = z.object({
   verdict: z.string().min(8),
   bullSynthesis: z.string().min(12),
   bearCritique: z.string().min(12),
+  bearRebuttal: z.string().min(10),
   accountingCheck: z.string().min(10),
 });
+
+type IcSynthesisResult = z.infer<typeof IcSynthesisSchema>;
 
 function computeConvictionScore(thesis: ThesisDetail, secSnapshot: SecSnapshot | null): number {
   const readiness = calculateResearchReadiness(thesis);
@@ -48,7 +51,10 @@ function computeConvictionScore(thesis: ThesisDetail, secSnapshot: SecSnapshot |
   return Math.min(98, Math.max(18, score));
 }
 
-function buildLocalSynthesis(thesis: ThesisDetail, traces: readonly AgentTraceStep[]) {
+function buildLocalSynthesis(
+  thesis: ThesisDetail,
+  traces: readonly AgentTraceStep[],
+): IcSynthesisResult {
   const ratio =
     thesis.valuation.riskRewardRatio !== null
       ? `${thesis.valuation.riskRewardRatio.toFixed(2)}×`
@@ -69,52 +75,50 @@ function buildLocalSynthesis(thesis: ThesisDetail, traces: readonly AgentTraceSt
     bearCritique:
       thesis.businessFilter.preMortem.trim() ||
       `最大下行风险来自「${hLast?.title ?? "核心盈利假设"}」证伪叠加估值回落至 ${thesis.valuation.bear.peMultiple}x（回撤 ${thesis.valuation.downsidePct.toFixed(1)}%）。`,
+    bearRebuttal: `空头二次质询：若「${h0?.title ?? "核心看多预期差"}」在未来 2 个季度未能于毛利率或订单口径兑现，当前 $${thesis.currentPrice.toFixed(1)} 对应的隐含增速将迅速重定价，建议提前写明硬性止损验证指标。`,
     accountingCheck: traces[0]?.finding ?? "暂缺多年度 SEC 现金流数据，建议先执行同步。",
   };
 }
 
-async function synthesizeWithLlm(
-  model: LanguageModel,
-  thesis: ThesisDetail,
-  traces: readonly AgentTraceStep[],
-): Promise<z.infer<typeof IcSynthesisSchema>> {
+function buildSynthesisPrompt(thesis: ThesisDetail, traces: readonly AgentTraceStep[]): string {
   const evidenceBlock = traces
     .map((t) => `[工具 ${t.stepIndex} · ${t.label}] ${t.finding} (溯源: ${t.citation})`)
     .join("\n");
-  const res = await generateObject({
-    model,
-    schema: IcSynthesisSchema,
-    system:
-      "你是 KANON 买方投委会（IC）多角色辩论引擎。严禁编造任何未提供的数字，只能基于给定工具证据输出：PM 综合判定、多头预期差、苛刻法证空头反演批评、财务质量体检结论（简体中文，克制犀利）。",
-    prompt: `标的：${thesis.companyName} (${thesis.ticker}) | 现价 $${thesis.currentPrice}\n核心论点：${thesis.convictionSummary}\n\n确定性工具审计证据：\n${evidenceBlock}`,
-  });
-  return res.object;
+  return `标的：${thesis.companyName} (${thesis.ticker}) | 现价 $${thesis.currentPrice}\n核心论点：${thesis.convictionSummary}\n\n确定性工具审计证据：\n${evidenceBlock}`;
 }
 
-async function resolveIcSynthesis(params: {
-  thesis: ThesisDetail;
-  traces: readonly AgentTraceStep[];
-  byok?: ByokCredentials;
-}) {
-  const model = resolveByokModel(params.byok);
-  if (model) {
-    try {
-      const synth = await synthesizeWithLlm(model, params.thesis, params.traces);
-      return { engine: "vercel-ai-sdk" as const, fallbackReason: undefined, synth };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message.slice(0, 80) : "模型调用超时";
-      return {
-        engine: "grounded-local" as const,
-        fallbackReason: `BYOK 投委会综合异常（${msg}），已自动降级为本地确定性引擎`,
-        synth: buildLocalSynthesis(params.thesis, params.traces),
+async function* streamLlmSynthesis(
+  model: LanguageModel,
+  thesis: ThesisDetail,
+  traces: readonly AgentTraceStep[],
+): AsyncGenerator<
+  AgentStreamEvent,
+  { engine: "vercel-ai-sdk" | "grounded-local"; fallbackReason?: string; synth: IcSynthesisResult }
+> {
+  try {
+    const stream = streamObject({
+      model,
+      schema: IcSynthesisSchema,
+      system:
+        "你是 KANON 买方投委会（IC）多角色辩论引擎。严禁编造任何未提供的数字，必须依次输出：PM 综合判定、多头预期差、法证空头下行推演、空头针对多头核心假设的二次质询（bearRebuttal）、财务法证审阅结论（简体中文，克制严谨）。",
+      prompt: buildSynthesisPrompt(thesis, traces),
+    });
+    for await (const partial of stream.partialObjectStream) {
+      yield {
+        type: "synthesis_partial",
+        partial: { engine: "vercel-ai-sdk", ...partial },
       };
     }
+    const finalObj = await stream.object;
+    return { engine: "vercel-ai-sdk", synth: finalObj };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.slice(0, 80) : "模型调用超时";
+    return {
+      engine: "grounded-local",
+      fallbackReason: `BYOK 投委会综合异常（${msg}），已自动降级为本地确定性引擎`,
+      synth: buildLocalSynthesis(thesis, traces),
+    };
   }
-  return {
-    engine: "grounded-local" as const,
-    fallbackReason: undefined,
-    synth: buildLocalSynthesis(params.thesis, params.traces),
-  };
 }
 
 function executeToolStep(
@@ -159,16 +163,20 @@ export async function* streamResearchAgent(params: {
     yield { type: "trace_done", trace };
   }
 
-  const { engine, fallbackReason, synth } = await resolveIcSynthesis({
-    thesis: params.thesis,
-    traces,
-    byok: params.byok,
-  });
+  const model = resolveByokModel(params.byok);
+  const outcome = model
+    ? yield* streamLlmSynthesis(model, params.thesis, traces)
+    : {
+        engine: "grounded-local" as const,
+        fallbackReason: undefined,
+        synth: buildLocalSynthesis(params.thesis, traces),
+      };
+
   const briefing: AgentBriefing = AgentBriefingSchema.parse({
     ticker: params.thesis.ticker,
-    engine,
-    ...(fallbackReason ? { fallbackReason } : {}),
-    ...synth,
+    engine: outcome.engine,
+    ...(outcome.fallbackReason ? { fallbackReason: outcome.fallbackReason } : {}),
+    ...outcome.synth,
     convictionScore: computeConvictionScore(params.thesis, params.secSnapshot),
     traces,
     proposals: proposals.slice(0, 8),

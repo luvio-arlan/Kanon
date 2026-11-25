@@ -12,19 +12,25 @@ import type {
   ThesisSummary,
 } from "@kanon/core";
 import { Button, cn, KANON_STEP_VARIANTS, WorkbenchShell } from "@kanon/ui";
-import { IconFocus2, IconSparkles } from "@tabler/icons-react";
+import { IconFocus2 } from "@tabler/icons-react";
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { readByokConfig } from "@/features/ai-settings";
+import { useHasOpened } from "@/shared/hooks/use-has-opened";
 import { useCanvasChromeState } from "../hooks/use-canvas-chrome";
 import { applyAgentProposal, useResearchAgent } from "../hooks/use-research-agent";
 import { type InitialCopilotState, useResearchCanvas } from "../hooks/use-research-canvas";
 import { useThesisLiveQuote } from "../hooks/use-thesis-live-quote";
-import { AgentResearchSheet } from "./agent-research-sheet";
-import { ResearchSidebar, type StepId } from "./canvas-chrome";
+import { buildMobileChrome, ResearchSidebar, type StepId } from "./canvas-chrome";
 import { CanvasContextRibbon } from "./canvas-context-ribbon";
 import { CanvasOverlays, StepFooterNav, useCanvasShellActions } from "./canvas-footer-controls";
 import { CanvasStepRenderer } from "./canvas-step-renderer";
+
+const AgentResearchSheet = dynamic(
+  () => import("./agent-research-sheet").then((m) => m.AgentResearchSheet),
+  { ssr: false },
+);
 
 export interface ResearchCanvasShellProps {
   initialThesis: ThesisDetail;
@@ -52,6 +58,7 @@ function CanvasOverlaysBridge({
   agent: ReturnType<typeof useResearchAgent>;
   onApplyProposal: (proposal: AgentProposal) => Promise<void>;
 }) {
+  const agentMounted = useHasOpened(ui.modals.agent);
   return (
     <>
       <CanvasOverlays
@@ -70,18 +77,21 @@ function CanvasOverlaysBridge({
         onByokChanged={() => ui.setHasByok(Boolean(readByokConfig()))}
         onConfirmDelete={actions.handleConfirmDelete}
       />
-      <AgentResearchSheet
-        open={ui.modals.agent}
-        ticker={ctrl.thesis.ticker}
-        companyName={ctrl.thesis.companyName}
-        running={agent.running}
-        traces={agent.traces}
-        briefing={agent.briefing}
-        appliedIds={agent.appliedIds}
-        onOpenChange={(o) => ui.setModal("agent", o)}
-        onRun={agent.runAgent}
-        onApplyProposal={onApplyProposal}
-      />
+      {agentMounted ? (
+        <AgentResearchSheet
+          open={ui.modals.agent}
+          ticker={ctrl.thesis.ticker}
+          companyName={ctrl.thesis.companyName}
+          running={agent.running}
+          traces={agent.traces}
+          partial={agent.partial}
+          briefing={agent.briefing}
+          appliedIds={agent.appliedIds}
+          onOpenChange={(o) => ui.setModal("agent", o)}
+          onRun={agent.runAgent}
+          onApplyProposal={onApplyProposal}
+        />
+      ) : null}
     </>
   );
 }
@@ -181,29 +191,10 @@ function CanvasStageSection(p: {
   );
 }
 
-function MobileCanvasBarTitle({ thesis }: { thesis: ThesisDetail }) {
-  return (
-    <span className="inline-flex min-w-0 items-center gap-2">
-      <span className="truncate text-base font-semibold text-ink-primary">
-        {thesis.companyName}
-      </span>
-      <span className="font-mono text-xs text-ink-muted">{thesis.ticker}</span>
-    </span>
-  );
-}
-
-function MobileAgentButton({ onOpen }: { onOpen: () => void }) {
-  return (
-    <Button variant="primary" size="sm" onClick={onOpen}>
-      <IconSparkles size={15} stroke={1.5} className="text-accent-coral" />
-      <span>Agent</span>
-    </Button>
-  );
-}
-
 export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
   const b = useCanvasBindings(props);
   const { ui, ctrl, agent, actions, promoteRule } = b;
+  const openAgent = () => ui.setModal("agent", true);
   const apply = (proposal: AgentProposal) =>
     applyAgentProposal({
       proposal,
@@ -211,13 +202,13 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
       onPromoteExitRule: promoteRule,
       onApplied: agent.markApplied,
     });
-
+  const mobile = buildMobileChrome(ctrl.thesis, openAgent);
   return (
     <>
       <WorkbenchShell
         hideSidebar={ui.focusMode}
-        mobileTitle={<MobileCanvasBarTitle thesis={ctrl.thesis} />}
-        mobileActions={<MobileAgentButton onOpen={() => ui.setModal("agent", true)} />}
+        mobileTitle={mobile.title}
+        mobileActions={mobile.actions}
         sidebar={(ctx) => (
           <ResearchSidebar
             thesis={ctrl.thesis}
@@ -227,7 +218,7 @@ export function ResearchCanvasShell(props: ResearchCanvasShellProps) {
             onToggleCollapse={ctx.onToggleCollapse}
             onCloseMobile={ctx.closeMobile}
             onSelectStep={ui.jumpToStep}
-            onOpenAgent={() => ui.setModal("agent", true)}
+            onOpenAgent={openAgent}
             onOpenCommand={() => ui.setModal("cmd", true)}
             onOpenSettings={() => ui.setModal("ai", true)}
             onToggleFocus={ui.toggleFocus}

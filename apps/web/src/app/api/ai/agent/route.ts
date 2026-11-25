@@ -1,7 +1,6 @@
 import {
   AgentRequestSchema,
   type ByokCredentials,
-  ByokProviderSchema,
   fetchMarketQuote,
   streamResearchAgent,
 } from "@kanon/ai";
@@ -15,19 +14,14 @@ import {
   saveAgentRun,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
+import { parseByokHeaders } from "../../_lib/byok-headers";
 import { formatZodError, jsonError, readJsonBody } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
+import { checkRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
-function parseByokHeaders(request: Request): ByokCredentials | undefined {
-  const rawProvider = request.headers.get("x-kanon-ai-provider");
-  const apiKey = request.headers.get("x-kanon-ai-key")?.trim();
-  if (!rawProvider || !apiKey) return undefined;
-  const parsed = ByokProviderSchema.safeParse(rawProvider);
-  if (!parsed.success) return undefined;
-  return { provider: parsed.data, apiKey };
-}
+const AGENT_RATE_POLICY = { bucket: "ai_agent", maxRequests: 15, windowMs: 60 * 1000 };
 
 function createAgentSseStream(params: {
   db: Awaited<ReturnType<typeof getKanonDb>>;
@@ -72,6 +66,10 @@ function createAgentSseStream(params: {
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
+  const rateErr = checkRateLimit(request, AGENT_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 

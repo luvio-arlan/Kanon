@@ -1,4 +1,11 @@
 export {
+  evaluatePortfolioReviewRadar,
+  type PortfolioReviewRadarReport,
+  parseCatalystSortKey,
+  type ReviewRadarLevel,
+  type ThesisReviewRadarItem,
+} from "./catalyst-radar";
+export {
   type CognitiveCalibrationReport,
   calculateCognitiveCalibration,
   type DisciplineAlphaRow,
