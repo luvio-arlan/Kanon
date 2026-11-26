@@ -1,7 +1,11 @@
 export { askResearchIc } from "./agent/ask-ic";
 export * from "./agent/claim-verifier";
 export * from "./agent/deterministic-tools";
-export { type FilingExcerptMatch, searchFilingExcerpts } from "./agent/filing-search-tool";
+export {
+  expandBilingualFinanceQuery,
+  type FilingExcerptMatch,
+  searchFilingExcerpts,
+} from "./agent/filing-search-tool";
 export { streamResearchAgent } from "./agent/run-research-agent";
 export { RESEARCH_AGENT_TOOLS, type ResearchToolSpec } from "./agent/tool-registry";
 export {

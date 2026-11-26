@@ -125,6 +125,7 @@ export * from "./repositories/warehouse/model-versions-store";
 export * from "./repositories/warehouse/peers-and-estimates-store";
 export * from "./repositories/warehouse/price-bars-store";
 export * from "./repositories/warehouse/securities-and-fx-store";
+export * from "./repositories/workflows/alert-evaluator-store";
 export * from "./repositories/workflows/broker-csv-parser";
 export * from "./repositories/workflows/inbox-and-forecasts-store";
 export * from "./repositories/workflows/portfolio-ledger-store";

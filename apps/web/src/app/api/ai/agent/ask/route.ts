@@ -1,4 +1,4 @@
-import { askResearchIc, verifyGroundedClaims } from "@kanon/ai";
+import { askResearchIc, expandBilingualFinanceQuery, verifyGroundedClaims } from "@kanon/ai";
 import { AgentAskRequestSchema, type ThesisDetail } from "@kanon/core";
 import {
   getKanonDb,
@@ -6,6 +6,7 @@ import {
   getThesisById,
   listCachedSecFilingDocsByTicker,
   listResearchNotes,
+  searchFilingChunksLexical,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { meterAiRouteUsage, resolveEffectiveByok } from "../../../_lib/byok-headers";
@@ -30,6 +31,23 @@ function verifyAskResult(thesis: ThesisDetail, answer: string, citations: readon
   });
 }
 
+async function fetchWarehouseChunksForQuestion(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  ticker: string,
+  question: string,
+) {
+  const terms = expandBilingualFinanceQuery(question).filter((t) => /^[a-z0-9-]+$/i.test(t));
+  const keyword = terms[0] ?? ticker;
+  const rows = await searchFilingChunksLexical(db, { ticker, keyword, limit: 24 });
+  return rows.map((r) => ({
+    id: r.id,
+    accession: r.accession,
+    sectionCode: r.sectionCode,
+    paraIndex: r.paraIndex,
+    text: r.text,
+  }));
+}
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
@@ -50,10 +68,11 @@ export async function POST(request: Request) {
   const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
   if (!thesis) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
 
-  const [secSnapshot, cachedFilings, researchNotes, byok] = await Promise.all([
+  const [secSnapshot, cachedFilings, researchNotes, warehouseChunks, byok] = await Promise.all([
     getSecSnapshot(db, thesis.ticker),
     listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
     listResearchNotes(db, thesis.id, auth.user.id, 12),
+    fetchWarehouseChunksForQuestion(db, thesis.ticker, parsed.data.question),
     resolveEffectiveByok(db, auth.user.id, request),
   ]);
   const result = await askResearchIc({
@@ -61,6 +80,7 @@ export async function POST(request: Request) {
     secSnapshot,
     question: parsed.data.question,
     cachedFilings,
+    warehouseChunks,
     researchNotes,
     sourceText: parsed.data.sourceText,
     byok,
@@ -73,6 +93,7 @@ export async function POST(request: Request) {
     route: "/api/ai/agent/ask",
     engine: result.engine,
     byok,
+    usage: result.usage,
   });
   return jsonOk({ ...result, groundingReport }, startedAt);
 }

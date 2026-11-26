@@ -51,16 +51,29 @@ export async function meterAiRouteUsage(params: {
   route: string;
   engine: string;
   byok?: ByokCredentials;
+  usage?: { promptTokens: number; completionTokens: number };
 }): Promise<void> {
-  const { recordAiUsage } = await import("@kanon/core/db");
+  const [{ recordAiUsage }, { estimateTokenCostUsd, resolveDefaultModelId }] = await Promise.all([
+    import("@kanon/core/db"),
+    import("@kanon/ai"),
+  ]);
+  const modelId =
+    params.byok?.model ??
+    (params.byok?.provider ? resolveDefaultModelId(params.byok.provider) : params.engine);
+  const promptTokens = Math.max(0, Math.round(params.usage?.promptTokens ?? 0));
+  const completionTokens = Math.max(0, Math.round(params.usage?.completionTokens ?? 0));
+  const costUsd =
+    promptTokens + completionTokens > 0
+      ? estimateTokenCostUsd({ modelId, promptTokens, completionTokens })
+      : 0;
   await recordAiUsage(params.db, {
     userId: params.userId,
     thesisId: params.thesisId,
     route: params.route,
     provider: params.byok?.provider ?? params.engine,
-    model: params.byok?.model ?? params.engine,
-    promptTokens: 0,
-    completionTokens: 0,
-    costUsd: 0,
+    model: modelId,
+    promptTokens,
+    completionTokens,
+    costUsd,
   }).catch(() => undefined);
 }

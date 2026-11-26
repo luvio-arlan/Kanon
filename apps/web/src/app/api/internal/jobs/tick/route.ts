@@ -4,6 +4,7 @@ import {
   claimDueJobs,
   completeJob,
   enqueueWatchlistJobs,
+  evaluateAlertRules,
   failJobWithBackoff,
   getJobQueueHealth,
   getKanonDb,
@@ -78,7 +79,11 @@ async function runSyncSecJob(db: KanonDb, payload: Record<string, unknown>) {
 }
 
 async function executeJob(db: KanonDb, job: QueuedJobRow): Promise<void> {
-  if (job.kind === "noop" || job.kind === "evaluate_alerts") return;
+  if (job.kind === "noop") return;
+  if (job.kind === "evaluate_alerts") {
+    await evaluateAlertRules(db);
+    return;
+  }
   if (job.kind === "sync_daily_bars") return runSyncDailyBarsJob(db, job.payload);
   if (job.kind === "sync_sec") return runSyncSecJob(db, job.payload);
   throw new Error(`Unsupported job kind: ${job.kind}`);

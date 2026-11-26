@@ -1,95 +1,16 @@
-import { classifyForm8kItems, type ExtractedPitFact } from "@kanon/ai";
+import { classifyForm8kItems, type ExtractedPitFact, scanFilingRedFlags } from "@kanon/ai";
 import type { SecFilingReaderResponse, SecSnapshot } from "@kanon/core";
 import {
   createInboxItem,
   getSecurityByTicker,
   type KanonDb,
   listThesisWatchersByTicker,
-  type UpsertFinancialFactInput,
   upsertFiling,
   upsertFilingChunks,
   upsertFinancialFacts,
   upsertSecurity,
 } from "@kanon/core/db";
-
-const ANNUAL_CONCEPTS = [
-  { field: "revenue" as const, concept: "revenue", xbrlTag: "Revenues", unit: "USD" },
-  { field: "grossProfit" as const, concept: "gross_profit", xbrlTag: "GrossProfit", unit: "USD" },
-  { field: "netIncome" as const, concept: "net_income", xbrlTag: "NetIncomeLoss", unit: "USD" },
-  {
-    field: "operatingCashFlow" as const,
-    concept: "operating_cash_flow",
-    xbrlTag: "NetCashProvidedByUsedInOperatingActivities",
-    unit: "USD",
-  },
-  {
-    field: "capex" as const,
-    concept: "capex",
-    xbrlTag: "PaymentsToAcquirePropertyPlantAndEquipment",
-    unit: "USD",
-  },
-  {
-    field: "dilutedEps" as const,
-    concept: "diluted_eps",
-    xbrlTag: "EarningsPerShareDiluted",
-    unit: "USD/shares",
-  },
-];
-
-function matchAnnualFiling(snapshot: SecSnapshot, periodEnd: string) {
-  const yearPrefix = periodEnd.slice(0, 4);
-  const annualForms = snapshot.filings.filter((f) => f.form === "10-K" || f.form === "20-F");
-  return (
-    annualForms.find((f) => f.reportDate === periodEnd) ??
-    annualForms.find((f) => f.reportDate?.startsWith(yearPrefix)) ??
-    annualForms[0] ??
-    snapshot.filings[0]
-  );
-}
-
-function appendAnnualFactRows(
-  rows: UpsertFinancialFactInput[],
-  securityId: string,
-  snapshot: SecSnapshot,
-  annual: SecSnapshot["annuals"][number],
-) {
-  const periodEnd = annual.periodEndDate;
-  if (!periodEnd || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)) return;
-  const filing = matchAnnualFiling(snapshot, periodEnd);
-  if (!filing?.accessionNumber || !filing.filingDate) return;
-  const yearMatch = annual.fiscalYear.match(/\d{4}/);
-  const fiscalYear = yearMatch ? Number(yearMatch[0]) : null;
-  for (const spec of ANNUAL_CONCEPTS) {
-    const val = annual[spec.field];
-    if (typeof val !== "number" || !Number.isFinite(val)) continue;
-    rows.push({
-      id: `${securityId}:${filing.accessionNumber}:${spec.concept}:${periodEnd}:annual`,
-      securityId,
-      accession: filing.accessionNumber,
-      concept: spec.concept,
-      xbrlTag: spec.xbrlTag,
-      periodEnd,
-      duration: "annual",
-      fiscalYear,
-      fiscalPeriod: "FY",
-      value: val,
-      unit: spec.unit,
-      currency: snapshot.reportingCurrency,
-      filedAt: filing.filingDate,
-    });
-  }
-}
-
-function buildFallbackAnnualFacts(
-  securityId: string,
-  snapshot: SecSnapshot,
-): UpsertFinancialFactInput[] {
-  const rows: UpsertFinancialFactInput[] = [];
-  for (const annual of snapshot.annuals) {
-    appendAnnualFactRows(rows, securityId, snapshot, annual);
-  }
-  return rows;
-}
+import { buildFallbackAnnualFacts, persistExtractedPitFacts } from "./sec-pit-sync";
 
 async function emitAlertToRecipients(
   db: KanonDb,
@@ -133,51 +54,6 @@ async function fanOutForm8kAlerts(
   }
 }
 
-async function persistExtractedPitFacts(
-  db: KanonDb,
-  securityId: string,
-  cik: string,
-  pitFacts: readonly ExtractedPitFact[],
-): Promise<void> {
-  const seenAccns = new Set<string>();
-  const rows: UpsertFinancialFactInput[] = [];
-  for (const f of pitFacts) {
-    if (!seenAccns.has(f.accession)) {
-      seenAccns.add(f.accession);
-      await upsertFiling(db, {
-        accession: f.accession,
-        securityId,
-        cik,
-        form: f.form,
-        filedAt: f.filedAt,
-        periodEnd: f.periodEnd,
-        fiscalYear: f.fiscalYear,
-        fiscalPeriod: f.fiscalPeriod,
-        primaryDocUrl: `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${f.accession.replaceAll("-", "")}/`,
-        parseStatus: "pit-synced",
-      });
-    }
-    rows.push({
-      id: `${securityId}:${f.accession}:${f.concept}:${f.periodEnd}:${f.duration}`,
-      securityId,
-      accession: f.accession,
-      concept: f.concept,
-      xbrlTag: f.xbrlTag,
-      taxonomy: f.taxonomy,
-      periodStart: f.periodStart,
-      periodEnd: f.periodEnd,
-      duration: f.duration,
-      fiscalYear: f.fiscalYear,
-      fiscalPeriod: f.fiscalPeriod,
-      value: f.value,
-      unit: f.unit,
-      currency: f.currency,
-      filedAt: f.filedAt,
-    });
-  }
-  if (rows.length > 0) await upsertFinancialFacts(db, rows);
-}
-
 /** Persists a synced SEC snapshot + per-fact PIT records and fans out deduplicated 8-K alerts. */
 export async function syncSecSnapshotToWarehouse(
   db: KanonDb,
@@ -215,7 +91,7 @@ export async function syncSecSnapshotToWarehouse(
   if (fallbackFacts.length > 0) await upsertFinancialFacts(db, fallbackFacts);
 }
 
-/** Indexes parsed 10-K/10-Q paragraphs into `filing_chunks` without overwriting security master. */
+/** Indexes parsed 10-K/10-Q paragraphs into `filing_chunks` and scans for red-flag disclosures. */
 export async function indexFilingDocChunks(
   db: KanonDb,
   doc: SecFilingReaderResponse,
@@ -243,4 +119,20 @@ export async function indexFilingDocChunks(
     })),
   );
   if (chunks.length > 0) await upsertFilingChunks(db, chunks);
+  const redFlags = scanFilingRedFlags(chunks.map((c) => c.text)).slice(0, 3);
+  if (redFlags.length === 0) return;
+  const watchers = await listThesisWatchersByTicker(db, doc.ticker);
+  for (const flag of redFlags) {
+    for (const w of watchers) {
+      await createInboxItem(db, {
+        userId: w.userId,
+        thesisId: w.thesisId,
+        kind: "filing_redflag",
+        severity: flag.severity,
+        title: `${doc.ticker} ${doc.form} 披露警示 · ${flag.labelZh}`,
+        body: flag.excerpt,
+        sourceUrl: `${doc.documentUrl}#redflag=${flag.code}`,
+      });
+    }
+  }
 }

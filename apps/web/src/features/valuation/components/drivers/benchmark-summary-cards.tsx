@@ -84,22 +84,22 @@ export function ConsensusCard({
       </Card>
     );
   }
+  if (!extrapolation) {
+    return (
+      <div className="rounded-control border border-hairline bg-canvas/35 px-4 py-2.5 text-xs text-ink-muted">
+        外部市场预测未接入
+      </div>
+    );
+  }
   return (
     <Card className="space-y-3 p-5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <IconWorld size={15} stroke={1.5} className="text-ink-muted" />
-          <h3 className="text-sm font-semibold text-ink-primary">卖方预期与历史外推</h3>
+          <h3 className="text-sm font-semibold text-ink-primary">历史财报外推参照</h3>
         </div>
-        <Badge variant="titanium">卖方预期未接入</Badge>
       </div>
-      {extrapolation ? (
-        <HistoricalExtrapolationGrid ext={extrapolation} />
-      ) : (
-        <p className="border-t border-hairline pt-3 text-xs text-ink-muted">
-          暂未配置外部卖方预期数据源，且尚无历史财报可供外推。
-        </p>
-      )}
+      <HistoricalExtrapolationGrid ext={extrapolation} />
     </Card>
   );
 }
@@ -159,6 +159,13 @@ export function ValuationBandCard({
   peerRange?: PeerMultipleRange | null;
 }) {
   if (b) return <HistoricalBandCard b={b} />;
+  if (!peerRange) {
+    return (
+      <div className="rounded-control border border-hairline bg-canvas/35 px-4 py-2.5 text-xs text-ink-muted">
+        历史估值分位待接入日频行情
+      </div>
+    );
+  }
   return (
     <Card className="space-y-3 p-5">
       <div className="flex items-center justify-between gap-2">
@@ -166,15 +173,8 @@ export function ValuationBandCard({
           <IconChartBar size={15} stroke={1.5} className="text-ink-muted" />
           <h3 className="text-sm font-semibold text-ink-primary">同业当前倍数区间</h3>
         </div>
-        <Badge variant="titanium">历史分位待接入</Badge>
       </div>
-      {peerRange ? (
-        <PeerMultipleRangeBody peerRange={peerRange} />
-      ) : (
-        <p className="border-t border-hairline pt-3 text-xs text-ink-muted">
-          暂无足够同业样本，且历史 5 年分位需接入日频价格序列。
-        </p>
-      )}
+      <PeerMultipleRangeBody peerRange={peerRange} />
     </Card>
   );
 }

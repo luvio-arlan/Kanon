@@ -6,9 +6,11 @@ import {
   UpsertManualSecSnapshotSchema,
 } from "@kanon/core";
 import {
+  detectFactRestatements,
   getKanonDb,
   getSecSnapshot,
   getSecSnapshotForUser,
+  getSecurityByTicker,
   upsertSecSnapshot,
   upsertUserSecOverride,
 } from "@kanon/core/db";
@@ -36,8 +38,20 @@ export async function GET(request: Request, context: RouteContext) {
     return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
   }
   const db = await getKanonDb();
-  const snapshot = await getSecSnapshotForUser(db, parsedTicker.data, auth.user.id);
-  return jsonOk({ snapshot }, startedAt);
+  const [snapshot, security] = await Promise.all([
+    getSecSnapshotForUser(db, parsedTicker.data, auth.user.id),
+    getSecurityByTicker(db, parsedTicker.data),
+  ]);
+  const restatements = security
+    ? (
+        await Promise.all(
+          ["revenue", "net_income", "diluted_eps"].map((concept) =>
+            detectFactRestatements(db, { securityId: security.id, concept }),
+          ),
+        )
+      ).flat()
+    : [];
+  return jsonOk({ snapshot, restatements }, startedAt);
 }
 
 export async function POST(request: Request, context: RouteContext) {

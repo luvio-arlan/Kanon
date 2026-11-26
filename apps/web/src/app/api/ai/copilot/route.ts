@@ -45,6 +45,7 @@ async function runAndPersistCopilot(
       route: "/api/ai/copilot",
       engine: result.engine,
       byok,
+      usage: result.usage,
     }),
   ]);
   return result;

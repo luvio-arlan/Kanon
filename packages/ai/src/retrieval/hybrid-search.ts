@@ -1,3 +1,5 @@
+import { expandBilingualFinanceQuery } from "../agent/filing-search-tool";
+
 export interface SearchableFilingChunk {
   id: string;
   accession: string;
@@ -37,6 +39,10 @@ const STOP_WORDS = new Set([
 ]);
 
 function tokenizeQuery(text: string): string[] {
+  return expandBilingualFinanceQuery(text).filter((tok) => tok.length >= 2 && !STOP_WORDS.has(tok));
+}
+
+function tokenizeDocument(text: string): string[] {
   return text
     .toLowerCase()
     .split(/[^a-z0-9\u4e00-\u9fff]+/)
@@ -106,7 +112,7 @@ export function hybridSearchChunks(params: {
   const topK = Math.max(1, Math.min(25, params.topK ?? 8));
   if (chunks.length === 0) return [];
   const queryTerms = tokenizeQuery(query);
-  const tokenizedDocs = chunks.map((c) => tokenizeQuery(c.text));
+  const tokenizedDocs = chunks.map((c) => tokenizeDocument(c.text));
   const avgLen =
     tokenizedDocs.reduce((acc, d) => acc + d.length, 0) / Math.max(1, tokenizedDocs.length);
   const df = new Map<string, number>();

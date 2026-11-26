@@ -173,4 +173,52 @@ describe("AI IC 2.0: Hybrid Retrieval, Claim Grounding, Tools, Redline & Prompt-
       expect.arrayContaining(["material_weakness", "going_concern"]),
     );
   });
+
+  it("K4 & K5: ignores SEC form names, parses bps, enforces concept binding, and expands bilingual queries", () => {
+    const chunkMap = new Map([
+      [
+        "c1",
+        "In the FY2025 10-K (Item 7), effective tax rate was 18.0% and gross margin expanded 50 bps to 72.5%.",
+      ],
+    ]);
+    const report = verifyGroundedClaims({
+      claims: [
+        { text: "根据 10-K 与 8-K (Item 2.02) 披露，毛利率提升 50 bps。", citations: ["c1"] },
+        { text: "毛利率为 18.0%。", citations: ["c1"] },
+      ],
+      knownFactValues: [],
+      knownFactPcts: [18.0, 0.5, 72.5],
+      knownConceptFacts: [
+        { concept: "tax_rate", value: 18.0, kind: "pct" },
+        { concept: "gross_margin", value: 72.5, kind: "pct" },
+        { concept: "gross_margin", value: 0.5, kind: "pct" },
+      ],
+      chunkMap,
+    });
+    expect(report.results[0]?.status).toBe("verified");
+    expect(report.results[1]?.status).toBe("unverified");
+
+    const hits = hybridSearchChunks({
+      query: "毛利率 资本开支 自由现金流",
+      chunks: [
+        {
+          id: "en1",
+          accession: "0001045810-25-000010",
+          sectionCode: "item_7",
+          paraIndex: 0,
+          text: "Gross margin rose to 75.2% while capital expenditures stayed disciplined and free cash flow surged.",
+        },
+        {
+          id: "en2",
+          accession: "0001045810-25-000010",
+          sectionCode: "item_1",
+          paraIndex: 1,
+          text: "Our headquarters are located in Santa Clara, California with global office leases.",
+        },
+      ],
+      topK: 2,
+    });
+    expect(hits[0]?.chunk.id).toBe("en1");
+    expect(hits[0]?.rrfScore).toBeGreaterThan(0);
+  });
 });

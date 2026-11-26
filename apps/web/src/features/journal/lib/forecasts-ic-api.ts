@@ -1,3 +1,12 @@
+import {
+  ForecastCreateResponseSchema,
+  ForecastListResponseSchema,
+  GenericOkResponseSchema,
+  IcApprovalMutationResponseSchema,
+  IcApprovalsListResponseSchema,
+} from "@kanon/core";
+import { kanonFetch } from "@/shared/lib/kanon-fetch";
+
 export interface ForecastRow {
   id: string;
   question: string;
@@ -9,73 +18,83 @@ export interface ForecastRow {
 
 export interface IcApprovalRow {
   id: string;
+  orgId?: string | null;
   state: "draft" | "in_review" | "approved" | "rejected" | "archived";
+  submittedBy?: string;
+  decidedBy?: string | null;
   decisionNote: string;
+  snapshotHash?: string;
   createdAt: string;
-}
-
-async function fetchJsonObj(url: string): Promise<Record<string, unknown> | null> {
-  const res = await fetch(url).catch(() => null);
-  if (!res?.ok) return null;
-  const raw: unknown = await res.json().catch(() => null);
-  return raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  updatedAt?: string;
 }
 
 export async function apiLoadForecastsAndIc(thesisId: string) {
   const [fc, ic] = await Promise.all([
-    fetchJsonObj(`/api/theses/${thesisId}/forecasts`),
-    fetchJsonObj(`/api/theses/${thesisId}/ic`),
+    kanonFetch(`/api/theses/${thesisId}/forecasts`, ForecastListResponseSchema),
+    kanonFetch(`/api/theses/${thesisId}/ic`, IcApprovalsListResponseSchema),
   ]);
+  const forecasts = fc.ok ? fc.data.forecasts : [];
+  const resolvedCount = fc.ok
+    ? (fc.data.resolvedCount ?? forecasts.filter((f) => f.outcomeJson !== null).length)
+    : 0;
   return {
-    forecasts: Array.isArray(fc?.forecasts) ? (fc.forecasts as ForecastRow[]) : [],
-    brierScore: typeof fc?.brierScore === "number" ? fc.brierScore : null,
-    approvals: Array.isArray(ic?.approvals) ? (ic.approvals as IcApprovalRow[]) : [],
+    forecasts,
+    resolvedCount,
+    brierScore: fc.ok ? fc.data.brierScore : null,
+    approvals: ic.ok ? ic.data.approvals : [],
   };
 }
 
 export async function apiCreateForecast(
   thesisId: string,
   input: { question: string; probabilities: number[]; resolveBy: string },
-): Promise<boolean> {
-  const res = await fetch(`/api/theses/${thesisId}/forecasts`, {
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await kanonFetch(`/api/theses/${thesisId}/forecasts`, ForecastCreateResponseSchema, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  }).catch(() => null);
-  return Boolean(res?.ok);
+    body: input,
+    fallbackError: "锁定预测失败",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
 export async function apiResolveForecast(
   thesisId: string,
   forecastId: string,
   outcomeIndex: number,
-): Promise<boolean> {
-  const res = await fetch(`/api/theses/${thesisId}/forecasts`, {
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await kanonFetch(`/api/theses/${thesisId}/forecasts`, GenericOkResponseSchema, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ forecastId, outcomeIndex }),
-  }).catch(() => null);
-  return Boolean(res?.ok);
+    body: { forecastId, outcomeIndex },
+    fallbackError: "预测结算失败",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
-export async function apiSubmitIcApproval(thesisId: string): Promise<boolean> {
-  const res = await fetch(`/api/theses/${thesisId}/ic`, {
+export async function apiSubmitIcApproval(
+  thesisId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await kanonFetch(`/api/theses/${thesisId}/ic`, IcApprovalMutationResponseSchema, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ op: "submit" }),
-  }).catch(() => null);
-  return Boolean(res?.ok);
+    body: { op: "submit" },
+    fallbackError: "提交审批失败",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
 export async function apiDecideIcApproval(
   thesisId: string,
   approvalId: string,
   decision: "approved" | "rejected",
-): Promise<boolean> {
-  const res = await fetch(`/api/theses/${thesisId}/ic`, {
+  decisionNote?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await kanonFetch(`/api/theses/${thesisId}/ic`, IcApprovalMutationResponseSchema, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ approvalId, decision }),
-  }).catch(() => null);
-  return Boolean(res?.ok);
+    body: {
+      approvalId,
+      decision,
+      ...(decisionNote?.trim() ? { decisionNote: decisionNote.trim() } : {}),
+    },
+    fallbackError: "审批决议失败",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
