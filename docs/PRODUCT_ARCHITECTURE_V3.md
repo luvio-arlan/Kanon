@@ -30,7 +30,7 @@
 - **v7.0 (Implemented Now)**:
   - Linked 3-scenario operating model + SOTP + grid-bracketed RONIC Reverse-DCF + 5Y benchmarks, per-user isolated `user_sec_overrides` (0012), persistent `research_notes` (0011) with full Archive v3 parity, and SSRF-hardened BYOK AI provider fetch with nonce-delimited prompt evidence.
   - Tree-shaken `@kanon/ui/{theme,charts}` subpath exports, lazy `public-*.ts` feature entrypoints, AST per-handler CSRF verification, recursive expand-only migration checks, and WCAG 2.1 AA / Dark-to-Light `@media print` typography.
-- **v8.0+ (Institutional Team OS)**:
+- **v8.0+ (Institutional Team OS)** — detailed work items, audit findings, and acceptance metrics live in [TOP_TIER_ROADMAP.md](./TOP_TIER_ROADMAP.md):
   - Local-First sub-50ms sync engine (ElectricSQL / Zero) on Postgres WAL.
   - External MCP Server connectors (live market feeds, SEC Form 4/13F, Google Drive/Notion sync).
   - Multi-analyst workspaces with RBAC/RLS and inline IC memo commenting.

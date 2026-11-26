@@ -7,7 +7,7 @@
 - **KANON（卡农）** — `Conviction, composed.` / `在噪音里，谱出自己的确定性。`
 - Desktop-first fundamental value-investing OS for serious individual investors & buy-side teams: 5-step guided research canvas, forensic SEC XBRL verification, multi-role IC Agent & red-teaming, dual-engine valuation + Reverse-DCF + 5×5 sensitivity workbench, zero-leverage discipline & quarterly cognitive review, and portfolio risk controls.
 - **Hard Non-Goals**: No live candlestick trading terminal or broker execution, no buy/sell fortune-telling chat, no gamified streaks, no social feed.
-- **Docs**: [docs/PRD.md](docs/PRD.md) · [docs/PRODUCT_ARCHITECTURE_V3.md](docs/PRODUCT_ARCHITECTURE_V3.md) · [.rules/editorial-craft.md](.rules/editorial-craft.md) · [.rules/postmortems.md](.rules/postmortems.md) · [deploy/README.md](deploy/README.md)
+- **Docs**: [docs/PRD.md](docs/PRD.md) · [docs/PRODUCT_ARCHITECTURE_V3.md](docs/PRODUCT_ARCHITECTURE_V3.md) · [docs/TOP_TIER_ROADMAP.md](docs/TOP_TIER_ROADMAP.md) · [.rules/editorial-craft.md](.rules/editorial-craft.md) · [.rules/postmortems.md](.rules/postmortems.md) · [deploy/README.md](deploy/README.md)
 
 ## 2. Architecture Map (Enforced by `.dependency-cruiser.cjs`)
 
