@@ -158,6 +158,8 @@ export const filingChunksTable = pgTable("filing_chunks", {
   text: text("text").notNull(),
   charStart: integer("char_start").notNull().default(0),
   charEnd: integer("char_end").notNull().default(0),
+  contentHash: text("content_hash").notNull().default(""),
+  embeddingJson: jsonb("embedding_json").$type<number[] | null>(),
 });
 
 export const thesisPeersTable = pgTable("thesis_peers", {

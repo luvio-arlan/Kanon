@@ -1,0 +1,34 @@
+name: Visual & DOM Truncation Regression
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/**"
+      - "packages/ui/src/**"
+      - "scripts/verify-ui-truncation.mjs"
+  workflow_dispatch:
+
+jobs:
+  ui-truncation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: npx playwright install --with-deps chromium
+      - name: Start server and verify DOM truncation matrix
+        run: |
+          PORT=3141 pnpm --filter @kanon/web start &
+          SERVER_PID=$!
+          trap "kill $SERVER_PID || true" EXIT
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3141/api/health && break
+            sleep 1
+          done
+          node scripts/verify-ui-truncation.mjs http://127.0.0.1:3141

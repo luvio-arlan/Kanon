@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { fetchDailyPriceBars, fetchPolygonSplits } from "./daily-bars";
 import { finnhubAdapter } from "./finnhub-adapter";
 import { fmpAdapter } from "./fmp-adapter";
 import { polygonAdapter } from "./polygon-adapter";
@@ -142,5 +143,38 @@ describe("KANON Multi-Provider Market Data Engine", () => {
     });
     expect(testRes.ok).toBe(true);
     expect(testRes.provider).toBe("yahoo");
+  });
+
+  it("L1: sends Polygon Bearer Authorization header (never query apiKey) for daily bars and splits", async () => {
+    const seen: { url: string; auth: string | null }[] = [];
+    const spyFetch: typeof fetch = async (input, init) => {
+      const url = String(input);
+      const headers = new Headers(init?.headers);
+      seen.push({ url, auth: headers.get("authorization") });
+      if (url.includes("/v3/reference/splits")) {
+        return mockJsonResponse({
+          results: [{ execution_date: "2024-06-10", split_from: 1, split_to: 10 }],
+        });
+      }
+      return mockJsonResponse({
+        results: [{ t: 1717977600000, o: 120, h: 122, l: 119, c: 121, v: 50_000_000 }],
+      });
+    };
+    const [bars, splits] = await Promise.all([
+      fetchDailyPriceBars({
+        ticker: "NVDA",
+        creds: { provider: "polygon", apiKey: "secret-poly-token" },
+        fetchImpl: spyFetch,
+      }),
+      fetchPolygonSplits({
+        ticker: "NVDA",
+        apiKey: "secret-poly-token",
+        fetchImpl: spyFetch,
+      }),
+    ]);
+    expect(bars.length).toBeGreaterThanOrEqual(1);
+    expect(splits).toEqual([{ exDate: "2024-06-10", ratio: 10 }]);
+    expect(seen.every((s) => !s.url.includes("apiKey="))).toBe(true);
+    expect(seen.every((s) => s.auth === "Bearer secret-poly-token")).toBe(true);
   });
 });

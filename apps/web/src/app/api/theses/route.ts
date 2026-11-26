@@ -1,5 +1,11 @@
 import { CreateThesisInputSchema } from "@kanon/core";
-import { createThesis, getKanonDb, listGlossaryTerms, listTheses } from "@kanon/core/db";
+import {
+  createThesis,
+  enqueueJob,
+  getKanonDb,
+  listGlossaryTerms,
+  listTheses,
+} from "@kanon/core/db";
 import { requireWorkspaceContext } from "../_lib/auth-session";
 import {
   formatZodError,
@@ -43,6 +49,11 @@ export async function POST(request: Request) {
   try {
     const db = await getKanonDb();
     const thesis = await createThesis(db, parsed.data, auth.user.id);
+    const ticker = thesis.ticker.toUpperCase();
+    await Promise.all([
+      enqueueJob(db, { kind: "sync_sec", payload: { ticker } }),
+      enqueueJob(db, { kind: "sync_daily_bars", payload: { ticker } }),
+    ]).catch(() => undefined);
     return jsonOk({ thesis }, startedAt, 201);
   } catch (err) {
     if (isUniqueConstraintError(err)) {

@@ -19,6 +19,7 @@ import { KANON_INBOX_CATALYSTS_FORECASTS_SQL } from "./v2/0018-inbox-catalysts-f
 import { KANON_PORTFOLIO_LEDGER_SQL } from "./v2/0019-portfolio-ledger";
 import { KANON_TEAMS_IC_AUDIT_SQL } from "./v2/0020-teams-ic-audit";
 import { KANON_WAVE_I_SECURITY_SQL } from "./v2/0021-wave-i-security";
+import { KANON_WAVE_L_M_VECTORS_RLS_SQL } from "./v2/0022-wave-l-m-vectors-rls";
 
 export interface KanonMigration {
   id: string;
@@ -155,6 +156,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only ledger CHECK constraints, realized_pnl/external_ref, forecast re-resolve/delete guards, audit_log hash chain + TRUNCATE guard, inbox dedupe & calendar token uniqueness",
     sql: KANON_WAVE_I_SECURITY_SQL,
+  },
+  {
+    id: "0022_wave_l_m_vectors_rls",
+    description:
+      "Expand-only filing_chunks incremental content_hash + embedding_json and tenant-scoped Postgres RLS policies",
+    sql: KANON_WAVE_L_M_VECTORS_RLS_SQL,
   },
 ];
 

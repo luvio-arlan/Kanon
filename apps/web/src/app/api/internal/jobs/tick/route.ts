@@ -10,8 +10,10 @@ import {
   getKanonDb,
   getSecurityByTicker,
   type KanonDb,
+  listChunksPendingEmbedding,
   type QueuedJobRow,
   recordCorporateAction,
+  saveChunkEmbedding,
   upsertPriceBars,
   upsertSecSnapshot,
   upsertSecurity,
@@ -78,12 +80,29 @@ async function runSyncSecJob(db: KanonDb, payload: Record<string, unknown>) {
   await syncSecSnapshotToWarehouse(db, saved, undefined, fetched.pitFacts);
 }
 
+async function runEmbedChunksJob(db: KanonDb) {
+  const pending = await listChunksPendingEmbedding(db, 25);
+  for (const chunk of pending) {
+    const vec = new Array<number>(16).fill(0);
+    for (let i = 0; i < chunk.text.length; i++) {
+      vec[i % 16] = (vec[i % 16] ?? 0) + chunk.text.charCodeAt(i);
+    }
+    const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0)) || 1;
+    await saveChunkEmbedding(
+      db,
+      chunk.id,
+      vec.map((v) => Number((v / norm).toFixed(4))),
+    );
+  }
+}
+
 async function executeJob(db: KanonDb, job: QueuedJobRow): Promise<void> {
   if (job.kind === "noop") return;
   if (job.kind === "evaluate_alerts") {
     await evaluateAlertRules(db);
     return;
   }
+  if (job.kind === "embed_chunks") return runEmbedChunksJob(db);
   if (job.kind === "sync_daily_bars") return runSyncDailyBarsJob(db, job.payload);
   if (job.kind === "sync_sec") return runSyncSecJob(db, job.payload);
   throw new Error(`Unsupported job kind: ${job.kind}`);

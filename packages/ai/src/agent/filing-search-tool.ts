@@ -11,21 +11,32 @@ export interface FilingExcerptMatch {
 const BILINGUAL_FINANCE_SYNONYMS: ReadonlyArray<readonly [RegExp, readonly string[]]> = [
   [/毛利|毛利率/, ["gross", "margin"]],
   [/营收|收入|增速/, ["revenue", "growth"]],
-  [/资本开支|扩产/, ["capex", "capital", "expenditure", "capacity"]],
+  [/资本开支|资本支出|扩产/, ["capex", "capital", "expenditure", "expenditures", "capacity"]],
   [/现金流|自由现金流/, ["free", "cash", "flow", "operating"]],
-  [/回购|股本/, ["repurchase", "buyback", "shares"]],
+  [/回购|股本/, ["repurchase", "buyback", "buybacks", "shares"]],
   [/分红|股息/, ["dividend", "distribution"]],
   [/指引|展望|预期/, ["guidance", "outlook", "expect"]],
-  [/库存|存货/, ["inventory", "inventories"]],
+  [/库存|存货/, ["inventory", "inventories", "provisions"]],
   [/应收账款|回款/, ["receivable", "receivables"]],
   [/云计算|云服务|云/, ["cloud", "azure", "aws", "infrastructure"]],
   [/算力|数据中心|芯片|gpu|ai/i, ["data", "center", "ai", "gpu", "compute"]],
   [/定价权|提价|价格/, ["pricing", "price", "asp"]],
-  [/股权激励|稀释|sbc/i, ["share-based", "compensation", "sbc", "dilution"]],
+  [
+    /股权激励|股票薪酬|稀释|sbc/i,
+    ["share-based", "stock-based", "stock", "compensation", "sbc", "dilution"],
+  ],
   [/订单|积压|合同/, ["backlog", "rpo", "remaining", "performance", "obligations"]],
   [/折旧|摊销/, ["depreciation", "amortization"]],
-  [/监管|关税|出口|反垄断/, ["tariff", "export", "control", "regulatory", "antitrust"]],
+  [
+    /监管|关税|出口|反垄断/,
+    ["tariff", "export", "control", "regulatory", "antitrust", "licensing"],
+  ],
   [/竞争|市占率|份额/, ["competition", "market", "share"]],
+  [/债务|负债|借款|公司债/, ["debt", "notes", "maturities", "coupon", "borrowing"]],
+  [/税率|所得税|税收/, ["tax", "effective", "deductions", "income"]],
+  [/研发/, ["research", "development", "architecture"]],
+  [/客户|集中度/, ["customer", "customers", "concentration", "hyperscale"]],
+  [/代工|晶圆|封装|供应链/, ["foundry", "wafer", "packaging", "supply", "chain", "cowos"]],
 ];
 
 function tokenizeText(raw: string): string[] {
