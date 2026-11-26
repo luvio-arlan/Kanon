@@ -56,21 +56,23 @@ function collectExportedMutationHandlers(sf) {
   return handlers;
 }
 
-function callSatisfiesGuard(callExpr, localFns, seen) {
+const CRON_AUTH_ROUTES = new Set(["apps/web/src/app/api/internal/jobs/tick/route.ts"]);
+
+function callSatisfiesTargetGuard(callExpr, targetName, localFns, seen) {
   if (!ts.isIdentifier(callExpr.expression)) return false;
   const callee = callExpr.expression.text;
-  if (callee === "verifySameOrigin") return true;
+  if (callee === targetName) return true;
   const helperBody = localFns.get(callee);
   if (!helperBody || seen.has(callee)) return false;
   seen.add(callee);
-  return nodeCallsVerifySameOrigin(helperBody, localFns, seen);
+  return nodeCallsTargetGuard(helperBody, targetName, localFns, seen);
 }
 
-function nodeCallsVerifySameOrigin(root, localFns, seen = new Set()) {
+function nodeCallsTargetGuard(root, targetName, localFns, seen = new Set()) {
   let found = false;
   function visit(node) {
     if (found) return;
-    if (ts.isCallExpression(node) && callSatisfiesGuard(node, localFns, seen)) {
+    if (ts.isCallExpression(node) && callSatisfiesTargetGuard(node, targetName, localFns, seen)) {
       found = true;
       return;
     }
@@ -92,12 +94,13 @@ export function checkApiMutationCsrfGuard(rootDir, errors) {
     const handlers = collectExportedMutationHandlers(sf);
     if (handlers.length === 0) continue;
 
+    const requiredGuard = CRON_AUTH_ROUTES.has(rel) ? "verifyCronSecret" : "verifySameOrigin";
     const localFns = collectHelperCallMap(sf);
     for (const handler of handlers) {
-      if (nodeCallsVerifySameOrigin(handler.body, localFns)) continue;
+      if (nodeCallsTargetGuard(handler.body, requiredGuard, localFns)) continue;
       const line = sf.getLineAndCharacterOfPosition(handler.pos).line + 1;
       errors.push(
-        `${rel}:${line} [api-mutation-csrf-guard] Exported ${handler.name} handler does not call verifySameOrigin(request, startedAt).`,
+        `${rel}:${line} [api-mutation-csrf-guard] Exported ${handler.name} handler does not call ${requiredGuard}(request, startedAt).`,
       );
     }
   }

@@ -88,6 +88,10 @@ export {
   type GlossaryPopoverCardProps,
 } from "./components/overlays/glossary-popover-card";
 export {
+  ProvenancePopover,
+  type ProvenancePopoverProps,
+} from "./components/overlays/provenance-popover";
+export {
   ScrollFade,
   type ScrollFadeProps,
   useScrollFade,

@@ -14,10 +14,18 @@ import { PEER_CATALOG, PEER_GRAPH } from "./peer-catalog";
 import { fetchMarketQuotes } from "./provider-registry";
 import type { MarketAdapterCredentials } from "./types";
 
-function selectPeerTickers(ticker: string): string[] {
+function selectPeerTickers(ticker: string, customPeers?: readonly string[]): string[] {
   const upper = ticker.trim().toUpperCase();
-  const explicit = PEER_GRAPH[upper];
-  return explicit ? [...explicit] : [];
+  const base = customPeers && customPeers.length > 0 ? customPeers : (PEER_GRAPH[upper] ?? []);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of base) {
+    const clean = item.trim().toUpperCase();
+    if (!clean || clean === upper || seen.has(clean)) continue;
+    seen.add(clean);
+    out.push(clean);
+  }
+  return out;
 }
 
 function buildUnavailableConsensus(): StreetConsensus {
@@ -166,13 +174,15 @@ export async function buildMarketBenchmarks(params: {
   ticker: string;
   currentPrice: number;
   secSnapshot: SecSnapshot | null;
+  customPeerTickers?: readonly string[];
+  historicalValuationBand?: MarketBenchmarkResponse["valuationBand"];
   cachedPeers?: ReadonlyMap<string, SecSnapshot>;
   loadCachedPeers?: (tickers: readonly string[]) => Promise<ReadonlyMap<string, SecSnapshot>>;
   creds?: MarketAdapterCredentials;
   fetchImpl?: typeof fetch;
 }): Promise<MarketBenchmarkResponse> {
   const upper = params.ticker.trim().toUpperCase();
-  const peerTickers = selectPeerTickers(upper);
+  const peerTickers = selectPeerTickers(upper, params.customPeerTickers);
   const [quoteMap, loadedPeers] = await Promise.all([
     fetchMarketQuotes([...peerTickers, "SPY"], {
       creds: params.creds,
@@ -203,7 +213,7 @@ export async function buildMarketBenchmarks(params: {
     sectorLabel: PEER_CATALOG[upper]?.sector ?? peers[0]?.sector ?? "未映射行业",
     consensus: buildUnavailableConsensus(),
     historicalExtrapolation: buildHistoricalExtrapolation(params.currentPrice, params.secSnapshot),
-    valuationBand: null,
+    valuationBand: params.historicalValuationBand ?? null,
     peerMultipleRange: computePeerMultipleRange(params.currentPrice, params.secSnapshot, peers),
     peers,
     spyPrice,

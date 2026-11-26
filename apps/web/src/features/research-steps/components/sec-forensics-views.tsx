@@ -1,7 +1,7 @@
 "use client";
 
 import type { ForensicRedFlag, SecForensicReport, SecQuarterlyFinancial } from "@kanon/core";
-import { Badge, ReadinessRing } from "@kanon/ui";
+import { Badge, ProvenancePopover, ReadinessRing } from "@kanon/ui";
 import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
 import {
   buildForensicCells,
@@ -14,10 +14,12 @@ function MetricCell({
   label,
   value,
   tone = "primary",
+  formula,
 }: {
   label: string;
   value: string;
   tone?: ForensicCellTone;
+  formula?: string;
 }) {
   const toneMap = {
     pass: "text-status-pass",
@@ -29,7 +31,9 @@ function MetricCell({
     <div className="px-4 py-3">
       <div className="text-xs text-ink-muted">{label}</div>
       <div className={`mt-1 font-mono text-sm font-semibold tabular-nums ${toneMap[tone]}`}>
-        {value}
+        <ProvenancePopover sourceLabel="SEC XBRL 法证" formula={formula ?? label}>
+          <span>{value}</span>
+        </ProvenancePopover>
       </div>
     </div>
   );

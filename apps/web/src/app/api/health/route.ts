@@ -1,4 +1,4 @@
-import { getKanonDb, pingKanonDb } from "@kanon/core/db";
+import { getJobQueueHealth, getKanonDb, pingKanonDb } from "@kanon/core/db";
 import { jsonError, jsonOk } from "../_lib/http";
 
 export const dynamic = "force-dynamic";
@@ -8,11 +8,13 @@ export async function GET() {
   try {
     const db = await getKanonDb();
     await pingKanonDb(db);
+    const jobQueue = await getJobQueueHealth(db).catch(() => null);
     return jsonOk(
       {
         status: "healthy",
         timestamp: new Date().toISOString(),
         secUserAgentConfigured: Boolean(process.env.KANON_SEC_USER_AGENT?.trim()),
+        jobQueue,
       },
       startedAt,
     );

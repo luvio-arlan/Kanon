@@ -12,7 +12,8 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:migrate": "node --experimental-strip-types src/db/migrate-cli.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.17",

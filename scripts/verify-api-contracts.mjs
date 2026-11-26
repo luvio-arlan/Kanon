@@ -27,6 +27,7 @@ const KNOWN_ROUTES = [
   "export/thesis/[id]/route.ts",
   "health/route.ts",
   "import/thesis/route.ts",
+  "internal/jobs/tick/route.ts",
   "market/benchmarks/route.ts",
   "market/bootstrap/route.ts",
   "market/provider-test/route.ts",
@@ -39,6 +40,7 @@ const KNOWN_ROUTES = [
   "sec/[ticker]/route.ts",
   "theses/[id]/discipline/route.ts",
   "theses/[id]/notes/route.ts",
+  "theses/[id]/peers/route.ts",
   "theses/[id]/reviews/route.ts",
   "theses/[id]/revisions/route.ts",
   "theses/[id]/route.ts",
@@ -775,6 +777,25 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
   );
   assert.equal(refreshOk.status, 200);
   assert.ok(Array.isArray(refreshOk.data.updatedTheses));
+
+  const cronUnauth = await fetchJson("/api/internal/jobs/tick", { method: "POST" });
+  assert.ok([401, 503].includes(cronUnauth.status));
+
+  const peerPost = await fetchJson(
+    `/api/theses/${nvdaId}/peers`,
+    { method: "POST", body: JSON.stringify({ ticker: "AMD", role: "competitor" }) },
+    cookieA,
+  );
+  assert.equal(peerPost.status, 201);
+  assert.ok(peerPost.data.peers.some((p) => p.ticker === "AMD"));
+  const peerGet = await fetchJson(`/api/theses/${nvdaId}/peers`, {}, cookieA);
+  assert.equal(peerGet.status, 200);
+  const peerDel = await fetchJson(
+    `/api/theses/${nvdaId}/peers?ticker=AMD`,
+    { method: "DELETE" },
+    cookieA,
+  );
+  assert.equal(peerDel.status, 200);
 }
 
 async function main() {

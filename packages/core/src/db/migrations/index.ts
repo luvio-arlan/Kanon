@@ -11,6 +11,8 @@ import { KANON_HEAL_RUNAWAY_VALUATION_SQL } from "./0010-heal-runaway-valuation"
 import { KANON_V7_RESEARCH_OS_SQL } from "./0011-v7-research-os";
 import { KANON_USER_SEC_OVERRIDES_SQL } from "./v2/0012-user-sec-overrides";
 import { KANON_SECURITY_TOTP_SQL } from "./v2/0013-security-totp";
+import { KANON_WAREHOUSE_CORE_SQL } from "./v2/0014-warehouse-core";
+import { KANON_FACTS_JOBS_CHUNKS_SQL } from "./v2/0015-facts-jobs-chunks";
 
 export interface KanonMigration {
   id: string;
@@ -100,6 +102,18 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only TOTP 2FA factors and per-account exponential login lockout tables (W7.4)",
     sql: KANON_SECURITY_TOTP_SQL,
+  },
+  {
+    id: "0014_warehouse_core",
+    description:
+      "Expand-only security master, daily FX rates, daily price bars, and corporate actions tables (W1.1-W1.3)",
+    sql: KANON_WAREHOUSE_CORE_SQL,
+  },
+  {
+    id: "0015_facts_jobs_chunks",
+    description:
+      "Expand-only point-in-time filings/facts, Postgres job queue, filing chunks, thesis peers, and estimate snapshots (W1.4-W1.7)",
+    sql: KANON_FACTS_JOBS_CHUNKS_SQL,
   },
 ];
 

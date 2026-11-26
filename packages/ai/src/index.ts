@@ -25,6 +25,10 @@ export {
 } from "./copilot/run-copilot";
 export { buildMarketBenchmarks } from "./market/consensus-and-peers";
 export {
+  type DailyBarPoint,
+  fetchDailyPriceBars,
+} from "./market/daily-bars";
+export {
   clearMarketQuoteCache,
   fetchMarketClosingQuote,
   fetchMarketClosingQuotes,
@@ -68,3 +72,9 @@ export {
   extractSecKeySections,
   stripSecHtmlToParagraphs,
 } from "./sec/filing-text-parser";
+export {
+  classifyForm8kItems,
+  type Form8kEventAlert,
+  type Form8kSeverity,
+  parseForm8kItemCodes,
+} from "./sec/form8k-parser";

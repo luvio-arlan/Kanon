@@ -1,6 +1,15 @@
 import { buildMarketBenchmarks } from "@kanon/ai";
 import { TickerSymbolSchema } from "@kanon/core";
-import { getKanonDb, getSecSnapshot, getSecSnapshotForUser } from "@kanon/core/db";
+import {
+  computeRealHistoricalValuationBand,
+  getKanonDb,
+  getSecSnapshot,
+  getSecSnapshotForUser,
+  getSecurityByTicker,
+  getThesisByTicker,
+  listPriceBars,
+  listThesisPeers,
+} from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
@@ -30,11 +39,30 @@ export async function GET(request: Request) {
   const currentPrice = Number.isFinite(priceRaw) && priceRaw > 0 ? priceRaw : 100;
 
   const db = await getKanonDb();
-  const secSnapshot = await getSecSnapshotForUser(db, ticker, auth.user.id);
+  const [secSnapshot, thesisIdentity, security] = await Promise.all([
+    getSecSnapshotForUser(db, ticker, auth.user.id),
+    getThesisByTicker(db, ticker, auth.user.id),
+    getSecurityByTicker(db, ticker),
+  ]);
+  const [customPeers, bars] = await Promise.all([
+    thesisIdentity ? listThesisPeers(db, thesisIdentity.id) : Promise.resolve([]),
+    security ? listPriceBars(db, security.id) : Promise.resolve([]),
+  ]);
+  const historicalValuationBand =
+    secSnapshot && bars.length >= 20
+      ? computeRealHistoricalValuationBand({
+          bars,
+          annuals: secSnapshot.annuals,
+          currentPrice,
+        })
+      : null;
+
   const benchmarks = await buildMarketBenchmarks({
     ticker,
     currentPrice,
     secSnapshot,
+    customPeerTickers: customPeers.map((p) => p.ticker),
+    historicalValuationBand,
     loadCachedPeers: async (peerTickers) => {
       const snaps = await Promise.all(peerTickers.map((pt) => getSecSnapshot(db, pt)));
       const map = new Map<string, NonNullable<(typeof snaps)[number]>>();

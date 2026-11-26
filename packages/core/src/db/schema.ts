@@ -50,6 +50,7 @@ export {
   usersTable,
   userTotpFactorsTable,
 } from "./schema-extensions";
+export * from "./schema-warehouse";
 
 export const thesesTable = pgTable(
   "theses",
@@ -70,6 +71,7 @@ export const thesesTable = pgTable(
     avgCostBasis: doublePrecision("avg_cost_basis"),
     businessFilter: jsonb("business_filter").$type<BusinessFilter>().notNull(),
     lastReviewedLabel: text("last_reviewed_label").notNull(),
+    securityId: text("security_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

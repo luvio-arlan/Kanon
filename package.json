@@ -19,6 +19,7 @@
     "knip": "knip",
     "check": "pnpm lint && pnpm typecheck && pnpm depcruise && pnpm design:check && pnpm knip",
     "db:push": "pnpm --filter @kanon/core db:push",
+    "db:migrate": "pnpm --filter @kanon/core db:migrate",
     "prepare": "lefthook install || true"
   },
   "devDependencies": {

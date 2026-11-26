@@ -113,26 +113,43 @@ export {
   updateThesisStepChecked,
 } from "./repositories/thesis-mutations";
 export { getThesisById, listTheses } from "./repositories/thesis-queries";
+export * from "./repositories/warehouse/facts-pit-store";
+export * from "./repositories/warehouse/filing-chunks-store";
+export * from "./repositories/warehouse/jobs-and-peers-store";
+export * from "./repositories/warehouse/peers-and-estimates-store";
+export * from "./repositories/warehouse/price-bars-store";
+export * from "./repositories/warehouse/securities-and-fx-store";
 export {
   agentRunsTable,
   apiTokensTable,
   copilotOutputsTable,
+  corporateActionsTable,
   crossChecksTable,
   disciplineEntriesTable,
+  estimatesSnapshotsTable,
+  filingChunksTable,
+  filingsTable,
+  financialFactsTable,
+  fxRatesDailyTable,
   glossaryTermsTable,
   hypothesesTable,
   insertThesisRowSchema,
+  jobsTable,
   loginLockoutsTable,
   marketQuotesCacheTable,
+  priceBarsDailyTable,
   quarterlyReviewsTable,
   rateLimitBucketsTable,
   researchNotesTable,
   secFilingDocumentsCacheTable,
   secFilingsCacheTable,
+  securitiesTable,
   selectGlossaryRowSchema,
   selectThesisRowSchema,
   sessionsTable,
+  type ThesisPeerRole,
   thesesTable,
+  thesisPeersTable,
   thesisRevisionsTable,
   userSecOverridesTable,
   usersTable,

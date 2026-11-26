@@ -65,8 +65,10 @@ export {
   ThesisMutationResponseSchema,
 } from "./contracts/api-contracts";
 export * from "./contracts/auth-contracts";
+export * from "./contracts/financial-concepts";
 export * from "./contracts/market-contracts";
 export * from "./contracts/portfolio-contracts";
+export * from "./contracts/provenance";
 export * from "./contracts/sec-filing-contracts";
 export {
   formatGoogleDocHtml,
