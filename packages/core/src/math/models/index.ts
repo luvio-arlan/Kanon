@@ -3,6 +3,8 @@ export {
   evaluateHypothesisKpi,
   type HypothesisKpiEvaluation,
 } from "./hypothesis-evaluator";
+export * from "./kpi-expression-parser";
+export * from "./kpi-templates";
 export {
   calculateLinkedOperatingModel,
   deriveDefaultLinkedDrivers,

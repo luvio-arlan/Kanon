@@ -251,6 +251,22 @@ function checkBasicGardenNode(relPath, sf, node, isClientSlice, insideLiveGuard,
       "Empty catch block silently swallows errors. Capture the error and propagate fallbackReason or return a typed fallback result.",
     );
   }
+  if (
+    /^packages\/core\/src\/math\//.test(relPath) &&
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === "Math" &&
+    node.expression.name.text === "random"
+  ) {
+    addError(
+      errors,
+      relPath,
+      getLine(sf, node.getStart(sf)),
+      "no-math-random-in-math",
+      "Math.random() is forbidden in packages/core/src/math/. Use seeded createMulberry32(seed) so Monte Carlo and financial math remain 100% reproducible (docs/TOP_TIER_ROADMAP.md W2.3).",
+    );
+  }
   checkRuntimeAiImport(relPath, sf, node, isClientSlice, errors);
   checkCockpitPerfImport(relPath, sf, node, errors);
   checkHonestConsensusNode(relPath, sf, node, insideLiveGuard, errors);

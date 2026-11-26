@@ -1,3 +1,4 @@
+import { solveMauboussinImpliedCap } from "./dcf/reverse-dcf-cap";
 import { roundTo } from "./valuation-scenarios";
 
 export interface TopDownEpsInput {
@@ -221,10 +222,14 @@ export function calculateTrueReverseDcf(input: ReverseDcfInput): ReverseDcfResul
     ronicRate && requiredRate > 0
       ? roundTo(Math.min(85, (requiredRate / ronicRate) * 100), 1)
       : null;
-  const impliedCapYears = Math.max(
-    years,
-    Math.min(15, Math.round(years + Math.max(0, requiredCagrPct - 8) / 4)),
-  );
+  const capResult = solveMauboussinImpliedCap({
+    currentValue: price,
+    baseNopat: base,
+    growthRatePct: Math.max(0.5, requiredCagrPct),
+    ronicPct: ronicRate ? ronicRate * 100 : Math.max(input.hurdleRatePct + 8, 22),
+    waccPct: input.hurdleRatePct,
+  });
+  const impliedCapYears = Math.max(1, Math.round(capResult.impliedCapYears));
 
   return {
     requiredCagrPct,

@@ -13,6 +13,7 @@ import { KANON_USER_SEC_OVERRIDES_SQL } from "./v2/0012-user-sec-overrides";
 import { KANON_SECURITY_TOTP_SQL } from "./v2/0013-security-totp";
 import { KANON_WAREHOUSE_CORE_SQL } from "./v2/0014-warehouse-core";
 import { KANON_FACTS_JOBS_CHUNKS_SQL } from "./v2/0015-facts-jobs-chunks";
+import { KANON_MODEL_VERSIONS_SQL } from "./v2/0016-model-versions";
 
 export interface KanonMigration {
   id: string;
@@ -114,6 +115,11 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only point-in-time filings/facts, Postgres job queue, filing chunks, thesis peers, and estimate snapshots (W1.4-W1.7)",
     sql: KANON_FACTS_JOBS_CHUNKS_SQL,
+  },
+  {
+    id: "0016_model_versions",
+    description: "Expand-only append-only valuation model version snapshots (W2.4)",
+    sql: KANON_MODEL_VERSIONS_SQL,
   },
 ];
 

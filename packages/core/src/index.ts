@@ -77,6 +77,8 @@ export {
   formatThesisMarkdown,
   type ThesisExportExtras,
 } from "./export/formatters";
+export * from "./math/dcf";
+export * from "./math/forensics";
 export {
   calculateHurdleLadder,
   type HurdleLadderReport,
@@ -133,6 +135,7 @@ export {
   type SensitivityCell,
   type SensitivityMatrix,
 } from "./math/sensitivity-matrix";
+export * from "./math/simulation";
 export {
   calculateDiscreteKelly,
   type DiscreteKellyInput,

@@ -39,6 +39,7 @@ const KNOWN_ROUTES = [
   "sec/[ticker]/filing/route.ts",
   "sec/[ticker]/route.ts",
   "theses/[id]/discipline/route.ts",
+  "theses/[id]/model-versions/route.ts",
   "theses/[id]/notes/route.ts",
   "theses/[id]/peers/route.ts",
   "theses/[id]/reviews/route.ts",
@@ -796,6 +797,25 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
     cookieA,
   );
   assert.equal(peerDel.status, 200);
+
+  const mvPost = await fetchJson(
+    `/api/theses/${nvdaId}/model-versions`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        label: "Q3 DCF Base",
+        modelKind: "fcff_dcf",
+        inputs: { waccPct: 9.2 },
+        outputs: { fairValuePerShare: 185 },
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(mvPost.status, 201);
+  assert.equal(mvPost.data.version.versionNum, 1);
+  const mvGet = await fetchJson(`/api/theses/${nvdaId}/model-versions`, {}, cookieA);
+  assert.equal(mvGet.status, 200);
+  assert.equal(mvGet.data.versions.length, 1);
 }
 
 async function main() {

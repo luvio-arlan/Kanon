@@ -184,3 +184,20 @@ export const estimatesSnapshotsTable = pgTable("estimates_snapshots", {
   analystCount: integer("analyst_count"),
   asOf: text("as_of").notNull(),
 });
+
+export const modelVersionsTable = pgTable(
+  "model_versions",
+  {
+    id: text("id").primaryKey(),
+    thesisId: text("thesis_id").notNull(),
+    userId: text("user_id").notNull(),
+    versionNum: integer("version_num").notNull(),
+    label: text("label").notNull(),
+    modelKind: text("model_kind").notNull().default("fcff_dcf"),
+    inputsJson: jsonb("inputs_json").$type<Record<string, unknown>>().notNull(),
+    outputsJson: jsonb("outputs_json").$type<Record<string, unknown>>().notNull(),
+    notes: text("notes").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("idx_model_versions_thesis_num").on(table.thesisId, table.versionNum)],
+);

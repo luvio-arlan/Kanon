@@ -116,6 +116,7 @@ export { getThesisById, listTheses } from "./repositories/thesis-queries";
 export * from "./repositories/warehouse/facts-pit-store";
 export * from "./repositories/warehouse/filing-chunks-store";
 export * from "./repositories/warehouse/jobs-and-peers-store";
+export * from "./repositories/warehouse/model-versions-store";
 export * from "./repositories/warehouse/peers-and-estimates-store";
 export * from "./repositories/warehouse/price-bars-store";
 export * from "./repositories/warehouse/securities-and-fx-store";
@@ -137,6 +138,7 @@ export {
   jobsTable,
   loginLockoutsTable,
   marketQuotesCacheTable,
+  modelVersionsTable,
   priceBarsDailyTable,
   quarterlyReviewsTable,
   rateLimitBucketsTable,
