@@ -10,6 +10,7 @@ import {
   disableUserTotpFactor,
   getKanonDb,
   getUserTotpStatus,
+  TotpAlreadyEnabledError,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
@@ -50,8 +51,15 @@ export async function POST(request: Request) {
   }
   const db = await getKanonDb();
   if (parsed.data.action === "begin") {
-    const enrolled = await beginTotpEnrollment(db, auth.user.id, auth.user.phoneE164);
-    return jsonOk(TotpEnrollResponseSchema.parse(enrolled), startedAt, 200);
+    try {
+      const enrolled = await beginTotpEnrollment(db, auth.user.id, auth.user.phoneE164);
+      return jsonOk(TotpEnrollResponseSchema.parse(enrolled), startedAt, 200);
+    } catch (err) {
+      if (err instanceof TotpAlreadyEnabledError) {
+        return jsonError(err.message, 409, startedAt, "TOTP_ALREADY_ENABLED");
+      }
+      throw err;
+    }
   }
   const confirmed = await confirmTotpEnrollment(db, auth.user.id, parsed.data.code);
   if (!confirmed.ok) {

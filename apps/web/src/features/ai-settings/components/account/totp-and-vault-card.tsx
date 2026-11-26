@@ -1,190 +1,147 @@
 "use client";
 
-import { Badge, Button, Input, SettingsCard, SettingsRow, SettingsSectionLabel } from "@kanon/ui";
-import { IconKey, IconShieldLock, IconTrash } from "@tabler/icons-react";
+import { SettingsCard, SettingsRow, SettingsSectionLabel } from "@kanon/ui";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   apiConfirmTotp,
-  apiDeleteVaultCredential,
+  apiDisableTotp,
   apiEnrollTotp,
   apiLoadSecurityVault,
-  apiSaveVaultCredential,
   type MaskedAiCred,
+  type TotpEnrollmentBundle,
 } from "../../lib/security-vault-api";
+import {
+  TotpDisableRow,
+  TotpEnrollPanel,
+  TotpRecoveryCodesPanel,
+  TotpStatusAction,
+} from "./totp-setup-panel";
+import { VaultSection } from "./vault-credentials-section";
 
-function TotpEnrollRow({
-  secret,
-  code,
-  onCode,
-  onConfirm,
-}: {
-  secret: string;
-  code: string;
-  onCode: (v: string) => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="space-y-2.5 border-t border-hairline px-4 py-3 text-xs">
-      <div className="font-mono text-ink-primary">密钥：{secret}</div>
-      <div className="flex items-center gap-2">
-        <Input
-          value={code}
-          onChange={(e) => onCode(e.target.value)}
-          placeholder="6 位验证码"
-          className="w-40"
-        />
-        <Button variant="primary" size="sm" onClick={onConfirm}>
-          <span>验证并启用</span>
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function TotpSection({ enabled, onConfirmed }: { enabled: boolean; onConfirmed: () => void }) {
-  const [secret, setSecret] = useState<string | null>(null);
+function useTotpSectionActions(onChanged: () => void) {
+  const [enrollData, setEnrollData] = useState<TotpEnrollmentBundle | null>(null);
   const [code, setCode] = useState("");
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [disabling, setDisabling] = useState(false);
+  const [disableCode, setDisableCode] = useState("");
 
   async function enroll() {
-    const next = await apiEnrollTotp();
-    if (!next) return void toast.error("初始化 2FA 失败");
-    setSecret(next);
+    const res = await apiEnrollTotp();
+    if (!res.ok) return void toast.error(res.error);
+    setEnrollData(res.data);
   }
   async function confirm() {
-    if (!(await apiConfirmTotp(code.trim()))) return void toast.error("验证码错误");
-    setSecret(null);
+    const res = await apiConfirmTotp(code.trim());
+    if (!res.ok) return void toast.error(res.error);
+    setEnrollData(null);
     setCode("");
-    toast.success("已开启 TOTP 二步验证");
-    onConfirmed();
-  }
-  return (
-    <div>
-      <SettingsSectionLabel>二步验证 (TOTP 2FA)</SettingsSectionLabel>
-      <SettingsCard>
-        <SettingsRow label="动态口令保护" description="兼容 1Password / Google Authenticator">
-          {enabled ? (
-            <Badge variant="pass">已开启</Badge>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => void enroll()}>
-              <IconShieldLock size={14} stroke={1.5} />
-              <span>配置 2FA</span>
-            </Button>
-          )}
-        </SettingsRow>
-        {secret ? (
-          <TotpEnrollRow
-            secret={secret}
-            code={code}
-            onCode={setCode}
-            onConfirm={() => void confirm()}
-          />
-        ) : null}
-      </SettingsCard>
-    </div>
-  );
-}
-
-function VaultCredsList({
-  creds,
-  onRemove,
-}: {
-  creds: readonly MaskedAiCred[];
-  onRemove: (provider: string) => void;
-}) {
-  if (creds.length === 0) return null;
-  return (
-    <div className="divide-y divide-hairline border-t border-hairline pt-2">
-      {creds.map((c) => (
-        <div key={c.id} className="flex items-center justify-between py-1.5">
-          <span className="font-mono text-ink-primary">
-            {c.provider} · {c.keyHint}
-          </span>
-          <Button variant="ghost" size="sm" onClick={() => onRemove(c.provider)}>
-            <IconTrash size={13} stroke={1.5} />
-          </Button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function VaultProviderPicker({
-  provider,
-  onChange,
-}: {
-  provider: "gemini" | "anthropic" | "openai";
-  onChange: (p: "gemini" | "anthropic" | "openai") => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {(["gemini", "anthropic", "openai"] as const).map((p) => (
-        <Button
-          key={p}
-          variant={provider === p ? "primary" : "outline"}
-          size="sm"
-          onClick={() => onChange(p)}
-        >
-          <span>{p}</span>
-        </Button>
-      ))}
-    </div>
-  );
-}
-
-function VaultSection({
-  creds,
-  onChanged,
-}: {
-  creds: readonly MaskedAiCred[];
-  onChanged: () => void;
-}) {
-  const [provider, setProvider] = useState<"gemini" | "anthropic" | "openai">("gemini");
-  const [apiKey, setApiKey] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    if (apiKey.trim().length < 8) return void toast.error("请输入完整 API Key");
-    setSaving(true);
-    const ok = await apiSaveVaultCredential(provider, apiKey.trim());
-    setSaving(false);
-    if (!ok) return void toast.error("保存失败");
-    setApiKey("");
-    toast.success("已通过 AES-256-GCM 加密存入服务端密钥库");
+    setRecoveryCodes(res.recoveryCodes);
+    toast.success("已开启两步验证");
     onChanged();
   }
+  async function disable() {
+    const res = await apiDisableTotp(disableCode.trim());
+    if (!res.ok) return void toast.error(res.error);
+    setDisabling(false);
+    setDisableCode("");
+    setRecoveryCodes(null);
+    toast.success("已停用两步验证");
+    onChanged();
+  }
+  return {
+    enrollData,
+    code,
+    setCode,
+    recoveryCodes,
+    setRecoveryCodes,
+    disabling,
+    setDisabling,
+    disableCode,
+    setDisableCode,
+    enroll,
+    confirm,
+    disable,
+  };
+}
+
+function TotpCardPanels({
+  enabled,
+  s,
+}: {
+  enabled: boolean;
+  s: ReturnType<typeof useTotpSectionActions>;
+}) {
+  return (
+    <>
+      {s.enrollData ? (
+        <TotpEnrollPanel
+          secret={s.enrollData.secret}
+          otpauthUri={s.enrollData.otpauthUri}
+          code={s.code}
+          onCode={s.setCode}
+          onConfirm={() => void s.confirm()}
+        />
+      ) : null}
+      {s.recoveryCodes ? (
+        <TotpRecoveryCodesPanel
+          codes={s.recoveryCodes}
+          onAcknowledge={() => s.setRecoveryCodes(null)}
+        />
+      ) : null}
+      {enabled && s.disabling ? (
+        <TotpDisableRow
+          code={s.disableCode}
+          onCode={s.setDisableCode}
+          onDisable={() => void s.disable()}
+          onCancel={() => {
+            s.setDisabling(false);
+            s.setDisableCode("");
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function TotpSection({
+  enabled,
+  recoveryRemaining,
+  onChanged,
+}: {
+  enabled: boolean;
+  recoveryRemaining: number;
+  onChanged: () => void;
+}) {
+  const s = useTotpSectionActions(onChanged);
   return (
     <div>
-      <SettingsSectionLabel>服务端加密 BYOK 密钥库</SettingsSectionLabel>
-      <div className="space-y-3 rounded-panel border border-hairline bg-surface p-4 text-xs">
-        <VaultProviderPicker provider={provider} onChange={setProvider} />
-        <div className="flex items-center gap-2">
-          <Input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="服务端加密 API Key"
+      <SettingsSectionLabel>两步验证 (TOTP)</SettingsSectionLabel>
+      <SettingsCard>
+        <SettingsRow
+          label="动态口令保护"
+          description={enabled ? `剩余恢复码 ${recoveryRemaining} 枚` : "支持常见认证器应用"}
+        >
+          <TotpStatusAction
+            enabled={enabled}
+            onToggleDisable={() => s.setDisabling((v) => !v)}
+            onEnroll={() => void s.enroll()}
           />
-          <Button variant="primary" size="sm" loading={saving} onClick={() => void save()}>
-            <IconKey size={14} stroke={1.5} />
-            <span>加密保存</span>
-          </Button>
-        </div>
-        <VaultCredsList
-          creds={creds}
-          onRemove={(p) => void apiDeleteVaultCredential(p).then(onChanged)}
-        />
-      </div>
+        </SettingsRow>
+        <TotpCardPanels enabled={enabled} s={s} />
+      </SettingsCard>
     </div>
   );
 }
 
 export function TotpAndVaultCard() {
   const [totpEnabled, setTotpEnabled] = useState(false);
+  const [recoveryRemaining, setRecoveryRemaining] = useState(0);
   const [creds, setCreds] = useState<MaskedAiCred[]>([]);
   const load = useCallback(() => {
     void apiLoadSecurityVault().then((res) => {
       setTotpEnabled(res.totpEnabled);
+      setRecoveryRemaining(res.recoveryCodesRemaining);
       setCreds(res.credentials);
     });
   }, []);
@@ -192,7 +149,7 @@ export function TotpAndVaultCard() {
 
   return (
     <div className="space-y-6">
-      <TotpSection enabled={totpEnabled} onConfirmed={load} />
+      <TotpSection enabled={totpEnabled} recoveryRemaining={recoveryRemaining} onChanged={load} />
       <VaultSection creds={creds} onChanged={load} />
     </div>
   );

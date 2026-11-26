@@ -1,4 +1,9 @@
-import { calculateLogLoss, calculateMultiClassBrierScore } from "@kanon/core";
+import {
+  calculateLogLoss,
+  calculateMultiClassBrierScore,
+  ForecastCreateRequestSchema,
+  ForecastResolveRequestSchema,
+} from "@kanon/core";
 import {
   assertThesisOwnership,
   createImmutableForecast,
@@ -7,31 +12,10 @@ import {
   resolveForecast,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
-import { jsonError, jsonOk } from "../../../_lib/http";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
-
-function parseForecastBody(bodyUnknown: unknown) {
-  if (!bodyUnknown || typeof bodyUnknown !== "object") return null;
-  const raw = bodyUnknown as Record<string, unknown>;
-  const question = typeof raw.question === "string" ? raw.question.trim() : "";
-  const resolveBy = typeof raw.resolveBy === "string" ? raw.resolveBy.trim() : "";
-  const probabilities = Array.isArray(raw.probabilities)
-    ? raw.probabilities.filter((v): v is number => typeof v === "number" && Number.isFinite(v))
-    : [];
-  if (!question || !resolveBy || probabilities.length < 2) return null;
-  return { question, resolveBy, probabilities };
-}
-
-function parseResolveBody(bodyUnknown: unknown) {
-  if (!bodyUnknown || typeof bodyUnknown !== "object") return null;
-  const raw = bodyUnknown as Record<string, unknown>;
-  const forecastId = typeof raw.forecastId === "string" ? raw.forecastId.trim() : "";
-  const outcomeIndex = typeof raw.outcomeIndex === "number" ? Math.round(raw.outcomeIndex) : -1;
-  if (!forecastId || outcomeIndex < 0) return null;
-  return { forecastId, outcomeIndex, note: typeof raw.note === "string" ? raw.note : undefined };
-}
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const startedAt = performance.now();
@@ -47,11 +31,12 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     .filter((f) => f.outcomeJson !== null)
     .map((f) => ({
       probabilities: f.probabilitiesJson,
-      outcomeIndex: f.outcomeJson?.outcomeIndex ?? 0,
+      outcomeIndex: f.outcomeJson?.outcomeIndex ?? -1,
     }));
   return jsonOk(
     {
       forecasts,
+      resolvedCount: resolved.length,
       brierScore: calculateMultiClassBrierScore(resolved),
       logLoss: calculateLogLoss(resolved),
     },
@@ -70,10 +55,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!(await assertThesisOwnership(db, id, auth.user.id))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
-  const parsed = parseForecastBody(await request.json().catch(() => null));
-  if (!parsed) {
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
+  const parsed = ForecastCreateRequestSchema.safeParse(body.data);
+  if (!parsed.success) {
     return jsonError(
-      "请提供可证伪预测问题、到期日期及概率分布。",
+      formatZodError(parsed.error, "请提供可证伪预测问题、未来到期日及合法概率分布。"),
       400,
       startedAt,
       "INVALID_FORECAST",
@@ -83,7 +70,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     const forecast = await createImmutableForecast(db, {
       userId: auth.user.id,
       thesisId: id,
-      ...parsed,
+      ...parsed.data,
     });
     return jsonOk({ forecast }, startedAt, 201);
   } catch (err) {
@@ -107,10 +94,33 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   if (!(await assertThesisOwnership(db, id, auth.user.id))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
-  const parsed = parseResolveBody(await request.json().catch(() => null));
-  if (!parsed) {
-    return jsonError("请提供有效 forecastId 与 outcomeIndex。", 400, startedAt, "INVALID");
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
+  const parsed = ForecastResolveRequestSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return jsonError(
+      formatZodError(parsed.error, "请提供有效 forecastId 与 outcomeIndex。"),
+      400,
+      startedAt,
+      "INVALID",
+    );
   }
-  const ok = await resolveForecast(db, { userId: auth.user.id, ...parsed });
-  return jsonOk({ ok }, startedAt);
+  try {
+    const ok = await resolveForecast(db, {
+      userId: auth.user.id,
+      thesisId: id,
+      ...parsed.data,
+    });
+    if (!ok) {
+      return jsonError("该预测不存在或已结算，不可重复结算。", 409, startedAt, "ALREADY_RESOLVED");
+    }
+    return jsonOk({ ok: true }, startedAt);
+  } catch (err) {
+    return jsonError(
+      err instanceof Error ? err.message : "结算失败。",
+      400,
+      startedAt,
+      "INVALID_OUTCOME",
+    );
+  }
 }

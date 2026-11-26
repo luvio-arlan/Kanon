@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
-import { type JobStatus, jobsTable } from "../../schema";
+import { type JobStatus, jobsTable, thesesTable } from "../../schema";
 
 export interface QueuedJobRow {
   id: string;
@@ -46,8 +46,42 @@ export async function enqueueJob(
 }
 
 /**
- * Atomically claims due jobs using Postgres `FOR UPDATE SKIP LOCKED` inside an UPDATE CTE,
- * preventing double-execution across concurrent serverless workers.
+ * Fans out daily idempotent watchlist jobs (daily bars, SEC sync, alert evaluation)
+ * for all distinct tickers across active theses.
+ */
+export async function enqueueWatchlistJobs(db: KanonDb, dateKey?: string): Promise<number> {
+  const day = dateKey ?? new Date().toISOString().slice(0, 10);
+  const rows = await db.selectDistinct({ ticker: thesesTable.ticker }).from(thesesTable);
+  let enqueued = 0;
+  for (const row of rows) {
+    const ticker = row.ticker.trim().toUpperCase();
+    if (!ticker) continue;
+    await enqueueJob(db, {
+      id: `sync_daily_bars:${ticker}:${day}`,
+      kind: "sync_daily_bars",
+      payload: { ticker },
+      maxAttempts: 4,
+    });
+    await enqueueJob(db, {
+      id: `sync_sec:${ticker}:${day}`,
+      kind: "sync_sec",
+      payload: { ticker },
+      maxAttempts: 4,
+    });
+    enqueued += 2;
+  }
+  await enqueueJob(db, {
+    id: `evaluate_alerts:${day}`,
+    kind: "evaluate_alerts",
+    payload: { day },
+    maxAttempts: 3,
+  });
+  return enqueued + 1;
+}
+
+/**
+ * Terminates poisoned jobs whose lease expired after exhausting max_attempts,
+ * then atomically claims due jobs using `FOR UPDATE SKIP LOCKED`.
  */
 export async function claimDueJobs(
   db: KanonDb,
@@ -55,11 +89,25 @@ export async function claimDueJobs(
 ): Promise<QueuedJobRow[]> {
   const limit = Math.max(1, Math.min(25, params.limit ?? 5));
   const leaseSec = Math.max(15, Math.min(600, params.leaseSeconds ?? 120));
+  await db.execute(sql`
+    UPDATE jobs
+    SET status = 'failed',
+        locked_by = NULL,
+        locked_until = NULL,
+        last_error = COALESCE(last_error, 'Exceeded max attempts after worker lease timeout')
+    WHERE status = 'running'
+      AND locked_until IS NOT NULL
+      AND locked_until < NOW()
+      AND attempts >= max_attempts
+  `);
   const res = await db.execute(sql`
     WITH due AS (
       SELECT id FROM jobs
-      WHERE (status = 'pending' AND run_at <= NOW())
-         OR (status = 'running' AND locked_until IS NOT NULL AND locked_until < NOW())
+      WHERE attempts < max_attempts
+        AND (
+          (status = 'pending' AND run_at <= NOW())
+          OR (status = 'running' AND locked_until IS NOT NULL AND locked_until < NOW())
+        )
       ORDER BY run_at ASC
       LIMIT ${limit}
       FOR UPDATE SKIP LOCKED
@@ -85,19 +133,28 @@ export async function claimDueJobs(
   }));
 }
 
-export async function completeJob(db: KanonDb, jobId: string): Promise<void> {
-  await db
+export async function completeJob(db: KanonDb, jobId: string, workerId?: string): Promise<boolean> {
+  const cond = workerId
+    ? and(eq(jobsTable.id, jobId), eq(jobsTable.lockedBy, workerId))
+    : eq(jobsTable.id, jobId);
+  const updated = await db
     .update(jobsTable)
     .set({ status: "done", lockedBy: null, lockedUntil: null, lastError: null })
-    .where(eq(jobsTable.id, jobId));
+    .where(cond)
+    .returning();
+  return updated.length > 0;
 }
 
 export async function failJobWithBackoff(
   db: KanonDb,
   jobId: string,
   errorMessage: string,
+  workerId?: string,
 ): Promise<JobStatus> {
-  const [row] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId)).limit(1);
+  const cond = workerId
+    ? and(eq(jobsTable.id, jobId), eq(jobsTable.lockedBy, workerId))
+    : eq(jobsTable.id, jobId);
+  const [row] = await db.select().from(jobsTable).where(cond).limit(1);
   if (!row) return "failed";
   const exhausted = row.attempts >= row.maxAttempts;
   const backoffSec = Math.min(3600, 30 * 2 ** Math.max(0, row.attempts - 1));
@@ -111,7 +168,7 @@ export async function failJobWithBackoff(
       lastError: errorMessage.slice(0, 500),
       runAt: exhausted ? row.runAt : new Date(Date.now() + backoffSec * 1000),
     })
-    .where(eq(jobsTable.id, jobId));
+    .where(cond);
   return nextStatus;
 }
 

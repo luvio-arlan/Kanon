@@ -851,8 +851,15 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
 
   const inboxGet = await fetchJson("/api/inbox", {}, cookieA);
   assert.equal(inboxGet.status, 200);
-  assert.ok(typeof inboxGet.data.calendarToken === "string");
-  const icsRes = await fetch(`${BASE}/api/calendar/${inboxGet.data.calendarToken}`);
+  assert.equal(typeof inboxGet.data.calendarConfigured, "boolean");
+  const calRotate = await fetchJson(
+    "/api/inbox",
+    { method: "POST", body: JSON.stringify({ op: "rotate_calendar" }) },
+    cookieA,
+  );
+  assert.equal(calRotate.status, 201);
+  assert.ok(typeof calRotate.data.calendarToken === "string");
+  const icsRes = await fetch(`${BASE}/api/calendar/${calRotate.data.calendarToken}`);
   assert.equal(icsRes.status, 200);
   assert.ok((await icsRes.text()).includes("BEGIN:VCALENDAR"));
 
@@ -878,6 +885,15 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
     cookieA,
   );
   assert.equal(fcPatch.status, 200);
+  const fcReResolve = await fetchJson(
+    `/api/theses/${nvdaId}/forecasts`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ forecastId: fcPost.data.forecast.id, outcomeIndex: 1 }),
+    },
+    cookieA,
+  );
+  assert.equal(fcReResolve.status, 409);
   const fcGet = await fetchJson(`/api/theses/${nvdaId}/forecasts`, {}, cookieA);
   assert.equal(fcGet.status, 200);
   assert.ok(typeof fcGet.data.brierScore === "number");
@@ -891,6 +907,24 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
     cookieA,
   );
   assert.equal(acctPost.status, 201);
+  const negBuy = await fetchJson(
+    "/api/portfolio/ledger",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        op: "record_transaction",
+        accountId: acctPost.data.account.id,
+        ticker: "NVDA",
+        action: "buy",
+        quantity: -10,
+        price: 100,
+        tradeDate: "2026-01-15",
+        noLeverageConfirmed: true,
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(negBuy.status, 400);
   const badBuy = await fetchJson(
     "/api/portfolio/ledger",
     {
@@ -922,10 +956,23 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
 
   const icSubmit = await fetchJson(
     `/api/theses/${nvdaId}/ic`,
-    { method: "POST", body: JSON.stringify({ op: "submit", orgId: orgPost.data.organization.id }) },
+    { method: "POST", body: JSON.stringify({ op: "submit" }) },
     cookieA,
   );
   assert.equal(icSubmit.status, 201);
+  const icCrossThesis = await fetchJson(
+    `/api/theses/${createdId}/ic`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        approvalId: icSubmit.data.approval.id,
+        decision: "approved",
+        decisionNote: "IDOR attempt",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(icCrossThesis.status, 404);
   const icDecide = await fetchJson(
     `/api/theses/${nvdaId}/ic`,
     {
@@ -939,6 +986,18 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
     cookieA,
   );
   assert.equal(icDecide.status, 200);
+  const icRepeat = await fetchJson(
+    `/api/theses/${nvdaId}/ic`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        approvalId: icSubmit.data.approval.id,
+        decision: "approved",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(icRepeat.status, 409);
   const icGet = await fetchJson(`/api/theses/${nvdaId}/ic`, {}, cookieA);
   assert.equal(icGet.status, 200);
   assert.equal(icGet.data.approvals[0].state, "approved");

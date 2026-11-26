@@ -1,25 +1,24 @@
-import { TickerSymbolSchema } from "@kanon/core";
+import { normalizeChinaPhone, OrgPostRequestSchema } from "@kanon/core";
 import {
+  addOrgMember,
   addRestrictedTicker,
+  appendAuditLog,
+  assignThesisToOrganization,
   createOrganization,
+  findUserByPhoneE164,
   getKanonDb,
   getOrgMemberRole,
+  hasOrgCapability,
   listAuditLogs,
+  listOrgMembers,
   listRestrictedTickers,
   listUserOrganizations,
-  roleMeetsMinimum,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../_lib/auth-session";
-import { jsonError, jsonOk } from "../_lib/http";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../_lib/http";
 import { verifySameOrigin } from "../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
-
-function asRecord(raw: unknown): Record<string, unknown> | null {
-  return raw && typeof raw === "object" && !Array.isArray(raw)
-    ? (raw as Record<string, unknown>)
-    : null;
-}
 
 export async function GET() {
   const startedAt = performance.now();
@@ -30,37 +29,111 @@ export async function GET() {
     listUserOrganizations(db, auth.user.id),
     listAuditLogs(db, auth.user.id, 30),
   ]);
-  const restrictedByOrg = await Promise.all(
-    organizations.map(async (o) => ({
-      orgId: o.id,
-      tickers: await listRestrictedTickers(db, o.id),
-    })),
-  );
-  return jsonOk({ organizations, restrictedByOrg, recentAuditLogs }, startedAt);
+  const [restrictedByOrg, membersByOrg] = await Promise.all([
+    Promise.all(
+      organizations.map(async (o) => ({
+        orgId: o.id,
+        tickers: await listRestrictedTickers(db, o.id),
+      })),
+    ),
+    Promise.all(
+      organizations.map(async (o) => ({
+        orgId: o.id,
+        members: await listOrgMembers(db, o.id),
+      })),
+    ),
+  ]);
+  return jsonOk({ organizations, restrictedByOrg, membersByOrg, recentAuditLogs }, startedAt);
 }
 
-async function handleRestrictTicker(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+type DbInstance = Awaited<ReturnType<typeof getKanonDb>>;
+
+async function handleAddMember(
+  db: DbInstance,
   userId: string,
-  rec: Record<string, unknown>,
+  data: {
+    orgId: string;
+    phone: string;
+    role: "owner" | "pm" | "analyst" | "viewer" | "compliance";
+  },
   startedAt: number,
 ) {
-  const orgId = typeof rec.orgId === "string" ? rec.orgId : "";
-  const parsedTicker = TickerSymbolSchema.safeParse(rec.ticker);
-  if (!orgId || !parsedTicker.success) {
-    return jsonError("请提供有效组织 ID 与标的代码。", 400, startedAt, "INVALID");
+  const role = await getOrgMemberRole(db, data.orgId, userId);
+  if (!hasOrgCapability(role, "org.manage_members")) {
+    return jsonError("权限不足：仅组织管理员可邀请成员。", 403, startedAt, "FORBIDDEN");
   }
-  const role = await getOrgMemberRole(db, orgId, userId);
-  if (!roleMeetsMinimum(role, "compliance")) {
-    return jsonError("需要合规或管理权限。", 403, startedAt, "FORBIDDEN");
+  const phone = normalizeChinaPhone(data.phone);
+  if (!phone) return jsonError("请输入有效的 +86 手机号。", 400, startedAt, "INVALID_PHONE");
+  const target = await findUserByPhoneE164(db, phone);
+  if (!target) {
+    return jsonError("未找到该手机号对应的 KANON 账号。", 404, startedAt, "USER_NOT_FOUND");
   }
-  const restricted = await addRestrictedTicker(db, {
-    orgId,
-    ticker: parsedTicker.data,
-    reason: typeof rec.reason === "string" ? rec.reason : "合规限制期",
-    addedBy: userId,
+  await addOrgMember(db, { orgId: data.orgId, userId: target.id, role: data.role });
+  await appendAuditLog(db, {
+    actorUserId: userId,
+    orgId: data.orgId,
+    action: "org.add_member",
+    targetType: "membership",
+    targetId: target.id,
+    metadata: { role: data.role },
   });
-  return jsonOk({ restricted }, startedAt, 201);
+  return jsonOk(
+    { member: { userId: target.id, displayName: target.displayName, role: data.role } },
+    startedAt,
+    201,
+  );
+}
+
+async function handleAssignThesis(
+  db: DbInstance,
+  userId: string,
+  data: { orgId: string | null; thesisId: string },
+  startedAt: number,
+) {
+  if (data.orgId) {
+    const role = await getOrgMemberRole(db, data.orgId, userId);
+    if (!hasOrgCapability(role, "thesis.edit")) {
+      return jsonError("权限不足：无法将研究关联至该组织。", 403, startedAt, "FORBIDDEN");
+    }
+  }
+  const updated = await assignThesisToOrganization(db, {
+    thesisId: data.thesisId,
+    userId,
+    orgId: data.orgId,
+  });
+  if (!updated) {
+    return jsonError("标的研究不存在或无权变更归属。", 404, startedAt, "NOT_FOUND");
+  }
+  return jsonOk({ thesis: updated }, startedAt);
+}
+
+async function handleOrgMutation(
+  db: DbInstance,
+  userId: string,
+  data: ReturnType<typeof OrgPostRequestSchema.parse>,
+  startedAt: number,
+) {
+  if ("op" in data && data.op === "restrict_ticker") {
+    const role = await getOrgMemberRole(db, data.orgId, userId);
+    if (!hasOrgCapability(role, "compliance.restrict")) {
+      return jsonError("权限不足：仅合规官或管理员可维护限制名单。", 403, startedAt, "FORBIDDEN");
+    }
+    const restricted = await addRestrictedTicker(db, {
+      orgId: data.orgId,
+      ticker: data.ticker,
+      reason: data.reason,
+      addedBy: userId,
+    });
+    return jsonOk({ restricted }, startedAt, 201);
+  }
+  if ("op" in data && data.op === "add_member") {
+    return handleAddMember(db, userId, data, startedAt);
+  }
+  if ("op" in data && data.op === "assign_thesis") {
+    return handleAssignThesis(db, userId, data, startedAt);
+  }
+  const organization = await createOrganization(db, { name: data.name, createdBy: userId });
+  return jsonOk({ organization }, startedAt, 201);
 }
 
 export async function POST(request: Request) {
@@ -69,17 +142,12 @@ export async function POST(request: Request) {
   if (csrfErr) return csrfErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-  const rec = asRecord(await request.json().catch(() => null));
-  if (!rec) return jsonError("无效请求体。", 400, startedAt, "INVALID");
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
+  const parsed = OrgPostRequestSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return jsonError(formatZodError(parsed.error, "无效组织操作参数。"), 400, startedAt, "INVALID");
+  }
   const db = await getKanonDb();
-
-  if (rec.op === "restrict_ticker") {
-    return handleRestrictTicker(db, auth.user.id, rec, startedAt);
-  }
-  const name = typeof rec.name === "string" ? rec.name.trim() : "";
-  if (name.length < 2 || name.length > 80) {
-    return jsonError("组织名称需为 2–80 个字符。", 400, startedAt, "INVALID_ORG");
-  }
-  const organization = await createOrganization(db, { name, createdBy: auth.user.id });
-  return jsonOk({ organization }, startedAt, 201);
+  return handleOrgMutation(db, auth.user.id, parsed.data, startedAt);
 }

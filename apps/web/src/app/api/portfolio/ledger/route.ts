@@ -1,43 +1,18 @@
+import { LedgerPostRequestSchema, todayIsoUtc } from "@kanon/core";
 import {
   createPortfolioAccount,
   getKanonDb,
-  type LedgerAction,
+  LedgerPolicyError,
   listPortfolioAccounts,
   listPortfolioPositions,
   listPortfolioTransactions,
   recordPortfolioTransaction,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
-import { jsonError, jsonOk } from "../../_lib/http";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
-
-const ALLOWED_ACTIONS = new Set<LedgerAction>(["deposit", "withdraw", "buy", "sell", "dividend"]);
-
-function asRecord(raw: unknown): Record<string, unknown> | null {
-  return raw && typeof raw === "object" && !Array.isArray(raw)
-    ? (raw as Record<string, unknown>)
-    : null;
-}
-
-function parseLedgerTransaction(rec: Record<string, unknown>) {
-  const action = String(rec.action ?? "") as LedgerAction;
-  if (!ALLOWED_ACTIONS.has(action) || typeof rec.accountId !== "string") return null;
-  return {
-    accountId: rec.accountId,
-    thesisId: typeof rec.thesisId === "string" ? rec.thesisId : null,
-    ticker: typeof rec.ticker === "string" ? rec.ticker : "CASH",
-    action,
-    quantity: Number(rec.quantity ?? 0),
-    price: Number(rec.price ?? 0),
-    fees: Number(rec.fees ?? 0),
-    tradeDate:
-      typeof rec.tradeDate === "string" ? rec.tradeDate : new Date().toISOString().slice(0, 10),
-    noLeverageConfirmed: rec.noLeverageConfirmed === true,
-    note: typeof rec.note === "string" ? rec.note : "",
-  };
-}
 
 export async function GET() {
   const startedAt = performance.now();
@@ -55,31 +30,42 @@ export async function GET() {
   return jsonOk({ accounts: detailed }, startedAt);
 }
 
-export async function POST(request: Request) {
-  const startedAt = performance.now();
-  const csrfErr = verifySameOrigin(request, startedAt);
-  if (csrfErr) return csrfErr;
-  const auth = await requireWorkspaceContext(startedAt);
-  if (!auth.ok) return auth.response;
-  const rec = asRecord(await request.json().catch(() => null));
-  if (!rec) return jsonError("请求体格式无效。", 400, startedAt, "INVALID_LEDGER_OP");
-  const db = await getKanonDb();
-
-  if (rec.op === "create_account") {
+async function handleLedgerPost(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  userId: string,
+  data: ReturnType<typeof LedgerPostRequestSchema.parse>,
+  startedAt: number,
+) {
+  if (data.op === "create_account") {
     const account = await createPortfolioAccount(db, {
-      userId: auth.user.id,
-      name: typeof rec.name === "string" ? rec.name : "主投研账户",
-      initialCash: typeof rec.initialCash === "number" ? rec.initialCash : 0,
+      userId,
+      name: data.name,
+      baseCurrency: data.baseCurrency,
+      initialCash: data.initialCash,
+      noLeverageConfirmed: data.noLeverageConfirmed,
     });
     return jsonOk({ account }, startedAt, 201);
   }
-
-  const parsed = parseLedgerTransaction(rec);
-  if (!parsed) return jsonError("无效的账户或成交操作。", 400, startedAt, "INVALID_LEDGER_OP");
   try {
-    const result = await recordPortfolioTransaction(db, { userId: auth.user.id, ...parsed });
+    const result = await recordPortfolioTransaction(db, {
+      userId,
+      accountId: data.accountId,
+      thesisId: data.thesisId ?? null,
+      ticker: data.ticker,
+      action: data.action,
+      quantity: data.quantity,
+      price: data.price,
+      fees: data.fees,
+      tradeDate: data.tradeDate ?? todayIsoUtc(),
+      noLeverageConfirmed: data.noLeverageConfirmed,
+      note: data.note,
+      externalRef: data.externalRef,
+    });
     return jsonOk({ result }, startedAt, 201);
   } catch (err) {
+    if (err instanceof LedgerPolicyError) {
+      return jsonError(err.message, err.status, startedAt, err.code);
+    }
     return jsonError(
       err instanceof Error ? err.message : "账本记录失败。",
       400,
@@ -87,4 +73,25 @@ export async function POST(request: Request) {
       "LEDGER_REJECTED",
     );
   }
+}
+
+export async function POST(request: Request) {
+  const startedAt = performance.now();
+  const csrfErr = verifySameOrigin(request, startedAt);
+  if (csrfErr) return csrfErr;
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
+  const parsed = LedgerPostRequestSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return jsonError(
+      formatZodError(parsed.error, "无效的账户或成交参数。"),
+      400,
+      startedAt,
+      "INVALID_LEDGER_OP",
+    );
+  }
+  const db = await getKanonDb();
+  return handleLedgerPost(db, auth.user.id, parsed.data, startedAt);
 }

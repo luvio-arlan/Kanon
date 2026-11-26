@@ -1,3 +1,4 @@
+import { isCredentialsMasterKeyConfigured } from "@kanon/core";
 import { getJobQueueHealth, getKanonDb, pingKanonDb } from "@kanon/core/db";
 import { jsonError, jsonOk } from "../_lib/http";
 
@@ -9,11 +10,18 @@ export async function GET() {
     const db = await getKanonDb();
     await pingKanonDb(db);
     const jobQueue = await getJobQueueHealth(db).catch(() => null);
+    const secUserAgentConfigured = Boolean(process.env.KANON_SEC_USER_AGENT?.trim());
+    const secretsConfigured = {
+      credentials: isCredentialsMasterKeyConfigured(),
+      cron: Boolean(process.env.CRON_SECRET?.trim()),
+      secUserAgent: secUserAgentConfigured,
+    };
     return jsonOk(
       {
         status: "healthy",
         timestamp: new Date().toISOString(),
-        secUserAgentConfigured: Boolean(process.env.KANON_SEC_USER_AGENT?.trim()),
+        secUserAgentConfigured,
+        secretsConfigured,
         jobQueue,
       },
       startedAt,

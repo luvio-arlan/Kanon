@@ -99,6 +99,7 @@ export {
   disableUserTotpFactor,
   getUserTotpStatus,
   recordFailedLoginAttempt,
+  TotpAlreadyEnabledError,
   verifyUserTotpFactor,
 } from "./repositories/security/totp-and-lockout-store";
 export {

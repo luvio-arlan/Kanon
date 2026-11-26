@@ -48,9 +48,16 @@ export interface ProcessOutcomeMatrix {
 export function calculateMultiClassBrierScore(
   forecasts: readonly ResolvedMultiClassForecast[],
 ): number | null {
-  if (forecasts.length === 0) return null;
+  const valid = forecasts.filter(
+    (f) =>
+      f.probabilities.length >= 2 &&
+      Number.isInteger(f.outcomeIndex) &&
+      f.outcomeIndex >= 0 &&
+      f.outcomeIndex < f.probabilities.length,
+  );
+  if (valid.length === 0) return null;
   let total = 0;
-  for (const f of forecasts) {
+  for (const f of valid) {
     let sumSq = 0;
     for (let k = 0; k < f.probabilities.length; k += 1) {
       const p = Math.max(0, Math.min(1, f.probabilities[k] ?? 0));
@@ -59,18 +66,25 @@ export function calculateMultiClassBrierScore(
     }
     total += sumSq;
   }
-  return roundTo(total / forecasts.length, 4);
+  return roundTo(total / valid.length, 4);
 }
 
 /** Proper logarithmic scoring rule (log loss). Lower is better. */
 export function calculateLogLoss(forecasts: readonly ResolvedMultiClassForecast[]): number | null {
-  if (forecasts.length === 0) return null;
+  const valid = forecasts.filter(
+    (f) =>
+      f.probabilities.length >= 2 &&
+      Number.isInteger(f.outcomeIndex) &&
+      f.outcomeIndex >= 0 &&
+      f.outcomeIndex < f.probabilities.length,
+  );
+  if (valid.length === 0) return null;
   let total = 0;
-  for (const f of forecasts) {
+  for (const f of valid) {
     const pActual = Math.max(1e-6, Math.min(1, f.probabilities[f.outcomeIndex] ?? 0));
     total += -Math.log(pActual);
   }
-  return roundTo(total / forecasts.length, 4);
+  return roundTo(total / valid.length, 4);
 }
 
 /**

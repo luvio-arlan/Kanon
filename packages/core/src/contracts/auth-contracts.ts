@@ -201,3 +201,46 @@ export const TotpEnrollResponseSchema = z.object({
   recoveryCodes: z.array(z.string().min(8)).optional(),
 });
 export type TotpEnrollResponse = z.infer<typeof TotpEnrollResponseSchema>;
+
+export const TotpConfirmResponseSchema = z.object({
+  enabled: z.literal(true),
+  recoveryCodes: z.array(z.string().min(6)),
+});
+export type TotpConfirmResponse = z.infer<typeof TotpConfirmResponseSchema>;
+
+export const TotpDisableResponseSchema = z.object({
+  ok: z.literal(true),
+  enabled: z.literal(false),
+});
+export type TotpDisableResponse = z.infer<typeof TotpDisableResponseSchema>;
+
+export const MaskedAiCredentialSchema = z.object({
+  id: z.string().min(1),
+  provider: z.string().min(1),
+  label: z.string(),
+  keyHint: z.string(),
+  baseUrl: z.string().nullable().optional(),
+  defaultModel: z.string().nullable().optional(),
+  updatedAt: z.string().optional(),
+});
+
+export const AiCredentialsVaultResponseSchema = z.object({
+  credentials: z.array(MaskedAiCredentialSchema),
+  monthlyUsage: z
+    .object({
+      calls: z.number().int().nonnegative(),
+      promptTokens: z.number().int().nonnegative(),
+      completionTokens: z.number().int().nonnegative(),
+      costUsd: z.number().nonnegative(),
+    })
+    .optional(),
+});
+
+export const AiCredentialSaveResponseSchema = z.object({
+  credential: MaskedAiCredentialSchema,
+});
+
+export const AiCredentialDeleteResponseSchema = z.object({
+  ok: z.literal(true),
+  removed: z.boolean(),
+});

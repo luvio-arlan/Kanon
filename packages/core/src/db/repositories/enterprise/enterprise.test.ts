@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { formatLocaleCurrency, translateKanon } from "../../../contracts/i18n";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
-import { auditLogTable } from "../../schema";
+import { auditLogTable, thesesTable } from "../../schema";
 import {
   addRestrictedTicker,
   addThesisComment,
@@ -17,10 +17,11 @@ import {
 import {
   addOrgMember,
   createOrganization,
+  hasOrgCapability,
   listUserOrganizations,
 } from "./organizations-and-rls-store";
 
-describe("Enterprise Teams, RBAC, IC Approval, Restricted List & Append-Only Audit Log (Stage 7 & W8.4)", () => {
+describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Append-Only Audit Log", () => {
   let db: KanonDb;
   let close: () => Promise<void>;
 
@@ -34,30 +35,51 @@ describe("Enterprise Teams, RBAC, IC Approval, Restricted List & Append-Only Aud
     await close();
   });
 
-  it("enforces org RBAC on IC approvals, restricted ticker list, anchored comments, and DB append-only audit_log", async () => {
+  it("enforces org capability RBAC, thesis-bound IC approvals, maker-checker, state machine & TRUNCATE-proof audit_log", async () => {
     const org = await createOrganization(db, { name: "Kanon Capital", createdBy: "user-pm" });
     await addOrgMember(db, { orgId: org.id, userId: "user-analyst", role: "analyst" });
+    await addOrgMember(db, { orgId: org.id, userId: "user-comp", role: "compliance" });
     expect((await listUserOrganizations(db, "user-analyst"))[0]?.role).toBe("analyst");
+
+    // Capability RBAC separation of duties: analyst cannot restrict tickers, compliance cannot approve IC
+    expect(hasOrgCapability("analyst", "compliance.restrict")).toBe(false);
+    expect(hasOrgCapability("compliance", "compliance.restrict")).toBe(true);
+    expect(hasOrgCapability("compliance", "ic.decide")).toBe(false);
+    expect(hasOrgCapability("pm", "ic.decide")).toBe(true);
+
+    // Bind thesis-nvda to org so server derives orgId authoritatively
+    await db.update(thesesTable).set({ orgId: org.id }).where(eq(thesesTable.id, "thesis-nvda"));
 
     const submitted = await submitIcApproval(db, {
       thesisId: "thesis-nvda",
-      orgId: org.id,
       submittedBy: "user-analyst",
-      snapshotPayload: { baseTargetPrice: 198.4 },
     });
     expect(submitted.state).toBe("in_review");
+    expect(submitted.orgId).toBe(org.id);
+
+    // Cross-thesis IDOR MUST fail with NOT_FOUND
+    await expect(
+      decideIcApproval(db, {
+        thesisId: "thesis-mu",
+        approvalId: submitted.id,
+        decidedBy: "user-pm",
+        decision: "approved",
+      }),
+    ).rejects.toThrow(/不属于当前标的/);
 
     // Analyst CANNOT approve IC memo
     await expect(
       decideIcApproval(db, {
+        thesisId: "thesis-nvda",
         approvalId: submitted.id,
         decidedBy: "user-analyst",
         decision: "approved",
       }),
     ).rejects.toThrow(/权限不足/);
 
-    // Owner/PM CAN approve
+    // Owner/PM CAN approve another member's submission
     const approved = await decideIcApproval(db, {
+      thesisId: "thesis-nvda",
       approvalId: submitted.id,
       decidedBy: "user-pm",
       decision: "approved",
@@ -65,6 +87,30 @@ describe("Enterprise Teams, RBAC, IC Approval, Restricted List & Append-Only Aud
     });
     expect(approved.state).toBe("approved");
     expect((await listIcApprovals(db, "thesis-nvda"))[0]?.state).toBe("approved");
+
+    // State machine: approved -> approved MUST fail
+    await expect(
+      decideIcApproval(db, {
+        thesisId: "thesis-nvda",
+        approvalId: submitted.id,
+        decidedBy: "user-pm",
+        decision: "approved",
+      }),
+    ).rejects.toThrow(/仅待审记录可表决/);
+
+    // Maker-checker: PM submitting cannot self-approve in org mode
+    const pmSub = await submitIcApproval(db, {
+      thesisId: "thesis-nvda",
+      submittedBy: "user-pm",
+    });
+    await expect(
+      decideIcApproval(db, {
+        thesisId: "thesis-nvda",
+        approvalId: pmSub.id,
+        decidedBy: "user-pm",
+        decision: "approved",
+      }),
+    ).rejects.toThrow(/不可自批/);
 
     await addThesisComment(db, {
       thesisId: "thesis-nvda",
@@ -79,7 +125,7 @@ describe("Enterprise Teams, RBAC, IC Approval, Restricted List & Append-Only Aud
       orgId: org.id,
       ticker: "MSFT",
       reason: "MNPI 静默期窗口",
-      addedBy: "user-pm",
+      addedBy: "user-comp",
     });
     expect(await isTickerRestricted(db, org.id, "MSFT")).toBe(true);
     expect(await isTickerRestricted(db, org.id, "NVDA")).toBe(false);
@@ -91,25 +137,18 @@ describe("Enterprise Teams, RBAC, IC Approval, Restricted List & Append-Only Aud
       targetType: "thesis",
       targetId: "thesis-nvda",
     });
-    expect((await listAuditLogs(db, "user-pm")).length).toBeGreaterThanOrEqual(2);
+    const logs = await listAuditLogs(db, "user-pm");
+    expect(logs.length).toBeGreaterThanOrEqual(2);
+    expect(logs[0]?.entryHash).toHaveLength(64);
+    expect(logs[0]?.prevHash).toHaveLength(64);
 
-    // DB trigger MUST block UPDATE and DELETE on audit_log!
-    let updateErr: unknown = null;
-    try {
-      await db.update(auditLogTable).set({ action: "tampered" }).where(eq(auditLogTable.id, logId));
-    } catch (err) {
-      updateErr = err;
-    }
-    expect(updateErr).not.toBeNull();
-    let deleteErr: unknown = null;
-    try {
-      await db.delete(auditLogTable).where(eq(auditLogTable.id, logId));
-    } catch (err) {
-      deleteErr = err;
-    }
-    expect(deleteErr).not.toBeNull();
+    // DB trigger MUST block UPDATE, DELETE, and TRUNCATE on audit_log!
+    await expect(
+      db.update(auditLogTable).set({ action: "tampered" }).where(eq(auditLogTable.id, logId)),
+    ).rejects.toThrow();
+    await expect(db.delete(auditLogTable).where(eq(auditLogTable.id, logId))).rejects.toThrow();
+    await expect(db.execute(sql`TRUNCATE audit_log`)).rejects.toThrow();
 
-    // W8.4 i18n smoke check
     expect(translateKanon("en-US", "brand.slogan")).toBe("Conviction, composed.");
     expect(translateKanon("zh-CN", "discipline.zeroLeverage")).toBe("严守零杠杆铁律");
     expect(formatLocaleCurrency(1234.5, "en-US", "USD")).toContain("$1,234.50");

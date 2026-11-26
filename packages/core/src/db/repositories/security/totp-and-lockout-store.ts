@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { TotpStatusResponse } from "../../../contracts/auth-contracts";
 import {
   buildTotpUri,
@@ -7,64 +7,45 @@ import {
   generateRecoveryCodes,
   generateTotpSecret,
   hashRecoveryCode,
+  needsEnvelopeReencryption,
   verifyTotpCode,
 } from "../../../security/totp";
-import type { KanonDb } from "../../client";
-import { loginLockoutsTable, userTotpFactorsTable } from "../../schema";
+import { type KanonDb, runInTransaction } from "../../client";
+import { userTotpFactorsTable } from "../../schema";
 
-const LOCKOUT_THRESHOLD = 5;
-const MAX_LOCKOUT_SECONDS = 15 * 60;
+export {
+  checkAccountLockout,
+  clearAccountLockout,
+  recordFailedLoginAttempt,
+} from "./login-lockout-store";
 
-export async function checkAccountLockout(
-  db: KanonDb,
-  accountKey: string,
-  now = new Date(),
-): Promise<{ locked: boolean; retryAfterSec: number }> {
-  const [row] = await db
-    .select()
-    .from(loginLockoutsTable)
-    .where(eq(loginLockoutsTable.accountKey, accountKey))
-    .limit(1);
-  if (!row?.lockedUntil || row.lockedUntil.getTime() <= now.getTime()) {
-    return { locked: false, retryAfterSec: 0 };
+export class TotpAlreadyEnabledError extends Error {
+  constructor() {
+    super("两步验证已处于开启状态，如需重置请先使用验证码停用。");
+    this.name = "TotpAlreadyEnabledError";
   }
-  const retryAfterSec = Math.max(1, Math.ceil((row.lockedUntil.getTime() - now.getTime()) / 1000));
-  return { locked: true, retryAfterSec };
 }
 
-export async function recordFailedLoginAttempt(
+function totpEnvelopeCtx(userId: string) {
+  return { purpose: "totp" as const, userId };
+}
+
+async function decryptAndUpgradeTotpSecret(
   db: KanonDb,
-  accountKey: string,
-  now = new Date(),
-): Promise<{ failedAttempts: number; retryAfterSec: number }> {
-  const [existing] = await db
-    .select()
-    .from(loginLockoutsTable)
-    .where(eq(loginLockoutsTable.accountKey, accountKey))
-    .limit(1);
-  const nextAttempts = (existing?.failedAttempts ?? 0) + 1;
-  const lockoutSec =
-    nextAttempts >= LOCKOUT_THRESHOLD
-      ? Math.min(MAX_LOCKOUT_SECONDS, 30 * 2 ** (nextAttempts - LOCKOUT_THRESHOLD))
-      : 0;
-  const lockedUntil = lockoutSec > 0 ? new Date(now.getTime() + lockoutSec * 1000) : null;
-  await db
-    .insert(loginLockoutsTable)
-    .values({
-      accountKey,
-      failedAttempts: nextAttempts,
-      lockedUntil,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: loginLockoutsTable.accountKey,
-      set: { failedAttempts: nextAttempts, lockedUntil, updatedAt: now },
-    });
-  return { failedAttempts: nextAttempts, retryAfterSec: lockoutSec };
-}
-
-export async function clearAccountLockout(db: KanonDb, accountKey: string): Promise<void> {
-  await db.delete(loginLockoutsTable).where(eq(loginLockoutsTable.accountKey, accountKey));
+  userId: string,
+  stored: string,
+): Promise<string | null> {
+  const ctx = totpEnvelopeCtx(userId);
+  const plain = decryptSecretEnvelope(stored, ctx);
+  if (!plain) return null;
+  if (needsEnvelopeReencryption(stored)) {
+    const upgraded = encryptSecretEnvelope(plain, ctx);
+    await db
+      .update(userTotpFactorsTable)
+      .set({ secretEncrypted: upgraded, updatedAt: new Date() })
+      .where(eq(userTotpFactorsTable.userId, userId));
+  }
+  return plain;
 }
 
 export async function getUserTotpStatus(db: KanonDb, userId: string): Promise<TotpStatusResponse> {
@@ -84,8 +65,16 @@ export async function beginTotpEnrollment(
   userId: string,
   accountLabel: string,
 ): Promise<{ secret: string; otpauthUri: string }> {
+  const [existing] = await db
+    .select({ enabled: userTotpFactorsTable.enabled })
+    .from(userTotpFactorsTable)
+    .where(eq(userTotpFactorsTable.userId, userId))
+    .limit(1);
+  if (existing?.enabled) {
+    throw new TotpAlreadyEnabledError();
+  }
   const secret = generateTotpSecret();
-  const encrypted = encryptSecretEnvelope(secret);
+  const encrypted = encryptSecretEnvelope(secret, totpEnvelopeCtx(userId));
   const now = new Date();
   await db
     .insert(userTotpFactorsTable)
@@ -121,14 +110,14 @@ export async function confirmTotpEnrollment(
     .from(userTotpFactorsTable)
     .where(eq(userTotpFactorsTable.userId, userId))
     .limit(1);
-  if (!row) return { ok: false };
-  const secret = decryptSecretEnvelope(row.secretEncrypted);
+  if (!row || row.enabled) return { ok: false };
+  const secret = await decryptAndUpgradeTotpSecret(db, userId, row.secretEncrypted);
   if (!secret) return { ok: false };
   const verified = verifyTotpCode({ secretBase32: secret, inputCode: code });
   if (!verified.valid) return { ok: false };
   const recoveryCodes = generateRecoveryCodes(8);
   const hashes = recoveryCodes.map(hashRecoveryCode);
-  await db
+  const updated = await db
     .update(userTotpFactorsTable)
     .set({
       enabled: true,
@@ -136,8 +125,38 @@ export async function confirmTotpEnrollment(
       lastUsedStep: verified.matchedStep,
       updatedAt: new Date(),
     })
-    .where(eq(userTotpFactorsTable.userId, userId));
+    .where(and(eq(userTotpFactorsTable.userId, userId), eq(userTotpFactorsTable.enabled, false)))
+    .returning();
+  if (updated.length === 0) return { ok: false };
   return { ok: true, recoveryCodes };
+}
+
+async function consumeRecoveryCodeAtomic(
+  db: KanonDb,
+  userId: string,
+  hashed: string,
+): Promise<boolean> {
+  return runInTransaction(db, async (tx) => {
+    const locked = await tx.execute(sql`
+      SELECT recovery_hashes FROM user_totp_factors
+      WHERE user_id = ${userId} AND enabled = TRUE
+      FOR UPDATE
+    `);
+    const rows = (Array.isArray(locked) ? locked : locked.rows) as Array<{
+      recovery_hashes?: unknown;
+    }>;
+    const rawHashes = rows[0]?.recovery_hashes;
+    const current = Array.isArray(rawHashes)
+      ? rawHashes.filter((v): v is string => typeof v === "string")
+      : [];
+    if (!current.includes(hashed)) return false;
+    const remaining = current.filter((h) => h !== hashed);
+    await tx
+      .update(userTotpFactorsTable)
+      .set({ recoveryHashes: remaining, updatedAt: new Date() })
+      .where(and(eq(userTotpFactorsTable.userId, userId), eq(userTotpFactorsTable.enabled, true)));
+    return true;
+  });
 }
 
 export async function verifyUserTotpFactor(
@@ -151,28 +170,31 @@ export async function verifyUserTotpFactor(
     .where(eq(userTotpFactorsTable.userId, userId))
     .limit(1);
   if (!row?.enabled) return true;
-  const secret = decryptSecretEnvelope(row.secretEncrypted);
+  const secret = await decryptAndUpgradeTotpSecret(db, userId, row.secretEncrypted);
   if (!secret) return false;
   const verified = verifyTotpCode({
     secretBase32: secret,
     inputCode: code,
     lastUsedStep: row.lastUsedStep,
   });
-  if (verified.valid) {
-    await db
+  if (verified.valid && verified.matchedStep !== null) {
+    const updated = await db
       .update(userTotpFactorsTable)
       .set({ lastUsedStep: verified.matchedStep, updatedAt: new Date() })
-      .where(eq(userTotpFactorsTable.userId, userId));
-    return true;
+      .where(
+        and(
+          eq(userTotpFactorsTable.userId, userId),
+          eq(userTotpFactorsTable.enabled, true),
+          or(
+            isNull(userTotpFactorsTable.lastUsedStep),
+            lt(userTotpFactorsTable.lastUsedStep, verified.matchedStep),
+          ),
+        ),
+      )
+      .returning();
+    return updated.length > 0;
   }
-  const hashed = hashRecoveryCode(code);
-  if (!row.recoveryHashes.includes(hashed)) return false;
-  const remaining = row.recoveryHashes.filter((h) => h !== hashed);
-  await db
-    .update(userTotpFactorsTable)
-    .set({ recoveryHashes: remaining, updatedAt: new Date() })
-    .where(eq(userTotpFactorsTable.userId, userId));
-  return true;
+  return consumeRecoveryCodeAtomic(db, userId, hashRecoveryCode(code));
 }
 
 export async function disableUserTotpFactor(

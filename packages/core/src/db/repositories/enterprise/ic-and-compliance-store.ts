@@ -1,107 +1,124 @@
 import crypto from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
-import {
-  auditLogTable,
-  type IcApprovalState,
-  icApprovalsTable,
-  restrictedListTable,
-  thesisCommentsTable,
-} from "../../schema";
-import { getOrgMemberRole, roleMeetsMinimum } from "./organizations-and-rls-store";
+import { runInTransaction } from "../../client";
+import { type IcApprovalState, icApprovalsTable, thesisCommentsTable } from "../../schema";
+import { appendAuditLog } from "./audit-and-restricted-store";
+import { buildServerThesisSnapshot } from "./ic-snapshot-hash";
+import { getOrgMemberRole, hasOrgCapability } from "./organizations-and-rls-store";
 
-export async function appendAuditLog(
-  db: KanonDb,
-  input: {
-    actorUserId: string;
-    orgId?: string | null;
-    action: string;
-    targetType: string;
-    targetId: string;
-    metadata?: Record<string, unknown>;
-  },
-): Promise<string> {
-  const id = `aud_${crypto.randomUUID()}`;
-  await db.insert(auditLogTable).values({
-    id,
-    actorUserId: input.actorUserId,
-    orgId: input.orgId ?? null,
-    action: input.action,
-    targetType: input.targetType,
-    targetId: input.targetId,
-    metadataJson: input.metadata ?? {},
-  });
-  return id;
-}
+export {
+  addRestrictedTicker,
+  appendAuditLog,
+  isTickerRestricted,
+  isTickerRestrictedForUser,
+  listAuditLogs,
+  listRestrictedTickers,
+} from "./audit-and-restricted-store";
 
-export async function listAuditLogs(db: KanonDb, actorUserId: string, limit = 50) {
-  return db
-    .select()
-    .from(auditLogTable)
-    .where(eq(auditLogTable.actorUserId, actorUserId))
-    .orderBy(desc(auditLogTable.createdAt))
-    .limit(limit);
+export class IcApprovalError extends Error {
+  readonly code: "NOT_FOUND" | "FORBIDDEN" | "INVALID_STATE";
+  readonly status: number;
+
+  constructor(code: "NOT_FOUND" | "FORBIDDEN" | "INVALID_STATE", message: string) {
+    super(message);
+    this.name = "IcApprovalError";
+    this.code = code;
+    this.status = code === "NOT_FOUND" ? 404 : code === "INVALID_STATE" ? 409 : 403;
+  }
 }
 
 export async function submitIcApproval(
   db: KanonDb,
   input: {
     thesisId: string;
-    orgId?: string | null;
     submittedBy: string;
-    snapshotPayload: unknown;
+    note?: string;
   },
 ) {
+  const snapshot = await buildServerThesisSnapshot(db, input.thesisId);
+  if (!snapshot) throw new IcApprovalError("NOT_FOUND", "标的研究不存在。");
   const id = `ica_${crypto.randomUUID()}`;
-  const snapshotHash = crypto
-    .createHash("sha256")
-    .update(JSON.stringify(input.snapshotPayload ?? {}))
-    .digest("hex");
-  await db.insert(icApprovalsTable).values({
+  await runInTransaction(db, async (tx) => {
+    await tx.insert(icApprovalsTable).values({
+      id,
+      thesisId: input.thesisId,
+      orgId: snapshot.orgId,
+      state: "in_review",
+      submittedBy: input.submittedBy,
+      decisionNote: input.note?.trim() ?? "",
+      snapshotHash: snapshot.snapshotHash,
+    });
+    await appendAuditLog(tx, {
+      actorUserId: input.submittedBy,
+      orgId: snapshot.orgId,
+      action: "ic.submit",
+      targetType: "thesis",
+      targetId: input.thesisId,
+      metadata: { approvalId: id, snapshotHash: snapshot.snapshotHash },
+    });
+  });
+  return {
     id,
-    thesisId: input.thesisId,
-    orgId: input.orgId ?? null,
-    state: "in_review",
-    submittedBy: input.submittedBy,
-    snapshotHash,
-  });
-  await appendAuditLog(db, {
-    actorUserId: input.submittedBy,
-    orgId: input.orgId,
-    action: "ic.submit",
-    targetType: "thesis",
-    targetId: input.thesisId,
-    metadata: { approvalId: id, snapshotHash },
-  });
-  return { id, state: "in_review" as IcApprovalState, snapshotHash };
+    state: "in_review" as IcApprovalState,
+    orgId: snapshot.orgId,
+    snapshotHash: snapshot.snapshotHash,
+  };
+}
+
+function assertIcStateTransition(
+  current: IcApprovalState,
+  next: "approved" | "rejected" | "archived",
+) {
+  if (next === "archived") {
+    if (current === "archived") {
+      throw new IcApprovalError("INVALID_STATE", "该审批记录已归档，不可重复归档。");
+    }
+    return;
+  }
+  if (current !== "in_review") {
+    throw new IcApprovalError(
+      "INVALID_STATE",
+      `当前状态 (${current}) 不允许流转至 ${next}，仅待审记录可表决。`,
+    );
+  }
+}
+
+async function assertOrgDecisionPolicy(
+  tx: KanonDb,
+  row: typeof icApprovalsTable.$inferSelect,
+  decidedBy: string,
+  decision: "approved" | "rejected" | "archived",
+) {
+  if (!row.orgId) return;
+  const role = await getOrgMemberRole(tx, row.orgId, decidedBy);
+  if (!hasOrgCapability(role, "ic.decide")) {
+    throw new IcApprovalError(
+      "FORBIDDEN",
+      "权限不足：仅投资经理 (PM) 或管理员可表决投委会备忘录。",
+    );
+  }
+  if (row.submittedBy === decidedBy && decision !== "archived") {
+    throw new IcApprovalError("FORBIDDEN", "组织审批须遵循制衡原则，提交人不可自批。");
+  }
 }
 
 /**
- * Transitions an IC approval to `approved` or `rejected`.
- * Enforces RBAC when bound to an organization (requires `pm` or `owner` role).
+ * Transitions an IC approval with thesis binding, state-machine validation,
+ * org capability RBAC (`ic.decide`), maker-checker enforcement, and atomic audit logging.
  */
-export async function decideIcApproval(
-  db: KanonDb,
+async function persistIcDecisionInTx(
+  tx: KanonDb,
+  row: typeof icApprovalsTable.$inferSelect,
   input: {
+    thesisId: string;
     approvalId: string;
     decidedBy: string;
     decision: "approved" | "rejected" | "archived";
     decisionNote?: string;
   },
 ) {
-  const [row] = await db
-    .select()
-    .from(icApprovalsTable)
-    .where(eq(icApprovalsTable.id, input.approvalId))
-    .limit(1);
-  if (!row) throw new Error("IC 审批记录不存在。");
-  if (row.orgId) {
-    const role = await getOrgMemberRole(db, row.orgId, input.decidedBy);
-    if (!roleMeetsMinimum(role, "pm")) {
-      throw new Error("权限不足：仅投资经理 (PM) 或管理员 (Owner) 可审批投委会备忘录。");
-    }
-  }
-  await db
+  const updated = await tx
     .update(icApprovalsTable)
     .set({
       state: input.decision,
@@ -109,16 +126,58 @@ export async function decideIcApproval(
       decisionNote: input.decisionNote?.trim() ?? "",
       updatedAt: new Date(),
     })
-    .where(eq(icApprovalsTable.id, input.approvalId));
-  await appendAuditLog(db, {
+    .where(
+      and(
+        eq(icApprovalsTable.id, input.approvalId),
+        eq(icApprovalsTable.thesisId, input.thesisId),
+        eq(icApprovalsTable.state, row.state),
+      ),
+    )
+    .returning();
+  if (updated.length === 0) {
+    throw new IcApprovalError("INVALID_STATE", "审批状态已变更，请刷新后重试。");
+  }
+  await appendAuditLog(tx, {
     actorUserId: input.decidedBy,
     orgId: row.orgId,
     action: `ic.${input.decision}`,
     targetType: "ic_approval",
     targetId: input.approvalId,
-    metadata: { thesisId: row.thesisId, note: input.decisionNote ?? "" },
+    metadata: {
+      thesisId: row.thesisId,
+      snapshotHash: row.snapshotHash,
+      note: input.decisionNote ?? "",
+    },
   });
-  return { id: input.approvalId, state: input.decision };
+}
+
+export async function decideIcApproval(
+  db: KanonDb,
+  input: {
+    thesisId: string;
+    approvalId: string;
+    decidedBy: string;
+    decision: "approved" | "rejected" | "archived";
+    decisionNote?: string;
+  },
+) {
+  return runInTransaction(db, async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(icApprovalsTable)
+      .where(
+        and(
+          eq(icApprovalsTable.id, input.approvalId),
+          eq(icApprovalsTable.thesisId, input.thesisId),
+        ),
+      )
+      .limit(1);
+    if (!row) throw new IcApprovalError("NOT_FOUND", "IC 审批记录不存在或不属于当前标的。");
+    assertIcStateTransition(row.state, input.decision);
+    await assertOrgDecisionPolicy(tx, row, input.decidedBy, input.decision);
+    await persistIcDecisionInTx(tx, row, input);
+    return { id: input.approvalId, state: input.decision };
+  });
 }
 
 export async function listIcApprovals(db: KanonDb, thesisId: string) {
@@ -157,70 +216,4 @@ export async function listThesisComments(db: KanonDb, thesisId: string) {
     .from(thesisCommentsTable)
     .where(eq(thesisCommentsTable.thesisId, thesisId))
     .orderBy(desc(thesisCommentsTable.createdAt));
-}
-
-export async function addRestrictedTicker(
-  db: KanonDb,
-  input: {
-    orgId: string;
-    ticker: string;
-    reason: string;
-    addedBy: string;
-    expiresAt?: Date | null;
-  },
-) {
-  const ticker = input.ticker.trim().toUpperCase();
-  const id = `rst_${crypto.randomUUID()}`;
-  await db
-    .insert(restrictedListTable)
-    .values({
-      id,
-      orgId: input.orgId,
-      ticker,
-      reason: input.reason.trim(),
-      addedBy: input.addedBy,
-      expiresAt: input.expiresAt ?? null,
-    })
-    .onConflictDoUpdate({
-      target: [restrictedListTable.orgId, restrictedListTable.ticker],
-      set: { reason: input.reason.trim(), expiresAt: input.expiresAt ?? null },
-    });
-  await appendAuditLog(db, {
-    actorUserId: input.addedBy,
-    orgId: input.orgId,
-    action: "compliance.restrict_ticker",
-    targetType: "restricted_list",
-    targetId: ticker,
-    metadata: { reason: input.reason.trim() },
-  });
-  return { id, ticker };
-}
-
-export async function isTickerRestricted(
-  db: KanonDb,
-  orgId: string,
-  ticker: string,
-  now = new Date(),
-): Promise<boolean> {
-  const [row] = await db
-    .select()
-    .from(restrictedListTable)
-    .where(
-      and(
-        eq(restrictedListTable.orgId, orgId),
-        eq(restrictedListTable.ticker, ticker.trim().toUpperCase()),
-      ),
-    )
-    .limit(1);
-  if (!row) return false;
-  if (row.expiresAt && row.expiresAt.getTime() < now.getTime()) return false;
-  return true;
-}
-
-export async function listRestrictedTickers(db: KanonDb, orgId: string) {
-  return db
-    .select()
-    .from(restrictedListTable)
-    .where(eq(restrictedListTable.orgId, orgId))
-    .orderBy(desc(restrictedListTable.createdAt));
 }

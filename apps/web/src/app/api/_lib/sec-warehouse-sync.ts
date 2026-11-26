@@ -77,7 +77,7 @@ function buildAnnualFactRows(
 export async function syncSecSnapshotToWarehouse(
   db: KanonDb,
   snapshot: SecSnapshot,
-  userId: string,
+  userId?: string,
 ): Promise<void> {
   const security = await upsertSecurity(db, {
     ticker: snapshot.ticker,
@@ -99,7 +99,7 @@ export async function syncSecSnapshotToWarehouse(
       primaryDocUrl: filing.documentUrl,
       parseStatus: "synced",
     });
-    if (filing.form.startsWith("8-K")) {
+    if (userId && filing.form.startsWith("8-K")) {
       const alerts = classifyForm8kItems(filing.description ?? "");
       for (const alert of alerts.filter((a) => a.severity === "critical")) {
         await createInboxItem(db, {

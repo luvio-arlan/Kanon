@@ -37,13 +37,32 @@ describe("W7.4 RFC 6238 TOTP & AES-256-GCM Secret Envelope", () => {
     expect(buildTotpUri(secret, "+8613800138000")).toContain("otpauth://totp/KANON:");
   });
 
-  it("round-trips AES-256-GCM secret envelope and hashes recovery codes deterministically", () => {
+  it("round-trips v2 AES-256-GCM envelope with AAD binding and production fail-closed", () => {
     const secret = generateTotpSecret();
-    const cipher = encryptSecretEnvelope(secret);
-    expect(cipher.startsWith("v1:")).toBe(true);
+    const ctx = { purpose: "byok" as const, userId: "usr-1", provider: "openai" };
+    const cipher = encryptSecretEnvelope(secret, ctx);
+    expect(cipher.startsWith("v2:")).toBe(true);
     expect(cipher).not.toContain(secret);
-    expect(decryptSecretEnvelope(cipher)).toBe(secret);
-    expect(decryptSecretEnvelope("corrupted")).toBeNull();
+    expect(decryptSecretEnvelope(cipher, ctx)).toBe(secret);
+    // Swapping ciphertext to another user or provider MUST fail AAD verification
+    expect(decryptSecretEnvelope(cipher, { ...ctx, userId: "usr-2" })).toBeNull();
+    expect(decryptSecretEnvelope(cipher, { ...ctx, provider: "gemini" })).toBeNull();
+    expect(decryptSecretEnvelope(cipher, { ...ctx, purpose: "totp" })).toBeNull();
+    expect(decryptSecretEnvelope("corrupted", ctx)).toBeNull();
+
+    // Production fail-closed when KANON_CREDENTIALS_MASTER_KEY is unset
+    const prevEnv = process.env.VERCEL_ENV;
+    const prevKey = process.env.KANON_CREDENTIALS_MASTER_KEY;
+    try {
+      process.env.VERCEL_ENV = "production";
+      delete process.env.KANON_CREDENTIALS_MASTER_KEY;
+      expect(() => encryptSecretEnvelope("secret", ctx)).toThrow(/KANON_CREDENTIALS_MASTER_KEY/);
+    } finally {
+      if (prevEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = prevEnv;
+      if (prevKey === undefined) delete process.env.KANON_CREDENTIALS_MASTER_KEY;
+      else process.env.KANON_CREDENTIALS_MASTER_KEY = prevKey;
+    }
 
     const codes = generateRecoveryCodes(8);
     expect(codes).toHaveLength(8);

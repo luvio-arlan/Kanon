@@ -13,7 +13,9 @@ export type AlertRuleKind =
   | "new_filing"
   | "form8k_redflag"
   | "kpi_breach"
-  | "catalyst_due";
+  | "catalyst_due"
+  | "pe_band_breach"
+  | "forecast_due";
 export type InboxSeverity = "critical" | "warn" | "info";
 export type ForecastKind = "binary" | "scenario_3" | "quantile";
 export type LedgerAction = "deposit" | "withdraw" | "buy" | "sell" | "dividend";
@@ -69,6 +71,7 @@ export const forecastsTable = pgTable(
 export const calendarTokensTable = pgTable("calendar_tokens", {
   token: text("token").primaryKey(),
   userId: text("user_id").notNull(),
+  tokenHash: text("token_hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -78,6 +81,7 @@ export const portfolioAccountsTable = pgTable("portfolio_accounts", {
   name: text("name").notNull(),
   baseCurrency: text("base_currency").notNull().default("USD"),
   cashBalance: doublePrecision("cash_balance").notNull().default(0),
+  noLeverageAcknowledgedAt: timestamp("no_leverage_acknowledged_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -93,6 +97,8 @@ export const transactionsTable = pgTable(
     quantity: doublePrecision("quantity").notNull(),
     price: doublePrecision("price").notNull(),
     fees: doublePrecision("fees").notNull().default(0),
+    realizedPnl: doublePrecision("realized_pnl"),
+    externalRef: text("external_ref"),
     tradeDate: text("trade_date").notNull(),
     noLeverageConfirmed: boolean("no_leverage_confirmed").notNull().default(true),
     note: text("note").notNull().default(""),

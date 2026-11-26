@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../../contracts/auth-contracts";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
-import { forecastsTable } from "../../schema";
+import { forecastsTable, transactionsTable } from "../../schema";
 import { parseBrokerCsvTransactions } from "./broker-csv-parser";
 import {
   buildCatalystIcsFeed,
@@ -85,7 +85,36 @@ describe("Research Inbox, Immutable Forecasts & Zero-Leverage Portfolio Ledger (
         : String(tamperErr);
     expect(causeMsg).toMatch(/immutable/i);
 
-    // Resolving outcome is permitted
+    // Reject past resolveBy and out-of-range probabilities
+    await expect(
+      createImmutableForecast(db, {
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        thesisId: "thesis-nvda",
+        question: "Backdated forecast test",
+        probabilities: [0.5, 0.5],
+        resolveBy: "2020-01-01",
+      }),
+    ).rejects.toThrow(/到期日期/);
+    await expect(
+      createImmutableForecast(db, {
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        thesisId: "thesis-nvda",
+        question: "Negative prob test",
+        probabilities: [1.5, -0.5],
+        resolveBy: "2027-06-01",
+      }),
+    ).rejects.toThrow(/0–1/);
+
+    // Reject out-of-bounds outcomeIndex
+    await expect(
+      resolveForecast(db, {
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        forecastId: created.id,
+        outcomeIndex: 5,
+      }),
+    ).rejects.toThrow(/超出/);
+
+    // Resolving outcome once is permitted
     const resolved = await resolveForecast(db, {
       userId: DEFAULT_WORKSPACE_USER_ID,
       forecastId: created.id,
@@ -93,16 +122,77 @@ describe("Research Inbox, Immutable Forecasts & Zero-Leverage Portfolio Ledger (
       note: "FY26 毛利率 73.5% 兑现",
     });
     expect(resolved).toBe(true);
+    // Re-resolving MUST fail at both repo and DB trigger level
+    expect(
+      await resolveForecast(db, {
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        forecastId: created.id,
+        outcomeIndex: 1,
+      }),
+    ).toBe(false);
+    await expect(
+      db
+        .update(forecastsTable)
+        .set({ outcomeJson: { outcomeIndex: 1 } })
+        .where(eq(forecastsTable.id, created.id)),
+    ).rejects.toThrow();
+    // Deleting forecast MUST fail via BEFORE DELETE trigger
+    await expect(
+      db.delete(forecastsTable).where(eq(forecastsTable.id, created.id)),
+    ).rejects.toThrow();
+
     const all = await listForecasts(db, DEFAULT_WORKSPACE_USER_ID, "thesis-nvda");
     expect(all[0]?.outcomeJson?.outcomeIndex).toBe(0);
   });
 
-  it("W6.1: enforces FIFO lot accounting and blocks margin buying & short-selling at backend", async () => {
+  it("W6.1: enforces FIFO lot accounting, DB CHECK constraints, and blocks negative/NaN/margin/short-selling", async () => {
     const acct = await createPortfolioAccount(db, {
       userId: DEFAULT_WORKSPACE_USER_ID,
       name: "零杠杆实盘账本",
       initialCash: 10_000,
     });
+
+    // Reject negative, zero, and NaN quantities/prices
+    await expect(
+      recordPortfolioTransaction(db, {
+        accountId: acct.id,
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        ticker: "NVDA",
+        action: "buy",
+        quantity: -100,
+        price: 10,
+        tradeDate: "2026-01-10",
+        noLeverageConfirmed: true,
+      }),
+    ).rejects.toThrow(/大于 0/);
+    await expect(
+      recordPortfolioTransaction(db, {
+        accountId: acct.id,
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        ticker: "NVDA",
+        action: "buy",
+        quantity: Number.NaN,
+        price: 10,
+        tradeDate: "2026-01-10",
+        noLeverageConfirmed: true,
+      }),
+    ).rejects.toThrow(/大于 0/);
+
+    // Direct SQL negative quantity insert MUST be rejected by DB CHECK constraint
+    await expect(
+      db.insert(transactionsTable).values({
+        id: "tx_bad_check",
+        accountId: acct.id,
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        ticker: "NVDA",
+        action: "buy",
+        quantity: -10,
+        price: 100,
+        fees: 0,
+        tradeDate: "2026-01-10",
+        noLeverageConfirmed: true,
+      }),
+    ).rejects.toThrow();
 
     // Reject buying beyond cash (no margin/leverage)
     await expect(
@@ -140,7 +230,6 @@ describe("Research Inbox, Immutable Forecasts & Zero-Leverage Portfolio Ledger (
       noLeverageConfirmed: true,
     });
 
-    // Sell 50 shares -> consumes 40@$100 + 10@$120 = $5200 cost, proceeds 50*$150 = $7500 -> realized P&L +$2300
     const sellRes = await recordPortfolioTransaction(db, {
       accountId: acct.id,
       userId: DEFAULT_WORKSPACE_USER_ID,
@@ -156,7 +245,6 @@ describe("Research Inbox, Immutable Forecasts & Zero-Leverage Portfolio Ledger (
     const positions = await listPortfolioPositions(db, acct.id);
     expect(positions).toEqual([{ ticker: "NVDA", shares: 10, avgCostBasis: 120, totalCost: 1200 }]);
 
-    // Reject short selling beyond remaining 10 shares
     await expect(
       recordPortfolioTransaction(db, {
         accountId: acct.id,

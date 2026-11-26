@@ -1,17 +1,21 @@
 import crypto from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { todayIsoUtc } from "../../../contracts/workflow-contracts";
 import type { KanonDb } from "../../bootstrap";
 import {
   type AlertRuleKind,
   alertRulesTable,
-  calendarTokensTable,
   type ForecastKind,
   forecastsTable,
   type InboxSeverity,
   inboxItemsTable,
-  thesesTable,
-  thesisCatalystsTable,
 } from "../../schema";
+
+export {
+  buildCatalystIcsFeed,
+  hasCalendarToken,
+  issueCalendarToken,
+} from "./calendar-feed-store";
 
 export async function upsertAlertRule(
   db: KanonDb,
@@ -64,17 +68,20 @@ export async function createInboxItem(
 ) {
   const id = `ibx_${crypto.randomUUID()}`;
   const now = new Date();
-  await db.insert(inboxItemsTable).values({
-    id,
-    userId: input.userId,
-    thesisId: input.thesisId ?? null,
-    kind: input.kind,
-    severity: input.severity ?? "info",
-    title: input.title.trim(),
-    body: input.body.trim(),
-    sourceUrl: input.sourceUrl ?? null,
-    createdAt: now,
-  });
+  await db
+    .insert(inboxItemsTable)
+    .values({
+      id,
+      userId: input.userId,
+      thesisId: input.thesisId ?? null,
+      kind: input.kind,
+      severity: input.severity ?? "info",
+      title: input.title.trim(),
+      body: input.body.trim(),
+      sourceUrl: input.sourceUrl ?? null,
+      createdAt: now,
+    })
+    .onConflictDoNothing();
   return id;
 }
 
@@ -100,6 +107,15 @@ export async function markInboxItemRead(
   return updated.length > 0;
 }
 
+export async function markAllInboxItemsRead(db: KanonDb, userId: string): Promise<number> {
+  const updated = await db
+    .update(inboxItemsTable)
+    .set({ readAt: new Date() })
+    .where(and(eq(inboxItemsTable.userId, userId), isNull(inboxItemsTable.readAt)))
+    .returning();
+  return updated.length;
+}
+
 export async function createImmutableForecast(
   db: KanonDb,
   input: {
@@ -112,9 +128,13 @@ export async function createImmutableForecast(
     resolveBy: string;
   },
 ) {
+  const allBounded = input.probabilities.every((p) => Number.isFinite(p) && p >= 0 && p <= 1);
   const sum = input.probabilities.reduce((a, b) => a + b, 0);
-  if (input.probabilities.length < 2 || Math.abs(sum - 1) > 0.02) {
-    throw new Error("预测概率之和必须等于 1.0（误差 ≤ 2%）。");
+  if (input.probabilities.length < 2 || !allBounded || Math.abs(sum - 1) > 0.02) {
+    throw new Error("预测单项概率须在 0–1 之间且之和等于 1.0（误差 ≤ 2%）。");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.resolveBy) || input.resolveBy <= todayIsoUtc()) {
+    throw new Error("到期日期必须晚于今天，禁止事后补录预测。");
   }
   const id = `fc_${crypto.randomUUID()}`;
   const lockedAt = new Date();
@@ -144,15 +164,37 @@ export async function createImmutableForecast(
 
 export async function resolveForecast(
   db: KanonDb,
-  input: { userId: string; forecastId: string; outcomeIndex: number; note?: string },
+  input: {
+    userId: string;
+    thesisId?: string;
+    forecastId: string;
+    outcomeIndex: number;
+    note?: string;
+  },
 ): Promise<boolean> {
+  const baseCond = input.thesisId
+    ? and(
+        eq(forecastsTable.id, input.forecastId),
+        eq(forecastsTable.userId, input.userId),
+        eq(forecastsTable.thesisId, input.thesisId),
+      )
+    : and(eq(forecastsTable.id, input.forecastId), eq(forecastsTable.userId, input.userId));
+  const [row] = await db.select().from(forecastsTable).where(baseCond).limit(1);
+  if (!row || row.resolvedAt !== null) return false;
+  if (
+    !Number.isInteger(input.outcomeIndex) ||
+    input.outcomeIndex < 0 ||
+    input.outcomeIndex >= row.probabilitiesJson.length
+  ) {
+    throw new Error("outcomeIndex 超出预测选项范围。");
+  }
   const updated = await db
     .update(forecastsTable)
     .set({
       resolvedAt: new Date(),
       outcomeJson: { outcomeIndex: input.outcomeIndex, note: input.note?.trim() },
     })
-    .where(and(eq(forecastsTable.id, input.forecastId), eq(forecastsTable.userId, input.userId)))
+    .where(and(baseCond, isNull(forecastsTable.resolvedAt)))
     .returning();
   return updated.length > 0;
 }
@@ -162,62 +204,4 @@ export async function listForecasts(db: KanonDb, userId: string, thesisId?: stri
     ? and(eq(forecastsTable.userId, userId), eq(forecastsTable.thesisId, thesisId))
     : eq(forecastsTable.userId, userId);
   return db.select().from(forecastsTable).where(cond).orderBy(desc(forecastsTable.lockedAt));
-}
-
-export async function issueCalendarToken(db: KanonDb, userId: string): Promise<string> {
-  const [existing] = await db
-    .select()
-    .from(calendarTokensTable)
-    .where(eq(calendarTokensTable.userId, userId))
-    .limit(1);
-  if (existing) return existing.token;
-  const token = crypto.randomBytes(18).toString("hex");
-  await db.insert(calendarTokensTable).values({ token, userId });
-  return token;
-}
-
-function escapeIcsText(raw: string): string {
-  return raw.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
-}
-
-/** Builds an RFC 5545 `.ics` calendar feed of dated catalysts for an authenticated token. */
-export async function buildCatalystIcsFeed(db: KanonDb, token: string): Promise<string | null> {
-  const [tok] = await db
-    .select()
-    .from(calendarTokensTable)
-    .where(eq(calendarTokensTable.token, token.trim()))
-    .limit(1);
-  if (!tok) return null;
-  const rows = await db
-    .select({
-      id: thesisCatalystsTable.id,
-      title: thesisCatalystsTable.title,
-      dateLabel: thesisCatalystsTable.dateLabel,
-      eventDate: thesisCatalystsTable.eventDate,
-      verificationMetric: thesisCatalystsTable.verificationMetric,
-      ticker: thesesTable.ticker,
-    })
-    .from(thesisCatalystsTable)
-    .innerJoin(thesesTable, eq(thesesTable.id, thesisCatalystsTable.thesisId))
-    .where(eq(thesesTable.userId, tok.userId));
-
-  const lines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//KANON//Catalyst Calendar//EN",
-    "X-WR-CALNAME:KANON Catalysts",
-  ];
-  for (const row of rows) {
-    const dt = (row.eventDate ?? new Date().toISOString().slice(0, 10)).replaceAll("-", "");
-    lines.push(
-      "BEGIN:VEVENT",
-      `UID:${row.id}@kanon.hk`,
-      `DTSTART;VALUE=DATE:${dt}`,
-      `SUMMARY:[${escapeIcsText(row.ticker)}] ${escapeIcsText(row.title)}`,
-      `DESCRIPTION:${escapeIcsText(`${row.dateLabel} · ${row.verificationMetric}`)}`,
-      "END:VEVENT",
-    );
-  }
-  lines.push("END:VCALENDAR");
-  return `${lines.join("\r\n")}\r\n`;
 }

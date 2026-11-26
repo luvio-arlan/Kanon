@@ -67,6 +67,8 @@ export const auditLogTable = pgTable(
     targetType: text("target_type").notNull(),
     targetId: text("target_id").notNull(),
     metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+    prevHash: text("prev_hash").notNull().default(""),
+    entryHash: text("entry_hash").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("idx_audit_log_actor_created").on(table.actorUserId, table.createdAt)],

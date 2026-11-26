@@ -1,5 +1,16 @@
+import {
+  CalendarRotateResponseSchema,
+  GenericOkResponseSchema,
+  InboxLoadResponseSchema,
+  LedgerAccountCreateResponseSchema,
+  LedgerAccountListResponseSchema,
+  LedgerTransactionCreateResponseSchema,
+} from "@kanon/core";
+import { kanonFetch } from "@/shared/lib/kanon-fetch";
+
 export interface InboxItemRow {
   id: string;
+  thesisId?: string | null;
   severity: "critical" | "warn" | "info";
   title: string;
   body: string;
@@ -11,43 +22,57 @@ export interface LedgerAccountRow {
   id: string;
   name: string;
   cashBalance: number;
+  noLeverageAcknowledgedAt?: string | null;
   positions: Array<{ ticker: string; shares: number; avgCostBasis: number; totalCost: number }>;
 }
 
 export async function apiLoadInbox() {
-  const res = await fetch("/api/inbox").catch(() => null);
-  if (!res?.ok) return { items: [] as InboxItemRow[], calendarToken: "" };
-  const raw: unknown = await res.json().catch(() => null);
-  if (!raw || typeof raw !== "object") return { items: [] as InboxItemRow[], calendarToken: "" };
-  const rec = raw as { items?: InboxItemRow[]; calendarToken?: string };
-  return { items: rec.items ?? [], calendarToken: rec.calendarToken ?? "" };
+  const res = await kanonFetch("/api/inbox", InboxLoadResponseSchema);
+  if (!res.ok) return { items: [] as InboxItemRow[], calendarConfigured: false };
+  return {
+    items: res.data.items,
+    calendarConfigured: Boolean(res.data.calendarConfigured),
+  };
+}
+
+export async function apiRotateCalendarToken(): Promise<string | null> {
+  const res = await kanonFetch("/api/inbox", CalendarRotateResponseSchema, {
+    method: "POST",
+    body: { op: "rotate_calendar" },
+  });
+  return res.ok ? res.data.calendarToken : null;
 }
 
 export async function apiMarkInboxRead(itemId: string): Promise<void> {
-  await fetch("/api/inbox", {
+  await kanonFetch("/api/inbox", GenericOkResponseSchema, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ itemId }),
-  }).catch(() => undefined);
+    body: { itemId },
+  });
+}
+
+export async function apiMarkAllInboxRead(): Promise<void> {
+  await kanonFetch("/api/inbox", GenericOkResponseSchema, {
+    method: "PATCH",
+    body: { markAll: true },
+  });
 }
 
 export async function apiLoadPortfolioLedger(): Promise<LedgerAccountRow[]> {
-  const res = await fetch("/api/portfolio/ledger").catch(() => null);
-  if (!res?.ok) return [];
-  const raw: unknown = await res.json().catch(() => null);
-  if (raw && typeof raw === "object" && Array.isArray((raw as { accounts?: unknown }).accounts)) {
-    return (raw as { accounts: LedgerAccountRow[] }).accounts;
-  }
-  return [];
+  const res = await kanonFetch("/api/portfolio/ledger", LedgerAccountListResponseSchema);
+  return res.ok ? res.data.accounts : [];
 }
 
-export async function apiCreateLedgerAccount(name: string, initialCash: number): Promise<boolean> {
-  const res = await fetch("/api/portfolio/ledger", {
+export async function apiCreateLedgerAccount(
+  name: string,
+  initialCash: number,
+  noLeverageConfirmed = true,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await kanonFetch("/api/portfolio/ledger", LedgerAccountCreateResponseSchema, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ op: "create_account", name, initialCash }),
-  }).catch(() => null);
-  return Boolean(res?.ok);
+    body: { op: "create_account", name, initialCash, noLeverageConfirmed },
+    fallbackError: "创建账本失败",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
 export async function apiRecordLedgerTx(input: {
@@ -56,18 +81,13 @@ export async function apiRecordLedgerTx(input: {
   action: "deposit" | "buy" | "sell";
   quantity: number;
   price: number;
+  tradeDate?: string;
+  noLeverageConfirmed?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const res = await fetch("/api/portfolio/ledger", {
+  const res = await kanonFetch("/api/portfolio/ledger", LedgerTransactionCreateResponseSchema, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ op: "record_transaction", ...input, noLeverageConfirmed: true }),
-  }).catch(() => null);
-  if (!res) return { ok: false, error: "网络请求失败" };
-  if (res.ok) return { ok: true };
-  const raw: unknown = await res.json().catch(() => null);
-  const error =
-    raw && typeof raw === "object" && typeof (raw as { error?: unknown }).error === "string"
-      ? (raw as { error: string }).error
-      : "记账被零杠杆风控拦截";
-  return { ok: false, error };
+    body: { op: "record_transaction", ...input },
+    fallbackError: "记账被风控拦截",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }

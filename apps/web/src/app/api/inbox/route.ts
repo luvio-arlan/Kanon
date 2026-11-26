@@ -1,13 +1,17 @@
+import { InboxPatchRequestSchema, InboxPostRequestSchema } from "@kanon/core";
 import {
   createInboxItem,
   getKanonDb,
+  hasCalendarToken,
   issueCalendarToken,
   listAlertRules,
   listInboxItems,
+  markAllInboxItemsRead,
   markInboxItemRead,
+  upsertAlertRule,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../_lib/auth-session";
-import { jsonError, jsonOk } from "../_lib/http";
+import { formatZodError, jsonError, jsonOk, readJsonBody } from "../_lib/http";
 import { verifySameOrigin } from "../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
@@ -17,12 +21,49 @@ export async function GET() {
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const db = await getKanonDb();
-  const [items, rules, calendarToken] = await Promise.all([
+  const [items, rules, calendarConfigured] = await Promise.all([
     listInboxItems(db, auth.user.id),
     listAlertRules(db, auth.user.id),
-    issueCalendarToken(db, auth.user.id),
+    hasCalendarToken(db, auth.user.id),
   ]);
-  return jsonOk({ items, rules, calendarToken }, startedAt);
+  return jsonOk({ items, rules, calendarConfigured }, startedAt);
+}
+
+async function dispatchInboxPost(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  userId: string,
+  data: ReturnType<typeof InboxPostRequestSchema.parse>,
+  startedAt: number,
+) {
+  if ("op" in data && data.op === "rotate_calendar") {
+    const calendarToken = await issueCalendarToken(db, userId);
+    return jsonOk({ calendarToken }, startedAt, 201);
+  }
+  if ("op" in data && data.op === "mark_all_read") {
+    const markedCount = await markAllInboxItemsRead(db, userId);
+    return jsonOk({ ok: true, markedCount }, startedAt);
+  }
+  if ("op" in data && data.op === "upsert_rule") {
+    const ruleId = await upsertAlertRule(db, {
+      id: data.id,
+      userId,
+      thesisId: data.thesisId ?? null,
+      kind: data.kind,
+      configJson: data.configJson,
+      enabled: data.enabled,
+    });
+    return jsonOk({ ruleId }, startedAt, 201);
+  }
+  const id = await createInboxItem(db, {
+    userId,
+    thesisId: data.thesisId ?? null,
+    kind: data.kind,
+    severity: data.severity,
+    title: data.title,
+    body: data.body,
+    sourceUrl: data.sourceUrl ?? null,
+  });
+  return jsonOk({ id }, startedAt, 201);
 }
 
 export async function POST(request: Request) {
@@ -31,26 +72,19 @@ export async function POST(request: Request) {
   if (csrfErr) return csrfErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-  const bodyUnknown: unknown = await request.json().catch(() => null);
-  const raw =
-    bodyUnknown && typeof bodyUnknown === "object"
-      ? (bodyUnknown as Record<string, unknown>)
-      : null;
-  const title = typeof raw?.title === "string" ? raw.title.trim() : "";
-  const body = typeof raw?.body === "string" ? raw.body.trim() : "";
-  if (!title || !body) {
-    return jsonError("请提供有效提醒标题与内容。", 400, startedAt, "INVALID_INBOX_ITEM");
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
+  const parsed = InboxPostRequestSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return jsonError(
+      formatZodError(parsed.error, "请提供有效收件箱操作参数。"),
+      400,
+      startedAt,
+      "INVALID_INBOX_ITEM",
+    );
   }
   const db = await getKanonDb();
-  const id = await createInboxItem(db, {
-    userId: auth.user.id,
-    thesisId: typeof raw?.thesisId === "string" ? raw.thesisId : null,
-    kind: typeof raw?.kind === "string" ? raw.kind : "manual",
-    severity: raw?.severity === "critical" || raw?.severity === "warn" ? raw.severity : "info",
-    title,
-    body,
-  });
-  return jsonOk({ id }, startedAt, 201);
+  return dispatchInboxPost(db, auth.user.id, parsed.data, startedAt);
 }
 
 export async function PATCH(request: Request) {
@@ -59,14 +93,17 @@ export async function PATCH(request: Request) {
   if (csrfErr) return csrfErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-  const bodyUnknown: unknown = await request.json().catch(() => null);
-  const raw =
-    bodyUnknown && typeof bodyUnknown === "object"
-      ? (bodyUnknown as Record<string, unknown>)
-      : null;
-  const itemId = typeof raw?.itemId === "string" ? raw.itemId.trim() : "";
-  if (!itemId) return jsonError("缺少 itemId。", 400, startedAt, "INVALID");
+  const body = await readJsonBody(request, startedAt);
+  if (!body.ok) return body.response;
+  const parsed = InboxPatchRequestSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return jsonError(formatZodError(parsed.error, "缺少 itemId。"), 400, startedAt, "INVALID");
+  }
   const db = await getKanonDb();
-  const updated = await markInboxItemRead(db, auth.user.id, itemId);
+  if ("markAll" in parsed.data) {
+    const markedCount = await markAllInboxItemsRead(db, auth.user.id);
+    return jsonOk({ ok: true, markedCount }, startedAt);
+  }
+  const updated = await markInboxItemRead(db, auth.user.id, parsed.data.itemId);
   return jsonOk({ ok: updated }, startedAt);
 }

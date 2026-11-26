@@ -18,6 +18,7 @@ import { KANON_AI_USAGE_AND_CREDS_SQL } from "./v2/0017-ai-usage-and-creds";
 import { KANON_INBOX_CATALYSTS_FORECASTS_SQL } from "./v2/0018-inbox-catalysts-forecasts";
 import { KANON_PORTFOLIO_LEDGER_SQL } from "./v2/0019-portfolio-ledger";
 import { KANON_TEAMS_IC_AUDIT_SQL } from "./v2/0020-teams-ic-audit";
+import { KANON_WAVE_I_SECURITY_SQL } from "./v2/0021-wave-i-security";
 
 export interface KanonMigration {
   id: string;
@@ -148,6 +149,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only multi-tenant organizations, RBAC memberships, IC approvals, comments, restricted list, append-only audit log & covering indexes (W7.1-W7.3, W8.3)",
     sql: KANON_TEAMS_IC_AUDIT_SQL,
+  },
+  {
+    id: "0021_wave_i_security",
+    description:
+      "Expand-only ledger CHECK constraints, realized_pnl/external_ref, forecast re-resolve/delete guards, audit_log hash chain + TRUNCATE guard, inbox dedupe & calendar token uniqueness",
+    sql: KANON_WAVE_I_SECURITY_SQL,
   },
 ];
 

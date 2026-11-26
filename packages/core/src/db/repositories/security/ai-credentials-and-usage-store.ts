@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import { and, asc, eq, gte } from "drizzle-orm";
-import { decryptSecretEnvelope, encryptSecretEnvelope } from "../../../security/totp";
+import {
+  decryptSecretEnvelope,
+  encryptSecretEnvelope,
+  needsEnvelopeReencryption,
+} from "../../../security/totp";
 import type { KanonDb } from "../../bootstrap";
 import { aiUsageTable, userAiCredentialsTable } from "../../schema";
 
@@ -32,25 +36,30 @@ function toMaskedCredential(row: typeof userAiCredentialsTable.$inferSelect): Ma
   };
 }
 
+export interface UpsertAiCredentialInput {
+  userId: string;
+  provider: string;
+  apiKey: string;
+  label?: string;
+  baseUrl?: string | null;
+  defaultModel?: string | null;
+}
+
 export async function upsertUserAiCredential(
   db: KanonDb,
-  input: {
-    userId: string;
-    provider: string;
-    apiKey: string;
-    label?: string;
-    baseUrl?: string | null;
-    defaultModel?: string | null;
-  },
+  input: UpsertAiCredentialInput,
 ): Promise<MaskedAiCredential> {
   const provider = input.provider.trim().toLowerCase();
-  const encryptedApiKey = encryptSecretEnvelope(input.apiKey.trim());
-  const keyHint = buildKeyHint(input.apiKey);
+  const encryptedApiKey = encryptSecretEnvelope(input.apiKey.trim(), {
+    purpose: "byok",
+    userId: input.userId,
+    provider,
+  });
   const now = new Date();
   const mutableFields = {
     label: input.label?.trim() ?? "",
     encryptedApiKey,
-    keyHint,
+    keyHint: buildKeyHint(input.apiKey),
     baseUrl: input.baseUrl?.trim() || null,
     defaultModel: input.defaultModel?.trim() || null,
     updatedAt: now,
@@ -120,8 +129,17 @@ export async function resolveUserAiCredential(
     )
     .limit(1);
   if (!row) return null;
-  const apiKey = decryptSecretEnvelope(row.encryptedApiKey);
+  const normalizedProvider = provider.trim().toLowerCase();
+  const ctx = { purpose: "byok" as const, userId, provider: normalizedProvider };
+  const apiKey = decryptSecretEnvelope(row.encryptedApiKey, ctx);
   if (!apiKey) return null;
+  if (needsEnvelopeReencryption(row.encryptedApiKey)) {
+    const upgraded = encryptSecretEnvelope(apiKey, ctx);
+    await db
+      .update(userAiCredentialsTable)
+      .set({ encryptedApiKey: upgraded, updatedAt: new Date() })
+      .where(and(eq(userAiCredentialsTable.id, row.id), eq(userAiCredentialsTable.userId, userId)));
+  }
   return { apiKey, baseUrl: row.baseUrl, defaultModel: row.defaultModel };
 }
 
