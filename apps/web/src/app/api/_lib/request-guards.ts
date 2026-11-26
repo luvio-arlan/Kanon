@@ -31,13 +31,20 @@ function sanitizeIp(raw: string | null): string | null {
   return SAFE_IP_RE.test(candidate) ? candidate : null;
 }
 
+function isTrustedProxyEnv(): boolean {
+  return process.env.VERCEL === "1" || process.env.KANON_TRUST_PROXY === "1";
+}
+
 export function extractClientIp(request: Request): string {
-  return (
-    sanitizeIp(request.headers.get("x-vercel-forwarded-for")) ??
-    sanitizeIp(request.headers.get("x-real-ip")) ??
-    sanitizeIp(request.headers.get("x-forwarded-for")) ??
-    "local"
-  );
+  if (isTrustedProxyEnv()) {
+    return (
+      sanitizeIp(request.headers.get("x-vercel-forwarded-for")) ??
+      sanitizeIp(request.headers.get("x-real-ip")) ??
+      sanitizeIp(request.headers.get("x-forwarded-for")) ??
+      "local"
+    );
+  }
+  return sanitizeIp(request.headers.get("x-real-ip")) ?? "local";
 }
 
 function pruneExpiredBuckets(store: Map<string, RateBucketState>, now: number): void {

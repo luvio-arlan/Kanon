@@ -38,10 +38,12 @@ export {
 export {
   authenticateUser,
   createUserSession,
+  finalizeUserLogin,
   getSessionUser,
   registerUser,
   revokeSession,
   SESSION_TTL_DAYS,
+  verifyUserCredentials,
 } from "./repositories/auth-store";
 export { listCopilotOutputs, upsertCopilotOutput } from "./repositories/copilot-store";
 export {
@@ -87,6 +89,16 @@ export {
   type RateLimitCheckResult,
 } from "./repositories/security/rate-limit-store";
 export {
+  beginTotpEnrollment,
+  checkAccountLockout,
+  clearAccountLockout,
+  confirmTotpEnrollment,
+  disableUserTotpFactor,
+  getUserTotpStatus,
+  recordFailedLoginAttempt,
+  verifyUserTotpFactor,
+} from "./repositories/security/totp-and-lockout-store";
+export {
   assertThesisOwnership,
   batchUpdatePriceAnchors,
   getThesisByTicker,
@@ -110,6 +122,7 @@ export {
   glossaryTermsTable,
   hypothesesTable,
   insertThesisRowSchema,
+  loginLockoutsTable,
   marketQuotesCacheTable,
   quarterlyReviewsTable,
   rateLimitBucketsTable,
@@ -123,5 +136,6 @@ export {
   thesisRevisionsTable,
   userSecOverridesTable,
   usersTable,
+  userTotpFactorsTable,
   valuationScenariosTable,
 } from "./schema";

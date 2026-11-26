@@ -281,17 +281,69 @@ function tryWalkLiveGuardBranch(node, sf, insideLiveGuard, walk) {
   return false;
 }
 
+const CLIPPING_CONTAINER_RE =
+  /(?:^|[\s"'`])(?:overflow-hidden|overflow-y-hidden|overflow-clip|kanon-sparkline-reveal)\b/;
+const FLOATING_OVERLAY_OFFSET_RE = /(?:^|[\s"'`])(?:-top-\d|bottom-full|-translate-y-full)\b/;
+const FLOATING_OVERLAY_ELEVATION_RE = /\b(?:shadow-dropdown|shadow-overlay|z-[1-5]0)\b/;
+
+function readJsxClassNameText(opening, sf) {
+  for (const prop of opening.attributes.properties) {
+    if (!ts.isJsxAttribute(prop) || prop.name.getText(sf) !== "className") continue;
+    return prop.initializer ? prop.initializer.getText(sf) : "";
+  }
+  return "";
+}
+
+function isClippedFloatingOverlay(clsText) {
+  return (
+    /\babsolute\b/.test(clsText) &&
+    FLOATING_OVERLAY_OFFSET_RE.test(clsText) &&
+    FLOATING_OVERLAY_ELEVATION_RE.test(clsText)
+  );
+}
+
+function checkClippedOverlayNode(relPath, sf, node, insideClipBox, errors) {
+  if (!/^(?:packages\/ui\/src|apps\/web\/src)\//.test(relPath)) return insideClipBox;
+  if (ts.isJsxElement(node)) {
+    const cls = readJsxClassNameText(node.openingElement, sf);
+    if (insideClipBox && isClippedFloatingOverlay(cls)) {
+      addError(
+        errors,
+        relPath,
+        getLine(sf, node.openingElement.getStart(sf)),
+        "no-clipped-floating-overlay",
+        "Floating overlay (-top-*/bottom-full/-translate-y-full) is nested inside an overflow-hidden or clip-path container and will be visibly sliced. Move the overlay outside the clipped wrapper or render via Portal (.rules/editorial-craft.md §2).",
+      );
+    }
+    return insideClipBox || CLIPPING_CONTAINER_RE.test(cls);
+  }
+  if (ts.isJsxSelfClosingElement(node)) {
+    const cls = readJsxClassNameText(node, sf);
+    if (insideClipBox && isClippedFloatingOverlay(cls)) {
+      addError(
+        errors,
+        relPath,
+        getLine(sf, node.getStart(sf)),
+        "no-clipped-floating-overlay",
+        "Floating overlay (-top-*/bottom-full/-translate-y-full) is nested inside an overflow-hidden or clip-path container and will be visibly sliced. Move the overlay outside the clipped wrapper or render via Portal (.rules/editorial-craft.md §2).",
+      );
+    }
+  }
+  return insideClipBox;
+}
+
 export function checkGardenAstRules(relPath, sf, isTestFile, errors) {
   if (isTestFile) return;
   const isClientSlice = /^apps\/web\/src\/(?:features|shared)\//.test(relPath);
 
-  function walk(node, insideLiveGuard) {
+  function walk(node, insideLiveGuard, insideClipBox) {
     checkBasicGardenNode(relPath, sf, node, isClientSlice, insideLiveGuard, errors);
-    if (tryWalkLiveGuardBranch(node, sf, insideLiveGuard, walk)) return;
-    ts.forEachChild(node, (child) => walk(child, insideLiveGuard));
+    const nextClip = checkClippedOverlayNode(relPath, sf, node, insideClipBox, errors);
+    if (tryWalkLiveGuardBranch(node, sf, insideLiveGuard, (n, g) => walk(n, g, nextClip))) return;
+    ts.forEachChild(node, (child) => walk(child, insideLiveGuard, nextClip));
   }
 
-  walk(sf, false);
+  walk(sf, false, false);
 }
 
 function lineAtIndex(source, index) {
@@ -507,9 +559,44 @@ function checkOverlayMotionCss(rootDir, errors) {
   }
 }
 
+function scanCssFileClipPathKeyframes(rootDir, fullPath, errors) {
+  const rel = path.relative(rootDir, fullPath).split(path.sep).join("/");
+  const css = fs.readFileSync(fullPath, "utf8");
+  for (const m of css.matchAll(/@keyframes\s+([a-zA-Z0-9_-]+)\s*\{([\s\S]*?)\n\}/g)) {
+    const name = m[1] ?? "";
+    const body = m[2] ?? "";
+    if (!/clip-path\s*:\s*inset\(/i.test(body)) continue;
+    const endBlock = body.match(/(?:to|100%)\s*\{([^}]*)\}/i)?.[1] ?? "";
+    if (/clip-path\s*:\s*none\b/i.test(endBlock)) continue;
+    addError(
+      errors,
+      rel,
+      lineAtIndex(css, m.index ?? 0),
+      "no-permanent-clip-path-forwards",
+      `@keyframes "${name}" animates clip-path: inset(...) without ending at \`clip-path: none\`. Permanent inset(0 0 0 0) slices floating tooltips and overlays (.rules/editorial-craft.md §2).`,
+    );
+  }
+}
+
+function checkPermanentClipPathKeyframes(rootDir, errors) {
+  const cssDirs = [
+    path.join(rootDir, "packages/ui/src/styles"),
+    path.join(rootDir, "apps/web/src/app"),
+  ];
+  for (const dir of cssDirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".css")) {
+        scanCssFileClipPathKeyframes(rootDir, path.join(dir, entry.name), errors);
+      }
+    }
+  }
+}
+
 function checkConcentricTokensAndGlossary(rootDir, errors) {
   checkRequiredTokensCss(rootDir, errors);
   checkOverlayMotionCss(rootDir, errors);
+  checkPermanentClipPathKeyframes(rootDir, errors);
   const glossaryRel = "packages/ui/src/components/overlays/glossary-popover-card.tsx";
   const glossaryPath = path.join(rootDir, glossaryRel);
   if (fs.existsSync(glossaryPath) && /\bfont-mono\b/.test(fs.readFileSync(glossaryPath, "utf8"))) {

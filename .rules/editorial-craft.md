@@ -29,11 +29,13 @@
 - **统一阻尼曲线与入慢出快纪律** `[css-concentric-tokens-and-motion]`：交互过渡统一收敛到 `--ease-kanon (0.22, 1, 0.36, 1)`、`--ease-overlay (0.32, 0.72, 0, 1)` 与 `--ease-exit (0.4, 0, 1, 1)`；浮层退场时长严格短于入场，按压反馈采用纯色阶加深（禁止缩放抖动），所有关键帧动画必须挂载 `@media (prefers-reduced-motion: reduce)` 兜底。
 - **下拉菜单与控件精工标准** `[no-native-select]`：严禁使用浏览器原生 `<select>`；统一下拉采用 `@kanon/ui` `ActionMenu`（`rounded-panel` 面板 + `p-1.5` + `rounded-item` 选项、内置 `selected` 对齐勾选列、`.kanon-chevron` 旋转与 `data-placement` 方向原点）；表单输入采用微凹 `--shadow-input` 质感与 `resize-none`，杜绝卡内叠卡阴影与浏览器默认拖拽斜杠；分段器（`ButtonGroup`）采用微凹托盘 + 仅选中项浮起白卡 + CSS Grid 隐形等宽占位（切换选中态、显隐状态圆点与字重加粗时严格 `0px` 横向抖动）。
 
+- **悬浮提示零裁切纪律** `[no-permanent-clip-path-forwards]` `[no-clipped-floating-overlay]`：使用 `clip-path: inset(...)` 的入场 `@keyframes` 终态**必须**释放为 `clip-path: none`（严禁残留 `inset(0 0 0 0)`）；凡带 `absolute` + 负偏移/上方悬浮（`-top-*` / `bottom-full` / `-translate-y-full`）的提示徽章或浮层，严禁嵌套在 `overflow-hidden` / `overflow-clip` / `kanon-sparkline-reveal` 容器内部，必须置于外层非裁切节点或 Portal。
+
 ## 3. 表单与密码边界纪律（Bounded Inputs & Auth Policy）
 
 - **浏览器自动填充去蓝底** `[css-autofill-hygiene]`：`packages/ui/src/styles/editorial.css` 必须统一覆盖 `:-webkit-autofill` / `:autofill`（使用 `--autofill-bg` 与 `--ink-primary` 语义变量），所有透明画布下划线输入框必须挂载 `.kanon-input-canvas`，确保浅色暖白与深色暗夜下均彻底消除浏览器默认蓝底。
 - **密码输入框强制截断** `[bounded-password-input]`：所有密码 `<input>` 必须声明 `maxLength={PASSWORD_MAX_LENGTH}`（并在 `onChange` 中同步截断），杜绝超长输入溢出下划线框。
-- **强密码统一契约**（`auth-contracts.test.ts` 校验）：长度 `8–24` 位，必须同时包含 **英文字母 + 数字 + 符号**，前后端 Zod 与实时强度条共享单一真源。
+- **强密码统一契约**（`auth-contracts.test.ts` 校验）：长度 `8–64` 位（对齐 NIST 800-63B），必须同时包含 **英文字母 + 数字 + 符号**，前后端 Zod 与实时强度条共享单一真源。
 
 ## 4. 官网与 SVG 光学精度（Optical Motion Precision）
 

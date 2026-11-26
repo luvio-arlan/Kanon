@@ -22,6 +22,7 @@ const KNOWN_ROUTES = [
   "auth/register/route.ts",
   "auth/sessions/route.ts",
   "auth/tokens/route.ts",
+  "auth/totp/route.ts",
   "export/portfolio/route.ts",
   "export/thesis/[id]/route.ts",
   "health/route.ts",
@@ -92,6 +93,10 @@ async function fetchJson(urlPath, init, cookieHeader = "") {
 async function verifyAuthAndIsolation() {
   const unauthTheses = await fetchJson("/api/theses");
   assert.equal(unauthTheses.status, 401);
+  assert.ok(
+    typeof unauthTheses.data.requestId === "string" &&
+      unauthTheses.data.requestId.startsWith("req_"),
+  );
 
   const badPhone = await fetchJson("/api/auth/register", {
     method: "POST",
@@ -432,6 +437,17 @@ async function verifyAiExportImportAndMcp(createdId, nvdaId, cookieA) {
     cookieA,
   );
   assert.equal(pwdChange.status, 200);
+
+  const totpStatus = await fetchJson("/api/auth/totp", {}, cookieA);
+  assert.equal(totpStatus.status, 200);
+  assert.equal(totpStatus.data.enabled, false);
+  const totpBegin = await fetchJson(
+    "/api/auth/totp",
+    { method: "POST", body: JSON.stringify({ action: "begin" }) },
+    cookieA,
+  );
+  assert.equal(totpBegin.status, 200);
+  assert.ok(totpBegin.data.otpauthUri.startsWith("otpauth://totp/KANON:"));
 
   const createdPat = await fetchJson(
     "/api/auth/tokens",
@@ -778,14 +794,17 @@ async function main() {
 
   try {
     await waitForServer();
-    const [homeRes, loginRes, registerRes, welcomeRes] = await Promise.all([
+    const [homeRes, loginRes, registerRes, welcomeRes, thesisUnauthRes] = await Promise.all([
       fetch(`${BASE}/`, { redirect: "manual" }),
       fetch(`${BASE}/login`),
       fetch(`${BASE}/register`),
       fetch(`${BASE}/welcome`, { redirect: "manual" }),
+      fetch(`${BASE}/thesis/demo-id?step=4`, { redirect: "manual" }),
     ]);
     assert.equal(homeRes.status, 307);
     assert.ok(homeRes.headers.get("location")?.endsWith("/login"));
+    assert.equal(thesisUnauthRes.status, 307);
+    assert.ok(thesisUnauthRes.headers.get("location")?.includes("/login?next=%2Fthesis%2Fdemo-id"));
     assert.equal(loginRes.status, 200);
     assert.equal(loginRes.headers.get("x-content-type-options"), "nosniff");
     assert.equal(loginRes.headers.get("x-frame-options"), "DENY");

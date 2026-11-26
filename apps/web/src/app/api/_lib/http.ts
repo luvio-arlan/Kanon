@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
+import { generateRequestId, logStructuredApiEvent } from "./logger";
 
 interface ValidationIssueLike {
   path: readonly PropertyKey[];
   message: string;
 }
 
-export function apiHeaders(startedAt: number): Record<string, string> {
+export function apiHeaders(
+  startedAt: number,
+  requestId = generateRequestId(),
+): Record<string, string> {
   const durationMs = Math.max(0, Math.round(performance.now() - startedAt));
   return {
     "Cache-Control": "no-store",
     "X-Kanon-Duration-Ms": String(durationMs),
+    "X-Request-Id": requestId,
   };
 }
 
@@ -18,10 +23,13 @@ export function jsonOk<T>(data: T, startedAt: number, status = 200) {
 }
 
 export function jsonError(message: string, status: number, startedAt: number, code?: string) {
-  return NextResponse.json(code ? { error: message, code } : { error: message }, {
-    status,
-    headers: apiHeaders(startedAt),
-  });
+  const requestId = generateRequestId();
+  const durationMs = Math.max(0, Math.round(performance.now() - startedAt));
+  if (status >= 500) {
+    logStructuredApiEvent({ level: "error", requestId, status, durationMs, code, message });
+  }
+  const body = code ? { error: message, code, requestId } : { error: message, requestId };
+  return NextResponse.json(body, { status, headers: apiHeaders(startedAt, requestId) });
 }
 
 const DEFAULT_MAX_JSON_BYTES = 256 * 1024;

@@ -41,12 +41,14 @@ export {
   type ApiTokenScope,
   apiTokensTable,
   glossaryTermsTable,
+  loginLockoutsTable,
   marketQuotesCacheTable,
   rateLimitBucketsTable,
   secFilingDocumentsCacheTable,
   sessionsTable,
   userSecOverridesTable,
   usersTable,
+  userTotpFactorsTable,
 } from "./schema-extensions";
 
 export const thesesTable = pgTable(

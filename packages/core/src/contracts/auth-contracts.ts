@@ -37,7 +37,7 @@ export function maskChinaPhone(phoneE164: string): string {
 }
 
 export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 24;
+export const PASSWORD_MAX_LENGTH = 64;
 
 const PASSWORD_LETTER_RE = /[A-Za-z]/;
 const PASSWORD_NUMBER_RE = /\d/;
@@ -163,6 +163,7 @@ export const LoginRequestSchema = z.object({
     .string()
     .min(1, "请输入登录密码。")
     .max(PASSWORD_MAX_LENGTH, `密码不能超过 ${PASSWORD_MAX_LENGTH} 位字符。`),
+  totpCode: z.string().trim().max(32).optional(),
 });
 export type LoginRequest = z.input<typeof LoginRequestSchema>;
 
@@ -176,3 +177,27 @@ export const AuthSessionResponseSchema = z.object({
   user: PublicUserSchema.nullable(),
 });
 export type AuthSessionResponse = z.infer<typeof AuthSessionResponseSchema>;
+
+export const TotpStatusResponseSchema = z.object({
+  enabled: z.boolean(),
+  recoveryCodesRemaining: z.number().int().nonnegative(),
+});
+export type TotpStatusResponse = z.infer<typeof TotpStatusResponseSchema>;
+
+export const TotpActionRequestSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("begin") }),
+  z.object({ action: z.literal("confirm"), code: z.string().trim().min(6).max(16) }),
+]);
+export type TotpActionRequest = z.infer<typeof TotpActionRequestSchema>;
+
+export const TotpDisableRequestSchema = z.object({
+  code: z.string().trim().min(6).max(32),
+});
+export type TotpDisableRequest = z.infer<typeof TotpDisableRequestSchema>;
+
+export const TotpEnrollResponseSchema = z.object({
+  secret: z.string().min(16),
+  otpauthUri: z.string().min(10),
+  recoveryCodes: z.array(z.string().min(8)).optional(),
+});
+export type TotpEnrollResponse = z.infer<typeof TotpEnrollResponseSchema>;

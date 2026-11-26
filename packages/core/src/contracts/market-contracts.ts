@@ -89,3 +89,42 @@ export const RefreshPricesRequestSchema = z.object({
   mode: z.enum(["regular", "extended"]).default("regular"),
 });
 export type RefreshPricesRequest = z.input<typeof RefreshPricesRequestSchema>;
+
+export interface MarketProviderLicenseMeta {
+  provider: MarketDataSource;
+  displayName: string;
+  licensedForProduction: boolean;
+  badgeLabel: string;
+  notice: string;
+}
+
+export const MARKET_PROVIDER_LICENSES: Record<MarketDataSource, MarketProviderLicenseMeta> = {
+  yahoo: {
+    provider: "yahoo",
+    displayName: "Yahoo Finance (v8/chart)",
+    licensedForProduction: false,
+    badgeLabel: "非授权参考源",
+    notice: "非官方免费接口，仅推荐本地开发或个人研究参考；生产机构使用请切换商业授权数据源。",
+  },
+  finnhub: {
+    provider: "finnhub",
+    displayName: "Finnhub",
+    licensedForProduction: true,
+    badgeLabel: "商业授权通道",
+    notice: "官方授权 API 通道，按用户自有订阅条款提供实时报价与公司指标。",
+  },
+  fmp: {
+    provider: "fmp",
+    displayName: "Financial Modeling Prep",
+    licensedForProduction: true,
+    badgeLabel: "商业授权通道",
+    notice: "官方授权基本面与盘后行情 API，支持扩展时段成交与财务数据。",
+  },
+  polygon: {
+    provider: "polygon",
+    displayName: "Polygon.io (Massive)",
+    licensedForProduction: true,
+    badgeLabel: "机构授权通道",
+    notice: "官方美股 SIP 商业授权快照与历史日线通道，适用于生产环境。",
+  },
+};

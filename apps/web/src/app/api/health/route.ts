@@ -12,6 +12,7 @@ export async function GET() {
       {
         status: "healthy",
         timestamp: new Date().toISOString(),
+        secUserAgentConfigured: Boolean(process.env.KANON_SEC_USER_AGENT?.trim()),
       },
       startedAt,
     );

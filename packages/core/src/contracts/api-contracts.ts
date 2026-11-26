@@ -20,6 +20,7 @@ import { MarketQuoteSnapshotSchema } from "./market-contracts";
 export const ApiErrorResponseSchema = z.object({
   error: z.string().min(1),
   code: z.string().optional(),
+  requestId: z.string().optional(),
 });
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
 

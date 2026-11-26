@@ -1,4 +1,5 @@
 import {
+  boolean,
   doublePrecision,
   integer,
   jsonb,
@@ -102,3 +103,22 @@ export const userSecOverridesTable = pgTable(
   },
   (table) => [primaryKey({ columns: [table.userId, table.ticker] })],
 );
+
+export const userTotpFactorsTable = pgTable("user_totp_factors", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  secretEncrypted: text("secret_encrypted").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  recoveryHashes: jsonb("recovery_hashes").$type<string[]>().notNull().default([]),
+  lastUsedStep: integer("last_used_step"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const loginLockoutsTable = pgTable("login_lockouts", {
+  accountKey: text("account_key").primaryKey(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

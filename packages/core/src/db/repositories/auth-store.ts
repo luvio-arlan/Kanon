@@ -101,10 +101,10 @@ export async function registerUser(
 const DUMMY_PASSWORD_HASH =
   "scrypt$00000000000000000000000000000000$000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
-export async function authenticateUser(
+export async function verifyUserCredentials(
   db: KanonDb,
   rawInput: LoginRequest,
-): Promise<{ user: PublicUser; sessionToken: string; expiresAt: Date } | null> {
+): Promise<PublicUser | null> {
   const parsed = LoginRequestSchema.parse(rawInput);
   const [row] = await db
     .select()
@@ -115,19 +115,33 @@ export async function authenticateUser(
     await verifyPassword(parsed.password, DUMMY_PASSWORD_HASH);
     return null;
   }
-
   const matched = await verifyPassword(parsed.password, row.passwordHash);
-  if (!matched) return null;
+  return matched ? toPublicUser(row) : null;
+}
 
+export async function finalizeUserLogin(
+  db: KanonDb,
+  userId: string,
+): Promise<{ token: string; expiresAt: Date }> {
   const now = new Date();
   const [, session] = await Promise.all([
     db
       .update(usersTable)
       .set({ lastLoginAt: now, updatedAt: now })
-      .where(eq(usersTable.id, row.id)),
-    createUserSession(db, row.id),
+      .where(eq(usersTable.id, userId)),
+    createUserSession(db, userId),
   ]);
-  return { user: toPublicUser(row), sessionToken: session.token, expiresAt: session.expiresAt };
+  return session;
+}
+
+export async function authenticateUser(
+  db: KanonDb,
+  rawInput: LoginRequest,
+): Promise<{ user: PublicUser; sessionToken: string; expiresAt: Date } | null> {
+  const user = await verifyUserCredentials(db, rawInput);
+  if (!user) return null;
+  const session = await finalizeUserLogin(db, user.id);
+  return { user, sessionToken: session.token, expiresAt: session.expiresAt };
 }
 
 export async function getSessionUser(db: KanonDb, rawToken: string): Promise<PublicUser | null> {

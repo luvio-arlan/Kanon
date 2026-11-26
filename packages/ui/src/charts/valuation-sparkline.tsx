@@ -177,8 +177,11 @@ function SparklineSvgCanvas(p: {
 }
 
 function SparklineHoverBadge({ point }: { point: PlotPoint }) {
+  const alignClass = point.x < VIEW_W * 0.45 ? "left-0" : "right-0";
   return (
-    <div className="pointer-events-none absolute -top-2 right-0 z-10 rounded-badge border border-strong bg-surface-elevated px-2 py-0.5 font-mono text-xs text-ink-primary shadow-dropdown tabular-nums">
+    <div
+      className={`pointer-events-none absolute bottom-full z-20 mb-1.5 whitespace-nowrap rounded-badge border border-strong bg-surface-elevated px-2 py-0.5 font-mono text-xs text-ink-primary shadow-dropdown tabular-nums ${alignClass}`}
+    >
       <span className="mr-1.5 font-sans text-ink-muted">{point.label}</span>
       <span className="font-semibold">${point.price.toFixed(2)}</span>
     </div>
@@ -212,16 +215,18 @@ export const ValuationSparkline = memo(function ValuationSparkline({
     <div
       onPointerMove={handleMove}
       onPointerLeave={() => setHoverIndex(null)}
-      className="kanon-sparkline-reveal relative h-16 w-full select-none"
+      className="relative h-16 w-full select-none"
     >
-      <SparklineSvgCanvas
-        points={points}
-        paths={paths}
-        targetY={targetY}
-        stroke={resolveStrokeVar(tone)}
-        gradientId={gradientId}
-        hoverIndex={hoverIndex}
-      />
+      <div className="kanon-sparkline-reveal h-full w-full">
+        <SparklineSvgCanvas
+          points={points}
+          paths={paths}
+          targetY={targetY}
+          stroke={resolveStrokeVar(tone)}
+          gradientId={gradientId}
+          hoverIndex={hoverIndex}
+        />
+      </div>
       {hoveredPoint ? <SparklineHoverBadge point={hoveredPoint} /> : null}
     </div>
   );

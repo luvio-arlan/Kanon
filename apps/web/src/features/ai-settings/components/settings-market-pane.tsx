@@ -1,6 +1,10 @@
 "use client";
 
-import type { MarketProviderPreference, MarketProviderTestResponse } from "@kanon/core";
+import {
+  MARKET_PROVIDER_LICENSES,
+  type MarketProviderPreference,
+  type MarketProviderTestResponse,
+} from "@kanon/core";
 import {
   Badge,
   Button,
@@ -19,7 +23,7 @@ import { apiTestMarketProvider } from "../lib/market-storage";
 interface ProviderSpec {
   id: MarketProviderPreference;
   label: string;
-  tier: "免费内置" | "付费升级";
+  tier: string;
   extended: string;
   note: string;
   needsKey: boolean;
@@ -29,41 +33,41 @@ const PROVIDERS: readonly ProviderSpec[] = [
   {
     id: "auto",
     label: "智能路由（推荐）",
-    tier: "免费内置",
+    tier: "商业优先",
     extended: "盘前 / 盘中 / 盘后",
-    note: "有付费 Key 时自动优先走机构源，否则零配置直连免费 Yahoo 盘前/盘后",
+    note: "有付费 Key 时自动优先走商业授权机构源，否则降级至非授权免费 Yahoo 参考源",
     needsKey: false,
   },
   {
     id: "yahoo",
     label: "Yahoo Finance",
-    tier: "免费内置",
+    tier: MARKET_PROVIDER_LICENSES.yahoo.badgeLabel,
     extended: "盘前 / 盘中 / 盘后 + 52W",
-    note: "免 Key 开箱即用，支持盘前/盘后报价与 6 个月趋势曲线",
+    note: MARKET_PROVIDER_LICENSES.yahoo.notice,
     needsKey: false,
   },
   {
     id: "finnhub",
     label: "Finnhub",
-    tier: "付费升级",
+    tier: MARKET_PROVIDER_LICENSES.finnhub.badgeLabel,
     extended: "美股实时报价",
-    note: "稳定低延迟 REST 通道，适合高频研究与扩展指标",
+    note: MARKET_PROVIDER_LICENSES.finnhub.notice,
     needsKey: true,
   },
   {
     id: "fmp",
     label: "Financial Modeling Prep",
-    tier: "付费升级",
+    tier: MARKET_PROVIDER_LICENSES.fmp.badgeLabel,
     extended: "盘中 + 盘后逐笔",
-    note: "覆盖盘后成交与完整基本面倍数，买方估值标准数据源",
+    note: MARKET_PROVIDER_LICENSES.fmp.notice,
     needsKey: true,
   },
   {
     id: "polygon",
     label: "Polygon.io (Massive)",
-    tier: "付费升级",
+    tier: MARKET_PROVIDER_LICENSES.polygon.badgeLabel,
     extended: "SIP 全时段盘前/盘后",
-    note: "机构级美股 SIP 快照通道，支持盘前/盘后与分钟级成交",
+    note: MARKET_PROVIDER_LICENSES.polygon.notice,
     needsKey: true,
   },
 ];

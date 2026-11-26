@@ -72,6 +72,8 @@ function LoginSubmitFooter(props: {
 
 function useLoginSubmit(phoneDigits: string, nextPath?: string) {
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [needsTotp, setNeedsTotp] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const canSubmit = normalizeChinaPhone(phoneDigits) !== null && password.length > 0 && !submitting;
@@ -84,9 +86,14 @@ function useLoginSubmit(phoneDigits: string, nextPath?: string) {
     }
     setSubmitting(true);
     setServerError(null);
-    const res = await loginAccount({ phone: phoneDigits, password });
+    const res = await loginAccount({
+      phone: phoneDigits,
+      password,
+      ...(totpCode.trim() ? { totpCode: totpCode.trim() } : {}),
+    });
     if (!res.ok) {
       setSubmitting(false);
+      if (res.code === "TOTP_REQUIRED" || res.code === "INVALID_TOTP") setNeedsTotp(true);
       setServerError(res.error);
       return;
     }
@@ -94,36 +101,62 @@ function useLoginSubmit(phoneDigits: string, nextPath?: string) {
     window.location.assign(resolveSafeRedirect(nextPath));
   }
 
-  return { password, setPassword, submitting, serverError, canSubmit, onSubmit };
+  return {
+    password,
+    setPassword,
+    totpCode,
+    setTotpCode,
+    needsTotp,
+    submitting,
+    serverError,
+    canSubmit,
+    onSubmit,
+  };
 }
 
 export function LoginForm(props: LoginFormProps) {
-  const { password, setPassword, submitting, serverError, canSubmit, onSubmit } = useLoginSubmit(
-    props.phoneDigits,
-    props.nextPath,
-  );
+  const st = useLoginSubmit(props.phoneDigits, props.nextPath);
 
   return (
     <>
       <h1 className="text-3xl font-normal tracking-tight text-ink-primary">欢迎回到 KANON</h1>
-      <form onSubmit={onSubmit} className="space-y-7" noValidate>
+      <form onSubmit={st.onSubmit} className="space-y-7" noValidate>
         <PhoneField
           value={props.phoneDigits}
           onChange={props.onPhoneChange}
-          disabled={submitting}
+          disabled={st.submitting}
         />
         <PasswordField
           label="密码"
-          value={password}
-          onChange={setPassword}
+          value={st.password}
+          onChange={st.setPassword}
           autoComplete="current-password"
           placeholder="输入登录密码"
-          disabled={submitting}
+          disabled={st.submitting}
         />
+        {st.needsTotp ? (
+          <div className="space-y-2">
+            <label htmlFor="login-totp" className="block text-xs font-medium text-ink-secondary">
+              两步验证码 / 恢复码
+            </label>
+            <input
+              id="login-totp"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={16}
+              value={st.totpCode}
+              onChange={(e) => st.setTotpCode(e.target.value.slice(0, 16))}
+              placeholder="输入 6 位动态验证码"
+              disabled={st.submitting}
+              className="kanon-input-canvas w-full border-b border-hairline bg-transparent pb-2.5 font-mono text-base tracking-[0.18em] text-ink-primary outline-none transition-colors focus:border-accent-coral"
+            />
+          </div>
+        ) : null}
         <LoginSubmitFooter
-          serverError={serverError}
-          submitting={submitting}
-          canSubmit={canSubmit}
+          serverError={st.serverError}
+          submitting={st.submitting}
+          canSubmit={st.canSubmit}
           onSwitchToRegister={props.onSwitchToRegister}
         />
       </form>

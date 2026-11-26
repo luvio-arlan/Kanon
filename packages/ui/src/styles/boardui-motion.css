@@ -131,8 +131,12 @@
     clip-path: inset(0 100% 0 0);
     opacity: 0.35;
   }
-  to {
+  99% {
     clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+  to {
+    clip-path: none;
     opacity: 1;
   }
 }

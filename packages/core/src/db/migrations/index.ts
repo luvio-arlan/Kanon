@@ -10,6 +10,7 @@ import { KANON_CROSS_CHECK_HYPOTHESIS_LINK_SQL } from "./0009-cross-check-hypoth
 import { KANON_HEAL_RUNAWAY_VALUATION_SQL } from "./0010-heal-runaway-valuation";
 import { KANON_V7_RESEARCH_OS_SQL } from "./0011-v7-research-os";
 import { KANON_USER_SEC_OVERRIDES_SQL } from "./v2/0012-user-sec-overrides";
+import { KANON_SECURITY_TOTP_SQL } from "./v2/0013-security-totp";
 
 export interface KanonMigration {
   id: string;
@@ -93,6 +94,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only tenant-isolated manual SEC financial overrides table (prevents cross-tenant cache poisoning)",
     sql: KANON_USER_SEC_OVERRIDES_SQL,
+  },
+  {
+    id: "0013_security_totp",
+    description:
+      "Expand-only TOTP 2FA factors and per-account exponential login lockout tables (W7.4)",
+    sql: KANON_SECURITY_TOTP_SQL,
   },
 ];
 
