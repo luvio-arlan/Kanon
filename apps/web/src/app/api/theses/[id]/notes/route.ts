@@ -1,6 +1,6 @@
 import { CreateResearchNoteSchema, UpdateResearchNoteSchema } from "@kanon/core";
 import {
-  assertThesisOwnership,
+  assertThesisAccess,
   createResearchNote,
   deleteResearchNote,
   getKanonDb,
@@ -23,7 +23,7 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!auth.ok) return auth.response;
   const { id } = await context.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
     return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
   }
   const notes = await listResearchNotes(db, id, auth.user.id);
@@ -44,7 +44,7 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError(formatZodError(parsed.error, "资料参数不合法。"), 400, startedAt, "INVALID");
   }
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
     return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
   }
   const note = await createResearchNote(db, {

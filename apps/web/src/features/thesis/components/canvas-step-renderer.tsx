@@ -49,12 +49,21 @@ function findLatestSecEps(annuals?: readonly SecAnnualFinancial[]): number | nul
 
 type SyncCallback = (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
 
+interface RestatementRef {
+  concept: string;
+  periodEnd: string;
+  originalValue: number;
+  restatedValue: number;
+  restatedAccession: string;
+}
+
 interface EarlyStepsProps {
   step: 1 | 2 | 3;
   ctrl: CanvasController;
   allTheses: readonly ThesisSummary[];
   inboundCrossChecks: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
+  restatements?: readonly RestatementRef[];
   onSyncChange: SyncCallback;
   onPromoteRule: (rule: string) => void;
   onSelectStep: (step: StepId) => void;
@@ -65,6 +74,7 @@ function StepThreeView({
   allTheses,
   inboundCrossChecks,
   glossary,
+  restatements,
   onSyncChange,
   onPromoteRule,
 }: {
@@ -72,6 +82,7 @@ function StepThreeView({
   allTheses: readonly ThesisSummary[];
   inboundCrossChecks: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
+  restatements?: readonly RestatementRef[];
   onSyncChange: SyncCallback;
   onPromoteRule: (rule: string) => void;
 }) {
@@ -82,6 +93,7 @@ function StepThreeView({
       inboundCrossChecks={inboundCrossChecks}
       glossary={glossary}
       secSnapshot={ctrl.secSnapshot}
+      restatements={restatements}
       secSyncing={ctrl.secSyncing}
       researchNotes={ctrl.researchNotes}
       digestLoading={ctrl.copilot.busy === "earnings_digest"}
@@ -200,6 +212,7 @@ export function CanvasStepRenderer(props: {
   allTheses: readonly ThesisSummary[];
   inboundCrossChecks: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
+  restatements?: readonly RestatementRef[];
   promotedRule: string | null;
   onSyncChange: SyncCallback;
   onClearPromoted: () => void;
@@ -214,6 +227,7 @@ export function CanvasStepRenderer(props: {
         allTheses={props.allTheses}
         inboundCrossChecks={props.inboundCrossChecks}
         glossary={props.glossary}
+        restatements={props.restatements}
         onSyncChange={props.onSyncChange}
         onPromoteRule={props.onPromoteRule}
         onSelectStep={props.onSelectStep}

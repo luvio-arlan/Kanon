@@ -4,7 +4,7 @@ import { DEFAULT_WORKSPACE_USER_ID } from "../../../contracts/auth-contracts";
 import { formatLocaleCurrency, translateKanon } from "../../../contracts/i18n";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
 import { auditLogTable, thesesTable } from "../../schema";
-import { assertThesisOwnership } from "../thesis/thesis-lookups";
+import { assertThesisAccess, assertThesisOwnership } from "../thesis/thesis-lookups";
 import { getThesisById, listTheses } from "../thesis-queries";
 import {
   addRestrictedTicker,
@@ -174,7 +174,17 @@ describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Appe
     });
 
     expect(await assertThesisOwnership(db, seed.id, "user-member")).toBe(true);
+    expect(await assertThesisAccess(db, seed.id, "user-member", "write")).toBe(true);
+    expect(await assertThesisAccess(db, seed.id, "user-member", "delete")).toBe(false);
     expect(await assertThesisOwnership(db, seed.id, "user-outsider")).toBe(false);
+
+    await addOrgMember(db, { orgId: team.id, userId: "user-viewer", role: "viewer" });
+    await addOrgMember(db, { orgId: team.id, userId: "user-comp", role: "compliance" });
+    expect(await assertThesisAccess(db, seed.id, "user-viewer", "read")).toBe(true);
+    expect(await assertThesisAccess(db, seed.id, "user-viewer", "write")).toBe(false);
+    expect(await assertThesisAccess(db, seed.id, "user-comp", "read")).toBe(true);
+    expect(await assertThesisAccess(db, seed.id, "user-comp", "write")).toBe(false);
+    expect(await assertThesisAccess(db, seed.id, "user-owner", "delete")).toBe(true);
     expect((await getThesisById(db, seed.id, "user-member"))?.id).toBe(seed.id);
     expect(await getThesisById(db, seed.id, "user-outsider")).toBeNull();
     expect((await listTheses(db, "user-member")).some((t) => t.id === seed.id)).toBe(true);

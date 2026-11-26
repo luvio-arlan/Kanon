@@ -29,6 +29,13 @@ export interface StepFirstPrinciplesProps {
   inboundCrossChecks?: readonly InboundCrossCheck[];
   glossary: readonly GlossaryTerm[];
   secSnapshot: SecSnapshot | null;
+  restatements?: ReadonlyArray<{
+    concept: string;
+    periodEnd: string;
+    originalValue: number;
+    restatedValue: number;
+    restatedAccession: string;
+  }>;
   secSyncing: boolean;
   researchNotes?: readonly ResearchNote[];
   digestLoading: boolean;
@@ -140,6 +147,8 @@ function StepThreeEvidenceBody({
         <SecAnnualsTable
           annuals={props.secSnapshot.annuals}
           quarterlies={props.secSnapshot.quarterlies}
+          restatements={props.restatements}
+          currentPrice={props.thesis.currentPrice}
           title="历史财务轨迹"
         />
       ) : null}

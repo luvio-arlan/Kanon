@@ -103,12 +103,14 @@ export {
   verifyUserTotpFactor,
 } from "./repositories/security/totp-and-lockout-store";
 export {
+  assertThesisAccess,
   assertThesisOwnership,
   batchUpdatePriceAnchors,
   getThesisByTicker,
   getThesisIdentity,
   listThesisSummaries,
   listThesisWatchersByTicker,
+  type ThesisAccessMode,
 } from "./repositories/thesis/thesis-lookups";
 export { loadThesisCanvasBootstrap } from "./repositories/thesis-canvas-bootstrap";
 export {

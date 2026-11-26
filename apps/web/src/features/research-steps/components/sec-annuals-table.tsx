@@ -159,11 +159,13 @@ export function SecAnnualsTable({
   annuals,
   quarterlies = [],
   restatements = [],
+  currentPrice,
   title = "SEC 多年度基本面质量轨迹",
 }: {
   annuals: readonly SecAnnualFinancial[];
   quarterlies?: readonly SecQuarterlyFinancial[];
   restatements?: readonly RestatementMarker[];
+  currentPrice?: number;
   title?: string;
 }) {
   const [mode, setMode] = useState<DisplayMode>("table");
@@ -186,7 +188,7 @@ export function SecAnnualsTable({
         onMode={setMode}
       />
       {quality ? <SecQualityStrip quality={quality} /> : null}
-      <ForensicScorecardStrip annuals={annuals} />
+      <ForensicScorecardStrip annuals={annuals} currentPrice={currentPrice} />
       <div role="tabpanel">
         <SecTabContent
           mode={mode}

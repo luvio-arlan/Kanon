@@ -5,7 +5,7 @@ import {
   ForecastResolveRequestSchema,
 } from "@kanon/core";
 import {
-  assertThesisOwnership,
+  assertThesisAccess,
   createImmutableForecast,
   getKanonDb,
   listForecasts,
@@ -23,7 +23,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
   const forecasts = await listForecasts(db, auth.user.id, id);
@@ -52,7 +52,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
   const body = await readJsonBody(request, startedAt);
@@ -91,7 +91,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
   const body = await readJsonBody(request, startedAt);

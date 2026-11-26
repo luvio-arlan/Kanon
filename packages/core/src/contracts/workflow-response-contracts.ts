@@ -10,9 +10,22 @@ export const InboxItemRowSchema = z.object({
   createdAt: z.string(),
 });
 
+export const AlertRuleRowSchema = z.object({
+  id: z.string(),
+  thesisId: z.string().nullable().optional(),
+  kind: z.enum(["price_hurdle", "pe_band_breach", "forecast_due", "form8k_redflag"]),
+  configJson: z.record(z.string(), z.unknown()).optional(),
+  enabled: z.boolean(),
+});
+
 export const InboxLoadResponseSchema = z.object({
   items: z.array(InboxItemRowSchema),
+  rules: z.array(AlertRuleRowSchema).optional(),
   calendarConfigured: z.boolean().optional(),
+});
+
+export const AlertRuleUpsertResponseSchema = z.object({
+  ruleId: z.string(),
 });
 
 export const CalendarRotateResponseSchema = z.object({

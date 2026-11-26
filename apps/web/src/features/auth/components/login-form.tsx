@@ -142,12 +142,12 @@ export function LoginForm(props: LoginFormProps) {
             <input
               id="login-totp"
               type="text"
-              inputMode="numeric"
+              inputMode="text"
               autoComplete="one-time-code"
               maxLength={16}
               value={st.totpCode}
               onChange={(e) => st.setTotpCode(e.target.value.slice(0, 16))}
-              placeholder="输入 6 位动态验证码"
+              placeholder="输入 6 位动态验证码或恢复码"
               disabled={st.submitting}
               className="kanon-input-canvas w-full border-b border-hairline bg-transparent pb-2.5 font-mono text-base tracking-[0.18em] text-ink-primary outline-none transition-colors focus:border-accent-coral"
             />

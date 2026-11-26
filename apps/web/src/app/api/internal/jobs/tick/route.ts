@@ -80,19 +80,37 @@ async function runSyncSecJob(db: KanonDb, payload: Record<string, unknown>) {
   await syncSecSnapshotToWarehouse(db, saved, undefined, fetched.pitFacts);
 }
 
+function extractEmbeddingVectors(raw: unknown): Array<number[] | null> {
+  if (!raw || typeof raw !== "object" || !("data" in raw)) return [];
+  const data = (raw as { data: unknown }).data;
+  if (!Array.isArray(data)) return [];
+  return data.map((item) => {
+    if (!item || typeof item !== "object" || !("embedding" in item)) return null;
+    const emb = (item as { embedding: unknown }).embedding;
+    return Array.isArray(emb) && emb.every((n) => typeof n === "number") ? emb : null;
+  });
+}
+
 async function runEmbedChunksJob(db: KanonDb) {
-  const pending = await listChunksPendingEmbedding(db, 25);
-  for (const chunk of pending) {
-    const vec = new Array<number>(16).fill(0);
-    for (let i = 0; i < chunk.text.length; i++) {
-      vec[i % 16] = (vec[i % 16] ?? 0) + chunk.text.charCodeAt(i);
-    }
-    const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0)) || 1;
-    await saveChunkEmbedding(
-      db,
-      chunk.id,
-      vec.map((v) => Number((v / norm).toFixed(4))),
-    );
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) return;
+  const pending = await listChunksPendingEmbedding(db, 20);
+  if (pending.length === 0) return;
+  const res = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: "text-embedding-3-small",
+      input: pending.map((c) => c.text.slice(0, 6000)),
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw new Error(`Embedding provider HTTP ${res.status}`);
+  const vectors = extractEmbeddingVectors(await res.json());
+  for (let i = 0; i < pending.length; i += 1) {
+    const chunk = pending[i];
+    const emb = vectors[i];
+    if (chunk && emb && emb.length > 0) await saveChunkEmbedding(db, chunk.id, emb);
   }
 }
 

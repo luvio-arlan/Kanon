@@ -1,4 +1,5 @@
 import {
+  AlertRuleUpsertResponseSchema,
   CalendarRotateResponseSchema,
   GenericOkResponseSchema,
   InboxLoadResponseSchema,
@@ -18,6 +19,14 @@ export interface InboxItemRow {
   createdAt: string;
 }
 
+export interface AlertRuleRow {
+  id: string;
+  thesisId?: string | null;
+  kind: "price_hurdle" | "pe_band_breach" | "forecast_due" | "form8k_redflag";
+  configJson?: Record<string, unknown>;
+  enabled: boolean;
+}
+
 export interface LedgerAccountRow {
   id: string;
   name: string;
@@ -28,11 +37,28 @@ export interface LedgerAccountRow {
 
 export async function apiLoadInbox() {
   const res = await kanonFetch("/api/inbox", InboxLoadResponseSchema);
-  if (!res.ok) return { items: [] as InboxItemRow[], calendarConfigured: false };
+  if (!res.ok) {
+    return { items: [] as InboxItemRow[], rules: [] as AlertRuleRow[], calendarConfigured: false };
+  }
   return {
     items: res.data.items,
+    rules: res.data.rules ?? [],
     calendarConfigured: Boolean(res.data.calendarConfigured),
   };
+}
+
+export async function apiUpsertAlertRule(input: {
+  id?: string;
+  thesisId?: string | null;
+  kind: AlertRuleRow["kind"];
+  configJson?: Record<string, unknown>;
+  enabled?: boolean;
+}): Promise<boolean> {
+  const res = await kanonFetch("/api/inbox", AlertRuleUpsertResponseSchema, {
+    method: "POST",
+    body: { op: "upsert_rule", ...input },
+  });
+  return res.ok;
 }
 
 export async function apiRotateCalendarToken(): Promise<string | null> {

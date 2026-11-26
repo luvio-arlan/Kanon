@@ -1,6 +1,6 @@
 import { TickerSymbolSchema } from "@kanon/core";
 import {
-  assertThesisOwnership,
+  assertThesisAccess,
   getKanonDb,
   listThesisPeers,
   removeThesisPeer,
@@ -33,7 +33,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
   const peers = await listThesisPeers(db, id);
@@ -48,7 +48,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
   const raw = await request.json().catch(() => null);
@@ -74,7 +74,7 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
   const ticker = new URL(request.url).searchParams.get("ticker") ?? "";

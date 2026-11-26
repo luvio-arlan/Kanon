@@ -1,14 +1,16 @@
 "use client";
 
-import { Button, Sheet } from "@kanon/ui";
-import { IconCalendar, IconCheck, IconChecks, IconDots } from "@tabler/icons-react";
+import { Badge, Button, Sheet } from "@kanon/ui";
+import { IconBell, IconCalendar, IconCheck, IconChecks, IconDots } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  type AlertRuleRow,
   apiLoadInbox,
   apiMarkAllInboxRead,
   apiMarkInboxRead,
   apiRotateCalendarToken,
+  apiUpsertAlertRule,
   type InboxItemRow,
 } from "../../lib/inbox-ledger-api";
 
@@ -50,6 +52,29 @@ function InboxItemList({
           ) : null}
         </div>
       ))}
+    </div>
+  );
+}
+
+function AlertRulesStrip({
+  rules,
+  onToggleForecastDue,
+}: {
+  rules: readonly AlertRuleRow[];
+  onToggleForecastDue: (existing?: AlertRuleRow) => void;
+}) {
+  const forecastRule = rules.find((r) => r.kind === "forecast_due");
+  const activeCount = rules.filter((r) => r.enabled).length;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-hairline bg-canvas/40 px-3.5 py-2.5 text-xs">
+      <div className="flex items-center gap-2 text-ink-secondary">
+        <IconBell size={14} stroke={1.5} className="text-ink-muted" />
+        <span>自动监控规则</span>
+        <Badge variant="mono">{activeCount} 条生效</Badge>
+      </div>
+      <Button variant="ghost" size="sm" onClick={() => onToggleForecastDue(forecastRule)}>
+        <span>{forecastRule?.enabled ? "关闭预测到期提醒" : "开启预测到期提醒"}</span>
+      </Button>
     </div>
   );
 }
@@ -102,10 +127,14 @@ function InboxHeaderBar({
 
 export function ResearchInboxSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [items, setItems] = useState<InboxItemRow[]>([]);
+  const [rules, setRules] = useState<AlertRuleRow[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const reload = useCallback(() => {
     if (!open) return;
-    void apiLoadInbox().then((d) => setItems(d.items));
+    void apiLoadInbox().then((d) => {
+      setItems(d.items);
+      setRules(d.rules);
+    });
   }, [open]);
   useEffect(() => reload(), [reload]);
 
@@ -115,6 +144,19 @@ export function ResearchInboxSheet({ open, onClose }: { open: boolean; onClose: 
     await navigator.clipboard.writeText(`${window.location.origin}/api/calendar/${token}.ics`);
     setMenuOpen(false);
     toast.success("已签发并复制新的 .ics 订阅地址");
+  }
+
+  async function toggleForecastRule(existing?: AlertRuleRow) {
+    const nextEnabled = !existing?.enabled;
+    const ok = await apiUpsertAlertRule({
+      id: existing?.id,
+      kind: "forecast_due",
+      enabled: nextEnabled,
+      configJson: {},
+    });
+    if (!ok) return void toast.error("更新规则失败");
+    toast.success(nextEnabled ? "已开启预测到期自动提醒" : "已关闭预测到期提醒");
+    reload();
   }
 
   return (
@@ -127,6 +169,7 @@ export function ResearchInboxSheet({ open, onClose }: { open: boolean; onClose: 
           onMarkAll={() => void apiMarkAllInboxRead().then(reload)}
           onRotateCal={() => void copyRotatedCalendarUrl()}
         />
+        <AlertRulesStrip rules={rules} onToggleForecastDue={(r) => void toggleForecastRule(r)} />
         <InboxItemList items={items} onMarkRead={(id) => void apiMarkInboxRead(id).then(reload)} />
       </div>
     </Sheet>

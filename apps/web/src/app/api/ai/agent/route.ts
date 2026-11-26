@@ -7,7 +7,7 @@ import {
 } from "@kanon/ai";
 import { AgentRunsListResponseSchema } from "@kanon/core";
 import {
-  assertThesisOwnership,
+  assertThesisAccess,
   getKanonDb,
   getSecSnapshot,
   getSecSnapshotForUser,
@@ -168,7 +168,7 @@ export async function GET(request: Request) {
     return jsonError("请提供研究标的 ID。", 400, startedAt, "INVALID");
   }
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, thesisId, auth.user.id))) {
+  if (!(await assertThesisAccess(db, thesisId, auth.user.id, "write"))) {
     return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   }
   const runs = await listAgentRuns(db, thesisId, 5);

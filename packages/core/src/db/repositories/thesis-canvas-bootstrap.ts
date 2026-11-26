@@ -35,6 +35,11 @@ import {
 } from "./review-and-agent-store";
 import { listThesisRevisions } from "./revision-queries";
 import { getSecSnapshotForUser } from "./sec/user-sec-overrides-store";
+import {
+  type BootstrapRestatementMarker,
+  buildThesisReadAccessWhere,
+  loadRestatementsForTicker,
+} from "./thesis/thesis-access";
 import { fetchSiblingValuations, type ValuationScalarRow } from "./thesis/thesis-lookups";
 import { hydrateThesis } from "./thesis-queries";
 
@@ -43,6 +48,7 @@ interface ThesisCanvasBootstrap {
   allTheses: ThesisSummary[];
   glossary: GlossaryTerm[];
   secSnapshot: SecSnapshot | null;
+  restatements: BootstrapRestatementMarker[];
   savedOutputs: SavedCopilotOutput[];
   revisions: ThesisRevision[];
   reviews: QuarterlyReview[];
@@ -104,12 +110,13 @@ function buildSummaries(
   });
 }
 
-function fetchTargetAndSiblings(db: KanonDb, id: string, userId: string) {
+async function fetchTargetAndSiblings(db: KanonDb, id: string, userId: string) {
+  const accessWhere = await buildThesisReadAccessWhere(db, userId);
   return Promise.all([
     db
       .select()
       .from(thesesTable)
-      .where(and(eq(thesesTable.id, id), eq(thesesTable.userId, userId)))
+      .where(and(eq(thesesTable.id, id), accessWhere))
       .limit(1),
     db
       .select({
@@ -123,7 +130,7 @@ function fetchTargetAndSiblings(db: KanonDb, id: string, userId: string) {
         horizonYears: thesesTable.horizonYears,
       })
       .from(thesesTable)
-      .where(eq(thesesTable.userId, userId))
+      .where(accessWhere)
       .orderBy(asc(thesesTable.indexOrder)),
     listGlossaryTerms(db),
   ]);
@@ -164,6 +171,7 @@ function fetchHydrationWave(
       .limit(1),
     fetchSiblingValuations(db, otherIds),
     getSecSnapshotForUser(db, ticker, userId),
+    loadRestatementsForTicker(db, ticker),
     listCopilotOutputs(db, id),
     listThesisRevisions(db, id, 12),
     listQuarterlyReviews(db, id),
@@ -189,6 +197,7 @@ export async function loadThesisCanvasBootstrap(
     targetValRows,
     otherValRows,
     secSnapshot,
+    restatements,
     savedOutputs,
     revisions,
     reviews,
@@ -212,6 +221,7 @@ export async function loadThesisCanvasBootstrap(
     allTheses: buildSummaries(siblingRows, scalarMap),
     glossary,
     secSnapshot,
+    restatements,
     savedOutputs,
     revisions,
     reviews,

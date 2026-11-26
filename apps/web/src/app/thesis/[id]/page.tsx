@@ -75,6 +75,7 @@ export default async function ThesisCanvasPage({ params, searchParams }: ThesisP
       allTheses={data.allTheses}
       glossary={data.glossary}
       initialSecSnapshot={data.secSnapshot}
+      initialRestatements={data.restatements}
       initialCopilot={hydrateCopilotOutputs(data.savedOutputs)}
       initialRevisions={data.revisions}
       initialReviews={data.reviews}

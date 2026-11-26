@@ -33,6 +33,13 @@ export interface ResearchCanvasShellProps {
   allTheses: readonly ThesisSummary[];
   glossary: readonly GlossaryTerm[];
   initialSecSnapshot: SecSnapshot | null;
+  initialRestatements?: ReadonlyArray<{
+    concept: string;
+    periodEnd: string;
+    originalValue: number;
+    restatedValue: number;
+    restatedAccession: string;
+  }>;
   initialCopilot: InitialCopilotState;
   initialRevisions: readonly ThesisRevision[];
   initialReviews: readonly QuarterlyReview[];
@@ -126,6 +133,7 @@ function CanvasStageSection(p: {
             allTheses={p.props.allTheses}
             inboundCrossChecks={p.props.inboundCrossChecks}
             glossary={p.props.glossary}
+            restatements={p.props.initialRestatements}
             promotedRule={promotedRule}
             onSyncChange={ui.setSyncState}
             onClearPromoted={() => setPromotedRule(null)}

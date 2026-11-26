@@ -1,5 +1,5 @@
 import {
-  assertThesisOwnership,
+  assertThesisAccess,
   getKanonDb,
   listModelVersions,
   saveModelVersion,
@@ -36,7 +36,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
   const versions = await listModelVersions(db, id);
@@ -51,7 +51,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
+  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
     return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
   }
   const parsed = parseSaveVersionBody(await request.json().catch(() => null));

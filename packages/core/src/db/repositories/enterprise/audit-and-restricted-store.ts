@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
 import { auditLogTable, membershipsTable, restrictedListTable } from "../../schema";
 
-export async function appendAuditLog(
-  db: KanonDb,
+const AUDIT_CHAIN_LOCK_KEY = 72839104;
+
+async function writeChainedAuditRow(
+  tx: KanonDb,
   input: {
     actorUserId: string;
     orgId?: string | null;
@@ -15,8 +17,9 @@ export async function appendAuditLog(
     metadata?: Record<string, unknown>;
   },
 ): Promise<string> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${AUDIT_CHAIN_LOCK_KEY})`);
   const id = `aud_${crypto.randomUUID()}`;
-  const [prev] = await db
+  const [prev] = await tx
     .select({ entryHash: auditLogTable.entryHash })
     .from(auditLogTable)
     .orderBy(desc(auditLogTable.createdAt), desc(auditLogTable.id))
@@ -38,7 +41,7 @@ export async function appendAuditLog(
       }),
     )
     .digest("hex");
-  await db.insert(auditLogTable).values({
+  await tx.insert(auditLogTable).values({
     id,
     actorUserId: input.actorUserId,
     orgId: input.orgId ?? null,
@@ -50,6 +53,20 @@ export async function appendAuditLog(
     entryHash,
   });
   return id;
+}
+
+export async function appendAuditLog(
+  db: KanonDb,
+  input: {
+    actorUserId: string;
+    orgId?: string | null;
+    action: string;
+    targetType: string;
+    targetId: string;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<string> {
+  return runInTransaction(db, (tx) => writeChainedAuditRow(tx, input));
 }
 
 export async function listAuditLogs(db: KanonDb, actorUserId: string, limit = 50) {
