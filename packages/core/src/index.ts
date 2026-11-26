@@ -77,6 +77,7 @@ export {
   formatThesisMarkdown,
   type ThesisExportExtras,
 } from "./export/formatters";
+export * from "./math/calibration";
 export * from "./math/dcf";
 export * from "./math/forensics";
 export {
@@ -117,6 +118,7 @@ export {
   type ResearchStepMeta,
   type StepReadinessItem,
 } from "./math/research-readiness";
+export * from "./math/risk";
 export {
   analyzeSecQuality,
   type SecQualityGrade,

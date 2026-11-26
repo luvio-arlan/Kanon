@@ -40,6 +40,7 @@ import { glossaryTermsTable } from "./schema-extensions";
 export * from "./schema-extensions";
 export * from "./schema-platform";
 export * from "./schema-warehouse";
+export * from "./schema-workflows";
 
 export const thesesTable = pgTable(
   "theses",
@@ -224,6 +225,8 @@ export const thesisCatalystsTable = pgTable("thesis_catalysts", {
     .references(() => thesesTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   dateLabel: text("date_label").notNull(),
+  eventDate: text("event_date"),
+  datePrecision: text("date_precision").notNull().default("quarter"),
   category: text("category").$type<CatalystCategory>().notNull(),
   impact: text("impact").$type<CatalystImpact>().notNull(),
   direction: text("direction").$type<CatalystDirection>().notNull(),

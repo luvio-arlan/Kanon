@@ -15,6 +15,8 @@ import { KANON_WAREHOUSE_CORE_SQL } from "./v2/0014-warehouse-core";
 import { KANON_FACTS_JOBS_CHUNKS_SQL } from "./v2/0015-facts-jobs-chunks";
 import { KANON_MODEL_VERSIONS_SQL } from "./v2/0016-model-versions";
 import { KANON_AI_USAGE_AND_CREDS_SQL } from "./v2/0017-ai-usage-and-creds";
+import { KANON_INBOX_CATALYSTS_FORECASTS_SQL } from "./v2/0018-inbox-catalysts-forecasts";
+import { KANON_PORTFOLIO_LEDGER_SQL } from "./v2/0019-portfolio-ledger";
 
 export interface KanonMigration {
   id: string;
@@ -127,6 +129,18 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only AI token usage metering and server-side AES-GCM BYOK credentials vault (W3.5)",
     sql: KANON_AI_USAGE_AND_CREDS_SQL,
+  },
+  {
+    id: "0018_inbox_catalysts_forecasts",
+    description:
+      "Expand-only research inbox, alert rules, dated catalysts, ICS calendar tokens, and DB-immutable forecasts (W4.1-W5.1)",
+    sql: KANON_INBOX_CATALYSTS_FORECASTS_SQL,
+  },
+  {
+    id: "0019_portfolio_ledger",
+    description:
+      "Expand-only zero-leverage portfolio accounts, transactions, and FIFO lot accounting ledger (W6.1)",
+    sql: KANON_PORTFOLIO_LEDGER_SQL,
   },
 ];
 

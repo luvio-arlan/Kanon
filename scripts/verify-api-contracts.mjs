@@ -24,10 +24,12 @@ const KNOWN_ROUTES = [
   "auth/sessions/route.ts",
   "auth/tokens/route.ts",
   "auth/totp/route.ts",
+  "calendar/[token]/route.ts",
   "export/portfolio/route.ts",
   "export/thesis/[id]/route.ts",
   "health/route.ts",
   "import/thesis/route.ts",
+  "inbox/route.ts",
   "internal/jobs/tick/route.ts",
   "market/benchmarks/route.ts",
   "market/bootstrap/route.ts",
@@ -37,9 +39,11 @@ const KNOWN_ROUTES = [
   "mcp/context/route.ts",
   "mcp/route.ts",
   "portfolio/calibration/route.ts",
+  "portfolio/ledger/route.ts",
   "sec/[ticker]/filing/route.ts",
   "sec/[ticker]/route.ts",
   "theses/[id]/discipline/route.ts",
+  "theses/[id]/forecasts/route.ts",
   "theses/[id]/model-versions/route.ts",
   "theses/[id]/notes/route.ts",
   "theses/[id]/peers/route.ts",
@@ -842,6 +846,67 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
     cookieA,
   );
   assert.equal(credDel.status, 200);
+
+  const inboxGet = await fetchJson("/api/inbox", {}, cookieA);
+  assert.equal(inboxGet.status, 200);
+  assert.ok(typeof inboxGet.data.calendarToken === "string");
+  const icsRes = await fetch(`${BASE}/api/calendar/${inboxGet.data.calendarToken}`);
+  assert.equal(icsRes.status, 200);
+  assert.ok((await icsRes.text()).includes("BEGIN:VCALENDAR"));
+
+  const fcPost = await fetchJson(
+    `/api/theses/${nvdaId}/forecasts`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        question: "FY27 数据中心毛利率是否保持 70% 以上？",
+        probabilities: [0.7, 0.3],
+        resolveBy: "2027-03-01",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(fcPost.status, 201);
+  const fcPatch = await fetchJson(
+    `/api/theses/${nvdaId}/forecasts`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ forecastId: fcPost.data.forecast.id, outcomeIndex: 0 }),
+    },
+    cookieA,
+  );
+  assert.equal(fcPatch.status, 200);
+  const fcGet = await fetchJson(`/api/theses/${nvdaId}/forecasts`, {}, cookieA);
+  assert.equal(fcGet.status, 200);
+  assert.ok(typeof fcGet.data.brierScore === "number");
+
+  const acctPost = await fetchJson(
+    "/api/portfolio/ledger",
+    {
+      method: "POST",
+      body: JSON.stringify({ op: "create_account", name: "主账本", initialCash: 5000 }),
+    },
+    cookieA,
+  );
+  assert.equal(acctPost.status, 201);
+  const badBuy = await fetchJson(
+    "/api/portfolio/ledger",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        op: "record_transaction",
+        accountId: acctPost.data.account.id,
+        ticker: "NVDA",
+        action: "buy",
+        quantity: 100,
+        price: 100,
+        tradeDate: "2026-01-15",
+        noLeverageConfirmed: true,
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(badBuy.status, 400);
 }
 
 async function main() {
