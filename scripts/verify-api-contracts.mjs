@@ -177,6 +177,9 @@ async function verifyCoreCrudAndDiscipline(cookieA, cookieB) {
   const health = await fetchJson("/api/health");
   assert.equal(health.status, 200);
   assert.equal(health.data.status, "healthy");
+  assert.equal(typeof health.data.secretsConfigured?.credentials, "boolean");
+  assert.equal(typeof health.data.secretsConfigured?.cron, "boolean");
+  assert.equal(typeof health.data.secretsConfigured?.secUserAgent, "boolean");
 
   const list = await fetchJson("/api/theses", {}, cookieA);
   assert.equal(list.status, 200);

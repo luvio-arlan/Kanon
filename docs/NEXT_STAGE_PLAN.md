@@ -3,6 +3,7 @@
 > 审查日期：2026-11-26 · 审查范围：`bcdef4a..19ebd74`（183 文件，+12,988 / −757）· 基线：`19ebd74`
 > 视角：买方投研总监（数据诚实、方法论、决策闭环）+ Staff Engineer（安全、一致性、可达性）
 > 本文件承接 [TOP_TIER_ROADMAP.md](TOP_TIER_ROADMAP.md)，是 Wave I 起的单一真源。§0 规则同样适用。
+> **落地状态（2026-11-27）**：✅ **Waves I, J, K, L, M 与 L2 守卫 G1–G10 已全部落地**，Vercel Production 密钥（`KANON_CREDENTIALS_MASTER_KEY` / `CRON_SECRET` / `KANON_SEC_USER_AGENT`）已配置。
 
 ---
 

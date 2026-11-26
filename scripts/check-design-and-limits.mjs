@@ -11,6 +11,7 @@ import {
   checkMarketingOpticalGuards,
   checkUniversalDirDensity,
 } from "./garden-guards.mjs";
+import { checkWaveGuards } from "./wave-guards.mjs";
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ["apps", "packages"];
@@ -350,6 +351,7 @@ function main() {
   checkMarketingOpticalGuards(ROOT, errors);
   checkEditorialUiHygiene(ROOT, errors);
   checkApiMutationCsrfGuard(ROOT, errors);
+  checkWaveGuards(ROOT, errors);
   for (const filePath of files) {
     const relPath = path.relative(ROOT, filePath).split(path.sep).join("/");
     const content = fs.readFileSync(filePath, "utf8");

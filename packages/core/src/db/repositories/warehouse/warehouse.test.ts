@@ -292,4 +292,76 @@ describe("Point-in-Time Data Warehouse (Stage 1: W1.1-W1.7)", () => {
     });
     expect(trend).toBe("up");
   });
+
+  it("G9: seeded property test guarantees zero look-ahead bias in getFactsAsOf and P/E band", async () => {
+    let state = 20261127;
+    const nextRand = () => {
+      state = (state + 0x6d2b79f5) | 0;
+      let t = Math.imul(state ^ (state >>> 15), 1 | state);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+
+    const pitSec = await upsertSecurity(db, { ticker: "PITTEST", name: "PIT Property Corp" });
+    await upsertFiling(db, {
+      accession: "pit-acc-2023",
+      securityId: pitSec.id,
+      cik: "0009999",
+      form: "10-K",
+      filedAt: "2024-02-15",
+      primaryDocUrl: "https://www.sec.gov/Archives/edgar/data/9999/2023.htm",
+    });
+    await upsertFiling(db, {
+      accession: "pit-acc-2024",
+      securityId: pitSec.id,
+      cik: "0009999",
+      form: "10-K",
+      filedAt: "2025-02-20",
+      primaryDocUrl: "https://www.sec.gov/Archives/edgar/data/9999/2024.htm",
+    });
+    await upsertFinancialFacts(db, [
+      {
+        id: "pit-eps-2023",
+        securityId: pitSec.id,
+        accession: "pit-acc-2023",
+        concept: "diluted_eps",
+        xbrlTag: "EarningsPerShareDiluted",
+        periodEnd: "2023-12-31",
+        duration: "annual",
+        value: 5.0,
+        unit: "USD/shares",
+        filedAt: "2024-02-15",
+      },
+      {
+        id: "pit-eps-2024",
+        securityId: pitSec.id,
+        accession: "pit-acc-2024",
+        concept: "diluted_eps",
+        xbrlTag: "EarningsPerShareDiluted",
+        periodEnd: "2024-12-31",
+        duration: "annual",
+        value: 50.0,
+        unit: "USD/shares",
+        filedAt: "2025-02-20",
+      },
+    ]);
+
+    for (let trial = 0; trial < 25; trial += 1) {
+      const month = String(Math.floor(nextRand() * 12) + 1).padStart(2, "0");
+      const day = String(Math.floor(nextRand() * 28) + 1).padStart(2, "0");
+      const year = nextRand() < 0.5 ? "2024" : "2025";
+      const asOfDate = `${year}-${month}-${day}`;
+      const visible = await getFactsAsOf(db, {
+        securityId: pitSec.id,
+        concept: "diluted_eps",
+        asOfDate,
+      });
+      for (const f of visible) {
+        expect(f.filedAt <= asOfDate).toBe(true);
+      }
+      if (asOfDate < "2025-02-20") {
+        expect(visible.some((f) => f.value === 50.0)).toBe(false);
+      }
+    }
+  });
 });

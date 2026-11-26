@@ -20,19 +20,29 @@ interface DriversPanelProps {
   onApplyEvTargets?: (targets: { bear: number; base: number; bull: number }) => void;
 }
 
+function toBillions(v: number | null | undefined): number {
+  return v != null && Number.isFinite(v) ? Number((v / 1e9).toFixed(1)) : 0;
+}
+
 function deriveDefaults(latest: SecAnnualFinancial | null, price: number) {
-  const revB = latest?.revenue ? Number((latest.revenue / 1e9).toFixed(1)) : 25;
+  if (!latest) return { revB: 0, marginPct: 20, sharesM: 0, cashB: 0, debtB: 0, baseFcfB: 0 };
+  const rev = latest.revenue != null && latest.revenue > 0 ? latest.revenue : null;
+  const revB = toBillions(rev);
   const marginPct =
-    latest?.revenue && latest.netIncome
-      ? Math.max(5, Math.min(60, Number(((latest.netIncome / latest.revenue) * 100).toFixed(1))))
-      : 22;
-  const sharesM = latest?.dilutedShares ? Math.round(latest.dilutedShares / 1e6) : 1000;
-  const cashB = latest?.cashAndEquiv ? Number((latest.cashAndEquiv / 1e9).toFixed(1)) : 8;
-  const debtB = latest?.totalDebt ? Number((latest.totalDebt / 1e9).toFixed(1)) : 4;
-  const rawFcf = latest?.freeCashFlow ? latest.freeCashFlow - Math.abs(latest.sbc ?? 0) : null;
-  const fallbackFcf = Number(((price * sharesM) / 22_000).toFixed(1));
-  const baseFcfB = rawFcf && rawFcf > 0 ? Number(((rawFcf / 1e9) * 1.4).toFixed(1)) : fallbackFcf;
-  return { revB, marginPct, sharesM, cashB, debtB, baseFcfB: Math.max(0.5, baseFcfB) };
+    rev !== null && latest.netIncome != null
+      ? Math.max(5, Math.min(60, Number(((latest.netIncome / rev) * 100).toFixed(1))))
+      : 20;
+  const sharesM =
+    latest.dilutedShares != null && latest.dilutedShares > 0
+      ? Math.round(latest.dilutedShares / 1e6)
+      : 0;
+  const cashB = toBillions(latest.cashAndEquiv);
+  const debtB = toBillions(latest.totalDebt);
+  const rawFcf =
+    latest.freeCashFlow != null ? latest.freeCashFlow - Math.abs(latest.sbc ?? 0) : null;
+  const fallbackFcf = sharesM > 0 ? Number(((price * sharesM) / 22_000).toFixed(1)) : 0;
+  const baseFcfB = rawFcf !== null && rawFcf > 0 ? toBillions(rawFcf * 1.4) : fallbackFcf;
+  return { revB, marginPct, sharesM, cashB, debtB, baseFcfB: Math.max(0, baseFcfB) };
 }
 
 function ClassicDriversGrid({

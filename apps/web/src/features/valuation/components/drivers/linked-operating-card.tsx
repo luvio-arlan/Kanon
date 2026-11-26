@@ -103,14 +103,20 @@ function CaseDriverRow(p: {
 function resolveInitialLinkedDrivers(
   latestAnnual: SecAnnualFinancial | null,
 ): LinkedOperatingDrivers {
-  const hasRev = Boolean(latestAnnual?.revenue);
-  const rev = latestAnnual?.revenue ?? 1;
+  const rev =
+    latestAnnual && latestAnnual.revenue != null && latestAnnual.revenue > 0
+      ? latestAnnual.revenue
+      : null;
   return deriveDefaultLinkedDrivers({
     baseRevCagrPct: 14,
     baseOperatingMarginPct:
-      hasRev && latestAnnual?.operatingIncome ? (latestAnnual.operatingIncome / rev) * 100 : 28,
-    sbcPctOfRev: hasRev && latestAnnual?.sbc ? (Math.abs(latestAnnual.sbc) / rev) * 100 : 2.5,
-    capexPctOfRev: hasRev && latestAnnual?.capex ? (Math.abs(latestAnnual.capex) / rev) * 100 : 9,
+      rev !== null && latestAnnual?.operatingIncome != null
+        ? (latestAnnual.operatingIncome / rev) * 100
+        : 28,
+    sbcPctOfRev:
+      rev !== null && latestAnnual?.sbc != null ? (Math.abs(latestAnnual.sbc) / rev) * 100 : 2.5,
+    capexPctOfRev:
+      rev !== null && latestAnnual?.capex != null ? (Math.abs(latestAnnual.capex) / rev) * 100 : 9,
     basePe: 22,
   });
 }

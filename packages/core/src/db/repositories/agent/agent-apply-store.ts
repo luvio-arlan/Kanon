@@ -127,6 +127,7 @@ async function applyPendingBatch(
   if (pendingProposals.length === 0) return promotedExitRules;
   const mergedFilter = mergeFilterUpdates(thesis, pendingProposals);
   if (mergedFilter) {
+    // @kanon-tenant-checked: thesis ownership verified in loadAuthorizedRunContext
     await tx
       .update(thesesTable)
       .set({
