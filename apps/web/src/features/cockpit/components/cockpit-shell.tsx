@@ -11,6 +11,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import type { SettingsTabId } from "@/features/ai-settings";
 import { useCockpitState } from "../lib/cockpit-state";
+import type { CockpitViewState } from "../lib/cockpit-view-params";
 import { useLiveMarketQuotes } from "../lib/use-live-market-quotes";
 import { usePortfolioOverlayState } from "../lib/use-portfolio-overlays";
 import { CockpitHeader } from "./cockpit-header";
@@ -22,6 +23,7 @@ export interface CockpitShellProps {
   initialTheses: ThesisDetail[];
   glossary: readonly GlossaryTerm[];
   currentUser: PublicUser;
+  initialView?: CockpitViewState;
 }
 
 function buildHeaderProps({ ui, ext, market, analytics, onOpenMarketSettings }: CockpitStageProps) {
@@ -57,8 +59,12 @@ function buildHeaderProps({ ui, ext, market, analytics, onOpenMarketSettings }: 
   };
 }
 
-function useCockpitRuntime(initialTheses: ThesisDetail[], glossary: readonly GlossaryTerm[]) {
-  const ui = useCockpitState(initialTheses, glossary);
+function useCockpitRuntime(
+  initialTheses: ThesisDetail[],
+  glossary: readonly GlossaryTerm[],
+  initialView?: CockpitViewState,
+) {
+  const ui = useCockpitState(initialTheses, glossary, initialView);
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>("general");
   const openSettings = (tab: SettingsTabId = "general") => {
     setSettingsTab(tab);
@@ -108,8 +114,13 @@ function buildSidebarProps(
   };
 }
 
-export function CockpitShell({ initialTheses, glossary, currentUser }: CockpitShellProps) {
-  const r = useCockpitRuntime(initialTheses, glossary);
+export function CockpitShell({
+  initialTheses,
+  glossary,
+  currentUser,
+  initialView,
+}: CockpitShellProps) {
+  const r = useCockpitRuntime(initialTheses, glossary, initialView);
   const openMarketSettings = () => r.openSettings("market");
   const mobileBtn = (
     <Button variant="primary" size="sm" onClick={() => r.ui.setModal("create", true)}>

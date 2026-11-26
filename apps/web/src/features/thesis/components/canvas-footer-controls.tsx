@@ -1,12 +1,19 @@
 "use client";
 
-import type { GlossaryTerm, PublicUser, ThesisDetail, ThesisSummary } from "@kanon/core";
+import {
+  type GlossaryTerm,
+  getResearchStepMeta,
+  type PublicUser,
+  type ThesisDetail,
+  type ThesisSummary,
+} from "@kanon/core";
 import { Button, CommandMenu, DialogModal, useTheme } from "@kanon/ui";
 import { IconAlertTriangle, IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { useHasOpened } from "@/shared/hooks/use-has-opened";
+import { resolveCockpitHref } from "@/shared/lib/cockpit-return";
 import { buildCanvasCommandGroups } from "../data/canvas-commands";
 import type { useResearchCanvas } from "../hooks/use-research-canvas";
 import type { StepId } from "./canvas-chrome";
@@ -15,14 +22,6 @@ const AiSettingsModal = dynamic(
   () => import("@/features/ai-settings").then((m) => m.AiSettingsModal),
   { ssr: false },
 );
-
-const STEP_NAMES: Record<StepId, string> = {
-  1: "商业质量评估",
-  2: "核心假设拆解",
-  3: "一阶资料印证",
-  4: "三情景估值赔率",
-  5: "交易纪律与复盘",
-};
 
 export function StepFooterNav({
   activeStep,
@@ -40,7 +39,7 @@ export function StepFooterNav({
         <Button variant="outline" size="md" onClick={() => onSelectStep(prevStep)}>
           <IconArrowLeft size={16} stroke={1.5} />
           <span>
-            0{prevStep} · {STEP_NAMES[prevStep]}
+            {getResearchStepMeta(prevStep).code} · {getResearchStepMeta(prevStep).title}
           </span>
         </Button>
       ) : (
@@ -49,7 +48,7 @@ export function StepFooterNav({
       {nextStep ? (
         <Button variant="titanium" size="md" onClick={() => onSelectStep(nextStep)}>
           <span>
-            0{nextStep} · {STEP_NAMES[nextStep]}
+            {getResearchStepMeta(nextStep).code} · {getResearchStepMeta(nextStep).title}
           </span>
           <IconArrowRight size={16} stroke={1.5} />
         </Button>
@@ -126,7 +125,7 @@ export function useCanvasShellActions(params: {
       theme,
       onSelectStep,
       onSwitchThesis: (id) => navigateSafe(`/thesis/${id}`),
-      onGoHome: () => navigateSafe("/"),
+      onGoHome: () => navigateSafe(resolveCockpitHref()),
       onOpenAgent: params.onOpenAgent,
       onRunRedTeam: () => trigger(2, "red_team"),
       onRunDigest: () => trigger(3, "earnings_digest"),

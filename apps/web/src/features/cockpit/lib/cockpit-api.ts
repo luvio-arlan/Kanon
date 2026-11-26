@@ -65,23 +65,30 @@ export const INSTITUTIONAL_THESIS_PRESETS: readonly NewThesisDraft[] = [
   },
 ];
 
+const DEFAULT_SECTOR_TAG = "美股深度跟踪";
+
+export function isDraftSubmittable(draft: NewThesisDraft): boolean {
+  const priceNum = Number(draft.currentPrice);
+  return draft.ticker.trim().length > 0 && Number.isFinite(priceNum) && priceNum > 0;
+}
+
 export async function apiCreateThesis(draft: NewThesisDraft): Promise<ThesisDetail | null> {
   const priceNum = Number(draft.currentPrice);
-  if (
-    !draft.ticker.trim() ||
-    !draft.companyName.trim() ||
-    !draft.sectorTag.trim() ||
-    priceNum <= 0
-  ) {
-    toast.error("请完整填写美股代码、公司名称、赛道与参考价");
+  const ticker = draft.ticker.trim().toUpperCase();
+  if (!ticker) {
+    toast.error("请先输入股票代码");
+    return null;
+  }
+  if (!Number.isFinite(priceNum) || priceNum <= 0) {
+    toast.error("请填写有效的当前参考价");
     return null;
   }
   const res = await kanonFetch("/api/theses", CreateThesisResponseSchema, {
     method: "POST",
     body: {
-      ticker: draft.ticker.trim().toUpperCase(),
-      companyName: draft.companyName.trim(),
-      sectorTag: draft.sectorTag.trim(),
+      ticker,
+      companyName: draft.companyName.trim() || ticker,
+      sectorTag: draft.sectorTag.trim() || DEFAULT_SECTOR_TAG,
       currentPrice: priceNum,
       convictionSummary: draft.convictionSummary.trim() || undefined,
       latestSecEps: draft.latestSecEps,
@@ -97,23 +104,44 @@ export async function apiCreateThesis(draft: NewThesisDraft): Promise<ThesisDeta
   return res.data.thesis;
 }
 
-export async function apiBootstrapTicker(ticker: string): Promise<MarketBootstrapResponse | null> {
+export async function apiBootstrapTicker(
+  ticker: string,
+  options?: { quiet?: boolean },
+): Promise<MarketBootstrapResponse | null> {
   const clean = ticker.trim().toUpperCase();
   if (!clean) {
-    toast.error("请先输入美股代码（如 AVGO / COST）");
+    if (!options?.quiet) toast.error("请先输入美股代码（如 AVGO / COST）");
     return null;
   }
   const res = await kanonFetch(
     `/api/market/bootstrap?ticker=${encodeURIComponent(clean)}`,
     MarketBootstrapResponseSchema,
-    { headers: buildMarketHeaders(), fallbackError: "自动识别美股档案失败，可继续手工填写" },
+    {
+      headers: buildMarketHeaders(),
+      fallbackError: "自动识别美股档案失败，可继续手工填写",
+      timeoutMs: 15_000,
+    },
   );
   if (!res.ok) {
-    toast.error(res.error);
+    if (!options?.quiet) toast.error(res.error);
     return null;
   }
-  toast.success(res.data.notice);
+  if (!options?.quiet) toast.success(res.data.notice);
   return res.data;
+}
+
+/** Presets carry curated copy only; price, EPS & sparkline are always refreshed live before use. */
+export function mergeLiveIntoPreset(
+  preset: NewThesisDraft,
+  info: MarketBootstrapResponse | null,
+): NewThesisDraft {
+  if (!info) return preset;
+  return {
+    ...preset,
+    currentPrice: info.currentPrice !== null ? String(info.currentPrice) : preset.currentPrice,
+    latestSecEps: info.latestEps ?? undefined,
+    priceHistory: info.sparkline ?? undefined,
+  };
 }
 
 export async function apiRefreshClosingPrices(

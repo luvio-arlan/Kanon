@@ -37,6 +37,10 @@ const COLLOQUIAL_COPY_RE =
 const DASHED_BANNER_RE =
   /\bborder-dashed\b.*\bbg-(?:accent-coral|status-)|\bbg-(?:accent-coral|status-).*\bborder-dashed\b/;
 const PRESS_SCALE_RE = /\bactive:scale-/;
+const STEP_NAME_OBJECT_RE =
+  /\b(?:id|step):\s*[1-5],\s*(?:code:\s*"0[1-5]",\s*)?(?:label|title):\s*"/;
+const STEP_NAME_RECORD_RE =
+  /^\s*[1-5]:\s*"(?:商业质量|核心假设|一阶资料|资料印证|一阶印证|财报印证|估值赔率|三情景|交易纪律|纪律与)/;
 
 const NESTING_KINDS = new Set([
   ts.SyntaxKind.IfStatement,
@@ -148,6 +152,18 @@ function checkEditorialLineRules(relPath, line, lineNo, flags, errors) {
   }
 }
 
+function checkStepNameSource(relPath, line, lineNo, flags, errors) {
+  if (flags.isTestFile || !/^apps\/web\/src\//.test(relPath)) return;
+  if (!STEP_NAME_OBJECT_RE.test(line) && !STEP_NAME_RECORD_RE.test(line)) return;
+  addError(
+    errors,
+    relPath,
+    lineNo,
+    "single-source-step-names",
+    "Five-step canvas names must come from RESEARCH_STEP_META / getResearchStepMeta in @kanon/core, never local label maps.",
+  );
+}
+
 function checkSingleLine(relPath, line, lineNo, flags, errors) {
   if (TS_SUPPRESS_RE.test(line)) {
     addError(
@@ -198,6 +214,7 @@ function checkSingleLine(relPath, line, lineNo, flags, errors) {
     );
   }
   checkEditorialLineRules(relPath, line, lineNo, flags, errors);
+  checkStepNameSource(relPath, line, lineNo, flags, errors);
   if (flags.isTokenSheet || flags.isTestFile) return;
   checkColorLine(relPath, line, lineNo, errors);
 }

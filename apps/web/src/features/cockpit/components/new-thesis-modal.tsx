@@ -47,6 +47,7 @@ function TickerInputControl(props: {
   bootstrapping: boolean;
   onChange: (next: string) => void;
   onBootstrap: () => void;
+  onBlur: () => void;
 }) {
   return (
     <div>
@@ -57,7 +58,11 @@ function TickerInputControl(props: {
         <Input
           id="new-ticker"
           value={props.ticker}
-          onChange={(e) => props.onChange(e.target.value.toUpperCase())}
+          onChange={(e) => props.onChange(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+          onBlur={props.onBlur}
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={12}
           onKeyDown={(e) => {
             if (e.key === "Enter" && props.ticker.trim()) {
               e.preventDefault();
@@ -136,7 +141,15 @@ function CompanyMetaFields({
   );
 }
 
-function PriceField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function PriceField({
+  value,
+  loading,
+  onChange,
+}: {
+  value: string;
+  loading: boolean;
+  onChange: (v: string) => void;
+}) {
   return (
     <div>
       <label htmlFor="new-price" className="mb-1.5 block text-xs font-medium text-ink-muted">
@@ -145,9 +158,11 @@ function PriceField({ value, onChange }: { value: string; onChange: (v: string) 
       <Input
         id="new-price"
         type="number"
-        min={0.5}
-        step={0.5}
+        inputMode="decimal"
+        min={0.01}
+        step={0.01}
         value={value}
+        placeholder={loading ? "正在获取实时报价…" : "识别后自动填入"}
         onChange={(e) => onChange(e.target.value)}
         className="font-mono tabular-nums"
       />
@@ -169,7 +184,7 @@ export function NewThesisModal({ open, onOpenChange, onCreated }: NewThesisModal
           <Button variant="outline" size="md" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button variant="primary" size="md" disabled={s.submitting} onClick={s.handleCreate}>
+          <Button variant="primary" size="md" disabled={!s.canSubmit} onClick={s.handleCreate}>
             {s.submitting ? "创建中..." : "创建并开始研究"}
           </Button>
         </>
@@ -183,9 +198,11 @@ export function NewThesisModal({ open, onOpenChange, onCreated }: NewThesisModal
             bootstrapping={s.bootstrapping}
             onChange={(ticker) => s.patch({ ticker })}
             onBootstrap={() => void s.handleBootstrap()}
+            onBlur={s.handleTickerBlur}
           />
           <PriceField
             value={s.draft.currentPrice}
+            loading={s.bootstrapping}
             onChange={(currentPrice) => s.patch({ currentPrice })}
           />
         </div>

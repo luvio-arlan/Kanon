@@ -18,13 +18,13 @@ function MarginValue({ value }: { value: number | null }) {
 
 function buildTelemetryCards(analytics: PortfolioAnalytics, onOpenStressTest: () => void) {
   const cagr = analytics.averageBaseCagrPct;
-  const cagrDelta = cagr !== null ? `年化 ${cagr.toFixed(1)}%` : "—";
+  const cagrDelta = cagr !== null ? `${cagr.toFixed(1)}%` : "—";
   return [
     {
       label: "跟踪标的",
       icon: <IconStack2 size={16} stroke={1.5} />,
       value: <RollingNumber value={analytics.activeCount} decimals={0} />,
-      caption: "完成度",
+      caption: "平均完成度",
       delta: `${analytics.averageReadinessPct}%`,
       deltaTone: (analytics.averageReadinessPct >= 80 ? "pass" : "neutral") as "pass" | "neutral",
     },
@@ -40,7 +40,7 @@ function buildTelemetryCards(analytics: PortfolioAnalytics, onOpenStressTest: ()
       label: "平均安全边际",
       icon: <IconShieldCheck size={16} stroke={1.5} />,
       value: <MarginValue value={analytics.averageMarginOfSafetyPct} />,
-      caption: "中性基准",
+      caption: "中性情景年化",
       delta: cagrDelta,
       deltaTone: ((analytics.averageMarginOfSafetyPct ?? 0) >= 25 ? "pass" : "neutral") as
         | "pass"
@@ -50,8 +50,8 @@ function buildTelemetryCards(analytics: PortfolioAnalytics, onOpenStressTest: ()
       label: "已配仓位",
       icon: <IconChartPie size={16} stroke={1.5} />,
       value: <RollingNumber value={analytics.totalWeightPct} suffix="%" decimals={0} />,
-      caption: "压力测试",
-      delta: `现金 ${analytics.cashBufferPct}%`,
+      caption: "现金缓冲",
+      delta: `${analytics.cashBufferPct}%`,
       deltaTone: (analytics.overCapTickers.length > 0 ? "fail" : "neutral") as "fail" | "neutral",
       onClick: onOpenStressTest,
     },

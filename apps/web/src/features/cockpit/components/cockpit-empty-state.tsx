@@ -5,8 +5,10 @@ import { Button, Spinner } from "@kanon/ui";
 import { IconArrowUpRight, IconPlus, IconRotate2 } from "@tabler/icons-react";
 import { useState } from "react";
 import {
+  apiBootstrapTicker,
   apiCreateThesis,
   INSTITUTIONAL_THESIS_PRESETS,
+  mergeLiveIntoPreset,
   type NewThesisDraft,
 } from "../lib/cockpit-api";
 import type { CockpitFilter } from "./cockpit-header";
@@ -52,21 +54,16 @@ function BenchmarkPresetCard({
       className="group flex cursor-pointer flex-col justify-between rounded-panel border border-hairline bg-canvas/70 p-4 text-left transition-[border-color,background-color,box-shadow] duration-150 ease-[var(--ease-kanon)] hover:border-strong hover:bg-surface hover:shadow-card disabled:cursor-not-allowed disabled:opacity-55"
     >
       <div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="rounded-badge border border-hairline bg-titanium px-2 py-0.5 font-mono text-xs font-semibold text-ink-primary tabular-nums">
-            {preset.ticker}
-          </span>
-          <span className="font-mono text-xs text-ink-muted tabular-nums">
-            ${preset.currentPrice}
-          </span>
-        </div>
+        <span className="inline-flex rounded-badge border border-hairline bg-titanium px-2 py-0.5 font-mono text-xs font-semibold text-ink-primary tabular-nums">
+          {preset.ticker}
+        </span>
         <div className="mt-3 text-base font-semibold text-ink-primary transition-colors group-hover:text-accent-coral">
           {preset.companyName}
         </div>
         <div className="mt-0.5 text-xs text-ink-muted">{preset.sectorTag}</div>
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-hairline pt-3 text-xs font-medium text-ink-secondary group-hover:text-ink-primary">
-        <span>{busy ? "初始化档案..." : "一键建立五步档案"}</span>
+        <span>{busy ? "获取实时报价并建档…" : "一键建立五步档案"}</span>
         {busy ? <Spinner size="xs" decorative /> : <IconArrowUpRight size={14} stroke={1.5} />}
       </div>
     </button>
@@ -85,7 +82,10 @@ function ResearchKickstartDesk({
   async function handleQuickStart(preset: NewThesisDraft) {
     if (creatingTicker) return;
     setCreatingTicker(preset.ticker);
-    const created = await apiCreateThesis(preset).finally(() => setCreatingTicker(null));
+    const live = await apiBootstrapTicker(preset.ticker, { quiet: true });
+    const created = await apiCreateThesis(mergeLiveIntoPreset(preset, live)).finally(() =>
+      setCreatingTicker(null),
+    );
     if (created) onCreated(created);
   }
 

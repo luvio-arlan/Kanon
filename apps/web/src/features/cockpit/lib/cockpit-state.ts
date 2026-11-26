@@ -12,7 +12,9 @@ import type {
   CockpitViewMode,
 } from "../components/cockpit-header";
 import { buildCockpitCommandGroups } from "../data/command-actions";
+import { type CockpitViewState, DEFAULT_COCKPIT_VIEW } from "./cockpit-view-params";
 import { useCockpitShortcuts } from "./use-cockpit-shortcuts";
+import { useCockpitUrlSync } from "./use-cockpit-url-sync";
 
 function matchesQuery(thesis: ThesisDetail, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -67,13 +69,14 @@ function sortTheses(items: readonly ThesisDetail[], sortBy: CockpitSortBy): Thes
   return copy.sort((a, b) => Number(a.indexLabel) - Number(b.indexLabel));
 }
 
-function useCockpitCollection(initialTheses: ThesisDetail[]) {
+function useCockpitCollection(initialTheses: ThesisDetail[], initialView: CockpitViewState) {
   const [prevInitial, setPrevInitial] = useState(initialTheses);
   const [theses, setTheses] = useState<ThesisDetail[]>(initialTheses);
-  const [filter, setFilter] = useState<CockpitFilter>("all");
-  const [sortBy, setSortBy] = useState<CockpitSortBy>("index");
+  const [filter, setFilter] = useState<CockpitFilter>(initialView.filter);
+  const [sortBy, setSortBy] = useState<CockpitSortBy>(initialView.sortBy);
   const [query, setQuery] = useState("");
-  const [viewMode, setViewMode] = useState<CockpitViewMode>("cards");
+  const [viewMode, setViewMode] = useState<CockpitViewMode>(initialView.viewMode);
+  useCockpitUrlSync({ viewMode, filter, sortBy });
   const [previewThesis, setPreviewThesis] = useState<ThesisDetail | null>(null);
   if (prevInitial !== initialTheses) {
     setPrevInitial(initialTheses);
@@ -161,19 +164,26 @@ function useCockpitCommandGroups(params: {
   );
 }
 
-export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonly GlossaryTerm[]) {
+function useByokPresence() {
+  const [hasByok, setHasByok] = useState(false);
+  useEffect(() => {
+    setHasByok(Boolean(readByokConfig()));
+  }, []);
+  return { hasByok, setHasByok };
+}
+
+export function useCockpitState(
+  initialTheses: ThesisDetail[],
+  glossary: readonly GlossaryTerm[],
+  initialView: CockpitViewState = DEFAULT_COCKPIT_VIEW,
+) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const externalOverlayOpenRef = useRef(false);
-  const collection = useCockpitCollection(initialTheses);
+  const collection = useCockpitCollection(initialTheses, initialView);
   const [modals, setModals] = useState({ cmd: false, create: false, ai: false });
-  const [hasByok, setHasByok] = useState(false);
-
-  useEffect(() => {
-    setHasByok(Boolean(readByokConfig()));
-  }, []);
-
+  const byok = useByokPresence();
   const setModal = useCallback((key: "cmd" | "create" | "ai", open: boolean) => {
     setModals((prev) => ({ ...prev, [key]: open }));
   }, []);
@@ -204,8 +214,7 @@ export function useCockpitState(initialTheses: ThesisDetail[], glossary: readonl
     externalOverlayOpenRef,
     modals,
     setModal,
-    hasByok,
-    setHasByok,
+    ...byok,
     selectedIndex: selection.selectedIndex,
     commandGroups,
     ...collection,

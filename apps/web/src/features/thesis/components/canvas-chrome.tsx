@@ -9,6 +9,9 @@ import {
   IconSparkles,
 } from "@tabler/icons-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { MouseEvent } from "react";
+import { resolveCockpitHref } from "@/shared/lib/cockpit-return";
 import { CompanySwitcherTile, ResearchUtilityBar } from "./research-sidebar-parts";
 import { type StepId, StepRail } from "./step-rail";
 
@@ -49,7 +52,23 @@ export interface ResearchSidebarProps {
   onToggleFocus: () => void;
 }
 
-function SidebarTopHeader(p: { collapsed: boolean; onToggleCollapse: () => void }) {
+function isModifiedClick(event: MouseEvent<HTMLAnchorElement>): boolean {
+  return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
+}
+
+function SidebarTopHeader(p: {
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onBeforeLeave?: () => Promise<void>;
+}) {
+  const router = useRouter();
+  const handleHomeClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (isModifiedClick(event)) return;
+    event.preventDefault();
+    const href = resolveCockpitHref();
+    const leave = p.onBeforeLeave ? p.onBeforeLeave() : Promise.resolve();
+    void leave.finally(() => router.push(href));
+  };
   return (
     <div
       className={cn(
@@ -59,6 +78,7 @@ function SidebarTopHeader(p: { collapsed: boolean; onToggleCollapse: () => void 
     >
       <Link
         href="/"
+        onClick={handleHomeClick}
         title="返回研究工作台"
         aria-label="返回研究工作台"
         className="inline-flex items-center gap-2 text-sm font-medium text-ink-secondary transition-colors hover:text-ink-primary"
@@ -129,7 +149,11 @@ export function ResearchSidebar(props: ResearchSidebarProps) {
   return (
     <div className="flex h-full flex-col justify-between overflow-hidden">
       <div className="kanon-scroll-thin flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pb-2">
-        <SidebarTopHeader collapsed={props.collapsed} onToggleCollapse={props.onToggleCollapse} />
+        <SidebarTopHeader
+          collapsed={props.collapsed}
+          onToggleCollapse={props.onToggleCollapse}
+          onBeforeLeave={props.onBeforeSwitch}
+        />
         <CompanySwitcherTile
           thesis={props.thesis}
           allTheses={props.allTheses}

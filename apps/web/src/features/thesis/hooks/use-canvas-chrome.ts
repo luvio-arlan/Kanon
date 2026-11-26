@@ -74,9 +74,10 @@ function useSeamlessNavigation(
     (delta: -1 | 1) => {
       const nextId = findAdjacentThesisId(allTheses, currentId, delta);
       if (!nextId) return;
-      void sync.flushPending().finally(() => router.push(`/thesis/${nextId}`));
+      const href = nav.step > 1 ? `/thesis/${nextId}?step=${nav.step}` : `/thesis/${nextId}`;
+      void sync.flushPending().finally(() => router.push(href));
     },
-    [allTheses, currentId, router, sync],
+    [allTheses, currentId, nav.step, router, sync],
   );
 
   return {

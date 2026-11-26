@@ -7,7 +7,8 @@ import {
   RedTeamReportSchema,
   type SavedCopilotOutput,
 } from "@kanon/core";
-import { getKanonDb, loadThesisCanvasBootstrap } from "@kanon/core/db";
+import { getKanonDb, getThesisIdentity, loadThesisCanvasBootstrap } from "@kanon/core/db";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerAuthContext } from "@/app/api/_lib/auth-session";
 import { ResearchCanvasShell } from "@/features/thesis";
@@ -44,11 +45,21 @@ function hydrateCopilotOutputs(rows: readonly SavedCopilotOutput[]) {
   };
 }
 
+export async function generateMetadata({ params }: ThesisPageProps): Promise<Metadata> {
+  const [{ id }, auth] = await Promise.all([params, getServerAuthContext()]);
+  if (!auth.user) return { title: "研究画布 — KANON 卡农" };
+  const identity = await getThesisIdentity(await getKanonDb(), id, auth.user.id);
+  if (!identity) return { title: "研究画布 — KANON 卡农" };
+  return { title: `${identity.ticker} · ${identity.companyName} — KANON 卡农` };
+}
+
 export default async function ThesisCanvasPage({ params, searchParams }: ThesisPageProps) {
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const auth = await getServerAuthContext();
+  const initialStep = parseInitialStep(query.step);
   if (!auth.user) {
-    redirect(`/login?next=${encodeURIComponent(`/thesis/${id}`)}`);
+    const returnPath = initialStep > 1 ? `/thesis/${id}?step=${initialStep}` : `/thesis/${id}`;
+    redirect(`/login?next=${encodeURIComponent(returnPath)}`);
   }
   const db = await getKanonDb();
   const data = await loadThesisCanvasBootstrap(db, id, auth.user.id);
@@ -60,7 +71,7 @@ export default async function ThesisCanvasPage({ params, searchParams }: ThesisP
     <ResearchCanvasShell
       currentUser={auth.user}
       initialThesis={data.thesis}
-      initialStep={parseInitialStep(query.step)}
+      initialStep={initialStep}
       allTheses={data.allTheses}
       glossary={data.glossary}
       initialSecSnapshot={data.secSnapshot}

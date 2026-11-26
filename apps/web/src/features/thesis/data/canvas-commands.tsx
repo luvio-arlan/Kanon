@@ -1,4 +1,9 @@
-import type { GlossaryTerm, ThesisDetail, ThesisSummary } from "@kanon/core";
+import {
+  type GlossaryTerm,
+  RESEARCH_STEP_META,
+  type ThesisDetail,
+  type ThesisSummary,
+} from "@kanon/core";
 import type { CommandActionGroup, CommandActionItem } from "@kanon/ui";
 import {
   IconArrowLeft,
@@ -15,13 +20,20 @@ import {
 import { buildGlossaryGroup } from "@/features/glossary";
 import type { StepId } from "../components/canvas-chrome";
 
-const STEP_COMMANDS: ReadonlyArray<{ id: StepId; label: string; hint: string }> = [
-  { id: 1, label: "01 · 商业质量评估", hint: "初筛" },
-  { id: 2, label: "02 · 核心假设拆解", hint: "阈值" },
-  { id: 3, label: "03 · 一阶资料印证", hint: "财报" },
-  { id: 4, label: "04 · 三情景估值赔率", hint: "估值" },
-  { id: 5, label: "05 · 纪律与备忘录", hint: "复盘" },
-];
+const STEP_HINTS: Record<StepId, string> = {
+  1: "初筛",
+  2: "阈值",
+  3: "财报",
+  4: "估值",
+  5: "复盘",
+};
+
+const STEP_COMMANDS: ReadonlyArray<{ id: StepId; label: string; hint: string }> =
+  RESEARCH_STEP_META.map((m) => ({
+    id: m.step,
+    label: `${m.code} · ${m.title}`,
+    hint: STEP_HINTS[m.step],
+  }));
 
 export interface CanvasCommandParams {
   currentThesis: ThesisDetail;

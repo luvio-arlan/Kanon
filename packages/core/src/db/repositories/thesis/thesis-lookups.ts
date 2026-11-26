@@ -55,6 +55,20 @@ export async function assertThesisOwnership(
   return Boolean(row);
 }
 
+/** Lightweight owner-scoped identity lookup for page metadata (no child hydration). */
+export async function getThesisIdentity(
+  db: KanonDb,
+  id: string,
+  userId: string,
+): Promise<{ ticker: string; companyName: string } | null> {
+  const [row] = await db
+    .select({ ticker: thesesTable.ticker, companyName: thesesTable.companyName })
+    .from(thesesTable)
+    .where(and(eq(thesesTable.id, id), eq(thesesTable.userId, userId)))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function getThesisByTicker(
   db: KanonDb,
   ticker: string,

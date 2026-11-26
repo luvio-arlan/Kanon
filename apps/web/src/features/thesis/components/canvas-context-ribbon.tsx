@@ -4,6 +4,7 @@ import {
   calculateImpliedExpectations,
   calculateResearchReadiness,
   type MarketQuoteSnapshot,
+  RESEARCH_STEP_META,
   type ThesisDetail,
 } from "@kanon/core";
 import {
@@ -21,14 +22,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useMemo } from "react";
 import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
 import type { StepId } from "./step-rail";
-
-const STEP_SHORT: ReadonlyArray<{ step: StepId; label: string }> = [
-  { step: 1, label: "商业质量" },
-  { step: 2, label: "假设催化" },
-  { step: 3, label: "一阶印证" },
-  { step: 4, label: "估值赔率" },
-  { step: 5, label: "交易纪律" },
-];
 
 function RibbonPriceTelemetry({
   thesis,
@@ -117,11 +110,11 @@ function HorizontalStepPills(p: {
 }) {
   return (
     <div className="hidden items-center gap-0.5 2xl:flex" role="tablist" aria-label="五步研究流程">
-      {STEP_SHORT.map((item, idx) => (
+      {RESEARCH_STEP_META.map((item, idx) => (
         <StepPillButton
           key={item.step}
           step={item.step}
-          label={item.label}
+          label={item.short}
           done={p.completedSteps[idx] ?? false}
           active={item.step === p.activeStep}
           onSelect={p.onSelectStep}

@@ -22,7 +22,7 @@ export interface ThesisPreviewSheetProps {
 }
 
 function ScenarioRow({ label, data }: { label: string; data: ValuationCaseResult }) {
-  const sign = data.returnPct > 0 ? "+" : "";
+  const sign = data.cagrPct > 0 ? "+" : "";
   return (
     <div className="grid grid-cols-4 items-center py-2.5 font-mono text-sm tabular-nums">
       <span className="font-sans font-medium text-ink-primary">{label}</span>
@@ -40,13 +40,7 @@ function ScenarioRow({ label, data }: { label: string; data: ValuationCaseResult
   );
 }
 
-function QuickPriceCalibrator({
-  thesis,
-  onUpdated,
-}: {
-  thesis: ThesisDetail;
-  onUpdated: (updated: ThesisDetail) => void;
-}) {
+function useQuickCalibrate(thesis: ThesisDetail, onUpdated: (updated: ThesisDetail) => void) {
   const [priceText, setPriceText] = useState(String(thesis.currentPrice));
   const [saving, setSaving] = useState(false);
 
@@ -54,15 +48,32 @@ function QuickPriceCalibrator({
     setPriceText(String(thesis.currentPrice));
   }, [thesis.currentPrice]);
 
+  const numeric = Number(priceText);
+  const canCalibrate =
+    !saving && Number.isFinite(numeric) && numeric > 0 && numeric !== thesis.currentPrice;
+
   async function handleCalibrate() {
-    const numeric = Number(priceText);
-    if (!Number.isFinite(numeric) || numeric <= 0) return;
+    if (!canCalibrate) return;
     setSaving(true);
     const updated = await apiCalibratePriceAnchor(thesis.id, numeric).finally(() =>
       setSaving(false),
     );
     if (updated) onUpdated(updated);
   }
+  return { priceText, setPriceText, saving, canCalibrate, handleCalibrate };
+}
+
+function QuickPriceCalibrator({
+  thesis,
+  onUpdated,
+}: {
+  thesis: ThesisDetail;
+  onUpdated: (updated: ThesisDetail) => void;
+}) {
+  const { priceText, setPriceText, saving, canCalibrate, handleCalibrate } = useQuickCalibrate(
+    thesis,
+    onUpdated,
+  );
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-panel border border-hairline bg-surface p-4">
@@ -70,14 +81,21 @@ function QuickPriceCalibrator({
       <div className="flex items-center gap-2">
         <Input
           type="number"
-          min={0.5}
-          step={0.5}
+          inputMode="decimal"
+          min={0.01}
+          step={0.01}
           value={priceText}
           onChange={(e) => setPriceText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void handleCalibrate();
+            }
+          }}
           aria-label="校准当前参考价"
           className="h-8 w-24 font-mono text-xs tabular-nums"
         />
-        <Button variant="titanium" size="sm" disabled={saving} onClick={handleCalibrate}>
+        <Button variant="titanium" size="sm" disabled={!canCalibrate} onClick={handleCalibrate}>
           <IconCheck size={14} stroke={1.5} />
           <span>{saving ? "保存中" : "校准"}</span>
         </Button>
@@ -113,6 +131,7 @@ function ExpectationsStrip({ thesis }: { thesis: ThesisDetail }) {
 }
 
 function HypothesesSection({ thesis }: { thesis: ThesisDetail }) {
+  if (thesis.hypotheses.length === 0) return null;
   return (
     <div>
       <h3 className="text-sm font-semibold text-ink-primary">核心假设与证伪阈值</h3>
@@ -145,12 +164,14 @@ function SheetBody({
   const { valuation } = thesis;
   return (
     <div className="space-y-5">
-      <div className="rounded-panel bg-titanium-subtle p-4">
-        <div className="text-xs font-medium text-ink-muted">核心投资论点</div>
-        <p className="mt-1.5 text-sm leading-relaxed text-ink-primary">
-          {thesis.convictionSummary}
-        </p>
-      </div>
+      {thesis.convictionSummary.trim() ? (
+        <div className="rounded-panel bg-titanium-subtle p-4">
+          <div className="text-xs font-medium text-ink-muted">核心投资论点</div>
+          <p className="mt-1.5 text-sm leading-relaxed text-ink-primary">
+            {thesis.convictionSummary}
+          </p>
+        </div>
+      ) : null}
       <LiveQuoteSnapshotPanel quote={liveQuote} />
       <QuickPriceCalibrator thesis={thesis} onUpdated={onUpdated} />
       <PositionEditorPanel thesis={thesis} onUpdated={onUpdated} />

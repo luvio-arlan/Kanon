@@ -105,7 +105,11 @@ export {
 } from "./math/portfolio-stress";
 export {
   calculateResearchReadiness,
+  getResearchStepMeta,
+  RESEARCH_STEP_META,
   type ResearchReadiness,
+  type ResearchStepId,
+  type ResearchStepMeta,
   type StepReadinessItem,
 } from "./math/research-readiness";
 export {

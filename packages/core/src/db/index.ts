@@ -90,6 +90,7 @@ export {
   assertThesisOwnership,
   batchUpdatePriceAnchors,
   getThesisByTicker,
+  getThesisIdentity,
   listThesisSummaries,
 } from "./repositories/thesis/thesis-lookups";
 export { loadThesisCanvasBootstrap } from "./repositories/thesis-canvas-bootstrap";

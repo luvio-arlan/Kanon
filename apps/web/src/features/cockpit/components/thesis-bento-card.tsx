@@ -2,6 +2,7 @@
 
 import {
   calculateResearchReadiness,
+  getResearchStepMeta,
   type Hypothesis,
   type MarketQuoteSnapshot,
   type ResearchReadiness,
@@ -28,14 +29,6 @@ export interface ThesisBentoCardProps {
   onQuickInspect: (thesis: ThesisDetail) => void;
 }
 
-const STEP_SHORT_NAMES: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: "商业质量",
-  2: "核心假设",
-  3: "财报印证",
-  4: "估值赔率",
-  5: "交易纪律",
-};
-
 const DOT_CLASS: Record<Hypothesis["status"], string> = {
   validated: "bg-status-pass",
   watching: "bg-status-warn",
@@ -47,7 +40,7 @@ function resolveNextStepHref(thesisId: string, readiness: ResearchReadiness) {
   if (!next) return { href: `/thesis/${thesisId}`, label: "进入研究", isContinue: false };
   return {
     href: `/thesis/${thesisId}?step=${next.step}`,
-    label: `继续 · ${STEP_SHORT_NAMES[next.step]}`,
+    label: `继续 · ${getResearchStepMeta(next.step).short}`,
     isContinue: true,
   };
 }
@@ -119,11 +112,13 @@ function HypothesisSignalButton({
   const warnings = hypotheses.filter((h) => h.status === "warning").length;
   const validated = hypotheses.filter((h) => h.status === "validated").length;
   const label =
-    warnings > 0
-      ? `${warnings} 条证伪预警`
-      : validated === hypotheses.length
-        ? `${validated}/${hypotheses.length} 已验证`
-        : `假设 ${validated}/${hypotheses.length}`;
+    hypotheses.length === 0
+      ? "尚无核心假设"
+      : warnings > 0
+        ? `${warnings} 条证伪预警`
+        : validated === hypotheses.length
+          ? `${validated}/${hypotheses.length} 已验证`
+          : `假设 ${validated}/${hypotheses.length}`;
 
   return (
     <button

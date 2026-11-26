@@ -5,7 +5,11 @@ const KANON_SESSION_COOKIE = "kanon_session";
 export function proxy(request: NextRequest) {
   const hasSession = Boolean(request.cookies.get(KANON_SESSION_COOKIE)?.value);
   if (!hasSession) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const loginUrl = new URL("/login", request.url);
+    if (request.nextUrl.search) {
+      loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    }
+    return NextResponse.redirect(loginUrl);
   }
   return NextResponse.next();
 }

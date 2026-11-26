@@ -9,9 +9,9 @@ import {
 import { Badge, Card, RollingNumber } from "@kanon/ui";
 
 const ZONE_META = {
-  attractive: { label: "高赔率区间", variant: "pass" as const },
-  balanced: { label: "赔率均衡", variant: "titanium" as const },
-  stretched: { label: "估值偏紧", variant: "warn" as const },
+  attractive: { label: "具吸引力", variant: "pass" as const },
+  balanced: { label: "均衡", variant: "titanium" as const },
+  stretched: { label: "偏紧", variant: "warn" as const },
 };
 
 function OddsRangeLegend({

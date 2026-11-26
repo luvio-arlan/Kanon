@@ -3,6 +3,8 @@
 import {
   calculateImpliedExpectations,
   calculateResearchReadiness,
+  RESEARCH_STEP_META,
+  type ResearchStepId,
   type ThesisDetail,
 } from "@kanon/core";
 import { ReadinessRing, RollingNumber, SidebarNavItem, SidebarSection } from "@kanon/ui";
@@ -10,15 +12,7 @@ import { IconCheck } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 
-export type StepId = 1 | 2 | 3 | 4 | 5;
-
-const STEPS: ReadonlyArray<{ id: StepId; code: string; title: string }> = [
-  { id: 1, code: "01", title: "商业质量评估" },
-  { id: 2, code: "02", title: "核心假设拆解" },
-  { id: 3, code: "03", title: "一阶资料印证" },
-  { id: 4, code: "04", title: "三情景估值赔率" },
-  { id: 5, code: "05", title: "纪律与备忘录" },
-];
+export type StepId = ResearchStepId;
 
 function AnchorMetricRow({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -146,12 +140,12 @@ export function StepRail({
         />
       ) : null}
       <SidebarSection title="研究步骤" collapsed={collapsed}>
-        {STEPS.map((step, idx) => (
+        {RESEARCH_STEP_META.map((step, idx) => (
           <SidebarNavItem
-            key={step.id}
+            key={step.step}
             label={step.title}
             code={step.code}
-            active={activeStep === step.id}
+            active={activeStep === step.step}
             collapsed={collapsed}
             layoutId={layoutId}
             trailing={
@@ -159,7 +153,7 @@ export function StepRail({
                 <IconCheck size={14} stroke={1.5} className="text-status-pass" />
               ) : null
             }
-            onClick={() => onSelect(step.id)}
+            onClick={() => onSelect(step.step)}
           />
         ))}
       </SidebarSection>
