@@ -1,8 +1,5 @@
 import {
   type ConvictionZone,
-  MAX_VALUATION_EPS,
-  MAX_VALUATION_PE,
-  MAX_VALUATION_PRICE,
   type ValuationCaseInput,
   type ValuationCaseResult,
   type ValuationScenarioInput,
@@ -10,72 +7,15 @@ import {
   type ValuationScenarioSummary,
 } from "../schemas/thesis";
 
+export {
+  clampDisplayValuationInput,
+  hasInvalidValuationInput,
+  type SanitizeValuationResult,
+  sanitizeValuationInput,
+} from "./models/valuation-validation";
+
 const DEFAULT_WEIGHTS = { bear: 0.25, base: 0.5, bull: 0.25 } as const;
 const PROBABILITY_TOLERANCE = 0.001;
-
-function isValidCase(c: ValuationCaseInput): boolean {
-  return (
-    Number.isFinite(c.eps) &&
-    c.eps > 0 &&
-    c.eps <= MAX_VALUATION_EPS &&
-    Number.isFinite(c.peMultiple) &&
-    c.peMultiple > 0 &&
-    c.peMultiple <= MAX_VALUATION_PE
-  );
-}
-
-function resolveSafeProbabilities(
-  bear: ValuationCaseInput,
-  base: ValuationCaseInput,
-  bull: ValuationCaseInput,
-) {
-  const b1 = bear.probability;
-  const b2 = base.probability;
-  const b3 = bull.probability;
-  if (
-    typeof b1 === "number" &&
-    typeof b2 === "number" &&
-    typeof b3 === "number" &&
-    b1 >= 0 &&
-    b2 >= 0 &&
-    b3 >= 0 &&
-    Math.abs(b1 + b2 + b3 - 1) <= PROBABILITY_TOLERANCE
-  ) {
-    return { bear: b1, base: b2, bull: b3 };
-  }
-  return { ...DEFAULT_WEIGHTS };
-}
-
-export function sanitizeValuationInput(
-  raw: ValuationScenarioInput,
-): ValuationScenarioInput & { horizonYears: number } {
-  const safePrice =
-    Number.isFinite(raw.currentPrice) &&
-    raw.currentPrice > 0 &&
-    raw.currentPrice <= MAX_VALUATION_PRICE
-      ? raw.currentPrice
-      : 100;
-  const rawHorizon = raw.horizonYears ?? 3;
-  const horizonYears =
-    Number.isFinite(rawHorizon) && rawHorizon >= 1 && rawHorizon <= 15 ? Math.round(rawHorizon) : 3;
-  const probs = resolveSafeProbabilities(raw.bear, raw.base, raw.bull);
-  const trailing = Math.min(MAX_VALUATION_EPS / 2, Math.max(0.5, roundTo(safePrice / 22, 2)));
-  const healCase = (c: ValuationCaseInput, epsMult: number, peFallback: number, prob: number) =>
-    isValidCase(c)
-      ? { eps: c.eps, peMultiple: c.peMultiple, probability: prob }
-      : {
-          eps: Math.min(MAX_VALUATION_EPS, roundTo(Math.max(0.5, trailing * epsMult), 2)),
-          peMultiple: peFallback,
-          probability: prob,
-        };
-  return {
-    currentPrice: safePrice,
-    horizonYears,
-    bear: healCase(raw.bear, 0.9, 17, probs.bear),
-    base: healCase(raw.base, 1.38, 22, probs.base),
-    bull: healCase(raw.bull, 1.8, 27, probs.bull),
-  };
-}
 
 export function roundTo(value: number, decimals: number): number {
   const factor = 10 ** decimals;

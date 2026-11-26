@@ -71,26 +71,6 @@ function summarizeDecisions(entries: ThesisDetail["disciplineEntries"], refPrice
   };
 }
 
-function computeBrierScore(
-  thesis: ThesisDetail,
-  reviews: readonly QuarterlyReview[],
-  refPrice: number,
-): number | null {
-  if (thesis.disciplineEntries.length === 0 && reviews.length === 0) return null;
-  const { bear, base, bull } = thesis.valuation;
-  const dBear = Math.abs(refPrice - bear.targetPrice);
-  const dBase = Math.abs(refPrice - base.targetPrice);
-  const dBull = Math.abs(refPrice - bull.targetPrice);
-  const winner: "bear" | "base" | "bull" =
-    dBase <= dBear && dBase <= dBull ? "base" : dBear <= dBull ? "bear" : "bull";
-  const brierRaw =
-    ((bear.probability - (winner === "bear" ? 1 : 0)) ** 2 +
-      (base.probability - (winner === "base" ? 1 : 0)) ** 2 +
-      (bull.probability - (winner === "bull" ? 1 : 0)) ** 2) /
-    3;
-  return roundTo(brierRaw, 3);
-}
-
 function computeBenchmarkAlpha(
   entries: ThesisDetail["disciplineEntries"],
   refPrice: number,
@@ -114,7 +94,7 @@ function computeBenchmarkAlpha(
   return roundTo(sum / benchEntries.length, 1);
 }
 
-function computeBrierAndDrift(
+function computeDriftAndAlpha(
   thesis: ThesisDetail,
   reviews: readonly QuarterlyReview[],
   refPrice: number,
@@ -134,7 +114,7 @@ function computeBrierAndDrift(
         )
       : null;
   return {
-    brierScore: computeBrierScore(thesis, reviews, refPrice),
+    brierScore: null,
     avgTargetDriftPct,
     avgBenchmarkAlphaPct: computeBenchmarkAlpha(
       thesis.disciplineEntries,
@@ -150,16 +130,12 @@ function scoreCalibration(params: {
   calmPct: number;
   favorablePct: number | null;
   strengthenedPct: number | null;
-  brierScore: number | null;
 }): { score: number; label: string } {
   if (params.decisionCount === 0) return { score: 0, label: "待积累实盘样本" };
-  const brierBonus =
-    params.brierScore !== null ? Math.max(0, (1 - params.brierScore * 2) * 20) : 10;
   const raw =
-    params.calmPct * 0.3 +
-    (params.favorablePct ?? 50) * 0.35 +
-    (params.strengthenedPct ?? 50) * 0.15 +
-    brierBonus;
+    params.calmPct * 0.375 +
+    (params.favorablePct ?? 50) * 0.4375 +
+    (params.strengthenedPct ?? 50) * 0.1875;
   const gated = params.zeroLevGate ? raw : raw * 0.5;
   const score = Math.round(Math.min(100, Math.max(10, gated)));
   if (score >= 76) return { score, label: "高纪律校准" };
@@ -184,7 +160,7 @@ export function calculateCognitiveCalibration(
     verdicts.filter((v) => v.verdict === "weakened").length,
     verdicts.length,
   );
-  const extra = computeBrierAndDrift(thesis, reviews, refPrice, liveBenchmarkPrice);
+  const extra = computeDriftAndAlpha(thesis, reviews, refPrice, liveBenchmarkPrice);
   const zeroLeverageGatePassed = dec.zeroLevPct === 100;
   const { score, label } = scoreCalibration({
     decisionCount: thesis.disciplineEntries.length,
@@ -192,7 +168,6 @@ export function calculateCognitiveCalibration(
     calmPct: dec.calmPct,
     favorablePct: dec.favorablePct,
     strengthenedPct: strengthenedRatePct,
-    brierScore: extra.brierScore,
   });
 
   return {
@@ -204,7 +179,7 @@ export function calculateCognitiveCalibration(
     favorableDecisionRatePct: dec.favorablePct,
     avgEntryReturnPct: dec.avgEntryReturnPct,
     avgBenchmarkAlphaPct: extra.avgBenchmarkAlphaPct,
-    brierScore: extra.brierScore,
+    brierScore: null,
     avgTargetDriftPct: extra.avgTargetDriftPct,
     quarterlyVerdictCount: verdicts.length,
     strengthenedRatePct,

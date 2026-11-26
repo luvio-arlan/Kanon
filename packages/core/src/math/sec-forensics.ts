@@ -5,23 +5,36 @@ import {
   checkWorkingCapitalFlags,
   computeCapitalAllocation,
   computeIncrementalRoic,
+  computeInvestedCapital,
   computeOcfToNetIncome,
   computeRuleOf40,
   computeSloanAccrualPct,
   computeWorkingCapitalCycle,
+  type EffectiveTaxRateInfo,
   type ForensicGrade,
   type ForensicRedFlag,
   makeForensicFlag,
+  resolveEffectiveTaxRate,
   scoreForensicQuality,
   type WorkingCapitalCycle,
 } from "./sec-forensics-metrics";
 import { roundTo } from "./valuation-scenarios";
 
-export type { CapitalAllocationProfile, ForensicGrade, ForensicRedFlag, WorkingCapitalCycle };
+export type {
+  CapitalAllocationProfile,
+  EffectiveTaxRateInfo,
+  ForensicGrade,
+  ForensicRedFlag,
+  WorkingCapitalCycle,
+};
 
 export interface SecForensicReport {
   latestFiscalYear: string;
   roicPct: number | null;
+  roicExGoodwillPct: number | null;
+  effectiveTaxRatePct: number;
+  effectiveTaxRateSource: EffectiveTaxRateInfo["source"];
+  effectiveTaxRateNote: string;
   roePct: number | null;
   ownerFcf: number | null;
   ownerFcfConversionPct: number | null;
@@ -58,13 +71,25 @@ function computeReturnMetrics(latest: SecAnnualFinancial) {
   const ebit = latest.operatingIncome ?? null;
   const equity = latest.stockholdersEquity ?? null;
   const debt = latest.totalDebt ?? 0;
-  const cash = latest.cashAndEquiv ?? 0;
-  const investedCapital = equity !== null ? equity + debt - cash : null;
-  const roicPct = ebit !== null ? safeRatioPct(ebit * 0.79, investedCapital) : null;
+  const taxInfo = resolveEffectiveTaxRate(latest);
+  const nopat = ebit !== null ? ebit * (1 - taxInfo.rate) : null;
+  const investedCapital = computeInvestedCapital(latest);
+  const investedCapitalExGw = computeInvestedCapital(latest, { excludeGoodwill: true });
+  const roicPct = nopat !== null ? safeRatioPct(nopat, investedCapital) : null;
+  const roicExGoodwillPct = nopat !== null ? safeRatioPct(nopat, investedCapitalExGw) : null;
   const roePct = safeRatioPct(latest.netIncome, equity);
   const netCash = typeof latest.cashAndEquiv === "number" ? latest.cashAndEquiv - debt : null;
   const debtToEquityPct = safeRatioPct(latest.totalDebt, equity);
-  return { roicPct, roePct, netCash, debtToEquityPct };
+  return {
+    roicPct,
+    roicExGoodwillPct,
+    effectiveTaxRatePct: roundTo(taxInfo.rate * 100, 1),
+    effectiveTaxRateSource: taxInfo.source,
+    effectiveTaxRateNote: taxInfo.note,
+    roePct,
+    netCash,
+    debtToEquityPct,
+  };
 }
 
 function parseFiscalYearNum(fiscalYear: string): number | null {

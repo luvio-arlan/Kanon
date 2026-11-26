@@ -91,15 +91,15 @@ function formatDriftCaption(report: CalReport): string {
 function buildGateCard(report: CalReport) {
   const passed = report.zeroLeverageGatePassed;
   return {
-    label: "零杠杆门禁 & Brier",
+    label: "零杠杆门禁 & 预测校准",
     icon: <IconShieldCheck size={16} stroke={1.5} />,
     value:
       report.brierScore !== null ? (
         <RollingNumber value={report.brierScore} decimals={3} />
       ) : (
-        <span>0.00×</span>
+        <span>待预测到期</span>
       ),
-    caption: passed ? "零杠杆门禁通过 · Brier 越低越准" : "存在杠杆偏离",
+    caption: passed ? "零杠杆门禁通过 · 到期预测自动结算计分" : "存在杠杆偏离",
     delta: passed ? "门禁通过" : "门禁预警",
     deltaTone: (passed ? "pass" : "warn") as "pass" | "warn",
   };

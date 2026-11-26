@@ -1,7 +1,16 @@
 import type { ThesisDetail } from "../schemas/research";
 import { calculateImpliedExpectations } from "./implied-expectations";
 import { calculateResearchReadiness } from "./research-readiness";
-import { calculateAverageRiskReward, roundTo } from "./valuation-scenarios";
+import {
+  calculateDiscreteKelly,
+  type DiscreteKellyResult,
+  type KellyAdjustmentDetail,
+} from "./sizing/kelly-discrete";
+import {
+  calculateAverageRiskReward,
+  hasInvalidValuationInput,
+  roundTo,
+} from "./valuation-scenarios";
 
 export interface SectorExposure {
   sector: string;
@@ -10,10 +19,21 @@ export interface SectorExposure {
   overConcentrated: boolean;
 }
 
+export interface KellySizingOptions {
+  fraction?: number;
+  applyReadinessDiscount?: boolean;
+  applyWarningHalving?: boolean;
+}
+
 export interface KellyWeightSuggestion {
   minPct: number;
   maxPct: number;
   rationale: string;
+  fullKellyPct?: number;
+  expectedLogGrowth?: number;
+  probabilityOfLoss?: number;
+  adjustments?: KellyAdjustmentDetail[];
+  discreteKelly?: DiscreteKellyResult;
 }
 
 export interface PortfolioAnalytics {
@@ -114,48 +134,96 @@ function computePositionMetrics(active: readonly ThesisDetail[]) {
   };
 }
 
-export function suggestKellyCappedWeight(thesis: ThesisDetail): KellyWeightSuggestion {
+function buildKellyAdjustments(
+  readiness: number,
+  hasWarning: boolean,
+  options?: KellySizingOptions,
+) {
+  return [
+    {
+      id: "readiness_discount",
+      label: `研究成熟度系数 (${readiness}%)`,
+      enabled: options?.applyReadinessDiscount ?? true,
+      multiplier: roundTo(0.72 + (readiness / 100) * 0.28, 3),
+    },
+    {
+      id: "warning_halving",
+      label: "预警假设折半",
+      enabled: (options?.applyWarningHalving ?? true) && hasWarning,
+      multiplier: 0.5,
+    },
+  ];
+}
+
+function formatKellySuggestion(kelly: DiscreteKellyResult): KellyWeightSuggestion {
+  if (kelly.fullKellyFraction <= 0) {
+    return {
+      minPct: 0,
+      maxPct: 0,
+      rationale: "三情景离散期望回报未达正对数效用，建议 0% 观察。",
+      fullKellyPct: 0,
+      expectedLogGrowth: 0,
+      probabilityOfLoss: kelly.probabilityOfLoss,
+      adjustments: kelly.adjustments,
+      discreteKelly: kelly,
+    };
+  }
+  const boundedMax = Math.round(kelly.cappedPct);
+  const minPct =
+    boundedMax < 2 ? 0 : Math.min(boundedMax, Math.max(2, Math.floor(boundedMax * 0.55)));
+  const activeTags = kelly.adjustments
+    .filter((a) => a.enabled && a.multiplier < 1)
+    .map((a) => a.label);
+  const suffix =
+    activeTags.length > 0 ? `（含 ${activeTags.join("、")}）` : "（半凯利并受单票上限约束）";
+  return {
+    minPct,
+    maxPct: boundedMax,
+    rationale: `离散三情景全凯利 ${kelly.fullKellyPct}% · 亏损概率 ${Math.round(kelly.probabilityOfLoss * 100)}%${suffix}`,
+    fullKellyPct: kelly.fullKellyPct,
+    expectedLogGrowth: kelly.expectedLogGrowth,
+    probabilityOfLoss: kelly.probabilityOfLoss,
+    adjustments: kelly.adjustments,
+    discreteKelly: kelly,
+  };
+}
+
+export function suggestKellyCappedWeight(
+  thesis: ThesisDetail,
+  options?: KellySizingOptions,
+): KellyWeightSuggestion {
   const cap = Math.max(1, Math.min(25, thesis.targetMaxWeightPct));
+  if (hasInvalidValuationInput(thesis)) {
+    return { minPct: 0, maxPct: 0, rationale: "估值输入待完善，暂不测算凯利仓位。" };
+  }
   if (thesis.status === "archived_veto" || thesis.valuation.upsidePct <= 0) {
     return { minPct: 0, maxPct: 0, rationale: "当前已否决或中性空间不足，建议保持 0% 观察。" };
   }
-  const odds = thesis.valuation.riskRewardRatio ?? 4;
   const readiness = calculateResearchReadiness(thesis).scorePct;
   const hasWarning = thesis.hypotheses.some((h) => h.status === "warning");
-  const scenarioWinProb = thesis.valuation.base.probability + thesis.valuation.bull.probability;
-  const confidenceScale = 0.72 + (readiness / 100) * 0.28;
-  const pWin = Math.min(0.8, Math.max(0.25, scenarioWinProb * confidenceScale));
-  const rawKelly = pWin - (1 - pWin) / Math.max(0.5, odds);
-  if (rawKelly <= 0) {
-    return { minPct: 0, maxPct: 0, rationale: "当前赔率与胜率未达正凯利期望，建议 0% 观察。" };
-  }
-  const rawHalfPct = Math.max(0, roundTo(rawKelly * 50, 0));
-  const adjustedHalfPct = hasWarning ? Math.floor(rawHalfPct * 0.5) : rawHalfPct;
-  const boundedMax = Math.min(cap, Math.max(0, adjustedHalfPct));
-  if (boundedMax < 2) {
-    return {
-      minPct: 0,
-      maxPct: boundedMax === 0 ? 0 : Math.min(cap, boundedMax),
-      rationale: "当前赔率或预警折扣后仓位偏低，仅宜观察或极小试探仓。",
-    };
-  }
-  const minPct = Math.max(2, Math.floor(boundedMax * 0.55));
-  const warnSuffix = hasWarning ? "（存在预警假设已自动折半）" : "（半凯利且受个人上限约束）";
-  return {
-    minPct: Math.min(minPct, boundedMax),
-    maxPct: boundedMax,
-    rationale: `基于赔率 ${odds.toFixed(2)}×、情景胜率 ${Math.round(scenarioWinProb * 100)}% 与成熟度 ${readiness}% 测算${warnSuffix}`,
-  };
+  const { bear, base, bull } = thesis.valuation;
+  const kelly = calculateDiscreteKelly({
+    scenarios: [
+      { probability: bear.probability, returnPct: bear.returnPct },
+      { probability: base.probability, returnPct: base.returnPct },
+      { probability: bull.probability, returnPct: bull.returnPct },
+    ],
+    fraction: options?.fraction ?? 0.5,
+    capPct: cap,
+    adjustments: buildKellyAdjustments(readiness, hasWarning, options),
+  });
+  return formatKellySuggestion(kelly);
 }
 
 export function calculatePortfolioAnalytics(theses: readonly ThesisDetail[]): PortfolioAnalytics {
   const active = theses.filter((t) => t.status === "active");
+  const validVal = active.filter((t) => !hasInvalidValuationInput(t));
   const hyp = tallyHypotheses(active);
   const readinessScores = active.map((t) => calculateResearchReadiness(t).scorePct);
-  const margins = active.map(
+  const margins = validVal.map(
     (t) => calculateImpliedExpectations({ summary: t.valuation }).marginOfSafetyPct,
   );
-  const cagrs = active.map((t) => t.valuation.base.cagrPct);
+  const cagrs = validVal.map((t) => t.valuation.base.cagrPct);
   const pos = computePositionMetrics(active);
 
   return {
@@ -165,13 +233,13 @@ export function calculatePortfolioAnalytics(theses: readonly ThesisDetail[]): Po
     watchingHypotheses: hyp.watching,
     warningHypotheses: hyp.warning,
     totalHypotheses: active.reduce((sum, item) => sum + item.hypotheses.length, 0),
-    averageRiskReward: calculateAverageRiskReward(active.map((t) => t.valuation.riskRewardRatio)),
+    averageRiskReward: calculateAverageRiskReward(validVal.map((t) => t.valuation.riskRewardRatio)),
     averageBaseCagrPct: averageFinite(cagrs),
     averageMarginOfSafetyPct: averageFinite(margins),
     averageReadinessPct: Math.round(averageFinite(readinessScores) ?? 0),
-    attractiveCount: active.filter((t) => t.valuation.convictionZone === "attractive").length,
-    balancedCount: active.filter((t) => t.valuation.convictionZone === "balanced").length,
-    stretchedCount: active.filter((t) => t.valuation.convictionZone === "stretched").length,
+    attractiveCount: validVal.filter((t) => t.valuation.convictionZone === "attractive").length,
+    balancedCount: validVal.filter((t) => t.valuation.convictionZone === "balanced").length,
+    stretchedCount: validVal.filter((t) => t.valuation.convictionZone === "stretched").length,
     ...pos,
   };
 }

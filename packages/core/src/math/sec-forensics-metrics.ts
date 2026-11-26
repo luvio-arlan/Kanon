@@ -1,12 +1,14 @@
 import type { SecAnnualFinancial } from "../schemas/research";
+import {
+  computeInvestedCapital,
+  type EffectiveTaxRateInfo,
+  resolveEffectiveTaxRate,
+} from "./models/roic-helpers";
 import { roundTo } from "./valuation-scenarios";
 
-export type ForensicGrade = "fortress" | "compounder" | "watch" | "caution";
+export { computeInvestedCapital, type EffectiveTaxRateInfo, resolveEffectiveTaxRate };
 
-function investedCapitalOf(row: SecAnnualFinancial): number | null {
-  if (typeof row.stockholdersEquity !== "number") return null;
-  return row.stockholdersEquity + (row.totalDebt ?? 0) - (row.cashAndEquiv ?? 0);
-}
+export type ForensicGrade = "fortress" | "compounder" | "watch" | "caution";
 
 export function computeIncrementalRoic(annuals: readonly SecAnnualFinancial[]): number | null {
   if (annuals.length < 2) return null;
@@ -16,12 +18,14 @@ export function computeIncrementalRoic(annuals: readonly SecAnnualFinancial[]): 
   if (typeof first.operatingIncome !== "number" || typeof last.operatingIncome !== "number") {
     return null;
   }
-  const icFirst = investedCapitalOf(first);
-  const icLast = investedCapitalOf(last);
+  const icFirst = computeInvestedCapital(first);
+  const icLast = computeInvestedCapital(last);
   if (icFirst === null || icLast === null) return null;
   const deltaIc = icLast - icFirst;
   if (deltaIc <= 0) return null;
-  const deltaNopat = (last.operatingIncome - first.operatingIncome) * 0.79;
+  const taxFirst = resolveEffectiveTaxRate(first).rate;
+  const taxLast = resolveEffectiveTaxRate(last).rate;
+  const deltaNopat = last.operatingIncome * (1 - taxLast) - first.operatingIncome * (1 - taxFirst);
   const raw = (deltaNopat / deltaIc) * 100;
   return roundTo(Math.max(-100, Math.min(250, raw)), 1);
 }

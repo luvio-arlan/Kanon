@@ -67,18 +67,18 @@ function buildSummaryValuationInput(row: SiblingSummaryRow, val: ValuationScalar
     currentPrice: row.currentPrice,
     horizonYears: row.horizonYears,
     bear: {
-      eps: val?.bearEps ?? 1,
-      peMultiple: val?.bearPe ?? 15,
+      eps: val?.bearEps ?? 0,
+      peMultiple: val?.bearPe ?? 0,
       probability: val?.bearProb ?? 0.25,
     },
     base: {
-      eps: val?.baseEps ?? 2,
-      peMultiple: val?.basePe ?? 20,
+      eps: val?.baseEps ?? 0,
+      peMultiple: val?.basePe ?? 0,
       probability: val?.baseProb ?? 0.5,
     },
     bull: {
-      eps: val?.bullEps ?? 3,
-      peMultiple: val?.bullPe ?? 25,
+      eps: val?.bullEps ?? 0,
+      peMultiple: val?.bullPe ?? 0,
       probability: val?.bullProb ?? 0.25,
     },
   });
@@ -89,7 +89,8 @@ function buildSummaries(
   valMap: Map<string, ValuationScalarRow>,
 ): ThesisSummary[] {
   return rows.map((row) => {
-    const val = calculateValuationScenarios(buildSummaryValuationInput(row, valMap.get(row.id)));
+    const checked = buildSummaryValuationInput(row, valMap.get(row.id));
+    const val = checked.ok ? calculateValuationScenarios(checked.input) : null;
     return {
       id: row.id,
       indexLabel: String(row.indexOrder).padStart(2, "0"),
@@ -97,8 +98,8 @@ function buildSummaries(
       companyName: row.companyName,
       sectorTag: row.sectorTag,
       status: row.status,
-      baseTargetPrice: val.base.targetPrice,
-      riskRewardRatio: val.riskRewardRatio,
+      baseTargetPrice: val?.base.targetPrice ?? 0,
+      riskRewardRatio: val?.riskRewardRatio ?? null,
     };
   });
 }

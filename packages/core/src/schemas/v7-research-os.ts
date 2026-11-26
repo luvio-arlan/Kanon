@@ -37,8 +37,14 @@ export const OperatingCaseDriversSchema = z.object({
   sbcPctOfRev: z.number().finite().min(0).max(40).default(2.5),
   taxRatePct: z.number().finite().min(0).max(45).default(18),
   capexPctOfRev: z.number().finite().min(0).max(60).default(8),
+  daPctOfRev: z.number().finite().min(0).max(40).optional(),
+  maintenanceCapexPctOfRev: z.number().finite().min(0).max(60).optional(),
+  nwcPctOfIncrementalRev: z.number().finite().min(-30).max(50).optional(),
   annualShareChangePct: z.number().finite().min(-15).max(15).default(-1),
   terminalMultiple: z.number().finite().min(3).max(80).default(22),
+  peMultiple: z.number().finite().min(3).max(80).optional(),
+  evFcfMultiple: z.number().finite().min(3).max(80).optional(),
+  evEbitMultiple: z.number().finite().min(2).max(60).optional(),
 });
 export type OperatingCaseDrivers = z.infer<typeof OperatingCaseDriversSchema>;
 
@@ -47,6 +53,7 @@ export const LinkedOperatingDriversSchema = z.object({
   base: OperatingCaseDriversSchema,
   bull: OperatingCaseDriversSchema,
   cashRetentionPct: z.number().finite().min(0).max(100).default(70),
+  treatSbcAsCashCost: z.boolean().optional(),
 });
 export type LinkedOperatingDrivers = z.infer<typeof LinkedOperatingDriversSchema>;
 
@@ -144,7 +151,7 @@ export const ReportingCurrencySchema = z.enum([
 export type ReportingCurrency = z.infer<typeof ReportingCurrencySchema>;
 
 export const StreetConsensusSchema = z.object({
-  source: z.enum(["live-market", "sec-derived"]),
+  source: z.enum(["live-market", "unavailable"]),
   fy1RevenueB: z.number().nullable(),
   fy2RevenueB: z.number().nullable(),
   fy1Eps: z.number().nullable(),
@@ -156,6 +163,15 @@ export const StreetConsensusSchema = z.object({
 });
 export type StreetConsensus = z.infer<typeof StreetConsensusSchema>;
 
+export const HistoricalExtrapolationSchema = z.object({
+  revenueCagrPct: z.number().nullable(),
+  trailingEps: z.number().nullable(),
+  extrapolatedFy1RevenueB: z.number().nullable(),
+  extrapolatedFy1Eps: z.number().nullable(),
+  impliedMultipleOnExtrapolatedEps: z.number().nullable(),
+});
+export type HistoricalExtrapolation = z.infer<typeof HistoricalExtrapolationSchema>;
+
 export const ValuationBandSchema = z.object({
   metricLabel: z.enum(["P/E", "EV/FCF"]),
   current: z.number().nullable(),
@@ -165,6 +181,16 @@ export const ValuationBandSchema = z.object({
   percentileRank: z.number().nullable(),
 });
 export type ValuationBand = z.infer<typeof ValuationBandSchema>;
+
+export const PeerMultipleRangeSchema = z.object({
+  metricLabel: z.enum(["P/E", "EV/FCF"]),
+  current: z.number().nullable(),
+  min: z.number().nullable(),
+  median: z.number().nullable(),
+  max: z.number().nullable(),
+  sampleSize: z.number().int().nonnegative(),
+});
+export type PeerMultipleRange = z.infer<typeof PeerMultipleRangeSchema>;
 
 export const IndustryPeerRowSchema = z.object({
   ticker: z.string().min(1),
@@ -185,7 +211,9 @@ export const MarketBenchmarkResponseSchema = z.object({
   ticker: z.string().min(1),
   sectorLabel: z.string(),
   consensus: StreetConsensusSchema,
-  valuationBand: ValuationBandSchema,
+  historicalExtrapolation: HistoricalExtrapolationSchema.nullable().optional(),
+  valuationBand: ValuationBandSchema.nullable(),
+  peerMultipleRange: PeerMultipleRangeSchema.nullable().optional(),
   peers: z.array(IndustryPeerRowSchema),
   spyPrice: z.number().nullable(),
   fetchedAt: z.string(),

@@ -7,6 +7,7 @@ import type {
 import { suggestKellyCappedWeight } from "../portfolio-analytics";
 import {
   calculateValuationScenarios,
+  hasInvalidValuationInput,
   roundTo,
   sanitizeValuationInput,
 } from "../valuation-scenarios";
@@ -114,17 +115,19 @@ function buildPositionRow(
   const cost = thesis.avgCostBasis;
   const unrealised =
     cost !== null && cost > 0 ? roundTo(((refPrice - cost) / cost) * 100, 1) : null;
+  const checked = sanitizeValuationInput({ ...thesis.valuationInput, currentPrice: refPrice });
+  const incomplete = hasInvalidValuationInput(thesis) || !checked.ok;
   const activeVal =
-    Math.abs(refPrice - thesis.currentPrice) > 0.001
-      ? calculateValuationScenarios(
-          sanitizeValuationInput({ ...thesis.valuationInput, currentPrice: refPrice }),
-        )
+    !incomplete && checked.ok && Math.abs(refPrice - thesis.currentPrice) > 0.001
+      ? calculateValuationScenarios(checked.input)
       : thesis.valuation;
-  const kelly = suggestKellyCappedWeight({
-    ...thesis,
-    currentPrice: refPrice,
-    valuation: activeVal,
-  });
+  const kelly = incomplete
+    ? { minPct: 0, maxPct: 0, rationale: "估值输入待完善" }
+    : suggestKellyCappedWeight({
+        ...thesis,
+        currentPrice: refPrice,
+        valuation: activeVal,
+      });
   return {
     thesisId: thesis.id,
     ticker: thesis.ticker,

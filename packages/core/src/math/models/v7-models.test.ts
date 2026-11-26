@@ -195,7 +195,7 @@ describe("KANON v7 Institutional Financial Models", () => {
       550,
     );
     expect(report.zeroLeverageGatePassed).toBe(true);
-    expect(report.brierScore).not.toBeNull();
+    expect(report.brierScore).toBeNull();
     expect(report.avgBenchmarkAlphaPct).toBe(10);
   });
 
@@ -303,5 +303,72 @@ describe("KANON v7 Institutional Financial Models", () => {
       horizonYears: 3,
     });
     expect(netCashRich.currentEvB).toBeLessThan(0);
+  });
+
+  it("supports explicit D&A, maintenance/growth CapEx, ΔNWC, independent multiples, and optional cash-SBC drag while staying backward-compatible with legacy drafts", () => {
+    const legacyDrivers = {
+      bear: {
+        revenueCagrPct: 8,
+        targetOperatingMarginPct: 25,
+        sbcPctOfRev: 3,
+        taxRatePct: 20,
+        capexPctOfRev: 10,
+        annualShareChangePct: 0.5,
+        terminalMultiple: 16,
+      },
+      base: {
+        revenueCagrPct: 12,
+        targetOperatingMarginPct: 30,
+        sbcPctOfRev: 2.5,
+        taxRatePct: 18,
+        capexPctOfRev: 10,
+        annualShareChangePct: -1,
+        terminalMultiple: 22,
+      },
+      bull: {
+        revenueCagrPct: 18,
+        targetOperatingMarginPct: 34,
+        sbcPctOfRev: 2,
+        taxRatePct: 17,
+        capexPctOfRev: 9,
+        annualShareChangePct: -2,
+        terminalMultiple: 26,
+      },
+      cashRetentionPct: 70,
+    };
+    const common = {
+      currentPrice: 100,
+      currentRevenueB: 50,
+      currentSharesM: 1000,
+      cashB: 10,
+      totalDebtB: 5,
+      horizonYears: 3,
+    };
+    const legacyRes = calculateLinkedOperatingModel({ ...common, drivers: legacyDrivers });
+    // Hand check base year 3 rev = 50 * 1.12^3 = 70.2464; EBIT = 21.07392; NOPAT = 17.2806;
+    // Legacy parity: D&A(6.5%) - MaintCapEx(10%) = -3.5% * rev = -2.4586 => Owner FCF = 14.822B
+    expect(legacyRes.base.endingOwnerFcfB).toBeCloseTo(14.82, 1);
+    expect(legacyRes.base.endingGrowthCapexB).toBe(0);
+
+    const explicitRes = calculateLinkedOperatingModel({
+      ...common,
+      drivers: {
+        ...legacyDrivers,
+        treatSbcAsCashCost: true,
+        base: {
+          ...legacyDrivers.base,
+          daPctOfRev: 6,
+          maintenanceCapexPctOfRev: 4,
+          nwcPctOfIncrementalRev: 10,
+          peMultiple: 18,
+          evFcfMultiple: 24,
+          evEbitMultiple: 15,
+        },
+      },
+    });
+    expect(explicitRes.base.endingGrowthCapexB).toBeGreaterThan(4);
+    expect(explicitRes.base.peTargetPrice).not.toBe(legacyRes.base.peTargetPrice);
+    expect(explicitRes.base.evFcfTargetPrice).not.toBe(legacyRes.base.evFcfTargetPrice);
+    expect(explicitRes.base.evEbitTargetPrice).not.toBe(legacyRes.base.evEbitTargetPrice);
   });
 });

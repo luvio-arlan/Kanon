@@ -2,6 +2,7 @@
 
 import type { SecAnnualFinancial, ThesisDetail, ValuationModelMode } from "@kanon/core";
 import { SegmentedTabs } from "@kanon/ui";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
 import {
@@ -69,13 +70,21 @@ function useStableEpsBounds(
   return { epsRange, expandCeiling: (eps: number) => setCeiling((prev) => Math.max(eps, prev)) };
 }
 
-export function ValuationWorkbench({
-  thesis,
-  secAnnuals = [],
-  latestSecEps = null,
-  onSyncChange,
-  onSave,
-}: ValuationWorkbenchProps) {
+function ValuationIssuesNotice({ issues }: { issues: ReadonlyArray<{ message: string }> }) {
+  if (issues.length === 0) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-control border border-status-warn/40 bg-status-warn-soft px-4 py-2.5 text-xs text-status-warn">
+      <IconAlertTriangle size={14} stroke={1.5} className="mt-0.5 shrink-0" />
+      <span>
+        估值输入待完善（当前为受限预览，不会写入伪造值）：
+        {issues.map((i) => i.message).join(" ")}
+      </span>
+    </div>
+  );
+}
+
+export function ValuationWorkbench(props: ValuationWorkbenchProps) {
+  const { thesis, secAnnuals = [], latestSecEps = null, onSyncChange, onSave } = props;
   const d = useValuationDraft({ thesis, onSyncChange, onSave });
   const [lens, setLens] = useState<ValuationLens>("scenarios");
   const { epsRange, expandCeiling } = useStableEpsBounds(
@@ -87,9 +96,12 @@ export function ValuationWorkbench({
     d.setModelMode(mode);
     setLens(mode === "pe" ? "scenarios" : "drivers");
   };
+  const issues =
+    d.validationIssues.length > 0 ? d.validationIssues : (thesis.valuationInputIssues ?? []);
   return (
     <div className="space-y-6">
       <ValuationHeaderBar lens={lens} onLens={setLens} />
+      <ValuationIssuesNotice issues={issues} />
       <LiveOddsBanner summary={d.summary} trailingEps={latestSecEps} />
       <ValuationControlsBar
         currentPrice={d.currentPrice}

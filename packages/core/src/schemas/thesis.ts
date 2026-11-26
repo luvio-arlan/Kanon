@@ -29,6 +29,22 @@ export const ValuationCaseInputSchema = z.object({
 });
 export type ValuationCaseInput = z.infer<typeof ValuationCaseInputSchema>;
 
+export const ValuationInputIssueSchema = z.object({
+  field: z.enum([
+    "currentPrice",
+    "horizonYears",
+    "bear.eps",
+    "bear.peMultiple",
+    "base.eps",
+    "base.peMultiple",
+    "bull.eps",
+    "bull.peMultiple",
+    "probabilities",
+  ]),
+  message: z.string().min(1),
+});
+export type ValuationInputIssue = z.infer<typeof ValuationInputIssueSchema>;
+
 export const ValuationScenarioInputSchema = z.object({
   currentPrice: z.number().finite().positive().max(MAX_VALUATION_PRICE),
   horizonYears: z.number().int().min(1).max(15).default(3),

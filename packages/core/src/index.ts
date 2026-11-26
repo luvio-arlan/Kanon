@@ -92,6 +92,7 @@ export * from "./math/institutional";
 export * from "./math/models";
 export {
   calculatePortfolioAnalytics,
+  type KellySizingOptions,
   type KellyWeightSuggestion,
   type PortfolioAnalytics,
   type SectorExposure,
@@ -131,6 +132,14 @@ export {
   type SensitivityMatrix,
 } from "./math/sensitivity-matrix";
 export {
+  calculateDiscreteKelly,
+  type DiscreteKellyInput,
+  type DiscreteKellyResult,
+  type DiscreteKellyScenario,
+  type KellyAdjustmentDetail,
+  type KellyAdjustmentOption,
+} from "./math/sizing/kelly-discrete";
+export {
   calculateEvOwnerFcfValuation,
   calculateTopDownEps,
   calculateTrueReverseDcf,
@@ -143,14 +152,7 @@ export {
   type TopDownEpsResult,
   type TsrDecompositionResult,
 } from "./math/valuation-advanced";
-export {
-  calculateAverageRiskReward,
-  calculatePriceMarkerPosition,
-  calculateValuationScenarios,
-  checkScenarioMonotonicity,
-  roundTo,
-  sanitizeValuationInput,
-} from "./math/valuation-scenarios";
+export * from "./math/valuation-scenarios";
 export {
   type Alignment,
   AlignmentSchema,
@@ -218,28 +220,6 @@ export {
   type ValuationModelMode,
   ValuationModelModeSchema,
 } from "./schemas/research";
-export {
-  type ConvictionZone,
-  ConvictionZoneSchema,
-  type Hypothesis,
-  HypothesisSchema,
-  type HypothesisStatus,
-  HypothesisStatusSchema,
-  MAX_VALUATION_EPS,
-  MAX_VALUATION_PE,
-  MAX_VALUATION_PRICE,
-  type SparklinePoint,
-  SparklinePointSchema,
-  type ThesisCard,
-  ThesisCardSchema,
-  type ValuationCaseInput,
-  ValuationCaseInputSchema,
-  type ValuationCaseResult,
-  ValuationCaseResultSchema,
-  type ValuationScenarioInput,
-  ValuationScenarioInputSchema,
-  type ValuationScenarioSummary,
-  ValuationScenarioSummarySchema,
-} from "./schemas/thesis";
+export * from "./schemas/thesis";
 export * from "./schemas/v5-institutional";
 export * from "./schemas/v7-research-os";

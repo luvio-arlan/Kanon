@@ -106,7 +106,8 @@ export async function listThesisSummaries(
     );
   const valMap = new Map(vals.map((v) => [v.thesisId, v]));
   return rows.map((row) => {
-    const val = calculateValuationScenarios(buildValuationInput(row, valMap.get(row.id)));
+    const { input, issues } = buildValuationInput(row, valMap.get(row.id));
+    const val = issues ? null : calculateValuationScenarios(input);
     return {
       id: row.id,
       indexLabel: String(row.indexOrder).padStart(2, "0"),
@@ -114,8 +115,8 @@ export async function listThesisSummaries(
       companyName: row.companyName,
       sectorTag: row.sectorTag,
       status: row.status,
-      baseTargetPrice: val.base.targetPrice,
-      riskRewardRatio: val.riskRewardRatio,
+      baseTargetPrice: val?.base.targetPrice ?? 0,
+      riskRewardRatio: val?.riskRewardRatio ?? null,
     };
   });
 }

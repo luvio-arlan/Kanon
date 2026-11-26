@@ -264,4 +264,40 @@ describe("KANON v7 SEC 20-F FX/ADR, Quarterly De-cumulation, 10-K TOC & Form 4",
     expect(txs[0]?.price).toBe(130.5);
     expect(txs[0]?.is10b51).toBe(false);
   });
+
+  it("extracts pretaxIncome, incomeTaxExpense, split operating lease liabilities, and goodwill from XBRL", () => {
+    const facts = {
+      "us-gaap": {
+        Revenues: {
+          units: {
+            USD: [{ val: 200e9, form: "10-K", fy: 2024, start: "2024-01-01", end: "2024-12-31" }],
+          },
+        },
+        IncomeLossBeforeIncomeTaxes: {
+          units: {
+            USD: [{ val: 80e9, form: "10-K", fy: 2024, start: "2024-01-01", end: "2024-12-31" }],
+          },
+        },
+        IncomeTaxExpenseBenefit: {
+          units: {
+            USD: [{ val: 14e9, form: "10-K", fy: 2024, start: "2024-01-01", end: "2024-12-31" }],
+          },
+        },
+        OperatingLeaseLiabilityCurrent: {
+          units: { USD: [{ val: 2e9, form: "10-K", fy: 2024, end: "2024-12-31" }] },
+        },
+        OperatingLeaseLiabilityNoncurrent: {
+          units: { USD: [{ val: 11e9, form: "10-K", fy: 2024, end: "2024-12-31" }] },
+        },
+        Goodwill: {
+          units: { USD: [{ val: 50e9, form: "10-K", fy: 2024, end: "2024-12-31" }] },
+        },
+      },
+    };
+    const annuals = extractAnnualHistory(facts);
+    expect(annuals[0]?.pretaxIncome).toBe(80e9);
+    expect(annuals[0]?.incomeTaxExpense).toBe(14e9);
+    expect(annuals[0]?.operatingLeaseLiability).toBe(13e9);
+    expect(annuals[0]?.goodwill).toBe(50e9);
+  });
 });

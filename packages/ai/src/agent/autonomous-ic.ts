@@ -119,10 +119,10 @@ function buildAutonomousTools(
       push,
     ),
     check_peers_and_consensus: makeTimedReadTool(
-      "核对行业真实可比公司估值/ROIC、一致预期及历史估值分位带",
+      "核对行业可比公司估值/ROIC、同业倍数区间及已接入的外部卖方预期",
       {
         toolName: "agent_check_peers",
-        label: "核对一致预期与行业同业坐标",
+        label: "核对行业同业坐标与外部预期",
         citation: `${ctx.thesis.ticker} 行业同业基准`,
       },
       () => buildPeersPacket(ctx.benchmarks),

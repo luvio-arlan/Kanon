@@ -72,17 +72,40 @@ export function buildGuidanceAuditPacket(
     : "暂无持久化多季纪要与指引追踪记录。";
 }
 
-export function buildPeersPacket(benchmarks: MarketBenchmarkResponse | null | undefined): string {
-  if (!benchmarks) return "暂无行业可比与市场一致预期数据。";
+function formatConsensusSummary(benchmarks: MarketBenchmarkResponse): string {
   const c = benchmarks.consensus;
+  const base =
+    c.source === "live-market"
+      ? `卖方一致预期(live-market): FY1 Rev=$${c.fy1RevenueB ?? "—"}B, FY1 EPS=$${c.fy1Eps ?? "—"}, FwdPE=${c.impliedForwardPe ?? "—"}x`
+      : "卖方一致预期: 未接入外部预期数据源";
+  const ext = benchmarks.historicalExtrapolation;
+  if (!ext) return base;
+  return `${base}; 历史财报外推(非一致预期): CAGR=${ext.revenueCagrPct ?? "—"}%, 外推FY1 EPS=$${ext.extrapolatedFy1Eps ?? "—"}`;
+}
+
+function formatBandSummary(benchmarks: MarketBenchmarkResponse): string {
   const b = benchmarks.valuationBand;
-  const peerStr = benchmarks.peers
-    .map(
-      (p) =>
-        `${p.ticker}(PE=${p.forwardPe ?? "—"}x, 增速=${p.revenueGrowthPct ?? "—"}%, 毛利=${p.grossMarginPct ?? "—"}%, ROIC=${p.roicPct ?? "—"}%)`,
-    )
-    .join("; ");
-  return `一致预期(${c.source}): FY1 Rev=$${c.fy1RevenueB ?? "—"}B, FY1 EPS=$${c.fy1Eps ?? "—"}, FwdPE=${c.impliedForwardPe ?? "—"}x; 历史估值带 P10/P50/P90=${b.p10 ?? "—"}/${b.p50 ?? "—"}/${b.p90 ?? "—"}x (当前分位 ${b.percentileRank ?? "—"}%); 行业同业: ${peerStr}`;
+  if (b) {
+    return `历史估值分位带 P10/P50/P90=${b.p10 ?? "—"}/${b.p50 ?? "—"}/${b.p90 ?? "—"}x (当前分位 ${b.percentileRank ?? "—"}%)`;
+  }
+  const range = benchmarks.peerMultipleRange;
+  if (range) {
+    return `同业当前倍数区间(${range.sampleSize}家) Min/Med/Max=${range.min ?? "—"}/${range.median ?? "—"}/${range.max ?? "—"}x`;
+  }
+  return "历史估值分位带: 暂无(待接入日频价格历史)";
+}
+
+function formatPeerRowBrief(p: MarketBenchmarkResponse["peers"][number]): string {
+  return `${p.ticker}(PE=${p.forwardPe ?? "—"}x, 增速=${p.revenueGrowthPct ?? "—"}%, 毛利=${p.grossMarginPct ?? "—"}%, ROIC=${p.roicPct ?? "—"}%)`;
+}
+
+export function buildPeersPacket(benchmarks: MarketBenchmarkResponse | null | undefined): string {
+  if (!benchmarks) return "暂无行业可比与外部预期数据。";
+  const peerStr =
+    benchmarks.peers.length > 0
+      ? benchmarks.peers.map(formatPeerRowBrief).join("; ")
+      : "未收录同业图谱";
+  return `${formatConsensusSummary(benchmarks)}; ${formatBandSummary(benchmarks)}; 行业同业: ${peerStr}`;
 }
 
 export function buildFullDossierContext(
@@ -119,7 +142,7 @@ export function buildFullDossierContext(
   return [
     ...baseLines,
     `财务与内部人：${formatFinancialsPacket(ctx.secSnapshot)}`,
-    `市场一致预期与同业：${buildPeersPacket(ctx.benchmarks)}`,
+    `行业同业与外部预期：${buildPeersPacket(ctx.benchmarks)}`,
   ].join("\n");
 }
 

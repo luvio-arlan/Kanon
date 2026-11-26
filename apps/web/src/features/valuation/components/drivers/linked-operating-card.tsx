@@ -20,17 +20,45 @@ const CASE_ROWS: ReadonlyArray<{ key: CaseKey; label: string }> = [
   { key: "bull", label: "乐观" },
 ];
 
-const DRIVER_FIELDS: ReadonlyArray<{
+type NumericDriverField = {
   key: keyof OperatingCaseDrivers;
   label: string;
   step: number;
-}> = [
-  { key: "revenueCagrPct", label: "营收增速%", step: 1 },
-  { key: "targetOperatingMarginPct", label: "营业利润%", step: 1 },
-  { key: "sbcPctOfRev", label: "SBC/营收%", step: 0.5 },
-  { key: "capexPctOfRev", label: "CapEx%", step: 0.5 },
-  { key: "annualShareChangePct", label: "股本变动%", step: 0.5 },
-  { key: "terminalMultiple", label: "终值倍数×", step: 1 },
+  read: (v: OperatingCaseDrivers) => number;
+};
+
+const CORE_FIELDS: readonly NumericDriverField[] = [
+  { key: "revenueCagrPct", label: "营收增速%", step: 1, read: (v) => v.revenueCagrPct },
+  {
+    key: "targetOperatingMarginPct",
+    label: "营业利润%",
+    step: 1,
+    read: (v) => v.targetOperatingMarginPct,
+  },
+  {
+    key: "daPctOfRev",
+    label: "D&A%",
+    step: 0.5,
+    read: (v) => v.daPctOfRev ?? Number((v.capexPctOfRev * 0.65).toFixed(1)),
+  },
+  {
+    key: "maintenanceCapexPctOfRev",
+    label: "维护CapEx%",
+    step: 0.5,
+    read: (v) => v.maintenanceCapexPctOfRev ?? v.capexPctOfRev,
+  },
+  {
+    key: "nwcPctOfIncrementalRev",
+    label: "ΔNWC%",
+    step: 0.5,
+    read: (v) => v.nwcPctOfIncrementalRev ?? 0,
+  },
+  {
+    key: "evFcfMultiple",
+    label: "EV/FCF×",
+    step: 1,
+    read: (v) => v.evFcfMultiple ?? v.terminalMultiple,
+  },
 ];
 
 function CaseDriverRow(p: {
@@ -39,6 +67,7 @@ function CaseDriverRow(p: {
   targetPrice: number;
   eps: number;
   ownerFcfB: number;
+  growthCapexB: number;
   onPatch: (next: Partial<OperatingCaseDrivers>) => void;
 }) {
   return (
@@ -48,15 +77,23 @@ function CaseDriverRow(p: {
         <div className="font-mono text-xs text-accent-coral tabular-nums">
           ${p.targetPrice.toFixed(1)} · EPS ${p.eps.toFixed(1)}
         </div>
-        <div className="font-mono text-xs text-ink-muted tabular-nums">FCF ${p.ownerFcfB}B</div>
+        <div className="font-mono text-xs text-ink-muted tabular-nums">
+          FCF ${p.ownerFcfB}B{p.growthCapexB > 0 ? ` · 增长CapEx $${p.growthCapexB}B` : ""}
+        </div>
       </div>
-      {DRIVER_FIELDS.map((f) => (
+      {CORE_FIELDS.map((f) => (
         <DriverNumInput
           key={f.key}
           label={f.label}
-          value={p.val[f.key]}
+          value={f.read(p.val)}
           step={f.step}
-          onChange={(nextVal) => p.onPatch({ [f.key]: nextVal })}
+          onChange={(nextVal) =>
+            p.onPatch(
+              f.key === "evFcfMultiple"
+                ? { evFcfMultiple: nextVal, terminalMultiple: nextVal }
+                : { [f.key]: nextVal },
+            )
+          }
         />
       ))}
     </div>
@@ -80,17 +117,30 @@ function resolveInitialLinkedDrivers(
 
 function LinkedModelFooter({
   model,
+  treatSbcAsCashCost,
+  onToggleSbc,
   onApply,
 }: {
   model: LinkedOperatingModelResult;
+  treatSbcAsCashCost: boolean;
+  onToggleSbc: () => void;
   onApply: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-3.5">
-      <div className="font-mono text-xs text-ink-secondary tabular-nums">
-        中性远期营收 <strong className="text-ink-primary">${model.base.endingRevenueB}B</strong> ·
-        期间累积 FCF <strong className="text-ink-primary">${model.base.cumulativeFcfB}B</strong> ·
-        年化 <strong className="text-accent-coral">{model.base.cagrPct}%</strong>
+      <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-ink-secondary tabular-nums">
+        <span>
+          中性远期营收 <strong className="text-ink-primary">${model.base.endingRevenueB}B</strong> ·
+          期间累积 FCF <strong className="text-ink-primary">${model.base.cumulativeFcfB}B</strong> ·
+          年化 <strong className="text-accent-coral">{model.base.cagrPct}%</strong>
+        </span>
+        <button
+          type="button"
+          onClick={onToggleSbc}
+          className="cursor-pointer rounded-pill border border-hairline px-2.5 py-0.5 font-sans text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
+        >
+          {treatSbcAsCashCost ? "SBC 按现金成本再扣减：开" : "GAAP EBIT 已含 SBC：默认"}
+        </button>
       </div>
       <Button variant="primary" size="sm" onClick={onApply}>
         <IconArrowDownRight size={14} stroke={1.5} />
@@ -144,11 +194,22 @@ export function LinkedOperatingCard(props: LinkedOperatingCardProps) {
             targetPrice={model[row.key].evFcfTargetPrice}
             eps={model[row.key].impliedEps}
             ownerFcfB={model[row.key].endingOwnerFcfB}
+            growthCapexB={model[row.key].endingGrowthCapexB}
             onPatch={(p) => patchCase(row.key, p)}
           />
         ))}
       </div>
-      <LinkedModelFooter model={model} onApply={handleApply} />
+      <LinkedModelFooter
+        model={model}
+        treatSbcAsCashCost={drivers.treatSbcAsCashCost ?? false}
+        onToggleSbc={() =>
+          props.onChangeDrivers({
+            ...drivers,
+            treatSbcAsCashCost: !(drivers.treatSbcAsCashCost ?? false),
+          })
+        }
+        onApply={handleApply}
+      />
     </Card>
   );
 }

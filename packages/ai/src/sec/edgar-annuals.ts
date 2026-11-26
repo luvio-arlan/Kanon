@@ -1,4 +1,5 @@
 import { roundTo, type SecAnnualFinancial, type SecFinancialFact } from "@kanon/core";
+import { extractOperatingLeaseMap, extractTotalDebtMap } from "./xbrl-balance-helpers";
 import {
   type CurrencyNormalization,
   collectAnnualEntryMap,
@@ -10,29 +11,6 @@ import {
 
 export { formatUsdCompact, resolveCurrencyNormalization, type SecFactsPayload };
 
-function extractTotalDebtMap(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
-  const inst = (us: readonly string[], ifrs: readonly string[]) =>
-    collectAnnualMap(facts, us, ifrs, "monetary", "instant", norm);
-  const aggregate = inst(
-    ["LongTermDebtAndCapitalLeaseObligations", "LongTermDebt"],
-    ["Borrowings"],
-  );
-  const noncurrent = inst(
-    ["LongTermDebtNoncurrent"],
-    ["NoncurrentBorrowings", "LongtermBorrowings"],
-  );
-  const current = inst(
-    ["LongTermDebtCurrent", "DebtCurrent", "ShortTermBorrowings"],
-    ["CurrentBorrowings", "CurrentPortionOfLongtermBorrowings"],
-  );
-  const merged = new Map<number, number>(aggregate);
-  for (const fy of new Set([...noncurrent.keys(), ...current.keys()])) {
-    if (merged.has(fy)) continue;
-    merged.set(fy, (noncurrent.get(fy) ?? 0) + (current.get(fy) ?? 0));
-  }
-  return merged;
-}
-
 function extractBalanceSheetMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
   const inst = (us: readonly string[], ifrs: readonly string[]) =>
     collectAnnualMap(facts, us, ifrs, "monetary", "instant", norm);
@@ -42,6 +20,8 @@ function extractBalanceSheetMaps(facts: SecFactsPayload | undefined, norm: Curre
       ["CashAndCashEquivalents"],
     ),
     debt: extractTotalDebtMap(facts, norm),
+    leases: extractOperatingLeaseMap(facts, norm),
+    goodwill: inst(["Goodwill"], ["Goodwill"]),
     equity: inst(
       [
         "StockholdersEquity",
@@ -90,12 +70,24 @@ function extractCashFlowMaps(facts: SecFactsPayload | undefined, norm: CurrencyN
   };
 }
 
+const PRETAX_US_TAGS = [
+  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+  "IncomeLossBeforeIncomeTaxes",
+] as const;
+
+const REV_US_TAGS = [
+  "RevenueFromContractWithCustomerExcludingAssessedTax",
+  "Revenues",
+  "SalesRevenueNet",
+] as const;
+
 function extractIncomeCashMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
   const flow = (us: readonly string[], ifrs: readonly string[]) =>
     collectAnnualMap(facts, us, ifrs, "monetary", "flow", norm);
   const revEntries = collectAnnualEntryMap(
     facts,
-    ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
+    REV_US_TAGS,
     ["Revenue"],
     "monetary",
     "flow",
@@ -116,6 +108,11 @@ function extractIncomeCashMaps(facts: SecFactsPayload | undefined, norm: Currenc
     gp: flow(["GrossProfit"], ["GrossProfit"]),
     cogs: flow(["CostOfRevenue", "CostOfGoodsAndServicesSold"], ["CostOfSales"]),
     ebit: flow(["OperatingIncomeLoss"], ["ProfitLossFromOperatingActivities"]),
+    pretax: flow(PRETAX_US_TAGS, ["ProfitLossBeforeTax"]),
+    tax: flow(
+      ["IncomeTaxExpenseBenefit"],
+      ["IncomeTaxExpenseContinuingOperations", "IncomeTaxExpense"],
+    ),
     rd: flow(["ResearchAndDevelopmentExpense"], ["ResearchAndDevelopmentExpense"]),
     ni: new Map([...niEntries.entries()].map(([k, v]) => [k, v.val])),
     ...extractCashFlowMaps(facts, norm),
@@ -169,6 +166,10 @@ function buildAnnualRow(
     accountsPayable: readYearVal(bs.payables, fy),
     shareRepurchases: readYearVal(ic.buybacks, fy),
     dividendsPaid: readYearVal(ic.dividends, fy),
+    pretaxIncome: readYearVal(ic.pretax, fy),
+    incomeTaxExpense: readYearVal(ic.tax, fy),
+    operatingLeaseLiability: readYearVal(bs.leases, fy),
+    goodwill: readYearVal(bs.goodwill, fy),
   };
 }
 

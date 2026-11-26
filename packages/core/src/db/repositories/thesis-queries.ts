@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
 import {
   calculateValuationScenarios,
+  clampDisplayValuationInput,
   sanitizeValuationInput,
 } from "../../math/valuation-scenarios";
 import type {
@@ -67,13 +68,18 @@ function mkCase(
 }
 
 export function buildValuationInput(row: ThesisRow, val: ValuationRow | undefined) {
-  return sanitizeValuationInput({
+  const raw = {
     currentPrice: row.currentPrice,
     horizonYears: row.horizonYears,
-    bear: mkCase(val?.bearEps, val?.bearPe, val?.bearProb, [1, 15, 0.25]),
-    base: mkCase(val?.baseEps, val?.basePe, val?.baseProb, [2, 20, 0.5]),
-    bull: mkCase(val?.bullEps, val?.bullPe, val?.bullProb, [3, 25, 0.25]),
-  });
+    bear: mkCase(val?.bearEps, val?.bearPe, val?.bearProb, [0, 0, 0.25]),
+    base: mkCase(val?.baseEps, val?.basePe, val?.baseProb, [0, 0, 0.5]),
+    bull: mkCase(val?.bullEps, val?.bullPe, val?.bullProb, [0, 0, 0.25]),
+  };
+  const checked = sanitizeValuationInput(raw);
+  if (checked.ok) {
+    return { input: checked.input, issues: undefined };
+  }
+  return { input: clampDisplayValuationInput(raw), issues: checked.issues };
 }
 
 function groupByThesisId<T extends { thesisId: string }>(rows: readonly T[]): Map<string, T[]> {
@@ -95,7 +101,7 @@ export function hydrateThesis(params: {
   disciplineRows: DisciplineRow[];
 }): ThesisDetail {
   const { row, hypotheses, catalysts = [], crossChecks, valuationRow, disciplineRows } = params;
-  const valInput = buildValuationInput(row, valuationRow);
+  const { input: valInput, issues: valuationInputIssues } = buildValuationInput(row, valuationRow);
   return {
     id: row.id,
     indexLabel: String(row.indexOrder).padStart(2, "0"),
@@ -117,6 +123,7 @@ export function hydrateThesis(params: {
     catalysts: catalysts.map(({ thesisId: _, createdAt: __, ...rest }): ThesisCatalyst => rest),
     crossChecks: crossChecks.map(({ thesisId: _, createdAt: __, ...rest }): CrossCheck => rest),
     valuationInput: valInput,
+    ...(valuationInputIssues ? { valuationInputIssues } : {}),
     valuationModelMode: valuationRow?.modelMode ?? "pe",
     valuationDriverInputs: valuationRow?.driverInputs ?? null,
     valuation: calculateValuationScenarios(valInput),

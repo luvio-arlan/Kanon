@@ -5,6 +5,7 @@ import { suggestKellyCappedWeight } from "../portfolio-analytics";
 import { calculateResearchReadiness } from "../research-readiness";
 import {
   calculateValuationScenarios,
+  hasInvalidValuationInput,
   roundTo,
   sanitizeValuationInput,
 } from "../valuation-scenarios";
@@ -33,6 +34,7 @@ export interface PeerCompRow {
   weightGapPct: number;
   upcomingCatalysts: number;
   warningCount: number;
+  valuationIncomplete?: boolean;
 }
 
 export interface PeerCompsMedians {
@@ -63,21 +65,49 @@ function resolveUsableQuote(quote: MarketQuoteSnapshot | undefined) {
   return !quote.currency || quote.currency.toUpperCase() === "USD" ? quote : undefined;
 }
 
-function buildPeerRow(thesis: ThesisDetail, quote: MarketQuoteSnapshot | undefined): PeerCompRow {
-  const livePrice = resolveUsableQuote(quote)?.effectivePrice ?? thesis.currentPrice;
+function computePeerValuationFields(thesis: ThesisDetail, livePrice: number) {
+  const checked = sanitizeValuationInput({ ...thesis.valuationInput, currentPrice: livePrice });
+  if (hasInvalidValuationInput(thesis) || !checked.ok) {
+    return {
+      valuationIncomplete: true as const,
+      baseTargetPrice: 0,
+      upsidePct: 0,
+      baseCagrPct: 0,
+      marginOfSafetyPct: 0,
+      riskRewardRatio: null,
+      basePeMultiple: 0,
+      hurdleEntry15: 0,
+      belowHurdle15: false,
+      kellyMaxPct: 0,
+    };
+  }
   const activeVal =
     Math.abs(livePrice - thesis.currentPrice) > 0.001
-      ? calculateValuationScenarios(
-          sanitizeValuationInput({ ...thesis.valuationInput, currentPrice: livePrice }),
-        )
+      ? calculateValuationScenarios(checked.input)
       : thesis.valuation;
   const exp = calculateImpliedExpectations({ summary: activeVal });
-  const readiness = calculateResearchReadiness(thesis);
   const kelly = suggestKellyCappedWeight({
     ...thesis,
     currentPrice: livePrice,
     valuation: activeVal,
   });
+  return {
+    baseTargetPrice: activeVal.base.targetPrice,
+    upsidePct: activeVal.upsidePct,
+    baseCagrPct: activeVal.base.cagrPct,
+    marginOfSafetyPct: exp.marginOfSafetyPct,
+    riskRewardRatio: activeVal.riskRewardRatio,
+    basePeMultiple: activeVal.base.peMultiple,
+    hurdleEntry15: exp.hurdleEntry15,
+    belowHurdle15: livePrice <= exp.hurdleEntry15,
+    kellyMaxPct: kelly.maxPct,
+  };
+}
+
+function buildPeerRow(thesis: ThesisDetail, quote: MarketQuoteSnapshot | undefined): PeerCompRow {
+  const livePrice = resolveUsableQuote(quote)?.effectivePrice ?? thesis.currentPrice;
+  const valFields = computePeerValuationFields(thesis, livePrice);
+  const readiness = calculateResearchReadiness(thesis);
   const drawdownFrom52wHighPct =
     quote?.fiftyTwoWeekHigh && quote.fiftyTwoWeekHigh > 0
       ? roundTo(((livePrice - quote.fiftyTwoWeekHigh) / quote.fiftyTwoWeekHigh) * 100, 1)
@@ -93,20 +123,12 @@ function buildPeerRow(thesis: ThesisDetail, quote: MarketQuoteSnapshot | undefin
     sessionState: quote?.sessionState ?? null,
     dayChangePct: quote?.regularChangePct ?? null,
     drawdownFrom52wHighPct,
-    baseTargetPrice: activeVal.base.targetPrice,
-    upsidePct: activeVal.upsidePct,
-    baseCagrPct: activeVal.base.cagrPct,
-    marginOfSafetyPct: exp.marginOfSafetyPct,
-    riskRewardRatio: activeVal.riskRewardRatio,
-    basePeMultiple: activeVal.base.peMultiple,
-    hurdleEntry15: exp.hurdleEntry15,
-    belowHurdle15: livePrice <= exp.hurdleEntry15,
     readinessScore: readiness.scorePct,
     currentWeightPct: thesis.currentWeightPct,
-    kellyMaxPct: kelly.maxPct,
-    weightGapPct: roundTo(kelly.maxPct - thesis.currentWeightPct, 1),
+    weightGapPct: roundTo(valFields.kellyMaxPct - thesis.currentWeightPct, 1),
     upcomingCatalysts: thesis.catalysts.filter((c) => c.status === "upcoming").length,
     warningCount: thesis.hypotheses.filter((h) => h.status === "warning").length,
+    ...valFields,
   };
 }
 
@@ -121,16 +143,17 @@ export function calculatePeerCompsTable(
   const rows = active.map((thesis) =>
     buildPeerRow(thesis, normalizedQuotes?.get(thesis.ticker.trim().toUpperCase())),
   );
-  const rrFinite = rows
+  const completeRows = rows.filter((r) => !r.valuationIncomplete);
+  const rrFinite = completeRows
     .map((r) => r.riskRewardRatio)
     .filter((v): v is number => v !== null && Number.isFinite(v));
 
   return {
     rows,
     medians: {
-      upsidePct: medianOf(rows.map((r) => r.upsidePct)),
-      baseCagrPct: medianOf(rows.map((r) => r.baseCagrPct)),
-      marginOfSafetyPct: medianOf(rows.map((r) => r.marginOfSafetyPct)),
+      upsidePct: medianOf(completeRows.map((r) => r.upsidePct)),
+      baseCagrPct: medianOf(completeRows.map((r) => r.baseCagrPct)),
+      marginOfSafetyPct: medianOf(completeRows.map((r) => r.marginOfSafetyPct)),
       riskRewardRatio: medianOf(rrFinite),
       readinessScore: medianOf(rows.map((r) => r.readinessScore)),
     },

@@ -1,6 +1,7 @@
 import { calculateImpliedExpectations } from "../math/implied-expectations";
 import { calculateResearchReadiness } from "../math/research-readiness";
 import { analyzeSecQuality } from "../math/sec-analytics";
+import { hasInvalidValuationInput } from "../math/valuation-scenarios";
 import type { ThesisDetail } from "../schemas/research";
 import { formatGoogleDocHtml, type ThesisExportExtras } from "./formatters-html";
 import { formatMarkdownExtras } from "./formatters-sections";
@@ -74,10 +75,26 @@ function formatVariantSection(thesis: ThesisDetail): string[] {
 
 export function formatThesisMarkdown(thesis: ThesisDetail, extras?: ThesisExportExtras): string {
   const { valuation } = thesis;
+  const incomplete = hasInvalidValuationInput(thesis);
   const ratio =
     valuation.riskRewardRatio !== null ? `${valuation.riskRewardRatio.toFixed(2)}×` : "∞";
   const readiness = calculateResearchReadiness(thesis);
   const { hypothesisLines, crossCheckLines } = formatResearchBullets(thesis);
+  const valuationLines = incomplete
+    ? [
+        `## 四、三情景估值赔率表（${thesis.horizonYears} 年）`,
+        "> 估值输入待完善，暂不输出三情景目标价与赔率测算。",
+      ]
+    : [
+        `## 四、三情景估值赔率表（${thesis.horizonYears} 年）`,
+        "| 情景 | EPS | 合理 PE | 权重 | 目标价 | 总空间 | 年化 CAGR |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
+        `| 悲观 | $${valuation.bear.eps} | ${valuation.bear.peMultiple}x | ${Math.round(valuation.bear.probability * 100)}% | $${valuation.bear.targetPrice.toFixed(2)} | ${valuation.bear.returnPct}% | ${valuation.bear.cagrPct}% |`,
+        `| 中性 | $${valuation.base.eps} | ${valuation.base.peMultiple}x | ${Math.round(valuation.base.probability * 100)}% | $${valuation.base.targetPrice.toFixed(2)} | ${valuation.base.returnPct}% | ${valuation.base.cagrPct}% |`,
+        `| 乐观 | $${valuation.bull.eps} | ${valuation.bull.peMultiple}x | ${Math.round(valuation.bull.probability * 100)}% | $${valuation.bull.targetPrice.toFixed(2)} | ${valuation.bull.returnPct}% | ${valuation.bull.cagrPct}% |`,
+        "",
+        `- **赔率比（Upside / Downside）**：${ratio} ｜ **概率期望目标价**：$${valuation.expectedTargetPrice.toFixed(2)}`,
+      ];
 
   return [
     `# ${thesis.indexLabel} · ${thesis.companyName} (${thesis.ticker}) — KANON 深度研究档案`,
@@ -94,16 +111,9 @@ export function formatThesisMarkdown(thesis: ThesisDetail, extras?: ThesisExport
     "## 三、一阶资料与产业链交叉印证",
     crossCheckLines,
     "",
-    `## 四、三情景估值赔率表（${thesis.horizonYears} 年）`,
-    "| 情景 | EPS | 合理 PE | 权重 | 目标价 | 总空间 | 年化 CAGR |",
-    "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
-    `| 悲观 | $${valuation.bear.eps} | ${valuation.bear.peMultiple}x | ${Math.round(valuation.bear.probability * 100)}% | $${valuation.bear.targetPrice.toFixed(2)} | ${valuation.bear.returnPct}% | ${valuation.bear.cagrPct}% |`,
-    `| 中性 | $${valuation.base.eps} | ${valuation.base.peMultiple}x | ${Math.round(valuation.base.probability * 100)}% | $${valuation.base.targetPrice.toFixed(2)} | ${valuation.base.returnPct}% | ${valuation.base.cagrPct}% |`,
-    `| 乐观 | $${valuation.bull.eps} | ${valuation.bull.peMultiple}x | ${Math.round(valuation.bull.probability * 100)}% | $${valuation.bull.targetPrice.toFixed(2)} | ${valuation.bull.returnPct}% | ${valuation.bull.cagrPct}% |`,
+    ...valuationLines,
     "",
-    `- **赔率比（Upside / Downside）**：${ratio} ｜ **概率期望目标价**：$${valuation.expectedTargetPrice.toFixed(2)}`,
-    "",
-    ...formatExpectationsSection(thesis, extras),
+    ...(incomplete ? [] : formatExpectationsSection(thesis, extras)),
     ...formatMarkdownExtras(thesis, extras),
     "",
     "---",
@@ -162,10 +172,26 @@ const PORTFOLIO_CSV_HEADER = [
   "最近复盘",
 ];
 
-function formatPortfolioCsvRow(t: ThesisDetail): string {
-  const validated = t.hypotheses.filter((h) => h.status === "validated").length;
+function formatValuationCsvCells(t: ThesisDetail): string[] {
+  if (hasInvalidValuationInput(t)) {
+    return ["估值输入待完善", "估值输入待完善", "估值输入待完善", "", "", "", "", ""];
+  }
   const ratio = t.valuation.riskRewardRatio !== null ? `${t.valuation.riskRewardRatio}x` : "INF";
   const exp = calculateImpliedExpectations({ summary: t.valuation });
+  return [
+    t.valuation.bear.targetPrice.toFixed(2),
+    t.valuation.base.targetPrice.toFixed(2),
+    t.valuation.bull.targetPrice.toFixed(2),
+    t.valuation.upsidePct.toFixed(1),
+    exp.marginOfSafetyPct.toFixed(1),
+    exp.hurdleEntry15.toFixed(2),
+    t.valuation.base.cagrPct.toFixed(1),
+    ratio,
+  ];
+}
+
+function formatPortfolioCsvRow(t: ThesisDetail): string {
+  const validated = t.hypotheses.filter((h) => h.status === "validated").length;
   const costGainPct =
     t.avgCostBasis && t.avgCostBasis > 0
       ? (((t.currentPrice - t.avgCostBasis) / t.avgCostBasis) * 100).toFixed(1)
@@ -183,14 +209,7 @@ function formatPortfolioCsvRow(t: ThesisDetail): string {
     t.avgCostBasis ? t.avgCostBasis.toFixed(2) : "",
     costGainPct,
     t.currentPrice.toFixed(2),
-    t.valuation.bear.targetPrice.toFixed(2),
-    t.valuation.base.targetPrice.toFixed(2),
-    t.valuation.bull.targetPrice.toFixed(2),
-    t.valuation.upsidePct.toFixed(1),
-    exp.marginOfSafetyPct.toFixed(1),
-    exp.hurdleEntry15.toFixed(2),
-    t.valuation.base.cagrPct.toFixed(1),
-    ratio,
+    ...formatValuationCsvCells(t),
     `${validated}/${t.hypotheses.length}`,
     upcomingCatalysts,
     t.lastReviewedAt,

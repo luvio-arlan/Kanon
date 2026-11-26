@@ -34,12 +34,29 @@ function pickTone(
 }
 
 function buildProfitabilityCells(report: SecForensicReport): ForensicCellSpec[] {
-  return [
+  const taxTag =
+    report.effectiveTaxRateSource === "statutory-fallback"
+      ? "21%回退"
+      : `${report.effectiveTaxRatePct}%税率`;
+  const cells: ForensicCellSpec[] = [
     {
-      label: `投入资本回报率 (ROIC · ${report.latestFiscalYear})`,
+      label: `投入资本回报率 (ROIC · ${report.latestFiscalYear} · ${taxTag})`,
       value: formatPct(report.roicPct),
       tone: pickTone(report.roicPct, (n) => n >= 18, "pass", "primary"),
     },
+  ];
+  if (
+    report.roicExGoodwillPct !== null &&
+    report.roicPct !== null &&
+    Math.abs(report.roicExGoodwillPct - report.roicPct) >= 0.5
+  ) {
+    cells.push({
+      label: "投入资本回报率（不含商誉）",
+      value: formatPct(report.roicExGoodwillPct),
+      tone: pickTone(report.roicExGoodwillPct, (n) => n >= 22, "pass", "primary"),
+    });
+  }
+  cells.push(
     {
       label: "增量资本回报率 (ROIIC)",
       value: formatPct(report.roiicPct),
@@ -60,7 +77,8 @@ function buildProfitabilityCells(report: SecForensicReport): ForensicCellSpec[] 
       value: formatPct(report.sloanAccrualPct, true),
       tone: pickTone(report.sloanAccrualPct, (n) => n >= 10, "warn", "pass"),
     },
-  ];
+  );
+  return cells;
 }
 
 function buildGovernanceCells(report: SecForensicReport): ForensicCellSpec[] {

@@ -149,29 +149,58 @@ describe("calculateValuationScenarios", () => {
       }),
     ).toThrow();
   });
-  it("rejects runaway out-of-bounds EPS/PE/price and heals corrupted inputs via sanitizeValuationInput", () => {
-    expect(() =>
-      calculateValuationScenarios({
-        currentPrice: 492.5,
-        horizonYears: 5,
-        bear: { eps: 50, peMultiple: 28 },
-        base: { eps: 1e31, peMultiple: 30 },
-        bull: { eps: 1e31, peMultiple: 35 },
-      }),
-    ).toThrow();
+  it("returns structured issues instead of silently fabricating EPS/PE for invalid inputs", () => {
+    const negEps = sanitizeValuationInput({
+      currentPrice: 100,
+      horizonYears: 3,
+      bear: { eps: 0, peMultiple: 12 },
+      base: { eps: -2, peMultiple: 18 },
+      bull: { eps: 8, peMultiple: 24 },
+    });
+    expect(negEps.ok).toBe(false);
+    if (!negEps.ok) {
+      expect(negEps.issues.map((i) => i.field)).toContain("bear.eps");
+      expect(negEps.issues.map((i) => i.field)).toContain("base.eps");
+    }
 
-    const healed = sanitizeValuationInput({
+    const runaway = sanitizeValuationInput({
       currentPrice: 492.5,
       horizonYears: 5,
       bear: { eps: 50, peMultiple: 28 },
-      base: { eps: 1.35e31, peMultiple: 30 },
+      base: { eps: 1.35e31, peMultiple: 999 },
       bull: { eps: 1.13e31, peMultiple: 35 },
     });
-    const summary = calculateValuationScenarios(healed);
-    expect(summary.bear.eps).toBe(50);
-    expect(summary.base.eps).toBeLessThan(1000);
-    expect(summary.bull.eps).toBeLessThan(1000);
-    expect(Number.isFinite(summary.base.targetPrice)).toBe(true);
+    expect(runaway.ok).toBe(false);
+    if (!runaway.ok) {
+      expect(runaway.issues.map((i) => i.field)).toContain("base.eps");
+      expect(runaway.issues.map((i) => i.field)).toContain("base.peMultiple");
+      expect(runaway.issues.map((i) => i.field)).toContain("bull.eps");
+    }
+
+    const badProbs = sanitizeValuationInput({
+      currentPrice: 100,
+      horizonYears: 3,
+      bear: { eps: 5, peMultiple: 12, probability: 0.3 },
+      base: { eps: 8, peMultiple: 16, probability: 0.3 },
+      bull: { eps: 10, peMultiple: 20, probability: 0.3 },
+    });
+    expect(badProbs.ok).toBe(false);
+    if (!badProbs.ok) {
+      expect(badProbs.issues.map((i) => i.field)).toContain("probabilities");
+    }
+
+    const valid = sanitizeValuationInput({
+      currentPrice: 108,
+      horizonYears: 3,
+      bear: { eps: 7.5, peMultiple: 12 },
+      base: { eps: 12.5, peMultiple: 14 },
+      bull: { eps: 16, peMultiple: 16 },
+    });
+    expect(valid.ok).toBe(true);
+    if (valid.ok) {
+      expect(valid.input.base.eps).toBe(12.5);
+      expect(valid.input.base.probability).toBe(0.5);
+    }
   });
 });
 

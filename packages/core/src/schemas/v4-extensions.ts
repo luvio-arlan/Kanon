@@ -56,6 +56,10 @@ export const SecAnnualFinancialSchema = z.object({
   accountsPayable: z.number().nullable().optional(),
   shareRepurchases: z.number().nullable().optional(),
   dividendsPaid: z.number().nullable().optional(),
+  pretaxIncome: z.number().nullable().optional(),
+  incomeTaxExpense: z.number().nullable().optional(),
+  operatingLeaseLiability: z.number().nullable().optional(),
+  goodwill: z.number().nullable().optional(),
 });
 export type SecAnnualFinancial = z.infer<typeof SecAnnualFinancialSchema>;
 

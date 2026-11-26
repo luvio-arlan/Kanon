@@ -194,35 +194,104 @@ function checkCockpitPerfImport(relPath, sf, node, errors) {
   if (spec === "@kanon/ui") checkUiChartNamedImports(relPath, sf, node, errors);
 }
 
+const QUALITATIVE_CONSENSUS_NOTE_FILES = new Set([
+  "apps/web/src/features/research-steps/components/variant-perception-card.tsx",
+]);
+
+function isLiveMarketSourceGuard(expr, sf) {
+  const text = expr.getText(sf);
+  return /\.source\s*===\s*["']live-market["']/.test(text);
+}
+
+function checkHonestConsensusNode(relPath, sf, node, insideLiveGuard, errors) {
+  if (
+    ts.isStringLiteral(node) &&
+    node.text === "sec-derived" &&
+    /^(?:apps|packages)\//.test(relPath)
+  ) {
+    addError(
+      errors,
+      relPath,
+      getLine(sf, node.getStart(sf)),
+      "no-fabricated-consensus-source",
+      'Source "sec-derived" is forbidden. Never disguise historical SEC extrapolation as street consensus; use "unavailable" + separate historicalExtrapolation (docs/TOP_TIER_ROADMAP.md W0.1).',
+    );
+  }
+  const isUiFeature = /^apps\/web\/src\/features\//.test(relPath);
+  if (!isUiFeature || QUALITATIVE_CONSENSUS_NOTE_FILES.has(relPath) || insideLiveGuard) return;
+  const isTextHit =
+    (ts.isJsxText(node) || ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
+    node.text.includes("一致预期");
+  if (!isTextHit) return;
+  addError(
+    errors,
+    relPath,
+    getLine(sf, node.getStart(sf)),
+    "honest-market-consensus-guard",
+    '"一致预期" copy in UI features MUST be strictly gated inside a `*.source === "live-market"` branch. Never present unconfigured or extrapolated estimates as street consensus (.rules/postmortems.md).',
+  );
+}
+
+function checkBasicGardenNode(relPath, sf, node, isClientSlice, insideLiveGuard, errors) {
+  if (ts.isAsExpression(node) && isJsonDeserializationCall(node.expression, sf)) {
+    addError(
+      errors,
+      relPath,
+      getLine(sf, node.getStart(sf)),
+      "no-unchecked-json-cast",
+      "Unchecked JSON cast forbidden. Validate with kanonFetch(url, ZodSchema) or Schema.safeParse(...) from @kanon/core.",
+    );
+  }
+  if (ts.isCatchClause(node) && node.block.statements.length === 0) {
+    addError(
+      errors,
+      relPath,
+      getLine(sf, node.getStart(sf)),
+      "no-silent-catch",
+      "Empty catch block silently swallows errors. Capture the error and propagate fallbackReason or return a typed fallback result.",
+    );
+  }
+  checkRuntimeAiImport(relPath, sf, node, isClientSlice, errors);
+  checkCockpitPerfImport(relPath, sf, node, errors);
+  checkHonestConsensusNode(relPath, sf, node, insideLiveGuard, errors);
+}
+
+function tryWalkLiveGuardBranch(node, sf, insideLiveGuard, walk) {
+  if (ts.isIfStatement(node) && isLiveMarketSourceGuard(node.expression, sf)) {
+    walk(node.expression, insideLiveGuard);
+    walk(node.thenStatement, true);
+    if (node.elseStatement) walk(node.elseStatement, insideLiveGuard);
+    return true;
+  }
+  if (ts.isConditionalExpression(node) && isLiveMarketSourceGuard(node.condition, sf)) {
+    walk(node.condition, insideLiveGuard);
+    walk(node.whenTrue, true);
+    walk(node.whenFalse, insideLiveGuard);
+    return true;
+  }
+  if (
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
+    isLiveMarketSourceGuard(node.left, sf)
+  ) {
+    walk(node.left, insideLiveGuard);
+    walk(node.right, true);
+    return true;
+  }
+  return false;
+}
+
 export function checkGardenAstRules(relPath, sf, isTestFile, errors) {
   if (isTestFile) return;
   const isClientSlice = /^apps\/web\/src\/(?:features|shared)\//.test(relPath);
 
-  function walk(node) {
-    if (ts.isAsExpression(node) && isJsonDeserializationCall(node.expression, sf)) {
-      addError(
-        errors,
-        relPath,
-        getLine(sf, node.getStart(sf)),
-        "no-unchecked-json-cast",
-        "Unchecked JSON cast forbidden. Validate with kanonFetch(url, ZodSchema) or Schema.safeParse(...) from @kanon/core.",
-      );
-    }
-    if (ts.isCatchClause(node) && node.block.statements.length === 0) {
-      addError(
-        errors,
-        relPath,
-        getLine(sf, node.getStart(sf)),
-        "no-silent-catch",
-        "Empty catch block silently swallows errors. Capture the error and propagate fallbackReason or return a typed fallback result.",
-      );
-    }
-    checkRuntimeAiImport(relPath, sf, node, isClientSlice, errors);
-    checkCockpitPerfImport(relPath, sf, node, errors);
-    ts.forEachChild(node, walk);
+  function walk(node, insideLiveGuard) {
+    checkBasicGardenNode(relPath, sf, node, isClientSlice, insideLiveGuard, errors);
+    if (tryWalkLiveGuardBranch(node, sf, insideLiveGuard, walk)) return;
+    ts.forEachChild(node, (child) => walk(child, insideLiveGuard));
   }
 
-  walk(sf);
+  walk(sf, false);
 }
 
 function lineAtIndex(source, index) {

@@ -5,6 +5,7 @@ import {
   MAX_VALUATION_PRICE,
   SparklinePointSchema,
   ThesisCardSchema,
+  ValuationInputIssueSchema,
   ValuationScenarioInputSchema,
 } from "./thesis";
 import {
@@ -213,6 +214,7 @@ export const ThesisDetailSchema = ThesisCardSchema.extend({
   catalysts: z.array(ThesisCatalystSchema).default([]),
   crossChecks: z.array(CrossCheckSchema),
   valuationInput: ValuationScenarioInputSchema,
+  valuationInputIssues: z.array(ValuationInputIssueSchema).optional(),
   valuationModelMode: ValuationModelModeSchema.default("pe"),
   valuationDriverInputs: ValuationDriverInputsSchema.nullable().default(null),
   disciplineEntries: z.array(DisciplineEntrySchema),

@@ -3,11 +3,13 @@
 import {
   calculateSensitivityMatrix,
   calculateValuationScenarios,
+  clampDisplayValuationInput,
   matchProbabilityPreset,
   type ProbabilityPreset,
   sanitizeValuationInput,
   type ThesisDetail,
   type ValuationDriverInputs,
+  type ValuationInputIssue,
   type ValuationModelMode,
 } from "@kanon/core";
 import { useCallback, useMemo } from "react";
@@ -36,11 +38,14 @@ function initialCasesFromThesis(thesis: ThesisDetail): CaseMap {
 }
 
 function deriveMetrics(draft: ValuationDraftState) {
-  const safeInput = sanitizeValuationInput({
-    currentPrice: draft.currentPrice > 0 ? draft.currentPrice : 1,
+  const raw = {
+    currentPrice: draft.currentPrice,
     horizonYears: draft.horizonYears,
     ...draft.cases,
-  });
+  };
+  const checked = sanitizeValuationInput(raw);
+  const safeInput = checked.ok ? checked.input : clampDisplayValuationInput(raw);
+  const validationIssues: ValuationInputIssue[] = checked.ok ? [] : checked.issues;
   const summary = calculateValuationScenarios(safeInput);
   const matrix = calculateSensitivityMatrix({
     currentPrice: safeInput.currentPrice,
@@ -57,7 +62,7 @@ function deriveMetrics(draft: ValuationDraftState) {
     summary.base.probability,
     summary.bull.probability,
   );
-  return { summary, matrix, activePreset };
+  return { summary, matrix, activePreset, validationIssues, isClampedPreview: !checked.ok };
 }
 
 function applyPresetToCases(
