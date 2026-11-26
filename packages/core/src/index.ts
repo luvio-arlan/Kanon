@@ -66,6 +66,7 @@ export {
 } from "./contracts/api-contracts";
 export * from "./contracts/auth-contracts";
 export * from "./contracts/financial-concepts";
+export * from "./contracts/i18n";
 export * from "./contracts/market-contracts";
 export * from "./contracts/portfolio-contracts";
 export * from "./contracts/provenance";

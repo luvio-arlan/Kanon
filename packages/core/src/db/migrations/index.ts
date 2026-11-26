@@ -17,6 +17,7 @@ import { KANON_MODEL_VERSIONS_SQL } from "./v2/0016-model-versions";
 import { KANON_AI_USAGE_AND_CREDS_SQL } from "./v2/0017-ai-usage-and-creds";
 import { KANON_INBOX_CATALYSTS_FORECASTS_SQL } from "./v2/0018-inbox-catalysts-forecasts";
 import { KANON_PORTFOLIO_LEDGER_SQL } from "./v2/0019-portfolio-ledger";
+import { KANON_TEAMS_IC_AUDIT_SQL } from "./v2/0020-teams-ic-audit";
 
 export interface KanonMigration {
   id: string;
@@ -141,6 +142,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only zero-leverage portfolio accounts, transactions, and FIFO lot accounting ledger (W6.1)",
     sql: KANON_PORTFOLIO_LEDGER_SQL,
+  },
+  {
+    id: "0020_teams_ic_audit",
+    description:
+      "Expand-only multi-tenant organizations, RBAC memberships, IC approvals, comments, restricted list, append-only audit log & covering indexes (W7.1-W7.3, W8.3)",
+    sql: KANON_TEAMS_IC_AUDIT_SQL,
   },
 ];
 

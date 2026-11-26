@@ -74,4 +74,6 @@
 - **全自动机械门禁（零豁免、零回退）**：
   - `pnpm check`：`Biome` + `tsc --noEmit` + `dependency-cruiser` + AST 规模/安全/审美守卫（`<= 250` 行/文件、`<= 50` 行/函数、嵌套 `<= 3`、单目录 `<= 12` 文件、逐 Handler AST CSRF 门禁、递归 Expand-Only 迁移检查、零 `active:scale-*`、零未校验 JSON 强转、零静默空 `catch`、零客户端 `@kanon/ai` 运行时导入、文档同步校验）+ `knip` 死代码清零。
   - `pnpm test`：Vitest 金融数学 Golden 测试、1:1 动态 DDL 校验、零杠杆铁律与 AI/DB 契约测试。
-  - `pnpm test:api`：动态盘点全部 32 个 API 路由并在隔离数据库实例中端到端校验 HTTP 契约、CSRF、OCC、MCP 作用域与 SSR 渲染。
+  - `pnpm test:api`：动态盘点全部 43 个 API 路由并在隔离数据库实例中端到端校验 HTTP 契约、CSRF、OCC、MCP 作用域、不可篡改预测账本、零杠杆 FIFO 账本、IC 审批与 SSR 渲染。
+  - `pnpm eval`：离线确定性 AI 回归套件（混合 RRF 检索、逐句数值溯源校验、提示词注入隔离与 10-K 红线差异）。
+  - `pnpm db:migrate`：基于 PostgreSQL 咨询锁的幂等 Expand-Only 迁移 CLI（已覆盖 `0001`–`0020` 全 20 个版本）。

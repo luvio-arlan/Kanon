@@ -38,12 +38,14 @@ const KNOWN_ROUTES = [
   "market/refresh-prices/route.ts",
   "mcp/context/route.ts",
   "mcp/route.ts",
+  "orgs/route.ts",
   "portfolio/calibration/route.ts",
   "portfolio/ledger/route.ts",
   "sec/[ticker]/filing/route.ts",
   "sec/[ticker]/route.ts",
   "theses/[id]/discipline/route.ts",
   "theses/[id]/forecasts/route.ts",
+  "theses/[id]/ic/route.ts",
   "theses/[id]/model-versions/route.ts",
   "theses/[id]/notes/route.ts",
   "theses/[id]/peers/route.ts",
@@ -907,6 +909,39 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
     cookieA,
   );
   assert.equal(badBuy.status, 400);
+
+  const orgPost = await fetchJson(
+    "/api/orgs",
+    { method: "POST", body: JSON.stringify({ op: "create_org", name: "Kanon Research Desk" }) },
+    cookieA,
+  );
+  assert.equal(orgPost.status, 201);
+  const orgGet = await fetchJson("/api/orgs", {}, cookieA);
+  assert.equal(orgGet.status, 200);
+  assert.equal(orgGet.data.organizations.length, 1);
+
+  const icSubmit = await fetchJson(
+    `/api/theses/${nvdaId}/ic`,
+    { method: "POST", body: JSON.stringify({ op: "submit", orgId: orgPost.data.organization.id }) },
+    cookieA,
+  );
+  assert.equal(icSubmit.status, 201);
+  const icDecide = await fetchJson(
+    `/api/theses/${nvdaId}/ic`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        approvalId: icSubmit.data.approval.id,
+        decision: "approved",
+        decisionNote: "审批通过",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(icDecide.status, 200);
+  const icGet = await fetchJson(`/api/theses/${nvdaId}/ic`, {}, cookieA);
+  assert.equal(icGet.status, 200);
+  assert.equal(icGet.data.approvals[0].state, "approved");
 }
 
 async function main() {

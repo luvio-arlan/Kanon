@@ -37,6 +37,7 @@ import type { HypothesisStatus, SparklinePoint } from "../schemas/thesis";
 import type { HypothesisKpiRule, ResearchNoteKind } from "../schemas/v7-research-os";
 import { glossaryTermsTable } from "./schema-extensions";
 
+export * from "./schema-enterprise";
 export * from "./schema-extensions";
 export * from "./schema-platform";
 export * from "./schema-warehouse";
@@ -62,6 +63,7 @@ export const thesesTable = pgTable(
     businessFilter: jsonb("business_filter").$type<BusinessFilter>().notNull(),
     lastReviewedLabel: text("last_reviewed_label").notNull(),
     securityId: text("security_id"),
+    orgId: text("org_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

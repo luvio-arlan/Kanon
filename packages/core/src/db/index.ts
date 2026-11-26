@@ -53,6 +53,8 @@ export {
   listGlossaryTerms,
   upsertSecSnapshot,
 } from "./repositories/discipline-mutations";
+export * from "./repositories/enterprise/ic-and-compliance-store";
+export * from "./repositories/enterprise/organizations-and-rls-store";
 export {
   createResearchNote,
   deleteResearchNote,
