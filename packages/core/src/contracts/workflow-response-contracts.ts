@@ -105,3 +105,59 @@ export const ModelVersionsListResponseSchema = z.object({
 export const ModelVersionSaveResponseSchema = z.object({
   version: z.object({ id: z.string(), versionNum: z.number() }),
 });
+
+export const OrgsLoadResponseSchema = z.object({
+  organizations: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      slug: z.string(),
+      role: z.enum(["owner", "pm", "analyst", "viewer", "compliance"]),
+    }),
+  ),
+  restrictedByOrg: z.array(
+    z.object({
+      orgId: z.string(),
+      tickers: z.array(
+        z.object({
+          ticker: z.string(),
+          reason: z.string(),
+          addedAt: z.string(),
+        }),
+      ),
+    }),
+  ),
+  membersByOrg: z.array(
+    z.object({
+      orgId: z.string(),
+      members: z.array(
+        z.object({
+          userId: z.string(),
+          role: z.enum(["owner", "pm", "analyst", "viewer", "compliance"]),
+        }),
+      ),
+    }),
+  ),
+  recentAuditLogs: z.array(
+    z.object({
+      id: z.string(),
+      action: z.string(),
+      targetType: z.string(),
+      targetId: z.string(),
+      entryHash: z.string().optional(),
+      createdAt: z.string(),
+    }),
+  ),
+});
+
+export const OrgCreateResponseSchema = z.object({
+  organization: z.object({ id: z.string(), name: z.string() }),
+});
+
+export const OrgMemberAddResponseSchema = z.object({
+  member: z.object({ userId: z.string(), role: z.string() }),
+});
+
+export const OrgRestrictResponseSchema = z.object({
+  restricted: z.object({ ticker: z.string() }),
+});

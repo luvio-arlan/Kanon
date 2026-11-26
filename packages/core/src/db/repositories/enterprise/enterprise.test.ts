@@ -1,8 +1,11 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { DEFAULT_WORKSPACE_USER_ID } from "../../../contracts/auth-contracts";
 import { formatLocaleCurrency, translateKanon } from "../../../contracts/i18n";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
 import { auditLogTable, thesesTable } from "../../schema";
+import { assertThesisOwnership } from "../thesis/thesis-lookups";
+import { getThesisById, listTheses } from "../thesis-queries";
 import {
   addRestrictedTicker,
   addThesisComment,
@@ -16,9 +19,11 @@ import {
 } from "./ic-and-compliance-store";
 import {
   addOrgMember,
+  assignThesisToOrganization,
   createOrganization,
   hasOrgCapability,
   listUserOrganizations,
+  withTenantContext,
 } from "./organizations-and-rls-store";
 
 describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Append-Only Audit Log", () => {
@@ -152,5 +157,31 @@ describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Appe
     expect(translateKanon("en-US", "brand.slogan")).toBe("Conviction, composed.");
     expect(translateKanon("zh-CN", "discipline.zeroLeverage")).toBe("严守零杠杆铁律");
     expect(formatLocaleCurrency(1234.5, "en-US", "USD")).toContain("$1,234.50");
+  });
+
+  it("Wave M: shares org-assigned theses with org members, blocks outsiders, and sets RLS tenant context", async () => {
+    const team = await createOrganization(db, { name: "Shared Desk", createdBy: "user-owner" });
+    await addOrgMember(db, { orgId: team.id, userId: "user-member", role: "analyst" });
+
+    const [seed] = await listTheses(db);
+    expect(seed).toBeDefined();
+    if (!seed) return;
+
+    await assignThesisToOrganization(db, {
+      thesisId: seed.id,
+      userId: DEFAULT_WORKSPACE_USER_ID,
+      orgId: team.id,
+    });
+
+    expect(await assertThesisOwnership(db, seed.id, "user-member")).toBe(true);
+    expect(await assertThesisOwnership(db, seed.id, "user-outsider")).toBe(false);
+    expect((await getThesisById(db, seed.id, "user-member"))?.id).toBe(seed.id);
+    expect(await getThesisById(db, seed.id, "user-outsider")).toBeNull();
+    expect((await listTheses(db, "user-member")).some((t) => t.id === seed.id)).toBe(true);
+
+    const setting = await withTenantContext(db, "user-member", async (tx) =>
+      tx.execute(sql`SELECT current_setting('kanon.current_user_id', true) AS uid`),
+    );
+    expect(JSON.stringify(setting)).toContain("user-member");
   });
 });

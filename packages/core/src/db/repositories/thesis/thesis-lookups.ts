@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../../contracts/auth-contracts";
 import { calculateValuationScenarios, roundTo } from "../../../math/valuation-scenarios";
 import type { ThesisDetail, ThesisSummary } from "../../../schemas/research";
 import { type KanonDb, runInTransaction } from "../../client";
 import { thesesTable, valuationScenariosTable } from "../../schema";
+import { listUserOrgIds } from "../enterprise/organizations-and-rls-store";
 import { recordThesisRevision } from "../revision-queries";
 import { buildValuationInput, hydrateWithChildren, loadThesisChildren } from "../thesis-queries";
 
@@ -42,29 +43,36 @@ export async function resolveAllowedLinkedIds(
   return new Set(rows.map((r) => r.id));
 }
 
+async function buildThesisAccessCondition(db: KanonDb, id: string, userId: string) {
+  const orgIds = await listUserOrgIds(db, userId);
+  const access =
+    orgIds.length > 0
+      ? or(eq(thesesTable.userId, userId), inArray(thesesTable.orgId, orgIds))
+      : eq(thesesTable.userId, userId);
+  return and(eq(thesesTable.id, id), access);
+}
+
 export async function assertThesisOwnership(
   db: KanonDb,
   id: string,
   userId: string,
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ id: thesesTable.id })
-    .from(thesesTable)
-    .where(and(eq(thesesTable.id, id), eq(thesesTable.userId, userId)))
-    .limit(1);
+  const where = await buildThesisAccessCondition(db, id, userId);
+  const [row] = await db.select({ id: thesesTable.id }).from(thesesTable).where(where).limit(1);
   return Boolean(row);
 }
 
-/** Lightweight owner-scoped identity lookup for page metadata (no child hydration). */
+/** Lightweight tenant/org-scoped identity lookup for page metadata (no child hydration). */
 export async function getThesisIdentity(
   db: KanonDb,
   id: string,
   userId: string,
 ): Promise<{ ticker: string; companyName: string } | null> {
+  const where = await buildThesisAccessCondition(db, id, userId);
   const [row] = await db
     .select({ ticker: thesesTable.ticker, companyName: thesesTable.companyName })
     .from(thesesTable)
-    .where(and(eq(thesesTable.id, id), eq(thesesTable.userId, userId)))
+    .where(where)
     .limit(1);
   return row ?? null;
 }

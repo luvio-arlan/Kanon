@@ -8,6 +8,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { apiChangePassword, apiUpdateProfile } from "../../lib/account-api";
 import { SessionsSection } from "./sessions-section";
+import { TeamGovernanceCard } from "./team-governance-card";
 import { TotpAndVaultCard } from "./totp-and-vault-card";
 
 function ProfileSection({ user }: { user?: PublicUser }) {
@@ -151,6 +152,7 @@ export function AccountSecurityPane({ currentUser }: { currentUser?: PublicUser 
       <ProfileSection user={currentUser} />
       <PasswordSection />
       <TotpAndVaultCard />
+      <TeamGovernanceCard />
       <SessionsSection />
     </div>
   );

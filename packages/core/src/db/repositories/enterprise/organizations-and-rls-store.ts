@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
 import {
@@ -146,4 +146,24 @@ export async function assignThesisToOrganization(
     .where(and(eq(thesesTable.id, input.thesisId), eq(thesesTable.userId, input.userId)))
     .returning();
   return updated[0] ? { id: updated[0].id, orgId: updated[0].orgId } : null;
+}
+
+export async function listUserOrgIds(db: KanonDb, userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ orgId: membershipsTable.orgId })
+    .from(membershipsTable)
+    .where(eq(membershipsTable.userId, userId));
+  return rows.map((r) => r.orgId);
+}
+
+/** Runs a callback inside a transaction with Postgres RLS `kanon.current_user_id` bound locally. */
+export async function withTenantContext<T>(
+  db: KanonDb,
+  userId: string,
+  fn: (tx: KanonDb) => Promise<T>,
+): Promise<T> {
+  return runInTransaction(db, async (tx) => {
+    await tx.execute(sql`SELECT set_config('kanon.current_user_id', ${userId}, true)`);
+    return fn(tx);
+  });
 }

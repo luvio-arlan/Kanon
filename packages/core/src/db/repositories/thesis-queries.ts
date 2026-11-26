@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
 import {
   calculateValuationScenarios,
@@ -22,6 +22,7 @@ import {
   thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
+import { listUserOrgIds } from "./enterprise/organizations-and-rls-store";
 
 type ThesisRow = typeof thesesTable.$inferSelect;
 type HypothesisRow = typeof hypothesesTable.$inferSelect;
@@ -193,10 +194,15 @@ export async function listTheses(
   db: KanonDb,
   userId: string = DEFAULT_WORKSPACE_USER_ID,
 ): Promise<ThesisDetail[]> {
+  const orgIds = await listUserOrgIds(db, userId);
+  const accessWhere =
+    orgIds.length > 0
+      ? or(eq(thesesTable.userId, userId), inArray(thesesTable.orgId, orgIds))
+      : eq(thesesTable.userId, userId);
   const rows = await db
     .select()
     .from(thesesTable)
-    .where(eq(thesesTable.userId, userId))
+    .where(accessWhere)
     .orderBy(asc(thesesTable.indexOrder));
   if (rows.length === 0) return [];
   const children = await loadThesisChildren(
@@ -211,9 +217,15 @@ export async function getThesisById(
   id: string,
   userId?: string,
 ): Promise<ThesisDetail | null> {
-  const where = userId
-    ? and(eq(thesesTable.id, id), eq(thesesTable.userId, userId))
-    : eq(thesesTable.id, id);
+  let where = eq(thesesTable.id, id);
+  if (userId) {
+    const orgIds = await listUserOrgIds(db, userId);
+    const access =
+      orgIds.length > 0
+        ? or(eq(thesesTable.userId, userId), inArray(thesesTable.orgId, orgIds))
+        : eq(thesesTable.userId, userId);
+    where = and(eq(thesesTable.id, id), access) ?? eq(thesesTable.id, id);
+  }
   const [row] = await db.select().from(thesesTable).where(where).limit(1);
   if (!row) return null;
   const children = await loadThesisChildren(db, [row.id]);
