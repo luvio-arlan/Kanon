@@ -52,6 +52,10 @@ async function executeJob(db: KanonDb, job: QueuedJobRow): Promise<void> {
   throw new Error(`Unsupported job kind: ${job.kind}`);
 }
 
+export async function GET(request: Request) {
+  return POST(request);
+}
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
   const authErr = verifyCronSecret(request, startedAt);

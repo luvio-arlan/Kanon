@@ -9,6 +9,7 @@ import {
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { checkPersistentRateLimit } from "../../../_lib/request-guards";
+import { indexFilingDocChunks } from "../../../_lib/sec-warehouse-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,7 @@ async function loadFilingWithCache(params: {
   });
   if (readerData.source === "sec-edgar-live") {
     await upsertCachedSecFilingDoc(params.db, readerData);
+    await indexFilingDocChunks(params.db, readerData).catch(() => undefined);
   }
   return readerData;
 }

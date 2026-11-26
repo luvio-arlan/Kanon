@@ -3,5 +3,11 @@
   "framework": "nextjs",
   "regions": ["sin1"],
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm --filter @kanon/web build"
+  "buildCommand": "cd ../.. && pnpm --filter @kanon/web build",
+  "crons": [
+    {
+      "path": "/api/internal/jobs/tick",
+      "schedule": "0 22 * * 1-5"
+    }
+  ]
 }

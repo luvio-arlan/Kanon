@@ -16,6 +16,7 @@ import { PositionEditorPanel } from "@/features/portfolio";
 import { CognitiveCalibrationPanel } from "./cognitive-calibration-panel";
 import { DecisionComposerCard } from "./discipline-composer";
 import { DisciplineTimeline } from "./discipline-timeline";
+import { ForecastAndIcPanel } from "./forecast-and-ic-panel";
 import { InvestmentMemoCard } from "./investment-memo-card";
 import { QuarterlyReviewPanel } from "./quarterly-review-panel";
 import { RevisionTimeline } from "./revision-timeline";
@@ -110,11 +111,14 @@ function Step5TabContent(
   }
   if (props.tab === "calibration") {
     return (
-      <CognitiveCalibrationPanel
-        thesis={props.thesis}
-        reviews={props.reviews}
-        livePrice={props.livePrice}
-      />
+      <div className="space-y-6">
+        <CognitiveCalibrationPanel
+          thesis={props.thesis}
+          reviews={props.reviews}
+          livePrice={props.livePrice}
+        />
+        <ForecastAndIcPanel thesisId={props.thesis.id} ticker={props.thesis.ticker} />
+      </div>
     );
   }
   if (props.tab === "memo") {

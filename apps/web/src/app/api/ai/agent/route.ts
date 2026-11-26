@@ -20,7 +20,7 @@ import {
   saveAgentRun,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
-import { parseByokHeaders } from "../../_lib/byok-headers";
+import { resolveEffectiveByok } from "../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
@@ -195,13 +195,14 @@ export async function POST(request: Request) {
   const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
   if (!thesis) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
 
+  const byok = await resolveEffectiveByok(db, auth.user.id, request);
   const stream = createAgentSseStream({
     db,
     thesis,
     userId: auth.user.id,
     request,
     sourceText: parsed.data.sourceText,
-    byok: parseByokHeaders(request),
+    byok,
   });
   return new Response(stream, {
     headers: {

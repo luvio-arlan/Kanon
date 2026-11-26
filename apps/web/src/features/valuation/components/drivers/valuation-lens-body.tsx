@@ -10,11 +10,13 @@ import { ScenarioCardsGrid } from "../scenario-cards-grid";
 import { SensitivityMatrixCard } from "../sensitivity-matrix-card";
 import { ValuationDriversPanel } from "../valuation-drivers-panel";
 import { ValuationReverseDcfPanel } from "../valuation-reverse-dcf-panel";
+import { InstitutionalModelsPanel } from "./institutional-models-panel";
 import { MarketBenchmarksCard } from "./market-benchmarks-card";
 
-export type ValuationLens = "scenarios" | "drivers" | "reverse" | "benchmarks";
+export type ValuationLens = "scenarios" | "drivers" | "reverse" | "models" | "benchmarks";
 
 export interface ValuationLensBodyProps {
+  thesisId: string;
   ticker: string;
   lens: ValuationLens;
   epsRange: { min: number; max: number; step: number };
@@ -83,18 +85,19 @@ function applyEvAnchor(
 }
 
 function renderLensPanel(p: ValuationLensBodyProps) {
-  const {
-    ticker,
-    lens,
-    epsRange,
-    secAnnuals,
-    latestSecEps,
-    d,
-    onExpandCeiling,
-    onSwitchToScenarios,
-  } = p;
+  const { thesisId, ticker, lens, epsRange, secAnnuals, latestSecEps, d } = p;
   if (lens === "benchmarks")
     return <MarketBenchmarksCard ticker={ticker} currentPrice={d.currentPrice} />;
+  if (lens === "models")
+    return (
+      <InstitutionalModelsPanel
+        thesisId={thesisId}
+        ticker={ticker}
+        currentPrice={d.currentPrice}
+        horizonYears={d.horizonYears}
+        secAnnuals={secAnnuals}
+      />
+    );
   if (lens === "reverse")
     return (
       <ValuationReverseDcfPanel
@@ -104,7 +107,7 @@ function renderLensPanel(p: ValuationLensBodyProps) {
       />
     );
   if (lens === "scenarios")
-    return <ScenariosCoreSection epsRange={epsRange} d={d} onExpandCeiling={onExpandCeiling} />;
+    return <ScenariosCoreSection epsRange={epsRange} d={d} onExpandCeiling={p.onExpandCeiling} />;
   return (
     <ValuationDriversPanel
       currentPrice={d.currentPrice}
@@ -113,12 +116,12 @@ function renderLensPanel(p: ValuationLensBodyProps) {
       driverInputs={d.driverInputs}
       onPatchDrivers={d.patchDrivers}
       onApplyBaseEps={(eps) => {
-        onExpandCeiling(eps);
+        p.onExpandCeiling(eps);
         d.patchCase("base", { eps });
-        onSwitchToScenarios();
+        p.onSwitchToScenarios();
         toast.success(`已回填中性 EPS $${eps.toFixed(2)}`);
       }}
-      onApplyEvTargets={(t) => applyEvAnchor(d, t, onExpandCeiling, onSwitchToScenarios)}
+      onApplyEvTargets={(t) => applyEvAnchor(d, t, p.onExpandCeiling, p.onSwitchToScenarios)}
     />
   );
 }

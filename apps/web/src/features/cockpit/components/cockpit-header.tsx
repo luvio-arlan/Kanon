@@ -7,10 +7,11 @@ import type {
   ThesisDetail,
 } from "@kanon/core";
 import { ActionMenu, Button, KANON_TITLE_SWAP, SearchField } from "@kanon/ui";
-import { IconChevronDown, IconPlus } from "@tabler/icons-react";
+import { IconChevronDown, IconInbox, IconPlus, IconWallet } from "@tabler/icons-react";
 import { motion } from "framer-motion";
-import type { RefObject } from "react";
+import { type RefObject, useState } from "react";
 import { AttentionRadarStrip, LiveMarketStrip } from "@/features/portfolio";
+import { CockpitWorkflowSheets } from "./overlays/inbox-and-ledger-sheets";
 import { PortfolioTelemetryStrip } from "./portfolio-telemetry-strip";
 
 export type CockpitFilter = "all" | "attractive" | "attention" | "archived";
@@ -99,20 +100,30 @@ function SortDropdown({
   );
 }
 
-function MastheadActions(props: CockpitHeaderProps) {
+function MastheadActions(
+  props: CockpitHeaderProps & { onOpenInbox: () => void; onOpenLedger: () => void },
+) {
   return (
-    <div className="flex flex-wrap items-center gap-2.5">
+    <div className="flex flex-wrap items-center gap-2">
       <SearchField
         value={props.query}
         onChange={props.onQueryChange}
         inputRef={props.searchInputRef}
         placeholder="筛选代码或公司 ( / )"
         ariaLabel="筛选标的"
-        className="w-full sm:w-56"
+        className="w-full sm:w-52"
       />
       {props.viewMode === "cards" ? (
         <SortDropdown sortBy={props.sortBy} onSortChange={props.onSortChange} />
       ) : null}
+      <Button variant="outline" size="md" onClick={props.onOpenInbox}>
+        <IconInbox size={15} stroke={1.5} />
+        <span>收件箱</span>
+      </Button>
+      <Button variant="outline" size="md" onClick={props.onOpenLedger}>
+        <IconWallet size={15} stroke={1.5} />
+        <span>账本</span>
+      </Button>
       <Button variant="primary" size="md" onClick={props.onNewThesis}>
         <IconPlus size={16} stroke={1.5} />
         <span>新建标的</span>
@@ -121,7 +132,9 @@ function MastheadActions(props: CockpitHeaderProps) {
   );
 }
 
-function EditorialMasthead(props: CockpitHeaderProps) {
+function EditorialMasthead(
+  props: CockpitHeaderProps & { onOpenInbox: () => void; onOpenLedger: () => void },
+) {
   const titleKey =
     props.viewMode === "table"
       ? "matrix"
@@ -155,9 +168,15 @@ function EditorialMasthead(props: CockpitHeaderProps) {
 }
 
 export function CockpitHeader(props: CockpitHeaderProps) {
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   return (
     <section className="space-y-4">
-      <EditorialMasthead {...props} />
+      <EditorialMasthead
+        {...props}
+        onOpenInbox={() => setInboxOpen(true)}
+        onOpenLedger={() => setLedgerOpen(true)}
+      />
       <LiveMarketStrip
         theses={props.theses}
         quotes={props.liveQuotes}
@@ -173,6 +192,12 @@ export function CockpitHeader(props: CockpitHeaderProps) {
         analytics={props.analytics}
         theses={props.theses}
         onOpenStressTest={props.onOpenStressTest}
+      />
+      <CockpitWorkflowSheets
+        inboxOpen={inboxOpen}
+        ledgerOpen={ledgerOpen}
+        onCloseInbox={() => setInboxOpen(false)}
+        onCloseLedger={() => setLedgerOpen(false)}
       />
     </section>
   );

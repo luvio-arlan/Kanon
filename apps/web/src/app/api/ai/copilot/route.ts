@@ -1,13 +1,54 @@
 import { CopilotRequestSchema, runThesisCopilot } from "@kanon/ai";
 import { getKanonDb, getSecSnapshot, getThesisById, upsertCopilotOutput } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
-import { parseByokHeaders } from "../../_lib/byok-headers";
+import { meterAiRouteUsage, resolveEffectiveByok } from "../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
 const COPILOT_RATE_POLICY = { bucket: "ai_copilot", maxRequests: 20, windowMs: 60 * 1000 };
+
+async function runAndPersistCopilot(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  userId: string,
+  request: Request,
+  input: {
+    thesisId: string;
+    action: "earnings_digest" | "red_team" | "investment_memo";
+    sourceText?: string;
+  },
+) {
+  const thesis = await getThesisById(db, input.thesisId, userId);
+  if (!thesis) return null;
+  const [secSnapshot, byok] = await Promise.all([
+    getSecSnapshot(db, thesis.ticker),
+    resolveEffectiveByok(db, userId, request),
+  ]);
+  const result = await runThesisCopilot({
+    action: input.action,
+    thesis,
+    secSnapshot,
+    sourceText: input.sourceText,
+    byok,
+  });
+  await Promise.all([
+    upsertCopilotOutput(db, thesis.id, {
+      action: result.action,
+      engine: result.engine,
+      payload: result.data,
+    }),
+    meterAiRouteUsage({
+      db,
+      userId,
+      thesisId: thesis.id,
+      route: "/api/ai/copilot",
+      engine: result.engine,
+      byok,
+    }),
+  ]);
+  return result;
+}
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
@@ -20,7 +61,6 @@ export async function POST(request: Request) {
 
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
-
   const parsed = CopilotRequestSchema.safeParse(body.data);
   if (!parsed.success) {
     return jsonError(
@@ -30,27 +70,8 @@ export async function POST(request: Request) {
       "INVALID",
     );
   }
-
   const db = await getKanonDb();
-  const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
-  if (!thesis) {
-    return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
-  }
-
-  const secSnapshot = await getSecSnapshot(db, thesis.ticker);
-  const result = await runThesisCopilot({
-    action: parsed.data.action,
-    thesis,
-    secSnapshot,
-    sourceText: parsed.data.sourceText,
-    byok: parseByokHeaders(request),
-  });
-
-  await upsertCopilotOutput(db, thesis.id, {
-    action: result.action,
-    engine: result.engine,
-    payload: result.data,
-  });
-
+  const result = await runAndPersistCopilot(db, auth.user.id, request, parsed.data);
+  if (!result) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   return jsonOk(result, startedAt);
 }

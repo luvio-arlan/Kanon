@@ -15,6 +15,7 @@ import {
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
+import { syncSecSnapshotToWarehouse } from "../../_lib/sec-warehouse-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (fetched.ok) {
     const saved = await upsertSecSnapshot(db, fetched.data);
+    await syncSecSnapshotToWarehouse(db, saved, auth.user.id).catch(() => undefined);
     return jsonOk(
       {
         snapshot: saved,

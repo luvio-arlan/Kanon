@@ -43,6 +43,7 @@ function ValuationHeaderBar({
           { id: "scenarios", label: "三情景" },
           { id: "drivers", label: "驱动 / SOTP" },
           { id: "reverse", label: "Reverse DCF" },
+          { id: "models", label: "DCF / 蒙特卡洛" },
           { id: "benchmarks", label: "同业与预期" },
         ]}
       />
@@ -119,6 +120,7 @@ export function ValuationWorkbench(props: ValuationWorkbenchProps) {
         onModelMode={handleModelMode}
       />
       <ValuationLensBody
+        thesisId={thesis.id}
         ticker={thesis.ticker}
         lens={lens}
         epsRange={epsRange}

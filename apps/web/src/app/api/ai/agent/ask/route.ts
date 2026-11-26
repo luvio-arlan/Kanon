@@ -1,5 +1,5 @@
-import { askResearchIc } from "@kanon/ai";
-import { AgentAskRequestSchema } from "@kanon/core";
+import { askResearchIc, verifyGroundedClaims } from "@kanon/ai";
+import { AgentAskRequestSchema, type ThesisDetail } from "@kanon/core";
 import {
   getKanonDb,
   getSecSnapshot,
@@ -8,13 +8,27 @@ import {
   listResearchNotes,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
-import { parseByokHeaders } from "../../../_lib/byok-headers";
+import { meterAiRouteUsage, resolveEffectiveByok } from "../../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
 const ASK_IC_RATE_POLICY = { bucket: "ai_agent_ask", maxRequests: 25, windowMs: 60 * 1000 };
+
+function verifyAskResult(thesis: ThesisDetail, answer: string, citations: readonly string[]) {
+  const chunkMap = new Map(citations.map((c, idx) => [`cit-${idx}`, c]));
+  return verifyGroundedClaims({
+    claims: [{ text: answer, citations: [...chunkMap.keys()] }],
+    knownFactValues: [
+      thesis.currentPrice,
+      thesis.valuation.bear.targetPrice,
+      thesis.valuation.base.targetPrice,
+      thesis.valuation.bull.targetPrice,
+    ],
+    chunkMap,
+  });
+}
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
@@ -27,7 +41,6 @@ export async function POST(request: Request) {
 
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
-
   const parsed = AgentAskRequestSchema.safeParse(body.data);
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "质询参数不合法。"), 400, startedAt, "INVALID");
@@ -35,14 +48,13 @@ export async function POST(request: Request) {
 
   const db = await getKanonDb();
   const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
-  if (!thesis) {
-    return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
-  }
+  if (!thesis) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
 
-  const [secSnapshot, cachedFilings, researchNotes] = await Promise.all([
+  const [secSnapshot, cachedFilings, researchNotes, byok] = await Promise.all([
     getSecSnapshot(db, thesis.ticker),
     listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
     listResearchNotes(db, thesis.id, auth.user.id, 12),
+    resolveEffectiveByok(db, auth.user.id, request),
   ]);
   const result = await askResearchIc({
     thesis,
@@ -51,7 +63,16 @@ export async function POST(request: Request) {
     cachedFilings,
     researchNotes,
     sourceText: parsed.data.sourceText,
-    byok: parseByokHeaders(request),
+    byok,
   });
-  return jsonOk(result, startedAt);
+  const groundingReport = verifyAskResult(thesis, result.answer, result.citations);
+  await meterAiRouteUsage({
+    db,
+    userId: auth.user.id,
+    thesisId: thesis.id,
+    route: "/api/ai/agent/ask",
+    engine: result.engine,
+    byok,
+  });
+  return jsonOk({ ...result, groundingReport }, startedAt);
 }
