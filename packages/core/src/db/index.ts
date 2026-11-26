@@ -84,6 +84,7 @@ export {
   getSecSnapshotForUser,
   upsertUserSecOverride,
 } from "./repositories/sec/user-sec-overrides-store";
+export * from "./repositories/security/ai-credentials-and-usage-store";
 export {
   consumePersistentRateLimit,
   type RateLimitCheckResult,
@@ -122,6 +123,7 @@ export * from "./repositories/warehouse/price-bars-store";
 export * from "./repositories/warehouse/securities-and-fx-store";
 export {
   agentRunsTable,
+  aiUsageTable,
   apiTokensTable,
   copilotOutputsTable,
   corporateActionsTable,
@@ -153,6 +155,7 @@ export {
   thesesTable,
   thesisPeersTable,
   thesisRevisionsTable,
+  userAiCredentialsTable,
   userSecOverridesTable,
   usersTable,
   userTotpFactorsTable,

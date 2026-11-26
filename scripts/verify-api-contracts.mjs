@@ -14,6 +14,7 @@ const KNOWN_ROUTES = [
   "ai/agent/ask/route.ts",
   "ai/agent/route.ts",
   "ai/copilot/route.ts",
+  "auth/ai-credentials/route.ts",
   "auth/login/route.ts",
   "auth/logout/route.ts",
   "auth/me/route.ts",
@@ -816,6 +817,31 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
   const mvGet = await fetchJson(`/api/theses/${nvdaId}/model-versions`, {}, cookieA);
   assert.equal(mvGet.status, 200);
   assert.equal(mvGet.data.versions.length, 1);
+
+  const credPost = await fetchJson(
+    "/api/auth/ai-credentials",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "openai",
+        apiKey: "sk-test-secret-value-1234",
+        label: "Research Key",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(credPost.status, 201);
+  assert.equal(credPost.data.credential.keyHint, "sk-••••1234");
+  assert.equal("apiKey" in credPost.data.credential, false);
+  const credGet = await fetchJson("/api/auth/ai-credentials", {}, cookieA);
+  assert.equal(credGet.status, 200);
+  assert.equal(credGet.data.credentials.length, 1);
+  const credDel = await fetchJson(
+    "/api/auth/ai-credentials?provider=openai",
+    { method: "DELETE" },
+    cookieA,
+  );
+  assert.equal(credDel.status, 200);
 }
 
 async function main() {

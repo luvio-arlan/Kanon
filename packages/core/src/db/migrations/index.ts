@@ -14,6 +14,7 @@ import { KANON_SECURITY_TOTP_SQL } from "./v2/0013-security-totp";
 import { KANON_WAREHOUSE_CORE_SQL } from "./v2/0014-warehouse-core";
 import { KANON_FACTS_JOBS_CHUNKS_SQL } from "./v2/0015-facts-jobs-chunks";
 import { KANON_MODEL_VERSIONS_SQL } from "./v2/0016-model-versions";
+import { KANON_AI_USAGE_AND_CREDS_SQL } from "./v2/0017-ai-usage-and-creds";
 
 export interface KanonMigration {
   id: string;
@@ -120,6 +121,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     id: "0016_model_versions",
     description: "Expand-only append-only valuation model version snapshots (W2.4)",
     sql: KANON_MODEL_VERSIONS_SQL,
+  },
+  {
+    id: "0017_ai_usage_and_creds",
+    description:
+      "Expand-only AI token usage metering and server-side AES-GCM BYOK credentials vault (W3.5)",
+    sql: KANON_AI_USAGE_AND_CREDS_SQL,
   },
 ];
 

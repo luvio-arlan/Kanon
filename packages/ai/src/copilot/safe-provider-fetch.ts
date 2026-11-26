@@ -111,7 +111,10 @@ function stripControlChars(raw: string): string {
 }
 
 export function wrapUntrustedEvidence(label: string, text: string): string {
-  const cleaned = stripControlChars(text);
+  const cleaned = stripControlChars(text).replace(
+    /<\/?untrusted_evidence_[a-z0-9_]*>/gi,
+    "[redacted-tag]",
+  );
   if (!cleaned) return "";
   const nonce = crypto.randomBytes(4).toString("hex");
   const tag = `untrusted_evidence_${nonce}`;

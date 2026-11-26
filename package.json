@@ -20,6 +20,7 @@
     "check": "pnpm lint && pnpm typecheck && pnpm depcruise && pnpm design:check && pnpm knip",
     "db:push": "pnpm --filter @kanon/core db:push",
     "db:migrate": "pnpm --filter @kanon/core db:migrate",
+    "eval": "node packages/ai/evals/run-evals.mjs --offline",
     "prepare": "lefthook install || true"
   },
   "devDependencies": {

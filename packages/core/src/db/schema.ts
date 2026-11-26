@@ -37,19 +37,8 @@ import type { HypothesisStatus, SparklinePoint } from "../schemas/thesis";
 import type { HypothesisKpiRule, ResearchNoteKind } from "../schemas/v7-research-os";
 import { glossaryTermsTable } from "./schema-extensions";
 
-export {
-  type ApiTokenScope,
-  apiTokensTable,
-  glossaryTermsTable,
-  loginLockoutsTable,
-  marketQuotesCacheTable,
-  rateLimitBucketsTable,
-  secFilingDocumentsCacheTable,
-  sessionsTable,
-  userSecOverridesTable,
-  usersTable,
-  userTotpFactorsTable,
-} from "./schema-extensions";
+export * from "./schema-extensions";
+export * from "./schema-platform";
 export * from "./schema-warehouse";
 
 export const thesesTable = pgTable(

@@ -8,6 +8,7 @@ import {
   type ThesisDetail,
 } from "@kanon/core";
 import { generateObject, type LanguageModel } from "ai";
+import { resolveDefaultModelId } from "../models/registry";
 import {
   type ByokProvider,
   type CopilotAction,
@@ -63,36 +64,37 @@ function resolveExplicitByok(byok: ByokCredentials): LanguageModel {
   const opts = baseURL ? { apiKey, baseURL, fetch: safeFetch } : { apiKey, fetch: safeFetch };
 
   if (byok.provider === "gemini") {
-    return createGoogleGenerativeAI(opts)(model || "gemini-2.5-flash");
+    return createGoogleGenerativeAI(opts)(model || resolveDefaultModelId("gemini"));
   }
   if (byok.provider === "anthropic") {
-    return createAnthropic(opts)(model || "claude-sonnet-4-20250514");
+    return createAnthropic(opts)(model || resolveDefaultModelId("anthropic"));
   }
   if (byok.provider === "openai_compatible") {
     return createOpenAI({
       apiKey,
       baseURL: baseURL || DEFAULT_OPENAI_COMPATIBLE_BASE,
       fetch: safeFetch,
-    }).chat(model || "deepseek-chat");
+    }).chat(model || resolveDefaultModelId("openai_compatible"));
   }
   const openai = createOpenAI(opts);
-  return baseURL ? openai.chat(model || "gpt-4.1-mini") : openai(model || "gpt-4.1-mini");
+  const fallbackOpenAi = resolveDefaultModelId("openai");
+  return baseURL ? openai.chat(model || fallbackOpenAi) : openai(model || fallbackOpenAi);
 }
 
 function resolveEnvModel(): LanguageModel | null {
   if (process.env.GEMINI_API_KEY) {
     return createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY })(
-      process.env.KANON_GEMINI_MODEL?.trim() || "gemini-2.5-flash",
+      process.env.KANON_GEMINI_MODEL?.trim() || resolveDefaultModelId("gemini"),
     );
   }
   if (process.env.ANTHROPIC_API_KEY) {
     return createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })(
-      process.env.KANON_ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-20250514",
+      process.env.KANON_ANTHROPIC_MODEL?.trim() || resolveDefaultModelId("anthropic"),
     );
   }
   if (process.env.OPENAI_API_KEY) {
     const baseURL = sanitizeProviderBaseUrl(process.env.OPENAI_BASE_URL);
-    const modelId = process.env.KANON_OPENAI_MODEL?.trim() || "gpt-4.1-mini";
+    const modelId = process.env.KANON_OPENAI_MODEL?.trim() || resolveDefaultModelId("openai");
     if (baseURL) {
       return createOpenAI({
         apiKey: process.env.OPENAI_API_KEY,

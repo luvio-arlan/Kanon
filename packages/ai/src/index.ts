@@ -1,4 +1,6 @@
 export { askResearchIc } from "./agent/ask-ic";
+export * from "./agent/claim-verifier";
+export * from "./agent/deterministic-tools";
 export { type FilingExcerptMatch, searchFilingExcerpts } from "./agent/filing-search-tool";
 export { streamResearchAgent } from "./agent/run-research-agent";
 export { RESEARCH_AGENT_TOOLS, type ResearchToolSpec } from "./agent/tool-registry";
@@ -41,7 +43,9 @@ export {
   type MarketSnapshotResult,
   testMarketProviderConnection,
 } from "./market/quote-client";
+export * from "./models/registry";
 export { parseStructuredOutput, type StructuredParseResult } from "./parse-structured";
+export * from "./retrieval/hybrid-search";
 export {
   type ByokProvider,
   ByokProviderSchema,
@@ -66,6 +70,7 @@ export {
 } from "./schemas/red-team";
 export { fetchSecEdgarSnapshot, formatUsdCompact } from "./sec/edgar-client";
 export { fetchSecFilingReaderData } from "./sec/filing-reader";
+export * from "./sec/filing-redline";
 export {
   computeFilingSectionDiff,
   countBuySideSignals,
