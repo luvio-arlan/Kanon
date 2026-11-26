@@ -10,7 +10,7 @@
 
 **Stages 0–8 「测试已通过」，但还没有「对用户闭环」。** 三类问题同时存在：
 
-1. **生产配置缺口**：Vercel Production 未配置 `KANON_CREDENTIALS_MASTER_KEY` 与 `CRON_SECRET`（2026-11-26 用 `vercel env ls production` 核实，仅有 `DATABASE_URL*`）。结果是：所有 BYOK 密钥与 TOTP 种子都用仓库里公开的开发常量加密；Cron 通道一直返回 503。
+1. **生产配置缺口**：Vercel Production 未配置 `KANON_CREDENTIALS_MASTER_KEY` 与 `CRON_SECRET`（2026-11-26 用 `vercel env ls production` 核实，仅有 `DATABASE_URL*`）。结果是：所有 BYOK 密钥与 TOTP 种子都用仓库里公开的开发常量加密；Cron 通道一直返回 503。同日线上 `/api/health` 返回 `secUserAgentConfigured:false`（SEC EDGAR 要求声明 UA，否则可能被限流或返回 403），且 `jobQueue` 四项全为 0，说明从未有作业入队。
 2. **前后端契约漂移**：2FA 设置页发送 `{op:"enroll"}`，服务端按 `action` 做判别，**生产上 2FA 无法开启**。`test:api` 直接用 `action` 调接口，所以没暴露。
 3. **「已实现但无生产调用方」**：Beneish / Altman / Piotroski / DuPont、`calculateWacc`、`getFactsAsOf`、`detectFactRestatements`、`hybridSearchChunks`、`searchFilingChunksLexical`、`scanFilingRedFlags`、`enqueueJob`、`upsertAlertRule`、`addOrgMember` 在 `apps/web` 或 AI 路由中**零调用**。它们都从包 `index.ts` 再导出，所以 knip 不会报。
 
