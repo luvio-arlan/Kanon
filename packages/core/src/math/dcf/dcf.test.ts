@@ -96,6 +96,48 @@ describe("Institutional DCF, WACC, Equity Bridge & Mauboussin CAP (W2.1-W2.2)", 
         assumedSharePrice: 100,
       }),
     ).toThrow(/WACC/);
+
+    // Damodaran g <= Rf constraint & value-destroying RONIC < WACC support
+    expect(() =>
+      calculateMultiStageFcffDcf({
+        baseRevenueB: 100,
+        highGrowthYears: 3,
+        fadeYears: 2,
+        initialRevenueGrowthPct: 10,
+        terminalGrowthPct: 5,
+        riskFreeRatePct: 4.25,
+        initialEbitMarginPct: 20,
+        terminalEbitMarginPct: 20,
+        effectiveTaxRatePct: 21,
+        salesToCapitalRatio: 2,
+        terminalRonicPct: 15,
+        waccPct: 9,
+        cashAndStInvestmentsB: 10,
+        totalDebtB: 5,
+        basicSharesM: 100,
+        assumedSharePrice: 100,
+      }),
+    ).toThrow(/无风险利率/);
+
+    const destroying = calculateMultiStageFcffDcf({
+      baseRevenueB: 100,
+      highGrowthYears: 5,
+      fadeYears: 5,
+      initialRevenueGrowthPct: 10,
+      terminalGrowthPct: 3,
+      initialEbitMarginPct: 20,
+      terminalEbitMarginPct: 20,
+      effectiveTaxRatePct: 21,
+      salesToCapitalRatio: 2,
+      terminalRonicPct: 5,
+      waccPct: 9,
+      cashAndStInvestmentsB: 10,
+      totalDebtB: 5,
+      basicSharesM: 1000,
+      assumedSharePrice: 100,
+    });
+    expect(destroying.valueDestroyingGrowth).toBe(true);
+    expect(destroying.terminalReinvestmentRatePct).toBeCloseTo(60, 1);
   });
 
   it("recovers exact Mauboussin Competitive Advantage Period (CAP) years via bisection", () => {

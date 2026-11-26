@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { fetchDailyPriceBars, fetchSecEdgarSnapshot } from "@kanon/ai";
+import { fetchDailyPriceBars, fetchPolygonSplits, fetchSecEdgarWithPitFacts } from "@kanon/ai";
 import {
   claimDueJobs,
   completeJob,
@@ -10,6 +10,7 @@ import {
   getSecurityByTicker,
   type KanonDb,
   type QueuedJobRow,
+  recordCorporateAction,
   upsertPriceBars,
   upsertSecSnapshot,
   upsertSecurity,
@@ -44,12 +45,24 @@ async function runSyncDailyBarsJob(db: KanonDb, payload: Record<string, unknown>
   if (!ticker) throw new Error("Missing ticker in sync_daily_bars payload");
   const existing = await getSecurityByTicker(db, ticker);
   const security = existing ?? (await upsertSecurity(db, { ticker, name: ticker }));
-  const bars = await fetchDailyPriceBars({ ticker, range: "5y" });
+  const [bars, splits] = await Promise.all([
+    fetchDailyPriceBars({ ticker, range: "5y" }),
+    fetchPolygonSplits({ ticker }),
+  ]);
   if (bars.length > 0) {
     await upsertPriceBars(
       db,
       bars.map((b) => ({ ...b, securityId: security.id })),
     );
+  }
+  for (const sp of splits) {
+    await recordCorporateAction(db, {
+      id: `split:${security.id}:${sp.exDate}`,
+      securityId: security.id,
+      exDate: sp.exDate,
+      kind: "split",
+      ratio: sp.ratio,
+    });
   }
 }
 
@@ -58,10 +71,10 @@ async function runSyncSecJob(db: KanonDb, payload: Record<string, unknown>) {
     .trim()
     .toUpperCase();
   if (!ticker) throw new Error("Missing ticker in sync_sec payload");
-  const fetched = await fetchSecEdgarSnapshot(ticker);
+  const fetched = await fetchSecEdgarWithPitFacts(ticker);
   if (!fetched.ok) throw new Error(fetched.error);
   const saved = await upsertSecSnapshot(db, fetched.data);
-  await syncSecSnapshotToWarehouse(db, saved);
+  await syncSecSnapshotToWarehouse(db, saved, undefined, fetched.pitFacts);
 }
 
 async function executeJob(db: KanonDb, job: QueuedJobRow): Promise<void> {

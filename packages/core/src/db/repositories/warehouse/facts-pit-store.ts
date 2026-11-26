@@ -3,70 +3,19 @@ import type { FinancialFactDuration } from "../../../contracts/financial-concept
 import { roundTo } from "../../../math/valuation-scenarios";
 import type { KanonDb } from "../../bootstrap";
 import { filingsTable, financialFactsTable } from "../../schema";
+import type {
+  FactRestatement,
+  PitFinancialFact,
+  UpsertFilingInput,
+  UpsertFinancialFactInput,
+} from "./facts-pit-types";
 
-export interface UpsertFilingInput {
-  accession: string;
-  securityId: string;
-  cik: string;
-  form: string;
-  filedAt: string;
-  periodEnd?: string | null;
-  fiscalYear?: number | null;
-  fiscalPeriod?: string | null;
-  items?: string[];
-  primaryDocUrl: string;
-  amendsAccession?: string | null;
-  parseStatus?: string;
-}
-
-export interface UpsertFinancialFactInput {
-  id: string;
-  securityId: string;
-  accession: string;
-  concept: string;
-  xbrlTag: string;
-  taxonomy?: string;
-  periodStart?: string | null;
-  periodEnd: string;
-  duration: FinancialFactDuration;
-  fiscalYear?: number | null;
-  fiscalPeriod?: string | null;
-  value: number;
-  unit?: string;
-  currency?: string;
-  dimensions?: Record<string, string>;
-  filedAt: string;
-  isLatestForPeriod?: boolean;
-}
-
-export interface PitFinancialFact {
-  id: string;
-  accession: string;
-  concept: string;
-  xbrlTag: string;
-  taxonomy: string;
-  periodStart: string | null;
-  periodEnd: string;
-  duration: FinancialFactDuration;
-  fiscalYear: number | null;
-  fiscalPeriod: string | null;
-  value: number;
-  unit: string;
-  currency: string;
-  filedAt: string;
-}
-
-export interface FactRestatement {
-  concept: string;
-  periodEnd: string;
-  originalAccession: string;
-  originalFiledAt: string;
-  originalValue: number;
-  restatedAccession: string;
-  restatedFiledAt: string;
-  restatedValue: number;
-  deltaPct: number;
-}
+export type {
+  FactRestatement,
+  PitFinancialFact,
+  UpsertFilingInput,
+  UpsertFinancialFactInput,
+} from "./facts-pit-types";
 
 export async function upsertFiling(db: KanonDb, input: UpsertFilingInput): Promise<void> {
   await db
@@ -104,10 +53,61 @@ export async function listFilingsBySecurity(db: KanonDb, securityId: string, lim
     .limit(limit);
 }
 
+async function recomputeLatestFlagsForKeys(
+  db: KanonDb,
+  keys: readonly {
+    securityId: string;
+    concept: string;
+    periodEnd: string;
+    duration: FinancialFactDuration;
+  }[],
+) {
+  for (const key of keys) {
+    const rows = await db
+      .select({ id: financialFactsTable.id, filedAt: financialFactsTable.filedAt })
+      .from(financialFactsTable)
+      .where(
+        and(
+          eq(financialFactsTable.securityId, key.securityId),
+          eq(financialFactsTable.concept, key.concept),
+          eq(financialFactsTable.periodEnd, key.periodEnd),
+          eq(financialFactsTable.duration, key.duration),
+        ),
+      )
+      .orderBy(desc(financialFactsTable.filedAt), desc(financialFactsTable.id));
+    const latestId = rows[0]?.id;
+    if (!latestId) continue;
+    await db
+      .update(financialFactsTable)
+      .set({ isLatestForPeriod: false })
+      .where(
+        and(
+          eq(financialFactsTable.securityId, key.securityId),
+          eq(financialFactsTable.concept, key.concept),
+          eq(financialFactsTable.periodEnd, key.periodEnd),
+          eq(financialFactsTable.duration, key.duration),
+        ),
+      );
+    await db
+      .update(financialFactsTable)
+      .set({ isLatestForPeriod: true })
+      .where(
+        and(
+          eq(financialFactsTable.id, latestId),
+          eq(financialFactsTable.securityId, key.securityId),
+        ),
+      );
+  }
+}
+
 export async function upsertFinancialFacts(
   db: KanonDb,
   facts: readonly UpsertFinancialFactInput[],
 ): Promise<number> {
+  const touched = new Map<
+    string,
+    { securityId: string; concept: string; periodEnd: string; duration: FinancialFactDuration }
+  >();
   for (const f of facts) {
     await db
       .insert(financialFactsTable)
@@ -128,13 +128,20 @@ export async function upsertFinancialFacts(
         currency: f.currency ?? "USD",
         dimensions: f.dimensions ?? {},
         filedAt: f.filedAt,
-        isLatestForPeriod: f.isLatestForPeriod ?? true,
+        isLatestForPeriod: false,
       })
       .onConflictDoUpdate({
         target: financialFactsTable.id,
-        set: { value: f.value, isLatestForPeriod: f.isLatestForPeriod ?? true },
+        set: { value: f.value, filedAt: f.filedAt, xbrlTag: f.xbrlTag },
       });
+    touched.set(`${f.securityId}:${f.concept}:${f.periodEnd}:${f.duration}`, {
+      securityId: f.securityId,
+      concept: f.concept,
+      periodEnd: f.periodEnd,
+      duration: f.duration,
+    });
   }
+  await recomputeLatestFlagsForKeys(db, [...touched.values()]);
   return facts.length;
 }
 

@@ -108,6 +108,7 @@ export {
   getThesisByTicker,
   getThesisIdentity,
   listThesisSummaries,
+  listThesisWatchersByTicker,
 } from "./repositories/thesis/thesis-lookups";
 export { loadThesisCanvasBootstrap } from "./repositories/thesis-canvas-bootstrap";
 export {

@@ -18,8 +18,11 @@ export interface MonteCarloValuationInput {
   netCashB: number;
   horizonYears: number;
   taxRatePct: number;
+  /** Discount rate (%) used to discount year-N EV back to present value (defaults to 10%). */
+  discountRatePct?: number;
   revenueCagrPct: NormalParam;
   operatingMarginPct: NormalParam;
+  /** Exit EV / NOPAT multiple applied at year N. */
   exitMultiple: NormalParam;
   /** Optional 3x3 correlation matrix for [revenueCagr, operatingMargin, exitMultiple]. */
   correlationMatrix?: readonly [
@@ -122,7 +125,10 @@ function simulateSingleDraw(
   );
   const terminalRevB = Math.max(0.01, input.baseRevenueB) * Math.max(0.05, 1 + g / 100) ** years;
   const terminalNopatB = terminalRevB * (m / 100) * (1 - tax);
-  const equityValB = Math.max(0, terminalNopatB * Math.max(1, mult) + input.netCashB);
+  const terminalEvB = terminalNopatB * Math.max(1, mult);
+  const discountRate = Math.max(0, Math.min(0.4, (input.discountRatePct ?? 10) / 100));
+  const pvEvB = terminalEvB / (1 + discountRate) ** years;
+  const equityValB = Math.max(0, pvEvB + input.netCashB);
   return { perShare: (equityValB * 1000) / shares, g, m, mult };
 }
 

@@ -61,6 +61,23 @@ function toIsoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+export interface PolygonSplitEvent {
+  exDate: string;
+  ratio: number;
+}
+
+const PolygonSplitsResponseSchema = z.object({
+  results: z
+    .array(
+      z.object({
+        execution_date: z.string().optional(),
+        split_from: z.number().optional(),
+        split_to: z.number().optional(),
+      }),
+    )
+    .optional(),
+});
+
 async function fetchPolygonDailyBars(
   ticker: string,
   fromDate: string,
@@ -68,8 +85,11 @@ async function fetchPolygonDailyBars(
   apiKey: string,
   fetchImpl: typeof fetch,
 ): Promise<DailyBarPoint[] | null> {
-  const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/day/${fromDate}/${toDate}?adjusted=true&sort=asc&limit=5000&apiKey=${encodeURIComponent(apiKey)}`;
-  const res = await fetchImpl(url, { signal: AbortSignal.timeout(10_000) });
+  const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/day/${fromDate}/${toDate}?adjusted=true&sort=asc&limit=5000`;
+  const res = await fetchImpl(url, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!res.ok) return null;
   const parsed = PolygonAggResponseSchema.safeParse(await res.json());
   if (!parsed.success) return null;
@@ -88,6 +108,38 @@ async function fetchPolygonDailyBars(
     });
   }
   return bars.length > 0 ? bars : null;
+}
+
+/** Fetches historical stock split events from Polygon using Bearer authentication. */
+export async function fetchPolygonSplits(params: {
+  ticker: string;
+  apiKey?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<PolygonSplitEvent[]> {
+  const token = params.apiKey?.trim() || process.env.POLYGON_API_KEY?.trim();
+  if (!token) return [];
+  const fetchImpl = params.fetchImpl ?? fetch;
+  const url = `https://api.polygon.io/v3/reference/splits?ticker=${encodeURIComponent(params.ticker.trim().toUpperCase())}&limit=50`;
+  const res = await fetchImpl(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => null);
+  if (!res?.ok) return [];
+  const parsed = PolygonSplitsResponseSchema.safeParse(await res.json().catch(() => null));
+  if (!parsed.success) return [];
+  const out: PolygonSplitEvent[] = [];
+  for (const row of parsed.data.results ?? []) {
+    if (
+      row.execution_date &&
+      row.split_from &&
+      row.split_to &&
+      row.split_from > 0 &&
+      row.split_to > 0
+    ) {
+      out.push({ exDate: row.execution_date, ratio: row.split_to / row.split_from });
+    }
+  }
+  return out;
 }
 
 type YahooChartQuote = z.infer<typeof YahooChartQuoteSchema>;

@@ -29,6 +29,8 @@ export { buildMarketBenchmarks } from "./market/consensus-and-peers";
 export {
   type DailyBarPoint,
   fetchDailyPriceBars,
+  fetchPolygonSplits,
+  type PolygonSplitEvent,
 } from "./market/daily-bars";
 export {
   clearMarketQuoteCache,
@@ -68,7 +70,13 @@ export {
   type RedTeamReport,
   RedTeamReportSchema,
 } from "./schemas/red-team";
-export { fetchSecEdgarSnapshot, formatUsdCompact } from "./sec/edgar-client";
+export {
+  type ExtractedPitFact,
+  extractPitFactsFromCompanyFacts,
+  fetchSecEdgarSnapshot,
+  fetchSecEdgarWithPitFacts,
+  formatUsdCompact,
+} from "./sec/edgar-client";
 export { fetchSecFilingReaderData } from "./sec/filing-reader";
 export * from "./sec/filing-redline";
 export {

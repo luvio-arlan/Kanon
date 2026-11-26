@@ -29,5 +29,10 @@ describe("Seeded Valuation Monte Carlo Engine (W2.3)", () => {
     expect(run1.p90).toBeLessThanOrEqual(run1.p95);
     expect(run1.sensitivityPearson.exitMultiple).toBeGreaterThan(0.2);
     expect(run1.sensitivityPearson.revenueCagr).toBeGreaterThan(0.2);
+
+    // Higher discount rate must reduce present-value P50 monotonically (S2-1 PV discounting)
+    const zeroDiscount = runValuationMonteCarlo({ ...baseInput, discountRatePct: 0 });
+    const tenPctDiscount = runValuationMonteCarlo({ ...baseInput, discountRatePct: 10 });
+    expect(tenPctDiscount.p50).toBeLessThan(zeroDiscount.p50 * 0.8);
   });
 });

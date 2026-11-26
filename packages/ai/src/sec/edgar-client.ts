@@ -9,10 +9,11 @@ import {
 } from "./edgar-annuals";
 import { extractQuarterlyHistory } from "./edgar-quarterlies";
 import { fetchForm4InsiderSummary } from "./form4-parser";
+import { type ExtractedPitFact, extractPitFactsFromCompanyFacts } from "./pit/pit-facts-extractor";
 import { fetchSecWithRetry } from "./sec-http";
 import { KNOWN_CIK_MAP } from "./xbrl-period-utils";
 
-export { formatUsdCompact };
+export { type ExtractedPitFact, extractPitFactsFromCompanyFacts, formatUsdCompact };
 
 const FINANCIAL_FORMS = new Set(["10-K", "10-Q", "20-F", "DEF 14A"]);
 const GOVERNANCE_FORMS = new Set(["8-K"]);
@@ -25,7 +26,6 @@ const SecTickerTableSchema = z.record(
     cik_str: z.union([z.number(), z.string()]).optional(),
   }),
 );
-
 const SecSubmissionsSchema = z.object({
   name: z.string().optional(),
   filings: z
@@ -46,6 +46,7 @@ const SecSubmissionsSchema = z.object({
 type SecSubmissionsResponse = z.infer<typeof SecSubmissionsSchema>;
 
 const SecFactUnitSchema = z.object({
+  accn: z.string().optional(),
   val: z.number().optional(),
   form: z.string().optional(),
   fy: z.number().optional(),
@@ -57,9 +58,7 @@ const SecFactUnitSchema = z.object({
 });
 const SecNamespaceSchema = z.record(
   z.string(),
-  z.object({
-    units: z.record(z.string(), z.array(SecFactUnitSchema).optional()).optional(),
-  }),
+  z.object({ units: z.record(z.string(), z.array(SecFactUnitSchema).optional()).optional() }),
 );
 const SecCompanyFactsSchema = z.object({
   facts: z
@@ -88,9 +87,8 @@ async function loadDynamicCikMap(fetchImpl: typeof fetch): Promise<Map<string, s
     if (!parsedTable.success) return null;
     const map = new Map<string, string>();
     for (const row of Object.values(parsedTable.data)) {
-      if (row.ticker && row.cik_str !== undefined) {
+      if (row.ticker && row.cik_str !== undefined)
         map.set(row.ticker.toUpperCase(), String(row.cik_str).padStart(10, "0"));
-      }
     }
     dynamicCikCache = { expiresAt: Date.now() + CIK_CACHE_TTL_MS, map };
     return map;
@@ -172,26 +170,25 @@ function extractRecentFilings(cik: string, data: SecSubmissionsResponse): SecFil
   );
 }
 
-async function buildSnapshotFromResponses(
+async function buildSnapshotWithPitFromResponses(
   upper: string,
   cik: string,
   subRes: Response,
   factsRes: Response,
   fetchImpl: typeof fetch,
-): Promise<{ ok: true; data: SecSnapshot } | { ok: false; error: string }> {
-  if (!subRes.ok) {
+): Promise<
+  { ok: true; data: SecSnapshot; pitFacts: ExtractedPitFact[] } | { ok: false; error: string }
+> {
+  if (!subRes.ok)
     return { ok: false, error: `SEC EDGAR 接口返回状态 ${subRes.status}，已保留本地缓存。` };
-  }
   const subParsed = SecSubmissionsSchema.safeParse(await subRes.json());
-  if (!subParsed.success) {
+  if (!subParsed.success)
     return { ok: false, error: "SEC EDGAR 披露索引格式异常，已保留本地缓存。" };
-  }
-  if (!factsRes.ok) {
+  if (!factsRes.ok)
     return {
       ok: false,
       error: `SEC XBRL 财务数据接口返回状态 ${factsRes.status}，已保留现有缓存。`,
     };
-  }
   const factsParsed = SecCompanyFactsSchema.safeParse(await factsRes.json());
   const factsPayload: SecFactsPayload | undefined = factsParsed.success
     ? factsParsed.data.facts
@@ -199,6 +196,7 @@ async function buildSnapshotFromResponses(
   const norm = resolveCurrencyNormalization(factsPayload, upper);
   const annuals = extractAnnualHistory(factsPayload, norm);
   const filings = extractRecentFilings(cik, subParsed.data);
+  const pitFacts = extractPitFactsFromCompanyFacts(factsPayload, norm);
   const insiderSummary = await fetchForm4InsiderSummary(filings, fetchImpl).catch(() => null);
   const snapshot = SecSnapshotSchema.parse({
     ticker: upper,
@@ -215,13 +213,15 @@ async function buildSnapshotFromResponses(
     quarterlies: extractQuarterlyHistory(factsPayload, norm, annuals),
     insiderSummary,
   });
-  return { ok: true, data: snapshot };
+  return { ok: true, data: snapshot, pitFacts };
 }
 
-export async function fetchSecEdgarSnapshot(
+export async function fetchSecEdgarWithPitFacts(
   ticker: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<{ ok: true; data: SecSnapshot } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; data: SecSnapshot; pitFacts: ExtractedPitFact[] } | { ok: false; error: string }
+> {
   const upper = ticker.trim().toUpperCase();
   try {
     const cik = await resolveCik(upper, fetchImpl);
@@ -235,9 +235,14 @@ export async function fetchSecEdgarSnapshot(
         fetchImpl,
       ),
     ]);
-    return buildSnapshotFromResponses(upper, cik, subRes, factsRes, fetchImpl);
+    return buildSnapshotWithPitFromResponses(upper, cik, subRes, factsRes, fetchImpl);
   } catch (err) {
     const reason = err instanceof Error ? err.message.slice(0, 60) : "网络异常";
     return { ok: false, error: `SEC EDGAR 同步失败（${reason}），当前继续使用本地数据库缓存。` };
   }
+}
+
+export async function fetchSecEdgarSnapshot(ticker: string, fetchImpl: typeof fetch = fetch) {
+  const res = await fetchSecEdgarWithPitFacts(ticker, fetchImpl);
+  return res.ok ? { ok: true as const, data: res.data } : res;
 }

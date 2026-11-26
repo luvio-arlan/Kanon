@@ -1,4 +1,4 @@
-import { fetchSecEdgarSnapshot, formatUsdCompact } from "@kanon/ai";
+import { fetchSecEdgarWithPitFacts, formatUsdCompact } from "@kanon/ai";
 import {
   type SecFinancialFact,
   SecSnapshotSchema,
@@ -54,11 +54,13 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const ticker = parsedTicker.data;
   const db = await getKanonDb();
-  const fetched = await fetchSecEdgarSnapshot(ticker);
+  const fetched = await fetchSecEdgarWithPitFacts(ticker);
 
   if (fetched.ok) {
     const saved = await upsertSecSnapshot(db, fetched.data);
-    await syncSecSnapshotToWarehouse(db, saved, auth.user.id).catch(() => undefined);
+    await syncSecSnapshotToWarehouse(db, saved, auth.user.id, fetched.pitFacts).catch(
+      () => undefined,
+    );
     return jsonOk(
       {
         snapshot: saved,

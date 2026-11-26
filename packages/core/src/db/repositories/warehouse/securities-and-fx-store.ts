@@ -60,6 +60,32 @@ function normalizeSecurityFields(input: UpsertSecurityInput) {
   };
 }
 
+function buildPartialSecurityUpdate(input: UpsertSecurityInput) {
+  const nameClean = input.name.trim();
+  const hasRealName =
+    Boolean(nameClean) && nameClean.toUpperCase() !== input.ticker.trim().toUpperCase();
+  const entries: Array<[keyof typeof securitiesTable.$inferInsert, unknown]> = [
+    ["updatedAt", new Date()],
+    ["cik", input.cik !== undefined ? input.cik?.trim() || null : undefined],
+    ["name", hasRealName ? nameClean : undefined],
+    ["shareClass", input.shareClass !== undefined ? input.shareClass?.trim() || null : undefined],
+    ["currency", input.currency !== undefined ? input.currency.trim().toUpperCase() : undefined],
+    ["country", input.country !== undefined ? input.country.trim().toUpperCase() : undefined],
+    ["adrRatio", input.adrRatio],
+    ["adrRatioSource", input.adrRatioSource],
+    ["sectorCode", input.sectorCode],
+    ["industryCode", input.industryCode],
+    ["isActive", input.isActive],
+    ["listedAt", input.listedAt],
+    ["delistedAt", input.delistedAt],
+  ];
+  const patch: Record<string, unknown> = {};
+  for (const [k, v] of entries) {
+    if (v !== undefined) patch[k] = v;
+  }
+  return patch as Partial<typeof securitiesTable.$inferInsert>;
+}
+
 export async function upsertSecurity(
   db: KanonDb,
   input: UpsertSecurityInput,
@@ -67,13 +93,14 @@ export async function upsertSecurity(
   const ticker = input.ticker.trim().toUpperCase();
   const exchangeMic = (input.exchangeMic ?? "XNAS").trim().toUpperCase();
   const id = input.id?.trim() || buildSecurityId(ticker, exchangeMic);
-  const fields = normalizeSecurityFields(input);
+  const insertFields = normalizeSecurityFields(input);
+  const partialPatch = buildPartialSecurityUpdate(input);
   await db
     .insert(securitiesTable)
-    .values({ id, ticker, exchangeMic, ...fields })
+    .values({ id, ticker, exchangeMic, ...insertFields })
     .onConflictDoUpdate({
       target: [securitiesTable.ticker, securitiesTable.exchangeMic],
-      set: fields,
+      set: partialPatch,
     });
   const found = await getSecurityByTicker(db, ticker, exchangeMic);
   if (!found) throw new Error(`Failed to read upserted security ${ticker}`);

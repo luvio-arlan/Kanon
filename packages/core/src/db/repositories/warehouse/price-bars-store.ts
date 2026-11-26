@@ -5,18 +5,6 @@ import type { ValuationBand } from "../../../schemas/v7-research-os";
 import type { KanonDb } from "../../bootstrap";
 import { type CorporateActionKind, corporateActionsTable, priceBarsDailyTable } from "../../schema";
 
-export interface DailyPriceBarInput {
-  securityId: string;
-  barDate: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  adjClose: number;
-  volume?: number | null;
-  source: string;
-}
-
 export interface DailyPriceBar {
   securityId: string;
   barDate: string;
@@ -28,6 +16,8 @@ export interface DailyPriceBar {
   volume: number | null;
   source: string;
 }
+
+export type DailyPriceBarInput = Omit<DailyPriceBar, "volume"> & { volume?: number | null };
 
 export async function upsertPriceBars(
   db: KanonDb,
@@ -134,56 +124,108 @@ function quantile(sorted: readonly number[], p: number): number {
   return a + (b - a) * (idx - lo);
 }
 
-function extractAnnualEpsByYear(annuals: readonly SecAnnualFinancial[]): Map<number, number> {
-  const byYear = new Map<number, number>();
-  for (const row of annuals) {
-    const m = row.fiscalYear.match(/\d{4}/);
-    if (!m || !row.dilutedEps || row.dilutedEps <= 0) continue;
-    byYear.set(Number(m[0]), row.dilutedEps);
-  }
-  return byYear;
+export interface SplitEventRef {
+  exDate: string;
+  ratio: number;
 }
 
-function resolveTrailingEpsForDate(
+export interface PitEpsObservation {
+  periodEnd: string;
+  filedAt: string;
+  duration: "annual" | "quarter" | "ytd" | "instant";
+  value: number;
+}
+
+function adjustEpsForSplits(
+  eps: number,
+  filedAt: string,
+  splits: readonly SplitEventRef[],
+): number {
+  let factor = 1;
+  for (const sp of splits) {
+    if (sp.ratio > 0 && sp.exDate > filedAt) factor *= sp.ratio;
+  }
+  return eps / factor;
+}
+
+function resolvePitEpsAtDate(
   barDate: string,
-  epsByYear: ReadonlyMap<number, number>,
+  pitFacts: readonly PitEpsObservation[],
+  splits: readonly SplitEventRef[],
 ): number | null {
-  const year = Number(barDate.slice(0, 4));
-  if (!Number.isFinite(year)) return null;
-  return epsByYear.get(year) ?? epsByYear.get(year - 1) ?? null;
+  const visible = pitFacts.filter((f) => f.filedAt <= barDate);
+  if (visible.length === 0) return null;
+  const byPeriod = new Map<string, PitEpsObservation>();
+  for (const f of visible) {
+    if (f.duration !== "annual" && f.duration !== "quarter" && f.duration !== "ytd") continue;
+    const key = `${f.duration}:${f.periodEnd}`;
+    const prev = byPeriod.get(key);
+    if (!prev || f.filedAt >= prev.filedAt) byPeriod.set(key, f);
+  }
+  const latestAnnual = [...byPeriod.values()]
+    .filter((f) => f.duration === "annual" && f.value > 0)
+    .sort((a, b) => b.periodEnd.localeCompare(a.periodEnd))[0];
+  if (!latestAnnual) return null;
+  const adjusted = adjustEpsForSplits(latestAnnual.value, latestAnnual.filedAt, splits);
+  return adjusted > 0 ? adjusted : null;
+}
+
+function buildFallbackPitEpsFromAnnuals(
+  annuals: readonly SecAnnualFinancial[],
+): PitEpsObservation[] {
+  const out: PitEpsObservation[] = [];
+  for (const row of annuals) {
+    if (!row.dilutedEps || row.dilutedEps <= 0) continue;
+    const periodEnd = row.periodEndDate;
+    if (!periodEnd || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)) continue;
+    const filedMs = Date.parse(`${periodEnd}T00:00:00Z`) + 60 * 86_400_000;
+    const filedAt = new Date(filedMs).toISOString().slice(0, 10);
+    out.push({ periodEnd, filedAt, duration: "annual", value: row.dilutedEps });
+  }
+  return out;
 }
 
 function collectHistoricalPeObservations(
   bars: readonly DailyPriceBar[],
-  epsByYear: ReadonlyMap<number, number>,
+  pitEpsFacts: readonly PitEpsObservation[],
+  splits: readonly SplitEventRef[],
 ): number[] {
   const pes: number[] = [];
   for (const bar of bars) {
-    const eps = resolveTrailingEpsForDate(bar.barDate, epsByYear);
+    const eps = resolvePitEpsAtDate(bar.barDate, pitEpsFacts, splits);
     if (!eps || eps <= 0) continue;
-    const pe = bar.adjClose / eps;
+    const priceForPe = bar.close;
+    const pe = priceForPe / eps;
     if (Number.isFinite(pe) && pe > 1 && pe < 200) pes.push(pe);
   }
   return pes;
 }
 
 /**
- * Computes real historical P/E band (P10 / P50 / P90) from daily adjusted price bars
- * paired with annual diluted EPS. Returns `null` if fewer than 20 valid PE observations exist.
+ * Computes real Point-in-Time historical P/E band (P10 / P50 / P90) from split-adjusted daily bars
+ * paired strictly with EPS facts where `filedAt <= barDate` (zero look-ahead bias).
  */
 export function computeRealHistoricalValuationBand(params: {
   bars: readonly DailyPriceBar[];
   annuals: readonly SecAnnualFinancial[];
-  currentPrice: number;
+  pitEpsFacts?: readonly PitEpsObservation[];
+  splits?: readonly SplitEventRef[];
+  currentPrice: number | null;
 }): ValuationBand | null {
-  const epsByYear = extractAnnualEpsByYear(params.annuals);
-  if (epsByYear.size === 0 || params.bars.length < 20) return null;
-  const pes = collectHistoricalPeObservations(params.bars, epsByYear);
+  if (params.bars.length < 20) return null;
+  const epsSource =
+    params.pitEpsFacts && params.pitEpsFacts.length > 0
+      ? params.pitEpsFacts
+      : buildFallbackPitEpsFromAnnuals(params.annuals);
+  if (epsSource.length === 0) return null;
+  const splits = params.splits ?? [];
+  const pes = collectHistoricalPeObservations(params.bars, epsSource, splits);
   if (pes.length < 20) return null;
   const sorted = [...pes].sort((a, b) => a - b);
-  const latestEps = params.annuals[params.annuals.length - 1]?.dilutedEps ?? null;
+  const latestBarDate = params.bars[params.bars.length - 1]?.barDate ?? "9999-12-31";
+  const latestEps = resolvePitEpsAtDate(latestBarDate, epsSource, splits);
   const current =
-    latestEps && latestEps > 0 && params.currentPrice > 0
+    latestEps && latestEps > 0 && params.currentPrice !== null && params.currentPrice > 0
       ? roundTo(params.currentPrice / latestEps, 1)
       : roundTo(sorted[sorted.length - 1] ?? 0, 1);
   const belowCount = sorted.filter((v) => v <= current).length;

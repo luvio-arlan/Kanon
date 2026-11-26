@@ -1,4 +1,5 @@
 export interface SecFactUnit {
+  accn?: string;
   val?: number;
   form?: string;
   fy?: number;

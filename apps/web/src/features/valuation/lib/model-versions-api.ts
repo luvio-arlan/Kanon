@@ -1,3 +1,6 @@
+import { ModelVersionSaveResponseSchema, ModelVersionsListResponseSchema } from "@kanon/core";
+import { kanonFetch } from "@/shared/lib/kanon-fetch";
+
 export interface SavedModelVersion {
   id: string;
   versionNum: number;
@@ -7,13 +10,11 @@ export interface SavedModelVersion {
 }
 
 export async function apiListModelVersions(thesisId: string): Promise<SavedModelVersion[]> {
-  const res = await fetch(`/api/theses/${thesisId}/model-versions`).catch(() => null);
-  if (!res?.ok) return [];
-  const raw: unknown = await res.json().catch(() => null);
-  if (raw && typeof raw === "object" && Array.isArray((raw as { versions?: unknown }).versions)) {
-    return (raw as { versions: SavedModelVersion[] }).versions;
-  }
-  return [];
+  const res = await kanonFetch(
+    `/api/theses/${thesisId}/model-versions`,
+    ModelVersionsListResponseSchema,
+  );
+  return res.ok ? res.data.versions : [];
 }
 
 export async function apiSaveModelVersion(
@@ -25,10 +26,10 @@ export async function apiSaveModelVersion(
     outputs: Record<string, unknown>;
   },
 ): Promise<boolean> {
-  const res = await fetch(`/api/theses/${thesisId}/model-versions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  }).catch(() => null);
-  return Boolean(res?.ok);
+  const res = await kanonFetch(
+    `/api/theses/${thesisId}/model-versions`,
+    ModelVersionSaveResponseSchema,
+    { method: "POST", body: payload },
+  );
+  return res.ok;
 }

@@ -222,3 +222,14 @@ export function fetchSiblingValuations(
     .from(v)
     .where(inArray(v.thesisId, [...otherIds]));
 }
+
+export async function listThesisWatchersByTicker(
+  db: KanonDb,
+  ticker: string,
+): Promise<Array<{ userId: string; thesisId: string }>> {
+  const upper = ticker.trim().toUpperCase();
+  return db
+    .select({ userId: thesesTable.userId, thesisId: thesesTable.id })
+    .from(thesesTable)
+    .where(eq(thesesTable.ticker, upper));
+}

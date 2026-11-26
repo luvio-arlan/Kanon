@@ -121,18 +121,11 @@ describe("Point-in-Time Data Warehouse (Stage 1: W1.1-W1.7)", () => {
 
     const band = computeRealHistoricalValuationBand({
       bars: stored,
-      annuals: [
-        {
-          fiscalYear: "FY2025",
-          revenue: 245e9,
-          grossProfit: 171e9,
-          grossMarginPct: 69.8,
-          netIncome: 88e9,
-          operatingCashFlow: 118e9,
-          capex: 44e9,
-          freeCashFlow: 74e9,
-          dilutedEps: 12,
-        },
+      annuals: [],
+      pitEpsFacts: [
+        { periodEnd: "2024-06-30", filedAt: "2024-07-30", duration: "annual", value: 12 },
+        // Future fact filed AFTER all bars — MUST be ignored by PIT filter!
+        { periodEnd: "2025-06-30", filedAt: "2025-07-30", duration: "annual", value: 24 },
       ],
       currentPrice: 420,
     });
@@ -140,6 +133,25 @@ describe("Point-in-Time Data Warehouse (Stage 1: W1.1-W1.7)", () => {
     expect(band?.p10).toBeLessThan(band?.p50 ?? 0);
     expect(band?.p50).toBeLessThan(band?.p90 ?? 0);
     expect(band?.current).toBe(35);
+
+    // Partial security upsert MUST NOT wipe CIK, ADR ratio, or currency (S1-2)
+    const tsm = await upsertSecurity(db, {
+      ticker: "TSM",
+      exchangeMic: "XNYS",
+      cik: "0001046179",
+      name: "Taiwan Semiconductor Manufacturing Co.",
+      currency: "TWD",
+      adrRatio: 5,
+    });
+    const tsmAfterPartial = await upsertSecurity(db, {
+      ticker: "TSM",
+      exchangeMic: "XNYS",
+      name: "TSM",
+    });
+    expect(tsmAfterPartial.cik).toBe(tsm.cik);
+    expect(tsmAfterPartial.currency).toBe("TWD");
+    expect(tsmAfterPartial.adrRatio).toBe(5);
+    expect(tsmAfterPartial.name).toBe("Taiwan Semiconductor Manufacturing Co.");
   });
 
   it("W1.4: enforces point-in-time as-of isolation, restatement detection, Q4 derivation, and chunk search", async () => {

@@ -13,6 +13,8 @@ export interface MultiStageFcffInput {
   salesToCapitalRatio: number;
   terminalRonicPct: number;
   waccPct: number;
+  /** Optional risk-free rate (%) ceiling: enforces Damodaran constraint g_terminal <= Rf. */
+  riskFreeRatePct?: number;
   midYearConvention?: boolean;
   cashAndStInvestmentsB: number;
   totalDebtB: number;
@@ -51,6 +53,7 @@ export interface MultiStageFcffResult {
   equityValueB: number;
   dilutedSharesM: number;
   fairValuePerShare: number;
+  valueDestroyingGrowth: boolean;
 }
 
 function projectExplicitFcffSchedule(
@@ -108,38 +111,41 @@ function projectExplicitFcffSchedule(
  * Damodaran value-driver 3-stage FCFF DCF with reinvestment linked to sales-to-capital
  * during explicit forecast and Gordon Growth with RONIC-constrained reinvestment at terminal.
  */
-export function calculateMultiStageFcffDcf(input: MultiStageFcffInput): MultiStageFcffResult {
-  const wacc = input.waccPct / 100;
-  const gTerm = input.terminalGrowthPct / 100;
+function assertDcfGrowthConstraints(input: MultiStageFcffInput, wacc: number, gTerm: number) {
   if (wacc <= gTerm + 0.005) {
     throw new Error("WACC 必须高于永续增长率至少 0.50%，否则终值无收敛解。");
   }
+  if (
+    input.riskFreeRatePct !== undefined &&
+    Number.isFinite(input.riskFreeRatePct) &&
+    input.terminalGrowthPct > input.riskFreeRatePct + 1e-6
+  ) {
+    throw new Error(
+      `永续增长率 (${input.terminalGrowthPct}%) 不能超过无风险利率 (${input.riskFreeRatePct}%)。`,
+    );
+  }
+}
+
+export function calculateMultiStageFcffDcf(input: MultiStageFcffInput): MultiStageFcffResult {
+  const wacc = input.waccPct / 100;
+  const gTerm = input.terminalGrowthPct / 100;
+  assertDcfGrowthConstraints(input, wacc, gTerm);
   const taxRate = Math.max(0, Math.min(0.6, input.effectiveTaxRatePct / 100));
   const { schedule, pvExplicitFcffB, lastRevB } = projectExplicitFcffSchedule(input, wacc, taxRate);
   const totalYears = schedule.length;
+  const midOffset = input.midYearConvention === false ? 0 : 0.5;
 
   const terminalRevB = lastRevB * (1 + gTerm);
   const terminalNopatB = terminalRevB * (input.terminalEbitMarginPct / 100) * (1 - taxRate);
-  const ronic = Math.max(wacc, input.terminalRonicPct / 100);
-  const terminalReinvestRate = Math.max(0, Math.min(0.85, gTerm / ronic));
+  const ronic = Math.max(0.01, input.terminalRonicPct / 100);
+  const valueDestroyingGrowth = ronic < wacc && gTerm > 0;
+  const terminalReinvestRate = Math.max(0, Math.min(0.95, gTerm / ronic));
   const terminalFcffB = terminalNopatB * (1 - terminalReinvestRate);
   const terminalValueB = terminalFcffB / (wacc - gTerm);
-  const pvTerminalValueB = terminalValueB / (1 + wacc) ** totalYears;
+  const pvTerminalValueB = terminalValueB / (1 + wacc) ** Math.max(0.5, totalYears - midOffset);
 
   const enterpriseValueB = Math.max(0, pvExplicitFcffB + pvTerminalValueB);
-  const bridge = calculateEquityBridge({
-    enterpriseValueB,
-    cashAndStInvestmentsB: input.cashAndStInvestmentsB,
-    totalDebtB: input.totalDebtB,
-    operatingLeaseLiabilitiesB: input.operatingLeaseLiabilitiesB,
-    preferredStockB: input.preferredStockB,
-    minorityInterestB: input.minorityInterestB,
-    nonOperatingAssetsB: input.nonOperatingAssetsB,
-    basicSharesM: input.basicSharesM,
-    optionGrants: input.optionGrants,
-    rsuSharesM: input.rsuSharesM,
-    assumedSharePrice: input.assumedSharePrice,
-  });
+  const bridge = calculateEquityBridge({ ...input, enterpriseValueB });
 
   return {
     schedule,
@@ -154,5 +160,6 @@ export function calculateMultiStageFcffDcf(input: MultiStageFcffInput): MultiSta
     equityValueB: bridge.equityValueB,
     dilutedSharesM: bridge.dilutedSharesM,
     fairValuePerShare: bridge.fairValuePerShare,
+    valueDestroyingGrowth,
   };
 }

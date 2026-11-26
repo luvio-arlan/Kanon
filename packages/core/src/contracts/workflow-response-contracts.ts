@@ -89,3 +89,19 @@ export const ForecastCreateResponseSchema = z.object({
 export const IcApprovalMutationResponseSchema = z.object({
   approval: z.object({ id: z.string(), state: z.string() }),
 });
+
+export const ModelVersionsListResponseSchema = z.object({
+  versions: z.array(
+    z.object({
+      id: z.string(),
+      versionNum: z.number(),
+      label: z.string(),
+      createdAt: z.string(),
+      outputs: z.record(z.string(), z.unknown()),
+    }),
+  ),
+});
+
+export const ModelVersionSaveResponseSchema = z.object({
+  version: z.object({ id: z.string(), versionNum: z.number() }),
+});
