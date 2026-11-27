@@ -51,6 +51,7 @@ npx --yes vercel env add <KEY_NAME> production
 2. **Never run `next build` on <= 2 GiB RAM servers**: Building Next.js 16 + Turborepo on low-memory ECS instances causes swap thrashing / OOM. Always use Vercel cloud builds, or build locally and sync prebuilt artifacts via `deploy/push-to-ecs.sh` if migrating to a dedicated overseas VPS.
 3. **Never pull prod `DATABASE_URL` into local `.env.local` by accident**: Local `pnpm dev` and `pnpm test` should run against embedded PGlite (`.data/kanon-pg` / in-memory) unless intentionally running against Neon.
 4. **Keep `ssoProtection: null` on Vercel `kanon-app`**: Ensures public preview/prod testing works on mobile and desktop without hitting a Vercel login wall.
+5. **Fail-Closed RLS (`0028`) & Break-Glass Runbook**: Migration `0028` flips `kanon_rls_open()` to `false` (fail-closed tenant isolation across all 27 RLS tables). Run production with a dedicated `NOBYPASSRLS` role (`kanon_app`, `UPDATE/DELETE` revoked on `audit_log`) in pooled `DATABASE_URL`, keep `neondb_owner` direct URL strictly in `DATABASE_URL_MIGRATE`, and set `KANON_RUNTIME_MIGRATIONS=off`. If an emergency RLS rollback is ever required, apply [`deploy/rls-break-glass.sql`](./rls-break-glass.sql) via `DATABASE_URL_MIGRATE`.
 
 ## 4. Optional Future Migration: Self-Hosted Overseas VPS (HK / SG / JP)
 
