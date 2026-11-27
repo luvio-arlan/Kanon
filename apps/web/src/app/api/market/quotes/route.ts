@@ -7,7 +7,7 @@ import {
 import {
   buildMarketQuoteCacheKey,
   getCachedMarketQuotes,
-  getKanonDb,
+  type KanonDb,
   upsertCachedMarketQuotes,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
@@ -62,18 +62,19 @@ function mergeQuoteLookup(params: {
 }
 
 async function resolveQuotesWithDbCache(params: {
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
   tickers: readonly string[];
   creds: ReturnType<typeof parseMarketHeaders>;
   bypassCache: boolean;
 }) {
   const providerPref = params.creds?.provider ?? "auto";
   const canUseDbCache = !params.bypassCache && !params.creds?.apiKey;
-  const db = await getKanonDb();
-
   const cachedMap = canUseDbCache
-    ? await getCachedMarketQuotes(
-        db,
-        params.tickers.map((t) => buildMarketQuoteCacheKey(t, providerPref)),
+    ? await params.withDb((tx) =>
+        getCachedMarketQuotes(
+          tx,
+          params.tickers.map((t) => buildMarketQuoteCacheKey(t, providerPref)),
+        ),
       )
     : new Map<string, MarketQuoteSnapshot>();
 
@@ -91,7 +92,7 @@ async function resolveQuotesWithDbCache(params: {
     shouldPersist: !params.creds?.apiKey,
   });
   if (persistEntries.length > 0) {
-    await upsertCachedMarketQuotes(db, persistEntries);
+    await params.withDb((tx) => upsertCachedMarketQuotes(tx, persistEntries));
   }
   return { quotes, missingTickers };
 }
@@ -109,6 +110,7 @@ export async function GET(request: Request) {
     return jsonError("请提供有效的美股代码列表（如 tickers=NVDA,MU）。", 400, startedAt, "INVALID");
   }
   const { quotes, missingTickers } = await resolveQuotesWithDbCache({
+    withDb: auth.withDb,
     tickers,
     creds: parseMarketHeaders(request),
     bypassCache: url.searchParams.get("refresh") === "1",

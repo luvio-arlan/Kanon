@@ -1,9 +1,9 @@
 import { InboxPatchRequestSchema, InboxPostRequestSchema } from "@kanon/core";
 import {
   createInboxItem,
-  getKanonDb,
   hasCalendarToken,
   issueCalendarToken,
+  type KanonDb,
   listAlertRules,
   listInboxItems,
   markAllInboxItemsRead,
@@ -21,17 +21,18 @@ export async function GET() {
   const startedAt = performance.now();
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-  const db = await getKanonDb();
-  const [items, rules, calendarConfigured] = await Promise.all([
-    listInboxItems(db, auth.user.id),
-    listAlertRules(db, auth.user.id),
-    hasCalendarToken(db, auth.user.id),
-  ]);
+  const [items, rules, calendarConfigured] = await auth.withDb((tx) =>
+    Promise.all([
+      listInboxItems(tx, auth.user.id),
+      listAlertRules(tx, auth.user.id),
+      hasCalendarToken(tx, auth.user.id),
+    ]),
+  );
   return jsonOk({ items, rules, calendarConfigured }, startedAt);
 }
 
 async function handleUpsertRulePost(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+  db: KanonDb,
   userId: string,
   data: Extract<ReturnType<typeof InboxPostRequestSchema.parse>, { op: "upsert_rule" }>,
   startedAt: number,
@@ -51,7 +52,7 @@ async function handleUpsertRulePost(
 }
 
 async function dispatchInboxPost(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+  db: KanonDb,
   userId: string,
   data: ReturnType<typeof InboxPostRequestSchema.parse>,
   startedAt: number,
@@ -96,8 +97,7 @@ export async function POST(request: Request) {
       "INVALID_INBOX_ITEM",
     );
   }
-  const db = await getKanonDb();
-  return dispatchInboxPost(db, auth.user.id, parsed.data, startedAt);
+  return auth.withDb((tx) => dispatchInboxPost(tx, auth.user.id, parsed.data, startedAt));
 }
 
 export async function PATCH(request: Request) {
@@ -112,11 +112,12 @@ export async function PATCH(request: Request) {
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "缺少 itemId。"), 400, startedAt, "INVALID");
   }
-  const db = await getKanonDb();
-  if ("markAll" in parsed.data) {
-    const markedCount = await markAllInboxItemsRead(db, auth.user.id);
-    return jsonOk({ ok: true, markedCount }, startedAt);
-  }
-  const updated = await markInboxItemRead(db, auth.user.id, parsed.data.itemId);
-  return jsonOk({ ok: updated }, startedAt);
+  return auth.withDb(async (tx) => {
+    if ("markAll" in parsed.data) {
+      const markedCount = await markAllInboxItemsRead(tx, auth.user.id);
+      return jsonOk({ ok: true, markedCount }, startedAt);
+    }
+    const updated = await markInboxItemRead(tx, auth.user.id, parsed.data.itemId);
+    return jsonOk({ ok: updated }, startedAt);
+  });
 }

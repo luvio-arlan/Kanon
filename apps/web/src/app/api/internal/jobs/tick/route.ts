@@ -7,8 +7,6 @@ import {
   failJobWithBackoff,
   getAlertEvalCursor,
   getJobQueueHealth,
-  getKanonDb,
-  type KanonDb,
   listChunksPendingEmbedding,
   type QueuedJobRow,
   recordTickHeartbeat,
@@ -17,9 +15,11 @@ import {
   setAlertEvalCursor,
   skipJob,
 } from "@kanon/core/db";
+import { withSystemDb } from "../../../_lib/db-context";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { generateRequestId, logStructuredApiEvent } from "../../../_lib/logger";
 import { runSyncDailyBarsForTicker, runSyncSecForTicker } from "../../../_lib/on-demand-sync";
+import { executeAlertFanoutJobInSystemDb } from "../../../_lib/sec-warehouse-sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -53,10 +53,10 @@ function extractEmbeddingVectors(raw: unknown): Array<number[] | null> {
   });
 }
 
-async function runEmbedChunksJob(db: KanonDb) {
+async function runEmbedChunksJob() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) return;
-  const pending = await listChunksPendingEmbedding(db, 20);
+  const pending = await withSystemDb("cron_tick", (tx) => listChunksPendingEmbedding(tx, 20));
   if (pending.length === 0) return;
   const res = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
@@ -69,44 +69,50 @@ async function runEmbedChunksJob(db: KanonDb) {
   });
   if (!res.ok) throw new Error(`Embedding provider HTTP ${res.status}`);
   const vectors = extractEmbeddingVectors(await res.json());
-  for (let i = 0; i < pending.length; i += 1) {
-    const chunk = pending[i];
-    const emb = vectors[i];
-    if (chunk && emb && emb.length > 0) await saveChunkEmbedding(db, chunk.id, emb);
-  }
+  await withSystemDb("cron_tick", async (tx) => {
+    for (let i = 0; i < pending.length; i += 1) {
+      const chunk = pending[i];
+      const emb = vectors[i];
+      if (chunk && emb && emb.length > 0) await saveChunkEmbedding(tx, chunk.id, emb);
+    }
+  });
 }
 
-async function executeNonAlertJob(
-  db: KanonDb,
-  job: QueuedJobRow,
-): Promise<"done" | { skipped: string }> {
+async function executeNonAlertJob(job: QueuedJobRow): Promise<"done" | { skipped: string }> {
   if (job.kind === "noop") return "done";
   if (job.kind === "embed_chunks") {
-    await runEmbedChunksJob(db);
+    await runEmbedChunksJob();
+    return "done";
+  }
+  if (job.kind === "fanout_8k" || job.kind === "fanout_filing_redflag") {
+    await executeAlertFanoutJobInSystemDb(job.kind, job.payload);
     return "done";
   }
   if (job.kind === "sync_daily_bars") {
-    await runSyncDailyBarsForTicker(db, String(job.payload.ticker ?? ""), {
+    await runSyncDailyBarsForTicker(String(job.payload.ticker ?? ""), {
       forceFullRebase: job.payload.forceFullRebase === true,
     });
     return "done";
   }
   if (job.kind === "sync_sec") {
-    const outcome = await runSyncSecForTicker(db, String(job.payload.ticker ?? ""));
+    const outcome = await runSyncSecForTicker(String(job.payload.ticker ?? ""));
     return outcome.status === "skipped" ? { skipped: outcome.reason } : "done";
   }
   throw new Error(`Unsupported job kind: ${job.kind}`);
 }
 
-async function runSingleJob(db: KanonDb, job: QueuedJobRow, workerId: string, startedAt: number) {
+async function runSingleJob(job: QueuedJobRow, workerId: string, startedAt: number) {
   try {
-    const outcome = await executeNonAlertJob(db, job);
-    if (outcome !== "done") await skipJob(db, job.id, outcome.skipped, workerId);
-    else await completeJob(db, job.id, workerId);
+    const outcome = await executeNonAlertJob(job);
+    if (outcome !== "done") {
+      await withSystemDb("cron_tick", (tx) => skipJob(tx, job.id, outcome.skipped, workerId));
+    } else {
+      await withSystemDb("cron_tick", (tx) => completeJob(tx, job.id, workerId));
+    }
     return true;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await failJobWithBackoff(db, job.id, msg, workerId);
+    await withSystemDb("cron_tick", (tx) => failJobWithBackoff(tx, job.id, msg, workerId));
     logStructuredApiEvent({
       level: "warn",
       requestId: generateRequestId(),
@@ -120,55 +126,65 @@ async function runSingleJob(db: KanonDb, job: QueuedJobRow, workerId: string, st
   }
 }
 
-async function drainSyncQueue(db: KanonDb, workerId: string, startedAt: number) {
+async function drainSyncQueue(workerId: string, startedAt: number) {
   let claimed = 0;
   let completed = 0;
   let failed = 0;
   while (performance.now() - startedAt < TICK_BUDGET_MS) {
-    const [job] = await claimDueJobs(db, {
-      workerId,
-      limit: 1,
-      leaseSeconds: 120,
-      excludeKinds: ["evaluate_alerts"],
-    });
+    const [job] = await withSystemDb("cron_tick", (tx) =>
+      claimDueJobs(tx, {
+        workerId,
+        limit: 1,
+        leaseSeconds: 120,
+        excludeKinds: ["evaluate_alerts"],
+      }),
+    );
     if (!job) break;
     claimed += 1;
-    if (await runSingleJob(db, job, workerId, startedAt)) completed += 1;
+    if (await runSingleJob(job, workerId, startedAt)) completed += 1;
     else failed += 1;
   }
   return { claimed, completed, failed };
 }
 
+const NON_ALERT_JOB_KINDS = [
+  "sync_daily_bars",
+  "sync_sec",
+  "embed_chunks",
+  "fanout_8k",
+  "fanout_filing_redflag",
+  "noop",
+];
+
 async function runFinalAlertPhase(
-  db: KanonDb,
   workerId: string,
   day: string,
   startedAt: number,
 ): Promise<{ triggeredCount: number; completed: boolean; failed: boolean }> {
-  const [alertJob] = await claimDueJobs(db, {
-    workerId,
-    limit: 1,
-    leaseSeconds: 60,
-    excludeKinds: ["sync_daily_bars", "sync_sec", "embed_chunks", "noop"],
-  });
+  const [alertJob] = await withSystemDb("cron_tick", (tx) =>
+    claimDueJobs(tx, { workerId, limit: 1, leaseSeconds: 60, excludeKinds: NON_ALERT_JOB_KINDS }),
+  );
   const jobId = alertJob?.id ?? `evaluate_alerts:${day}`;
+  const lockOwner = alertJob ? workerId : undefined;
   try {
-    const cursor = await getAlertEvalCursor(db, day);
-    const summary = await evaluateAlertRules(db, {
-      budgetMs: ALERT_EVAL_BUDGET_MS,
-      afterRuleId: cursor,
+    return await withSystemDb("cron_tick", async (tx) => {
+      const cursor = await getAlertEvalCursor(tx, day);
+      const summary = await evaluateAlertRules(tx, {
+        budgetMs: ALERT_EVAL_BUDGET_MS,
+        afterRuleId: cursor,
+      });
+      if (!summary.completed) {
+        await setAlertEvalCursor(tx, day, summary.nextCursor);
+        await requeueJobForCursor(tx, jobId, lockOwner);
+        return { triggeredCount: summary.triggeredCount, completed: false, failed: false };
+      }
+      await setAlertEvalCursor(tx, day, null);
+      await completeJob(tx, jobId, lockOwner);
+      return { triggeredCount: summary.triggeredCount, completed: true, failed: false };
     });
-    if (!summary.completed) {
-      await setAlertEvalCursor(db, day, summary.nextCursor);
-      await requeueJobForCursor(db, jobId, alertJob ? workerId : undefined);
-      return { triggeredCount: summary.triggeredCount, completed: false, failed: false };
-    }
-    await setAlertEvalCursor(db, day, null);
-    await completeJob(db, jobId, alertJob ? workerId : undefined);
-    return { triggeredCount: summary.triggeredCount, completed: true, failed: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await failJobWithBackoff(db, jobId, msg, alertJob ? workerId : undefined);
+    await withSystemDb("cron_tick", (tx) => failJobWithBackoff(tx, jobId, msg, lockOwner));
     logStructuredApiEvent({
       level: "warn",
       requestId: generateRequestId(),
@@ -191,18 +207,17 @@ export async function POST(request: Request) {
   const authErr = verifyCronSecret(request, startedAt);
   if (authErr) return authErr;
 
-  const db = await getKanonDb();
   const workerId = `tick_${crypto.randomUUID().slice(0, 8)}`;
   const day = new Date().toISOString().slice(0, 10);
-  const enqueued = await enqueueWatchlistJobs(db, day);
-  const syncStats = await drainSyncQueue(db, workerId, startedAt);
-  const alertStats = await runFinalAlertPhase(db, workerId, day, startedAt);
+  const enqueued = await withSystemDb("cron_tick", (tx) => enqueueWatchlistJobs(tx, day));
+  const syncStats = await drainSyncQueue(workerId, startedAt);
+  const alertStats = await runFinalAlertPhase(workerId, day, startedAt);
   const completed = syncStats.completed + (alertStats.completed ? 1 : 0);
   const failed = syncStats.failed + (alertStats.failed ? 1 : 0);
-  await recordTickHeartbeat(db, { claimed: syncStats.claimed + 1, completed, failed }).catch(
-    () => undefined,
-  );
-  const queueHealth = await getJobQueueHealth(db);
+  await withSystemDb("cron_tick", (tx) =>
+    recordTickHeartbeat(tx, { claimed: syncStats.claimed + 1, completed, failed }),
+  ).catch(() => undefined);
+  const queueHealth = await withSystemDb("cron_tick", (tx) => getJobQueueHealth(tx));
   return jsonOk(
     {
       workerId,

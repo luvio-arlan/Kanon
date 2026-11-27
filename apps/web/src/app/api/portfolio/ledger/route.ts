@@ -1,8 +1,8 @@
 import { LedgerPostRequestSchema, todayIsoUtc } from "@kanon/core";
 import {
   createPortfolioAccount,
-  getKanonDb,
   getOrgMemberRole,
+  type KanonDb,
   LedgerPolicyError,
   listPortfolioAccounts,
   listPortfolioPositions,
@@ -19,20 +19,21 @@ export async function GET() {
   const startedAt = performance.now();
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-  const db = await getKanonDb();
-  const accounts = await listPortfolioAccounts(db, auth.user.id);
-  const detailed = await Promise.all(
-    accounts.map(async (acct) => ({
-      ...acct,
-      positions: await listPortfolioPositions(db, acct.id),
-      transactions: await listPortfolioTransactions(db, acct.id, 30),
-    })),
-  );
+  const detailed = await auth.withDb(async (tx) => {
+    const accounts = await listPortfolioAccounts(tx, auth.user.id);
+    return Promise.all(
+      accounts.map(async (acct) => ({
+        ...acct,
+        positions: await listPortfolioPositions(tx, acct.id),
+        transactions: await listPortfolioTransactions(tx, acct.id, 30),
+      })),
+    );
+  });
   return jsonOk({ accounts: detailed }, startedAt);
 }
 
 async function handleCreateAccount(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+  db: KanonDb,
   userId: string,
   data: Extract<ReturnType<typeof LedgerPostRequestSchema.parse>, { op: "create_account" }>,
   startedAt: number,
@@ -53,7 +54,7 @@ async function handleCreateAccount(
 }
 
 async function handleLedgerPost(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+  db: KanonDb,
   userId: string,
   data: ReturnType<typeof LedgerPostRequestSchema.parse>,
   startedAt: number,
@@ -105,6 +106,5 @@ export async function POST(request: Request) {
       "INVALID_LEDGER_OP",
     );
   }
-  const db = await getKanonDb();
-  return handleLedgerPost(db, auth.user.id, parsed.data, startedAt);
+  return auth.withDb((tx) => handleLedgerPost(tx, auth.user.id, parsed.data, startedAt));
 }

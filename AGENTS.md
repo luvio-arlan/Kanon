@@ -38,6 +38,7 @@ pnpm test         # Vitest: financial math goldens, dynamic DDL parity, zero-lev
 pnpm build        # Full Turborepo production build
 pnpm test:api     # Isolated 43-route API + SSR + Auth/MCP/CSRF contract verification
 pnpm dev          # Local Next.js dev server (persistent PGlite when DATABASE_URL unset)
+pnpm db:migrate   # Run expand-only migrations via direct DATABASE_URL_MIGRATE (transactional lock; supports --seed)
 pnpm db:push      # Push Drizzle schema to an empty external PostgreSQL only (production uses expand-only KANON_MIGRATIONS)
 ```
 
@@ -46,6 +47,6 @@ pnpm db:push      # Push Drizzle schema to an empty external PostgreSQL only (pr
 1. **Clean dead/junk code**: Remove unused exports, dead files, and temp artifacts; pass `pnpm format && pnpm check` (`knip` zero-issue).
 2. **Sync docs**: Keep `README.md`, `docs/PRD.md`, `marketing/index.html`, `.rules/editorial-craft.md`, and `.rules/postmortems.md` aligned with shipped changes.
 3. **Verify end-to-end**: Pass `pnpm check && pnpm test && pnpm build && pnpm test:api`.
-4. **Push & deploy**: Commit cleanly and `git push origin main` (auto-deploys `https://kanon.hk` when `marketing/` changes), deploy web app from repo root via `npx --yes vercel deploy --prod --yes --regions sin1`, and verify live `https://app.kanon.hk/api/health`.
+4. **Push & deploy**: Commit cleanly and `git push origin main` (auto-deploys `https://kanon.hk` when `marketing/` changes), run `DATABASE_URL_MIGRATE=... pnpm db:migrate` when `KANON_RUNTIME_MIGRATIONS=off`, deploy web app from repo root via `npx --yes vercel deploy --prod --yes --regions sin1`, and verify live `https://app.kanon.hk/api/health`.
 
 > Any recurring bug (2+ occurrences) MUST be promoted to an Error-Driven L1/L2/L3 guard and logged in [.rules/postmortems.md](.rules/postmortems.md).

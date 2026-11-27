@@ -5,12 +5,27 @@ import { sql } from "drizzle-orm";
 import { drizzle as drizzlePglite, PgliteDatabase } from "drizzle-orm/pglite";
 import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { isExternalDbBootstrapped, type KanonDb, seedIfEmpty } from "./bootstrap";
-import { runKanonMigrations } from "./migrations";
+import {
+  areAllMigrationsApplied,
+  isExternalDbBootstrapped,
+  type KanonDb,
+  seedIfEmpty,
+} from "./bootstrap";
+import { KANON_MIGRATIONS, runKanonMigrations } from "./migrations";
+import { withSystemContext } from "./repositories/security/tenant-context";
 import * as schema from "./schema";
 
-export type { KanonDb } from "./bootstrap";
+export { type KanonDb, runInTransaction } from "./bootstrap";
 export type KanonDbEngine = "pglite-embedded" | "postgres-external";
+
+export class MigrationsPendingError extends Error {
+  readonly code = "MIGRATIONS_PENDING" as const;
+
+  constructor(message = "Database migrations are pending and KANON_RUNTIME_MIGRATIONS=off.") {
+    super(message);
+    this.name = "MigrationsPendingError";
+  }
+}
 
 export interface DbHealthStats {
   engine: KanonDbEngine;
@@ -24,6 +39,21 @@ interface DbState {
   db: KanonDb;
   initPromise: Promise<void>;
 }
+
+const MIGRATION_ADVISORY_LOCK_KEY = 720194821;
+
+const LOCAL_RLS_ENFORCE_SQL = `
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kanon_app_local') THEN
+    CREATE ROLE kanon_app_local NOBYPASSRLS;
+  END IF;
+END $$;
+GRANT USAGE ON SCHEMA public TO kanon_app_local;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kanon_app_local;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kanon_app_local;
+REVOKE UPDATE, DELETE ON audit_log FROM kanon_app_local;
+SET ROLE kanon_app_local;
+`;
 
 function resolveDataDir(): string {
   const override = process.env.KANON_DATA_DIR?.trim();
@@ -43,8 +73,6 @@ function resolveDataDir(): string {
   return dir;
 }
 
-const MIGRATION_ADVISORY_LOCK_KEY = 720194821;
-
 async function readAppliedMigrationIds(sqlClient: postgres.Sql): Promise<Set<string>> {
   try {
     const rows = await sqlClient<{ id: string }[]>`SELECT id FROM schema_migrations`;
@@ -55,20 +83,56 @@ async function readAppliedMigrationIds(sqlClient: postgres.Sql): Promise<Set<str
   }
 }
 
-async function initExternalPostgres(sqlClient: postgres.Sql, db: KanonDb): Promise<void> {
-  if (await isExternalDbBootstrapped(sqlClient)) return;
-  await sqlClient`SELECT pg_advisory_lock(${MIGRATION_ADVISORY_LOCK_KEY})`;
-  try {
-    if (await isExternalDbBootstrapped(sqlClient)) return;
-    const applied = await readAppliedMigrationIds(sqlClient);
-    await runKanonMigrations(async (stmt) => {
-      await sqlClient.unsafe(stmt);
-    }, applied);
-    await seedIfEmpty(db);
-  } finally {
-    await sqlClient`SELECT pg_advisory_unlock(${MIGRATION_ADVISORY_LOCK_KEY})`.catch((err) => {
-      void err;
+async function applyPendingMigrationsTransactional(sqlClient: postgres.Sql): Promise<void> {
+  await sqlClient.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(${MIGRATION_ADVISORY_LOCK_KEY})`;
+    await tx.unsafe(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id TEXT PRIMARY KEY,
+        description TEXT NOT NULL,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+  });
+  const applied = await readAppliedMigrationIds(sqlClient);
+  for (const migration of KANON_MIGRATIONS) {
+    if (applied.has(migration.id)) continue;
+    await sqlClient.begin(async (tx) => {
+      await tx`SELECT pg_advisory_xact_lock(${MIGRATION_ADVISORY_LOCK_KEY})`;
+      const existing = await tx<{ id: string }[]>`
+        SELECT id FROM schema_migrations WHERE id = ${migration.id} LIMIT 1
+      `;
+      if (existing.length > 0) return;
+      await tx.unsafe(migration.sql);
+      await tx`
+        INSERT INTO schema_migrations (id, description)
+        VALUES (${migration.id}, ${migration.description})
+        ON CONFLICT (id) DO NOTHING
+      `;
     });
+  }
+}
+
+export async function initExternalPostgres(sqlClient: postgres.Sql, db: KanonDb): Promise<void> {
+  const runtimeMigrationsOff = process.env.KANON_RUNTIME_MIGRATIONS?.trim().toLowerCase() === "off";
+  if (runtimeMigrationsOff) {
+    if (!(await areAllMigrationsApplied(sqlClient))) {
+      throw new MigrationsPendingError();
+    }
+    return;
+  }
+  if (await isExternalDbBootstrapped(sqlClient)) return;
+  await applyPendingMigrationsTransactional(sqlClient);
+  await withSystemContext(db, "migration_seed", (tx) => seedIfEmpty(tx));
+}
+
+async function bootstrapPglite(pglite: PGlite, db: KanonDb, enforceRls: boolean): Promise<void> {
+  await runKanonMigrations(async (stmt) => {
+    await pglite.exec(stmt);
+  });
+  await withSystemContext(db, "migration_seed", (tx) => seedIfEmpty(tx));
+  if (enforceRls) {
+    await pglite.exec(LOCAL_RLS_ENFORCE_SQL);
   }
 }
 
@@ -93,12 +157,8 @@ function createPersistentState(): DbState {
 
   const pglite = new PGlite(resolveDataDir());
   const db = drizzlePglite(pglite, { schema });
-  const initPromise = (async () => {
-    await runKanonMigrations(async (stmt) => {
-      await pglite.exec(stmt);
-    });
-    await seedIfEmpty(db);
-  })();
+  const enforceRls = process.env.KANON_RLS_ENFORCE_LOCAL === "1";
+  const initPromise = bootstrapPglite(pglite, db, enforceRls);
   return { db, initPromise };
 }
 
@@ -117,16 +177,6 @@ export async function getKanonDb(): Promise<KanonDb> {
     throw err;
   }
   return globalThis.__kanonDbState.db;
-}
-
-export async function runInTransaction<T>(
-  db: KanonDb,
-  work: (tx: KanonDb) => Promise<T>,
-): Promise<T> {
-  if (db instanceof PgliteDatabase) {
-    return db.transaction((tx) => work(tx));
-  }
-  return db.transaction((tx) => work(tx));
 }
 
 export async function pingKanonDb(db: KanonDb): Promise<void> {
@@ -152,12 +202,12 @@ export async function getDbHealthStats(db: KanonDb): Promise<DbHealthStats> {
   };
 }
 
-export async function createMemoryKanonDb(): Promise<{ db: KanonDb; close: () => Promise<void> }> {
+export async function createMemoryKanonDb(options?: {
+  enforceRls?: boolean;
+}): Promise<{ db: KanonDb; pglite: PGlite; close: () => Promise<void> }> {
   const pglite = new PGlite();
   const db = drizzlePglite(pglite, { schema });
-  await runKanonMigrations(async (stmt) => {
-    await pglite.exec(stmt);
-  });
-  await seedIfEmpty(db);
-  return { db, close: () => pglite.close() };
+  const enforceRls = options?.enforceRls ?? process.env.KANON_RLS_ENFORCE_LOCAL === "1";
+  await bootstrapPglite(pglite, db, enforceRls);
+  return { db, pglite, close: () => pglite.close() };
 }

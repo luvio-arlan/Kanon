@@ -10,7 +10,6 @@ import {
   clearAccountLockout,
   confirmTotpEnrollment,
   disableUserTotpFactor,
-  getKanonDb,
   getUserTotpStatus,
   recordFailedLoginAttempt,
   TotpAlreadyEnabledError,
@@ -27,8 +26,7 @@ export async function GET() {
   const startedAt = performance.now();
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-  const db = await getKanonDb();
-  const status = await getUserTotpStatus(db, auth.user.id);
+  const status = await auth.withDb((tx) => getUserTotpStatus(tx, auth.user.id));
   return jsonOk(TotpStatusResponseSchema.parse(status), startedAt);
 }
 
@@ -57,10 +55,11 @@ export async function POST(request: Request) {
       "INVALID",
     );
   }
-  const db = await getKanonDb();
   if (parsed.data.action === "begin") {
     try {
-      const enrolled = await beginTotpEnrollment(db, auth.user.id, auth.user.phoneE164);
+      const enrolled = await auth.withDb((tx) =>
+        beginTotpEnrollment(tx, auth.user.id, auth.user.phoneE164),
+      );
       return jsonOk(TotpEnrollResponseSchema.parse(enrolled), startedAt, 200);
     } catch (err) {
       if (err instanceof TotpAlreadyEnabledError) {
@@ -69,7 +68,8 @@ export async function POST(request: Request) {
       throw err;
     }
   }
-  const confirmed = await confirmTotpEnrollment(db, auth.user.id, parsed.data.code);
+  const code = parsed.data.code;
+  const confirmed = await auth.withDb((tx) => confirmTotpEnrollment(tx, auth.user.id, code));
   if (!confirmed.ok) {
     return jsonError(
       "动态验证码校验失败，请核对认证器时间后重试。",
@@ -101,22 +101,23 @@ export async function DELETE(request: Request) {
   if (!parsed.success) {
     return jsonError("请提供 6 位动态验证码或恢复码以停用两步验证。", 400, startedAt, "INVALID");
   }
-  const db = await getKanonDb();
   const lockKey = `totp_disable:${auth.user.id}`;
-  const lock = await checkAccountLockout(db, lockKey);
-  if (lock.locked) {
-    return jsonError(
-      `尝试次数过多，请 ${lock.retryAfterSec} 秒后再试。`,
-      429,
-      startedAt,
-      "TOTP_LOCKED",
-    );
-  }
-  const disabled = await disableUserTotpFactor(db, auth.user.id, parsed.data.code);
-  if (!disabled) {
-    await recordFailedLoginAttempt(db, lockKey);
-    return jsonError("动态验证码或恢复码无效。", 400, startedAt, "INVALID_TOTP");
-  }
-  await clearAccountLockout(db, lockKey);
-  return jsonOk({ ok: true as const, enabled: false }, startedAt, 200);
+  return auth.withDb(async (tx) => {
+    const lock = await checkAccountLockout(tx, lockKey);
+    if (lock.locked) {
+      return jsonError(
+        `尝试次数过多，请 ${lock.retryAfterSec} 秒后再试。`,
+        429,
+        startedAt,
+        "TOTP_LOCKED",
+      );
+    }
+    const disabled = await disableUserTotpFactor(tx, auth.user.id, parsed.data.code);
+    if (!disabled) {
+      await recordFailedLoginAttempt(tx, lockKey);
+      return jsonError("动态验证码或恢复码无效。", 400, startedAt, "INVALID_TOTP");
+    }
+    await clearAccountLockout(tx, lockKey);
+    return jsonOk({ ok: true as const, enabled: false }, startedAt, 200);
+  });
 }

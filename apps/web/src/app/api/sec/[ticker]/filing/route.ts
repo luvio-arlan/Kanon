@@ -1,15 +1,21 @@
 import { fetchSecEdgarSnapshot, fetchSecFilingReaderData } from "@kanon/ai";
 import {
   getCachedSecFilingDoc,
-  getKanonDb,
   getSecSnapshotForUser,
+  type KanonDb,
   upsertCachedSecFilingDoc,
   upsertSecSnapshot,
 } from "@kanon/core/db";
+import { after } from "next/server";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
+import { withSystemDb } from "../../../_lib/db-context";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { checkPersistentRateLimit } from "../../../_lib/request-guards";
-import { indexFilingDocChunks } from "../../../_lib/sec-warehouse-sync";
+import {
+  drainAlertFanoutJobsBestEffort,
+  persistFilingDocChunksAndEnqueueFanout,
+  prepareFilingDocChunks,
+} from "../../../_lib/sec-warehouse-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -35,17 +41,23 @@ function resolveTargetAccession(
 }
 
 async function loadFilingWithCache(params: {
-  db: Awaited<ReturnType<typeof getKanonDb>>;
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
   userId: string;
   cleanTicker: string;
   accessionNumber?: string;
   form?: string;
   refresh: boolean;
 }) {
-  let snapshot = await getSecSnapshotForUser(params.db, params.cleanTicker, params.userId);
+  let snapshot = await params.withDb((tx) =>
+    getSecSnapshotForUser(tx, params.cleanTicker, params.userId),
+  );
   if (!snapshot) {
     const liveSnap = await fetchSecEdgarSnapshot(params.cleanTicker);
-    if (liveSnap.ok) snapshot = await upsertSecSnapshot(params.db, liveSnap.data);
+    if (liveSnap.ok) {
+      snapshot = await withSystemDb("user_triggered_sync", (tx) =>
+        upsertSecSnapshot(tx, liveSnap.data),
+      );
+    }
   }
   const targetAcc = resolveTargetAccession(
     snapshot?.filings ?? [],
@@ -53,8 +65,10 @@ async function loadFilingWithCache(params: {
     params.form,
   );
   if (targetAcc && !params.refresh) {
-    const cachedDoc = await getCachedSecFilingDoc(params.db, targetAcc);
-    if (cachedDoc && cachedDoc.ticker.toUpperCase() === params.cleanTicker) return cachedDoc;
+    const cachedDoc = await params.withDb((tx) => getCachedSecFilingDoc(tx, targetAcc));
+    if (cachedDoc && cachedDoc.ticker.toUpperCase() === params.cleanTicker) {
+      return { readerData: cachedDoc, shouldDrainFanout: false };
+    }
   }
   const readerData = await fetchSecFilingReaderData({
     ticker: params.cleanTicker,
@@ -62,11 +76,15 @@ async function loadFilingWithCache(params: {
     accessionNumber: params.accessionNumber,
     form: params.form,
   });
+  let shouldDrainFanout = false;
   if (readerData.source === "sec-edgar-live") {
-    await upsertCachedSecFilingDoc(params.db, readerData);
-    await indexFilingDocChunks(params.db, readerData).catch(() => undefined);
+    const prepared = prepareFilingDocChunks(readerData);
+    shouldDrainFanout = await withSystemDb("user_triggered_sync", async (tx) => {
+      await upsertCachedSecFilingDoc(tx, readerData);
+      return persistFilingDocChunksAndEnqueueFanout(tx, readerData, prepared).catch(() => false);
+    });
   }
-  return readerData;
+  return { readerData, shouldDrainFanout };
 }
 
 export async function GET(request: Request, context: { params: Promise<{ ticker: string }> }) {
@@ -83,14 +101,18 @@ export async function GET(request: Request, context: { params: Promise<{ ticker:
   }
 
   const url = new URL(request.url);
-  const db = await getKanonDb();
-  const readerData = await loadFilingWithCache({
-    db,
+  const { readerData, shouldDrainFanout } = await loadFilingWithCache({
+    withDb: auth.withDb,
     userId: auth.user.id,
     cleanTicker,
     accessionNumber: url.searchParams.get("accession")?.trim() || undefined,
     form: url.searchParams.get("form")?.trim() || undefined,
     refresh: url.searchParams.get("refresh") === "1",
   });
+  if (shouldDrainFanout) {
+    after(async () => {
+      await drainAlertFanoutJobsBestEffort(2).catch(() => undefined);
+    });
+  }
   return jsonOk(readerData, startedAt);
 }

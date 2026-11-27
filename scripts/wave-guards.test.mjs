@@ -160,7 +160,7 @@ expectCaught(
   "G6 circular price*shares FCF synthesis",
 );
 
-// G7 & G8 negative examples
+// G7+ & G8 negative + positive examples
 expectCaught(
   (e) =>
     checkG7ApiCapabilityGuard(
@@ -169,8 +169,55 @@ expectCaught(
       e,
     ),
   "G7-api-route-capability-guard",
-  "G7 POST without requireThesisAccess",
+  "G7+ POST without requireThesisAccess",
 );
+expectCaught(
+  (e) =>
+    checkG7ApiCapabilityGuard(
+      "apps/web/src/app/api/theses/[id]/guidance/route.ts",
+      'export async function POST() { /* requireThesisAccess(db, id, uid, "write", 0) */ return ok(); }',
+      e,
+    ),
+  "G7-api-route-capability-guard",
+  "G7+ comment bypass",
+);
+expectCaught(
+  (e) =>
+    checkG7ApiCapabilityGuard(
+      "apps/web/src/app/api/ai/agent/apply/route.ts",
+      'export async function POST() { await requireThesisAccess(tx, id, uid, "read", 0); return ok(); }',
+      e,
+    ),
+  "G7-api-route-capability-guard",
+  "G7+ POST using read capability",
+);
+expectCaught(
+  (e) =>
+    checkG7ApiCapabilityGuard(
+      "apps/web/src/app/api/theses/[id]/ic/route.ts",
+      "export async function POST() { const cap = 'write'; await requireThesisAccess(tx, id, uid, cap, 0); return ok(); }",
+      e,
+    ),
+  "G7-api-route-capability-guard",
+  "G7+ capability passed via variable",
+);
+expectCaught(
+  (e) =>
+    checkG7ApiCapabilityGuard(
+      "apps/web/src/app/api/theses/[id]/route.ts",
+      'export async function DELETE() { await requireThesisAccess(tx, id, uid, "write", 0); return ok(); }',
+      e,
+    ),
+  "G7-api-route-capability-guard",
+  "G7+ DELETE thesis using write capability",
+);
+const g7CleanErrors = [];
+checkG7ApiCapabilityGuard(
+  "apps/web/src/app/api/theses/[id]/route.ts",
+  'export async function GET() { await requireThesisAccess(tx, id, uid, "read", 0); } export async function PATCH() { await requireThesisAccess(tx, id, uid, "write", 0); } export async function DELETE() { await requireThesisAccess(tx, id, uid, "delete", 0); }',
+  g7CleanErrors,
+);
+assert.equal(g7CleanErrors.length, 0, `G7+ clean route failed: ${JSON.stringify(g7CleanErrors)}`);
 expectCaught(
   (e) =>
     checkRepoAst(
@@ -184,5 +231,5 @@ expectCaught(
 );
 
 process.stdout.write(
-  "✓ wave-guards.test.mjs: all 17 adversarial bypass fixtures caught by G1–G8.\n",
+  "✓ wave-guards.test.mjs: all 21 adversarial bypass fixtures caught by G1–G8 (incl. G7+).\n",
 );

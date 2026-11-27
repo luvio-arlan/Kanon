@@ -3,7 +3,7 @@ import {
   countUserPendingJobs,
   createThesis,
   enqueueJob,
-  getKanonDb,
+  type KanonDb,
   listGlossaryTerms,
   listTheses,
   upsertAlertRule,
@@ -34,11 +34,9 @@ export async function GET() {
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 
-  const db = await getKanonDb();
-  const [theses, glossary] = await Promise.all([
-    listTheses(db, auth.user.id),
-    listGlossaryTerms(db),
-  ]);
+  const [theses, glossary] = await auth.withDb((tx) =>
+    Promise.all([listTheses(tx, auth.user.id), listGlossaryTerms(tx)]),
+  );
   return jsonOk({ theses, glossary }, startedAt);
 }
 
@@ -55,14 +53,14 @@ function logSyncWarn(err: unknown, startedAt: number) {
 }
 
 async function enqueueInitialSyncJobs(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+  tx: KanonDb,
   userId: string,
   thesisId: string,
   ticker: string,
   day: string,
 ): Promise<boolean> {
   const [secJob, barsJob] = await Promise.all([
-    enqueueJob(db, {
+    enqueueJob(tx, {
       id: `sync_sec:${ticker}:${day}`,
       kind: "sync_sec",
       payload: { ticker },
@@ -70,7 +68,7 @@ async function enqueueInitialSyncJobs(
       ownerUserId: userId,
       maxAttempts: 4,
     }),
-    enqueueJob(db, {
+    enqueueJob(tx, {
       id: `sync_daily_bars:${ticker}:${day}`,
       kind: "sync_daily_bars",
       payload: { ticker },
@@ -78,7 +76,7 @@ async function enqueueInitialSyncJobs(
       ownerUserId: userId,
       maxAttempts: 4,
     }),
-    upsertAlertRule(db, {
+    upsertAlertRule(tx, {
       userId,
       thesisId,
       kind: "form8k_redflag",
@@ -89,22 +87,7 @@ async function enqueueInitialSyncJobs(
   return secJob.inserted || barsJob.inserted;
 }
 
-async function scheduleInitialThesisSync(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
-  userId: string,
-  thesisId: string,
-  ticker: string,
-  startedAt: number,
-) {
-  const day = new Date().toISOString().slice(0, 10);
-  let shouldRunAfter = false;
-  try {
-    shouldRunAfter = await enqueueInitialSyncJobs(db, userId, thesisId, ticker, day);
-  } catch (err) {
-    logSyncWarn(err, startedAt);
-    return;
-  }
-  if (!shouldRunAfter) return;
+function scheduleAfterSync(ticker: string, day: string, startedAt: number) {
   try {
     after(async () => {
       const { runSingleTickerSyncBestEffort } = await import("../_lib/on-demand-sync");
@@ -112,6 +95,51 @@ async function scheduleInitialThesisSync(
     });
   } catch (err) {
     logSyncWarn(err, startedAt);
+  }
+}
+
+async function createThesisWithSyncSchedule(
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>,
+  data: ReturnType<typeof CreateThesisInputSchema.parse>,
+  userId: string,
+  startedAt: number,
+) {
+  const day = new Date().toISOString().slice(0, 10);
+  try {
+    const outcome = await withDb(async (tx) => {
+      if ((await countUserPendingJobs(tx, userId)) >= MAX_PENDING_JOBS_PER_USER) {
+        return { kind: "quota" as const };
+      }
+      const thesis = await createThesis(tx, data, userId);
+      const ticker = thesis.ticker.toUpperCase();
+      const shouldRunAfter = await enqueueInitialSyncJobs(tx, userId, thesis.id, ticker, day).catch(
+        (err) => {
+          logSyncWarn(err, startedAt);
+          return false;
+        },
+      );
+      return { kind: "ok" as const, thesis, ticker, shouldRunAfter };
+    });
+    if (outcome.kind === "quota") {
+      return jsonError(
+        "后台同步队列已达配额上限，请稍后再新建标的。",
+        429,
+        startedAt,
+        "QUEUE_QUOTA_EXCEEDED",
+      );
+    }
+    if (outcome.shouldRunAfter) scheduleAfterSync(outcome.ticker, day, startedAt);
+    return jsonOk({ thesis: outcome.thesis }, startedAt, 201);
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      return jsonError(
+        `标的 ${data.ticker} 已在跟踪列表中，请直接进入原画布编辑。`,
+        409,
+        startedAt,
+        "CONFLICT",
+      );
+    }
+    return jsonError("创建标的失败，请检查输入后重试。", 500, startedAt, "CREATE_FAILED");
   }
 }
 
@@ -134,36 +162,5 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "标的参数校验失败。"), 400, startedAt, "INVALID");
   }
-  return createThesisAndSchedule(parsed.data, auth.user.id, startedAt);
-}
-
-async function createThesisAndSchedule(
-  data: ReturnType<typeof CreateThesisInputSchema.parse>,
-  userId: string,
-  startedAt: number,
-) {
-  try {
-    const db = await getKanonDb();
-    if ((await countUserPendingJobs(db, userId)) >= MAX_PENDING_JOBS_PER_USER) {
-      return jsonError(
-        "后台同步队列已达配额上限，请稍后再新建标的。",
-        429,
-        startedAt,
-        "QUEUE_QUOTA_EXCEEDED",
-      );
-    }
-    const thesis = await createThesis(db, data, userId);
-    await scheduleInitialThesisSync(db, userId, thesis.id, thesis.ticker.toUpperCase(), startedAt);
-    return jsonOk({ thesis }, startedAt, 201);
-  } catch (err) {
-    if (isUniqueConstraintError(err)) {
-      return jsonError(
-        `标的 ${data.ticker} 已在跟踪列表中，请直接进入原画布编辑。`,
-        409,
-        startedAt,
-        "CONFLICT",
-      );
-    }
-    return jsonError("创建标的失败，请检查输入后重试。", 500, startedAt, "CREATE_FAILED");
-  }
+  return createThesisWithSyncSchedule(auth.withDb, parsed.data, auth.user.id, startedAt);
 }

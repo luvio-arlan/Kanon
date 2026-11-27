@@ -120,6 +120,145 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     }
   }
 
+  const RLS_STAGE6_PENDING = new Set([
+    "sessions",
+    "api_tokens",
+    "calendar_tokens",
+    "user_totp_factors",
+    "user_sec_overrides",
+    "alert_rules",
+    "ai_usage",
+    "memberships",
+    "org_invitations",
+    "audit_log",
+    "restricted_list",
+  ]);
+  const RLS_SYSTEM_EXEMPT = new Set(["jobs"]);
+  const TENANT_COLUMN_NAMES = new Set([
+    "user_id",
+    "org_id",
+    "thesis_id",
+    "account_id",
+    "owner_user_id",
+    "actor_user_id",
+    "invitee_user_id",
+  ]);
+
+  function assertSingleTableRlsCoverage(
+    table: PgTable,
+    pgClassByName: ReadonlyMap<string, { rls: boolean; force: boolean }>,
+    expectedPolicies: Array<{ tablename: string; policyname: string; cmd: string }>,
+    rlsCoveredTables: Set<string>,
+    discoveredNames: Set<string>,
+  ) {
+    const cfg = getTableConfig(table);
+    discoveredNames.add(cfg.name);
+    const declaredRls = cfg.enableRLS || cfg.policies.length > 0;
+    const actual = pgClassByName.get(cfg.name);
+    expect(actual, `Table "${cfg.name}" missing from pg_class`).toBeDefined();
+    expect(actual?.rls, `RLS mismatch on "${cfg.name}"`).toBe(declaredRls);
+    expect(actual?.force, `FORCE RLS mismatch on "${cfg.name}"`).toBe(declaredRls);
+    if (declaredRls) {
+      rlsCoveredTables.add(cfg.name);
+      for (const p of cfg.policies) {
+        expectedPolicies.push({
+          tablename: cfg.name,
+          policyname: p.name,
+          cmd: (p.for ?? "all").toUpperCase(),
+        });
+      }
+    }
+    if (cfg.columns.some((c) => TENANT_COLUMN_NAMES.has(c.name))) {
+      const ok = declaredRls || RLS_STAGE6_PENDING.has(cfg.name) || RLS_SYSTEM_EXEMPT.has(cfg.name);
+      expect(ok, `Tenant table "${cfg.name}" not in RLS coverage or frozen pending list`).toBe(
+        true,
+      );
+    }
+  }
+
+  async function assertRlsClassAndCoverage(tables: readonly PgTable[]) {
+    const pgClassRes = await db.execute(sql`
+      SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind = 'r'
+    `);
+    const pgClassRows = (Array.isArray(pgClassRes) ? pgClassRes : pgClassRes.rows) as Array<
+      Record<string, unknown>
+    >;
+    const pgClassByName = new Map(
+      pgClassRows.map((r) => [
+        String(r.relname),
+        { rls: Boolean(r.relrowsecurity), force: Boolean(r.relforcerowsecurity) },
+      ]),
+    );
+    const expectedPolicies: Array<{ tablename: string; policyname: string; cmd: string }> = [];
+    const rlsCoveredTables = new Set<string>();
+    const discoveredNames = new Set<string>();
+    for (const table of tables) {
+      assertSingleTableRlsCoverage(
+        table,
+        pgClassByName,
+        expectedPolicies,
+        rlsCoveredTables,
+        discoveredNames,
+      );
+    }
+    expect(rlsCoveredTables.size).toBe(21);
+    for (const pending of RLS_STAGE6_PENDING) {
+      expect(discoveredNames.has(pending), `Stale pending table "${pending}"`).toBe(true);
+      expect(rlsCoveredTables.has(pending), `Remove "${pending}" from RLS_STAGE6_PENDING`).toBe(
+        false,
+      );
+    }
+    return expectedPolicies;
+  }
+
+  async function assertRlsPoliciesAndFunctions(
+    expectedPolicies: Array<{ tablename: string; policyname: string; cmd: string }>,
+  ) {
+    const pgPoliciesRes = await db.execute(sql`
+      SELECT tablename, policyname, cmd FROM pg_policies
+      WHERE schemaname = 'public' ORDER BY tablename, policyname
+    `);
+    const actualPolicies = (
+      (Array.isArray(pgPoliciesRes) ? pgPoliciesRes : pgPoliciesRes.rows) as Array<
+        Record<string, unknown>
+      >
+    ).map((r) => ({
+      tablename: String(r.tablename),
+      policyname: String(r.policyname),
+      cmd: String(r.cmd).toUpperCase(),
+    }));
+    expectedPolicies.sort(
+      (a, b) => a.tablename.localeCompare(b.tablename) || a.policyname.localeCompare(b.policyname),
+    );
+    expect(actualPolicies).toEqual(expectedPolicies);
+
+    const requiredFns = [
+      "kanon_rls_is_system",
+      "kanon_rls_uid",
+      "kanon_rls_open",
+      "kanon_thesis_readable",
+      "kanon_thesis_writable",
+      "kanon_thesis_deletable",
+    ];
+    const pgProcRes = await db.execute(sql`
+      SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname IN (
+        'kanon_rls_is_system', 'kanon_rls_uid', 'kanon_rls_open',
+        'kanon_thesis_readable', 'kanon_thesis_writable', 'kanon_thesis_deletable'
+      )
+    `);
+    const foundFns = new Set(
+      (
+        (Array.isArray(pgProcRes) ? pgProcRes : pgProcRes.rows) as Array<Record<string, unknown>>
+      ).map((r) => String(r.proname)),
+    );
+    for (const fn of requiredFns) {
+      expect(foundFns.has(fn), `RLS helper function "${fn}" missing from pg_proc`).toBe(true);
+    }
+  }
+
   it("dynamically discovers every Drizzle pgTable and enforces 1:1 DDL column parity + migrations", async () => {
     const entries: readonly unknown[] = Object.values(schema);
     const tables = entries.filter((entry): entry is PgTable => is(entry, PgTable));
@@ -127,20 +266,8 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     for (const table of tables) {
       await assertSingleTableParity(table);
     }
-
-    const rlsRes = await db.execute(sql`
-      SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
-      FROM pg_class c
-      WHERE c.relname IN ('theses','portfolio_accounts','forecasts','inbox_items','user_ai_credentials')
-    `);
-    const rlsRows = (Array.isArray(rlsRes) ? rlsRes : rlsRes.rows) as Array<
-      Record<string, unknown>
-    >;
-    expect(rlsRows).toHaveLength(5);
-    for (const r of rlsRows) {
-      expect(r.relrowsecurity, `RLS disabled on ${String(r.relname)}`).toBe(true);
-      expect(r.relforcerowsecurity, `FORCE RLS disabled on ${String(r.relname)}`).toBe(true);
-    }
+    const expectedPolicies = await assertRlsClassAndCoverage(tables);
+    await assertRlsPoliciesAndFunctions(expectedPolicies);
 
     const migRes = await db.execute(sql`SELECT id FROM schema_migrations ORDER BY id ASC`);
     const migRows = Array.isArray(migRes) ? migRes : migRes.rows;

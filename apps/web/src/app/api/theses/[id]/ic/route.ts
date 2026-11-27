@@ -2,7 +2,6 @@ import { IcDecisionRequestSchema, IcPostRequestSchema } from "@kanon/core";
 import {
   addThesisComment,
   decideIcApproval,
-  getKanonDb,
   IcApprovalError,
   listIcApprovals,
   listThesisComments,
@@ -20,14 +19,15 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const [approvals, comments] = await Promise.all([
-    listIcApprovals(db, id),
-    listThesisComments(db, id),
-  ]);
-  return jsonOk({ approvals, comments }, startedAt);
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard.response;
+    const [approvals, comments] = await Promise.all([
+      listIcApprovals(tx, id),
+      listThesisComments(tx, id),
+    ]);
+    return jsonOk({ approvals, comments }, startedAt);
+  });
 }
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -43,27 +43,33 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "无效请求体。"), 400, startedAt, "INVALID");
   }
-  const db = await getKanonDb();
-  const need = parsed.data.op === "comment" ? "comment" : "write";
-  const guard = await requireThesisAccess(db, id, auth.user.id, need, startedAt);
-  if (!guard.ok) return guard.response;
   if (parsed.data.op === "comment") {
-    const commentId = await addThesisComment(db, {
-      thesisId: id,
-      userId: auth.user.id,
-      anchorType: parsed.data.anchorType,
-      anchorId: parsed.data.anchorId ?? null,
-      body: parsed.data.body,
+    const commentData = parsed.data;
+    return auth.withDb(async (tx) => {
+      const guard = await requireThesisAccess(tx, id, auth.user.id, "comment", startedAt);
+      if (!guard.ok) return guard.response;
+      const commentId = await addThesisComment(tx, {
+        thesisId: id,
+        userId: auth.user.id,
+        anchorType: commentData.anchorType,
+        anchorId: commentData.anchorId ?? null,
+        body: commentData.body,
+      });
+      return jsonOk({ commentId }, startedAt, 201);
     });
-    return jsonOk({ commentId }, startedAt, 201);
   }
+  const submitNote = parsed.data.note;
   try {
-    const approval = await submitIcApproval(db, {
-      thesisId: id,
-      submittedBy: auth.user.id,
-      note: parsed.data.note,
+    return await auth.withDb(async (tx) => {
+      const guard = await requireThesisAccess(tx, id, auth.user.id, "write", startedAt);
+      if (!guard.ok) return guard.response;
+      const approval = await submitIcApproval(tx, {
+        thesisId: id,
+        submittedBy: auth.user.id,
+        note: submitNote,
+      });
+      return jsonOk({ approval }, startedAt, 201);
     });
-    return jsonOk({ approval }, startedAt, 201);
   } catch (err) {
     if (err instanceof IcApprovalError) {
       return jsonError(err.message, err.status, startedAt, err.code);
@@ -79,9 +85,6 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "decide", startedAt);
-  if (!guard.ok) return guard.response;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = IcDecisionRequestSchema.safeParse(body.data);
@@ -94,14 +97,18 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     );
   }
   try {
-    const result = await decideIcApproval(db, {
-      thesisId: id,
-      approvalId: parsed.data.approvalId,
-      decidedBy: auth.user.id,
-      decision: parsed.data.decision,
-      decisionNote: parsed.data.decisionNote,
+    return await auth.withDb(async (tx) => {
+      const guard = await requireThesisAccess(tx, id, auth.user.id, "decide", startedAt);
+      if (!guard.ok) return guard.response;
+      const result = await decideIcApproval(tx, {
+        thesisId: id,
+        approvalId: parsed.data.approvalId,
+        decidedBy: auth.user.id,
+        decision: parsed.data.decision,
+        decisionNote: parsed.data.decisionNote,
+      });
+      return jsonOk({ approval: result }, startedAt);
     });
-    return jsonOk({ approval: result }, startedAt);
   } catch (err) {
     if (err instanceof IcApprovalError) {
       return jsonError(err.message, err.status, startedAt, err.code);

@@ -44,36 +44,44 @@ export async function resolveEffectiveByok(
   return undefined;
 }
 
-export async function meterAiRouteUsage(params: {
-  db: KanonDb;
+export interface AiUsageEntry {
+  userId: string;
+  thesisId: string;
+  route: string;
+  provider: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  costUsd: number;
+}
+
+/** Computes AI usage & token cost outside DB transactions so DB writes never import @kanon/ai. */
+export async function buildAiUsageEntry(params: {
   userId: string;
   thesisId: string;
   route: string;
   engine: string;
   byok?: ByokCredentials;
   usage?: { promptTokens: number; completionTokens: number };
-}): Promise<void> {
-  const [{ recordAiUsage }, { estimateTokenCostUsd, resolveDefaultModelId }] = await Promise.all([
-    import("@kanon/core/db"),
-    import("@kanon/ai"),
-  ]);
-  const modelId =
+}): Promise<AiUsageEntry> {
+  const { estimateTokenCostUsd, resolveDefaultModelId } = await import("@kanon/ai");
+  const model =
     params.byok?.model ??
     (params.byok?.provider ? resolveDefaultModelId(params.byok.provider) : params.engine);
   const promptTokens = Math.max(0, Math.round(params.usage?.promptTokens ?? 0));
   const completionTokens = Math.max(0, Math.round(params.usage?.completionTokens ?? 0));
   const costUsd =
     promptTokens + completionTokens > 0
-      ? estimateTokenCostUsd({ modelId, promptTokens, completionTokens })
+      ? estimateTokenCostUsd({ modelId: model, promptTokens, completionTokens })
       : 0;
-  await recordAiUsage(params.db, {
+  return {
     userId: params.userId,
     thesisId: params.thesisId,
     route: params.route,
     provider: params.byok?.provider ?? params.engine,
-    model: modelId,
+    model,
     promptTokens,
     completionTokens,
     costUsd,
-  }).catch(() => undefined);
+  };
 }

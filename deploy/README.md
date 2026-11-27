@@ -4,11 +4,11 @@
 
 ## 1. Live Production Architecture (Active · Zero-ICP · Free Tier)
 
-| Surface            | Live URL                                  | Host / Service                                                                       | Auto / CLI Deploy                                                                                       |
-| :----------------- | :---------------------------------------- | :----------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------ |
-| **Marketing Site** | `https://kanon.hk` (`www.kanon.hk` → 301) | **GitHub Pages** (`https_enforced: true`)                                            | Automatic on push to `main` touching `marketing/` via `.github/workflows/deploy-marketing.yml`          |
-| **Main Web App**   | `https://app.kanon.hk`                    | **Vercel** (`kanon-app`, Root Dir: `apps/web`, Region: `sin1`, Node 22, pnpm 12.4.1) | `npx --yes vercel deploy --prod --yes --regions sin1` (run from **repo root**, never inside `apps/web`) |
-| **Database**       | Managed Cloud PostgreSQL                  | **Neon Postgres** (`kanon-db`, Singapore `sin1`, `free_v3` via Vercel Marketplace)   | Bound via Vercel `DATABASE_URL` (Production & Preview); expand-only auto-migrations on startup          |
+| Surface            | Live URL                                  | Host / Service                                                                       | Auto / CLI Deploy                                                                                                   |
+| :----------------- | :---------------------------------------- | :----------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------ |
+| **Marketing Site** | `https://kanon.hk` (`www.kanon.hk` → 301) | **GitHub Pages** (`https_enforced: true`)                                            | Automatic on push to `main` touching `marketing/` via `.github/workflows/deploy-marketing.yml`                      |
+| **Main Web App**   | `https://app.kanon.hk`                    | **Vercel** (`kanon-app`, Root Dir: `apps/web`, Region: `sin1`, Node 22, pnpm 12.4.1) | `npx --yes vercel deploy --prod --yes --regions sin1` (run from **repo root**, never inside `apps/web`)             |
+| **Database**       | Managed Cloud PostgreSQL                  | **Neon Postgres** (`kanon-db`, Singapore `sin1`, `free_v3` via Vercel Marketplace)   | Bound via Vercel `DATABASE_URL` (pooled app role) + `DATABASE_URL_MIGRATE` (direct owner URL for `pnpm db:migrate`) |
 
 ### DNS Records (Managed at Aliyun DNS for `kanon.hk`)
 
@@ -21,17 +21,20 @@
 ## 2. Routine Operations & Verification
 
 ```bash
-# 1. Deploy main app updates to https://app.kanon.hk (always run from repo root, pinned to sin1)
+# 1. Apply expand-only migrations via direct (non-pooler) owner URL before deploy when KANON_RUNTIME_MIGRATIONS=off
+DATABASE_URL_MIGRATE="<neon-direct-owner-url>" pnpm db:migrate
+
+# 2. Deploy main app updates to https://app.kanon.hk (always run from repo root, pinned to sin1)
 npx --yes vercel deploy --prod --yes --regions sin1
 
-# 2. Trigger marketing site publish manually (normally automatic on git push main)
+# 3. Trigger marketing site publish manually (normally automatic on git push main)
 gh workflow run deploy-marketing.yml --ref main
 
-# 3. Verify live production health & Neon Postgres engine ("postgres-external")
+# 4. Verify live production health & Neon Postgres engine ("postgres-external")
 curl -sS https://app.kanon.hk/api/health
 curl -sI https://kanon.hk/ | head -n 5
 
-# 4. Manage Vercel environment variables (e.g. AI provider keys)
+# 5. Manage Vercel environment variables (e.g. AI provider keys, KANON_RUNTIME_MIGRATIONS=off)
 npx --yes vercel env ls
 npx --yes vercel env add <KEY_NAME> production
 ```
@@ -40,7 +43,7 @@ npx --yes vercel env add <KEY_NAME> production
 
 - `apps/web/vercel.json`: Monorepo install (`cd ../.. && pnpm install --frozen-lockfile`) and build (`cd ../.. && pnpm --filter @kanon/web build`).
 - `.vercelignore`: Excludes `marketing/`, `promo-video/`, `deploy/`, `docs/`, `.data/` so CLI uploads stay < 1 MB.
-- `packages/core/src/db/client.ts`: Uses `postgres(DATABASE_URL, { prepare: false })` for Neon PgBouncer pooling; falls back to local `.data/kanon-pg` (or `/tmp/kanon-pg` on Vercel when `DATABASE_URL` is unset).
+- `packages/core/src/db/client.ts`: Uses `postgres(DATABASE_URL, { prepare: false })` for Neon PgBouncer transaction pooling (uses transactional `pg_advisory_xact_lock`, supports `KANON_RUNTIME_MIGRATIONS=off` returning `503` on pending migrations without running DDL, and `KANON_RLS_ENFORCE_LOCAL=1` `NOBYPASSRLS` local verification); falls back to local `.data/kanon-pg` (or `/tmp/kanon-pg` on Vercel when `DATABASE_URL` is unset).
 
 ## 3. Hard Operational Guardrails (Read Before Changing Infra)
 

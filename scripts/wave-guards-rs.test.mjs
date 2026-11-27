@@ -4,7 +4,13 @@
  * Every guard MUST catch >= 3 bypass patterns and MUST NOT false-positive on valid code.
  */
 import assert from "node:assert/strict";
-import { checkG6PlusValuationLiteralsAst, checkG13SecFetchGatewayAst } from "./wave-guards-rs.mjs";
+import {
+  checkG6PlusValuationLiteralsAst,
+  checkG9DbProvenanceAst,
+  checkG10NoNetworkInDbTxAst,
+  checkG12SystemContextAllowlistAst,
+  checkG13SecFetchGatewayAst,
+} from "./wave-guards-rs.mjs";
 
 function expectCaught(fn, expectedRule, label) {
   const errors = [];
@@ -117,6 +123,149 @@ expectClean(
   "G13 clean fetchSecWithRetry & URL constant",
 );
 
+// G9 negative examples (3+)
+expectCaught(
+  (e) =>
+    checkG9DbProvenanceAst(
+      "apps/web/src/app/api/theses/route.ts",
+      'import { getKanonDb as g } from "@kanon/core/db"; export async function GET() { return g(); }',
+      e,
+    ),
+  "G9-kanon-db-provenance",
+  "G9 aliased getKanonDb import",
+);
+expectCaught(
+  (e) =>
+    checkG9DbProvenanceAst(
+      "apps/web/src/app/api/theses/route.ts",
+      'import * as kdb from "@kanon/core/db"; export async function GET() { return kdb.getKanonDb(); }',
+      e,
+    ),
+  "G9-kanon-db-provenance",
+  "G9 namespace member getKanonDb access",
+);
+expectCaught(
+  (e) =>
+    checkG9DbProvenanceAst(
+      "apps/web/src/app/api/theses/route.ts",
+      'import { listTheses } from "@kanon/core/db"; export async function GET() { return listTheses(db, "u1"); }',
+      e,
+    ),
+  "G9-kanon-db-provenance",
+  "G9 route imports @kanon/core/db without withDb/withUserDb/withSystemDb",
+);
+expectCaught(
+  (e) =>
+    checkG9DbProvenanceAst(
+      "packages/core/src/db/repositories/thesis-queries.ts",
+      'import { getKanonDb } from "../client"; export async function bad() { return getKanonDb(); }',
+      e,
+    ),
+  "G9-kanon-db-provenance",
+  "G9 repository calling getKanonDb",
+);
+expectClean(
+  (e) =>
+    checkG9DbProvenanceAst(
+      "apps/web/src/app/api/theses/route.ts",
+      'import { listTheses } from "@kanon/core/db"; export async function GET() { return auth.withDb((tx) => listTheses(tx, "u1")); }',
+      e,
+    ),
+  "G9 clean route using auth.withDb",
+);
+
+// G10 negative examples (3+)
+expectCaught(
+  (e) =>
+    checkG10NoNetworkInDbTxAst(
+      "apps/web/src/app/api/sec/[ticker]/route.ts",
+      'import { fetchSecEdgarWithPitFacts as fetchSec } from "@kanon/ai"; auth.withDb(async (tx) => { await fetchSec("NVDA"); });',
+      e,
+    ),
+  "G10-no-network-in-db-tx",
+  "G10 aliased @kanon/ai call inside withDb",
+);
+expectCaught(
+  (e) =>
+    checkG10NoNetworkInDbTxAst(
+      "apps/web/src/app/api/internal/jobs/tick/route.ts",
+      'withSystemDb("cron_tick", async (tx) => { const run = async () => fetch("https://example.com"); await run(); });',
+      e,
+    ),
+  "G10-no-network-in-db-tx",
+  "G10 nested arrow calling fetch inside withSystemDb",
+);
+expectCaught(
+  (e) =>
+    checkG10NoNetworkInDbTxAst(
+      "apps/web/src/app/api/theses/route.ts",
+      "auth.withDb(async (tx) => { after(() => sync()); });",
+      e,
+    ),
+  "G10-no-network-in-db-tx",
+  "G10 after() inside withDb",
+);
+expectClean(
+  (e) =>
+    checkG10NoNetworkInDbTxAst(
+      "apps/web/src/app/api/ai/copilot/route.ts",
+      'import { runThesisCopilot } from "@kanon/ai"; const data = await auth.withDb((tx) => getThesisById(tx, id)); const res = await runThesisCopilot(data);',
+      e,
+    ),
+  "G10 clean 3-phase split outside DB tx",
+);
+
+// G12 negative examples (4)
+expectCaught(
+  (e) =>
+    checkG12SystemContextAllowlistAst(
+      "apps/web/src/app/api/health/route.ts",
+      'const reason = "health"; withSystemDb(reason, (tx) => pingKanonDb(tx));',
+      e,
+    ),
+  "G12-system-context-allowlist",
+  "G12 non-literal reason variable",
+);
+expectCaught(
+  (e) =>
+    checkG12SystemContextAllowlistAst(
+      "apps/web/src/app/api/theses/route.ts",
+      'withSystemDb("cron_tick", (tx) => listTheses(tx));',
+      e,
+    ),
+  "G12-system-context-allowlist",
+  "G12 unapproved file calling withSystemDb",
+);
+expectCaught(
+  (e) =>
+    checkG12SystemContextAllowlistAst(
+      "apps/web/src/app/api/theses/route.ts",
+      "await tx.execute(sql`SELECT set_config('kanon.system', 'on', true)`);",
+      e,
+    ),
+  "G12-system-context-allowlist",
+  "G12 raw set_config('kanon.system') in route",
+);
+expectCaught(
+  (e) =>
+    checkG12SystemContextAllowlistAst(
+      "apps/web/src/app/api/market/refresh-prices/route.ts",
+      'auth.withDb((tx) => updateThesisPriceByTicker(tx, "NVDA", 120));',
+      e,
+    ),
+  "G12-system-context-allowlist",
+  "G12 system-only helper called outside withSystemDb",
+);
+expectClean(
+  (e) =>
+    checkG12SystemContextAllowlistAst(
+      "apps/web/src/app/api/internal/jobs/tick/route.ts",
+      'withSystemDb("cron_tick", (tx) => enqueueWatchlistJobs(tx, "2026-11-27"));',
+      e,
+    ),
+  "G12 allowlisted cron_tick system helper",
+);
+
 process.stdout.write(
-  "✓ wave-guards-rs.test.mjs: all G6+ & G13 adversarial fixtures caught and clean examples passed.\n",
+  "✓ wave-guards-rs.test.mjs: all G6+, G9, G10, G12 & G13 adversarial fixtures caught and clean examples passed.\n",
 );

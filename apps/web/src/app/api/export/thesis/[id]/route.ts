@@ -1,6 +1,5 @@
 import { formatGoogleDocHtml, formatThesisArchiveJson, formatThesisMarkdown } from "@kanon/core";
 import {
-  getKanonDb,
   getSecSnapshotForUser,
   getThesisById,
   listAgentRuns,
@@ -60,25 +59,26 @@ export async function GET(request: Request, context: RouteContext) {
 
   const { id } = await context.params;
   const format = new URL(request.url).searchParams.get("format") ?? "md";
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const thesis = await getThesisById(db, id, auth.user.id);
-  if (!thesis) return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard.response;
+    const thesis = await getThesisById(tx, id, auth.user.id);
+    if (!thesis) return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
 
-  const [secSnapshot, revisions, quarterlyReviews, copilotOutputs, agentRuns, researchNotes] =
-    await Promise.all([
-      getSecSnapshotForUser(db, thesis.ticker, auth.user.id),
-      listThesisRevisions(db, id, 30),
-      listQuarterlyReviews(db, id),
-      listCopilotOutputs(db, id),
-      listAgentRuns(db, id, 5),
-      listResearchNotes(db, id, 200),
-    ]);
-  return buildExportResponse(
-    format,
-    thesis,
-    { secSnapshot, revisions, quarterlyReviews, copilotOutputs, agentRuns, researchNotes },
-    startedAt,
-  );
+    const [secSnapshot, revisions, quarterlyReviews, copilotOutputs, agentRuns, researchNotes] =
+      await Promise.all([
+        getSecSnapshotForUser(tx, thesis.ticker, auth.user.id),
+        listThesisRevisions(tx, id, 30),
+        listQuarterlyReviews(tx, id),
+        listCopilotOutputs(tx, id),
+        listAgentRuns(tx, id, 5),
+        listResearchNotes(tx, id, 200),
+      ]);
+    return buildExportResponse(
+      format,
+      thesis,
+      { secSnapshot, revisions, quarterlyReviews, copilotOutputs, agentRuns, researchNotes },
+      startedAt,
+    );
+  });
 }

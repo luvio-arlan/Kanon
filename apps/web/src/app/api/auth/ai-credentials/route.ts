@@ -2,7 +2,6 @@ import { sanitizeProviderBaseUrl } from "@kanon/ai";
 import { ByokProviderSchema } from "@kanon/core";
 import {
   deleteUserAiCredential,
-  getKanonDb,
   listUserAiCredentials,
   summarizeMonthlyAiUsage,
   upsertUserAiCredential,
@@ -35,11 +34,12 @@ export async function GET() {
   const startedAt = performance.now();
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-  const db = await getKanonDb();
-  const [credentials, monthlyUsage] = await Promise.all([
-    listUserAiCredentials(db, auth.user.id),
-    summarizeMonthlyAiUsage(db, auth.user.id),
-  ]);
+  const [credentials, monthlyUsage] = await auth.withDb((tx) =>
+    Promise.all([
+      listUserAiCredentials(tx, auth.user.id),
+      summarizeMonthlyAiUsage(tx, auth.user.id),
+    ]),
+  );
   return jsonOk({ credentials, monthlyUsage }, startedAt);
 }
 
@@ -58,11 +58,9 @@ export async function POST(request: Request) {
       "INVALID",
     );
   }
-  const db = await getKanonDb();
-  const credential = await upsertUserAiCredential(db, {
-    userId: auth.user.id,
-    ...parsed,
-  });
+  const credential = await auth.withDb((tx) =>
+    upsertUserAiCredential(tx, { userId: auth.user.id, ...parsed }),
+  );
   return jsonOk({ credential }, startedAt, 201);
 }
 
@@ -77,7 +75,6 @@ export async function DELETE(request: Request) {
   if (!parsed.success) {
     return jsonError("请提供需删除的 provider。", 400, startedAt, "INVALID");
   }
-  const db = await getKanonDb();
-  const removed = await deleteUserAiCredential(db, auth.user.id, parsed.data);
+  const removed = await auth.withDb((tx) => deleteUserAiCredential(tx, auth.user.id, parsed.data));
   return jsonOk({ ok: true, removed }, startedAt);
 }

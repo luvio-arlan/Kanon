@@ -1,6 +1,5 @@
 import { TickerSymbolSchema } from "@kanon/core";
 import {
-  getKanonDb,
   listThesisPeers,
   removeThesisPeer,
   type ThesisPeerRole,
@@ -32,11 +31,12 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const peers = await listThesisPeers(db, id);
-  return jsonOk({ peers }, startedAt);
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard.response;
+    const peers = await listThesisPeers(tx, id);
+    return jsonOk({ peers }, startedAt);
+  });
 }
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -46,22 +46,23 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
-  if (!guard.ok) return guard.response;
   const raw = await request.json().catch(() => null);
   const parsed = parseAddPeerBody(raw);
   if (!parsed) {
     return jsonError("请输入有效的同行标的代码。", 400, startedAt, "INVALID_PEER");
   }
-  const peer = await upsertThesisPeer(db, {
-    thesisId: id,
-    ticker: parsed.ticker,
-    role: parsed.role,
-    addedBy: auth.user.id,
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "write", startedAt);
+    if (!guard.ok) return guard.response;
+    const peer = await upsertThesisPeer(tx, {
+      thesisId: id,
+      ticker: parsed.ticker,
+      role: parsed.role,
+      addedBy: auth.user.id,
+    });
+    const peers = await listThesisPeers(tx, id);
+    return jsonOk({ peer, peers }, startedAt, 201);
   });
-  const peers = await listThesisPeers(db, id);
-  return jsonOk({ peer, peers }, startedAt, 201);
 }
 
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -71,14 +72,15 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
-  if (!guard.ok) return guard.response;
   const ticker = new URL(request.url).searchParams.get("ticker") ?? "";
   const parsedTicker = TickerSymbolSchema.safeParse(ticker);
   if (!parsedTicker.success) {
     return jsonError("请提供需移除的同行标的代码 ticker。", 400, startedAt, "INVALID_PEER");
   }
-  const removed = await removeThesisPeer(db, id, parsedTicker.data);
-  return jsonOk({ ok: true, removed }, startedAt);
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "write", startedAt);
+    if (!guard.ok) return guard.response;
+    const removed = await removeThesisPeer(tx, id, parsedTicker.data);
+    return jsonOk({ ok: true, removed }, startedAt);
+  });
 }

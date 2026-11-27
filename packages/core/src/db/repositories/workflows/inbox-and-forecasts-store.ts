@@ -13,8 +13,10 @@ import {
 
 export {
   buildCatalystIcsFeed,
+  buildCatalystIcsFeedForUser,
   hasCalendarToken,
   issueCalendarToken,
+  resolveCalendarTokenUserId,
 } from "./calendar-feed-store";
 
 export async function upsertAlertRule(
@@ -234,15 +236,14 @@ export async function listEnabledForm8kAlertRecipients(
   thesisIds: readonly string[],
 ): Promise<Array<{ userId: string; thesisId: string }>> {
   if (thesisIds.length === 0) return [];
+  const cond = and(
+    eq(alertRulesTable.kind, "form8k_redflag"),
+    eq(alertRulesTable.enabled, true),
+    inArray(alertRulesTable.thesisId, [...thesisIds]),
+  );
   const rows = await db
     .select({ userId: alertRulesTable.userId, thesisId: alertRulesTable.thesisId })
     .from(alertRulesTable)
-    .where(
-      and(
-        eq(alertRulesTable.kind, "form8k_redflag"),
-        eq(alertRulesTable.enabled, true),
-        inArray(alertRulesTable.thesisId, [...thesisIds]),
-      ),
-    );
+    .where(cond);
   return rows.filter((r): r is { userId: string; thesisId: string } => Boolean(r.thesisId));
 }

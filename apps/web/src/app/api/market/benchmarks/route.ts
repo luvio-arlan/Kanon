@@ -3,11 +3,11 @@ import { TickerSymbolSchema, todayIsoUtc } from "@kanon/core";
 import {
   computeRealHistoricalValuationBand,
   getFactsAsOf,
-  getKanonDb,
   getSecSnapshot,
   getSecSnapshotForUser,
   getSecurityByTicker,
   getThesisByTicker,
+  type KanonDb,
   listCorporateActions,
   listPriceBars,
   listThesisPeers,
@@ -34,10 +34,7 @@ function resolveBenchmarkPrice(
   return thesisPrice && thesisPrice > 0 ? thesisPrice : null;
 }
 
-async function loadHistoricalBandInputs(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
-  securityId: string | undefined,
-) {
+async function loadHistoricalBandInputs(db: KanonDb, securityId: string | undefined) {
   if (!securityId) return { bars: [], pitEpsFacts: [], splits: [] };
   const [bars, pitEpsFacts, corpActions] = await Promise.all([
     listPriceBars(db, securityId),
@@ -53,28 +50,22 @@ async function loadHistoricalBandInputs(
   return { bars, pitEpsFacts, splits };
 }
 
-async function computeBenchmarksResponse(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
-  params: {
-    ticker: string;
-    currentPrice: number;
-    secSnapshot: Awaited<ReturnType<typeof getSecSnapshotForUser>>;
-    thesisId?: string;
-    securityId?: string;
-    request: Request;
-  },
-) {
-  const [customPeers, bandData] = await Promise.all([
-    params.thesisId ? listThesisPeers(db, params.thesisId) : Promise.resolve([]),
-    loadHistoricalBandInputs(db, params.securityId),
-  ]);
+async function computeBenchmarksForLoaded(params: {
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
+  ticker: string;
+  currentPrice: number;
+  secSnapshot: Awaited<ReturnType<typeof getSecSnapshotForUser>>;
+  customPeers: Awaited<ReturnType<typeof listThesisPeers>>;
+  bandData: Awaited<ReturnType<typeof loadHistoricalBandInputs>>;
+  request: Request;
+}) {
   const historicalValuationBand =
-    params.secSnapshot && bandData.bars.length >= 20
+    params.secSnapshot && params.bandData.bars.length >= 20
       ? computeRealHistoricalValuationBand({
-          bars: bandData.bars,
+          bars: params.bandData.bars,
           annuals: params.secSnapshot.annuals,
-          pitEpsFacts: bandData.pitEpsFacts,
-          splits: bandData.splits,
+          pitEpsFacts: params.bandData.pitEpsFacts,
+          splits: params.bandData.splits,
           currentPrice: params.currentPrice,
         })
       : null;
@@ -82,10 +73,12 @@ async function computeBenchmarksResponse(
     ticker: params.ticker,
     currentPrice: params.currentPrice,
     secSnapshot: params.secSnapshot,
-    customPeerTickers: customPeers.map((p) => p.ticker),
+    customPeerTickers: params.customPeers.map((p) => p.ticker),
     historicalValuationBand,
     loadCachedPeers: async (peerTickers) => {
-      const snaps = await Promise.all(peerTickers.map((pt) => getSecSnapshot(db, pt)));
+      const snaps = await params.withDb((tx) =>
+        Promise.all(peerTickers.map((pt) => getSecSnapshot(tx, pt))),
+      );
       const map = new Map<string, NonNullable<(typeof snaps)[number]>>();
       for (const s of snaps) if (s) map.set(s.ticker.toUpperCase(), s);
       return map;
@@ -107,15 +100,21 @@ export async function GET(request: Request) {
     return jsonError("请提供有效标的代码 ticker。", 400, startedAt, "INVALID");
   const ticker = parsedTicker.data;
 
-  const db = await getKanonDb();
-  const [secSnapshot, thesisIdentity, security] = await Promise.all([
-    getSecSnapshotForUser(db, ticker, auth.user.id),
-    getThesisByTicker(db, ticker, auth.user.id),
-    getSecurityByTicker(db, ticker),
-  ]);
+  const loaded = await auth.withDb(async (tx) => {
+    const [secSnapshot, thesisIdentity, security] = await Promise.all([
+      getSecSnapshotForUser(tx, ticker, auth.user.id),
+      getThesisByTicker(tx, ticker, auth.user.id),
+      getSecurityByTicker(tx, ticker),
+    ]);
+    const [customPeers, bandData] = await Promise.all([
+      thesisIdentity?.id ? listThesisPeers(tx, thesisIdentity.id) : Promise.resolve([]),
+      loadHistoricalBandInputs(tx, security?.id),
+    ]);
+    return { secSnapshot, thesisIdentity, customPeers, bandData };
+  });
   const currentPrice = resolveBenchmarkPrice(
     url.searchParams.get("price"),
-    thesisIdentity?.currentPrice,
+    loaded.thesisIdentity?.currentPrice,
   );
   if (currentPrice === null) {
     return jsonError(
@@ -125,12 +124,13 @@ export async function GET(request: Request) {
       "INVALID_PRICE",
     );
   }
-  const benchmarks = await computeBenchmarksResponse(db, {
+  const benchmarks = await computeBenchmarksForLoaded({
+    withDb: auth.withDb,
     ticker,
     currentPrice,
-    secSnapshot,
-    thesisId: thesisIdentity?.id,
-    securityId: security?.id,
+    secSnapshot: loaded.secSnapshot,
+    customPeers: loaded.customPeers,
+    bandData: loaded.bandData,
     request,
   });
   return jsonOk(benchmarks, startedAt);

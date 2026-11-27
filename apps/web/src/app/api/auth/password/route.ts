@@ -1,5 +1,5 @@
 import { ChangePasswordRequestSchema, ChangePasswordResponseSchema } from "@kanon/core";
-import { changeUserPassword, getKanonDb } from "@kanon/core/db";
+import { changeUserPassword } from "@kanon/core/db";
 import { getRawSessionToken, requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
@@ -25,15 +25,16 @@ export async function POST(request: Request) {
     return jsonError(formatZodError(parsed.error, "密码输入不合规。"), 400, startedAt, "INVALID");
   }
 
-  const db = await getKanonDb();
   const currentRawToken = await getRawSessionToken();
-  const res = await changeUserPassword({
-    db,
-    userId: auth.user.id,
-    currentPassword: parsed.data.currentPassword,
-    newPassword: parsed.data.newPassword,
-    currentRawToken,
-  });
+  const res = await auth.withDb((tx) =>
+    changeUserPassword({
+      db: tx,
+      userId: auth.user.id,
+      currentPassword: parsed.data.currentPassword,
+      newPassword: parsed.data.newPassword,
+      currentRawToken,
+    }),
+  );
   if (!res.ok) {
     return jsonError(res.error, 400, startedAt, "PASSWORD_CHANGE_REJECTED");
   }

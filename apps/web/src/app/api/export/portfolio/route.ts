@@ -1,5 +1,5 @@
 import { formatPortfolioCsv } from "@kanon/core";
-import { getKanonDb, listTheses } from "@kanon/core/db";
+import { listTheses } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { apiHeaders } from "../../_lib/http";
 
@@ -10,8 +10,7 @@ export async function GET() {
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 
-  const db = await getKanonDb();
-  const theses = await listTheses(db, auth.user.id);
+  const theses = await auth.withDb((tx) => listTheses(tx, auth.user.id));
   const csv = formatPortfolioCsv(theses);
   return new Response(csv, {
     headers: {

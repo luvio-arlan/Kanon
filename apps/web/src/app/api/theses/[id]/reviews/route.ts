@@ -1,10 +1,5 @@
 import { CreateQuarterlyReviewSchema, QuarterlyReviewCreateResponseSchema } from "@kanon/core";
-import {
-  createQuarterlyReview,
-  getKanonDb,
-  listQuarterlyReviews,
-  listThesisRevisions,
-} from "@kanon/core/db";
+import { createQuarterlyReview, listQuarterlyReviews, listThesisRevisions } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
@@ -22,11 +17,12 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!auth.ok) return auth.response;
 
   const { id } = await context.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const reviews = await listQuarterlyReviews(db, id);
-  return jsonOk({ reviews }, startedAt);
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard.response;
+    const reviews = await listQuarterlyReviews(tx, id);
+    return jsonOk({ reviews }, startedAt);
+  });
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -50,21 +46,22 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
-  if (!guard.ok) return guard.response;
-  const created = await createQuarterlyReview(db, id, parsed.data, auth.user.id);
-  if (!created) {
-    return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
-  }
-  const revisions = await listThesisRevisions(db, id);
-  return jsonOk(
-    QuarterlyReviewCreateResponseSchema.parse({
-      thesis: created.thesis,
-      review: created.review,
-      revisions,
-    }),
-    startedAt,
-    201,
-  );
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "write", startedAt);
+    if (!guard.ok) return guard.response;
+    const created = await createQuarterlyReview(tx, id, parsed.data, auth.user.id);
+    if (!created) {
+      return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
+    }
+    const revisions = await listThesisRevisions(tx, id);
+    return jsonOk(
+      QuarterlyReviewCreateResponseSchema.parse({
+        thesis: created.thesis,
+        review: created.review,
+        revisions,
+      }),
+      startedAt,
+      201,
+    );
+  });
 }

@@ -11,7 +11,13 @@ import {
 import type { UserRole } from "../contracts/auth-contracts";
 import type { MarketDataSource, MarketQuoteSnapshot } from "../contracts/market-contracts";
 import type { SecFilingDiff, SecFilingSection } from "../contracts/sec-filing-contracts";
-import type { SecAnnualFinancial, SecFinancialFact } from "../schemas/research";
+import type {
+  SecAnnualFinancial,
+  SecFilingItem,
+  SecFinancialFact,
+  SecInsiderSummary,
+  SecQuarterlyFinancial,
+} from "../schemas/research";
 
 export type ApiTokenScope = "read" | "read_write";
 
@@ -121,4 +127,20 @@ export const loginLockoutsTable = pgTable("login_lockouts", {
   failedAttempts: integer("failed_attempts").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const secFilingsCacheTable = pgTable("sec_filings_cache", {
+  ticker: text("ticker").primaryKey(),
+  cik: text("cik").notNull(),
+  entityName: text("entity_name").notNull(),
+  source: text("source").$type<"sec-edgar-live" | "cached-seed" | "manual-verified">().notNull(),
+  reportingCurrency: text("reporting_currency").notNull().default("USD"),
+  fxToUsd: doublePrecision("fx_to_usd").notNull().default(1),
+  adrRatio: doublePrecision("adr_ratio").notNull().default(1),
+  filings: jsonb("filings").$type<SecFilingItem[]>().notNull(),
+  facts: jsonb("facts").$type<SecFinancialFact[]>().notNull(),
+  annuals: jsonb("annuals").$type<SecAnnualFinancial[]>().notNull().default([]),
+  quarterlies: jsonb("quarterlies").$type<SecQuarterlyFinancial[]>().notNull().default([]),
+  insiderSummary: jsonb("insider_summary").$type<SecInsiderSummary | null>(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });

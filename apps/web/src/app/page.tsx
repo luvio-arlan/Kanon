@@ -1,6 +1,7 @@
-import { getKanonDb, listGlossaryTerms, listTheses } from "@kanon/core/db";
+import { listGlossaryTerms, listTheses } from "@kanon/core/db";
 import { redirect } from "next/navigation";
 import { getServerAuthContext } from "@/app/api/_lib/auth-session";
+import { withUserDb } from "@/app/api/_lib/db-context";
 import { buildCockpitViewSearch, CockpitShell, parseCockpitViewState } from "@/features/cockpit";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +17,10 @@ export default async function HomePage({
     const search = buildCockpitViewSearch(initialView);
     redirect(search ? `/login?next=${encodeURIComponent(`/${search}`)}` : "/login");
   }
-
-  const db = await getKanonDb();
-  const [theses, glossary] = await Promise.all([
-    listTheses(db, auth.user.id),
-    listGlossaryTerms(db),
-  ]);
+  const userId = auth.user.id;
+  const [theses, glossary] = await withUserDb(userId, (tx) =>
+    Promise.all([listTheses(tx, userId), listGlossaryTerms(tx)]),
+  );
   return (
     <CockpitShell
       initialTheses={theses}

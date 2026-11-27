@@ -1,4 +1,4 @@
-import { getKanonDb, listThesisRevisions } from "@kanon/core/db";
+import { listThesisRevisions } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { jsonOk } from "../../../_lib/http";
 import { requireThesisAccess } from "../../../_lib/thesis-guard";
@@ -15,9 +15,10 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!auth.ok) return auth.response;
 
   const { id } = await context.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const revisions = await listThesisRevisions(db, id);
-  return jsonOk({ revisions }, startedAt);
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard.response;
+    const revisions = await listThesisRevisions(tx, id);
+    return jsonOk({ revisions }, startedAt);
+  });
 }

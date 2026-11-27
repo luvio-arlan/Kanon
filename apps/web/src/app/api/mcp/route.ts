@@ -1,5 +1,5 @@
 import { type ApiTokenScope, McpJsonRpcRequestSchema } from "@kanon/core";
-import { getKanonDb } from "@kanon/core/db";
+import type { KanonDb } from "@kanon/core/db";
 import { NextResponse } from "next/server";
 import { requireMcpAuthContext } from "../_lib/auth-session";
 import { apiHeaders, jsonOk, readJsonBody } from "../_lib/http";
@@ -54,23 +54,25 @@ export async function GET(request: Request) {
   );
 }
 
-async function dispatchWorkspaceRpc(params: {
-  id: string | number | null | undefined;
-  method: string;
-  rpcParams: Record<string, unknown>;
-  userId: string;
-  scope: ApiTokenScope;
-  startedAt: number;
-}) {
+async function executeWorkspaceRpcInTx(
+  tx: KanonDb,
+  params: {
+    id: string | number | null | undefined;
+    method: string;
+    rpcParams: Record<string, unknown>;
+    userId: string;
+    scope: ApiTokenScope;
+    startedAt: number;
+  },
+) {
   const { id, method, rpcParams, userId, scope, startedAt } = params;
-  const db = await getKanonDb();
   if (method === "tools/call") {
     const name = typeof rpcParams.name === "string" ? rpcParams.name : "";
     const args =
       rpcParams.arguments && typeof rpcParams.arguments === "object"
         ? (rpcParams.arguments as Record<string, unknown>)
         : {};
-    const outcome = await executeMcpToolCall(db, userId, name, args, scope);
+    const outcome = await executeMcpToolCall(tx, userId, name, args, scope);
     return rpcSuccess(
       id,
       {
@@ -81,15 +83,27 @@ async function dispatchWorkspaceRpc(params: {
     );
   }
   if (method === "resources/list") {
-    return rpcSuccess(id, { resources: await listMcpResources(db, userId) }, startedAt);
+    return rpcSuccess(id, { resources: await listMcpResources(tx, userId) }, startedAt);
   }
   if (method === "resources/read") {
     const uri = typeof rpcParams.uri === "string" ? rpcParams.uri : "";
-    const resource = await readMcpResource(db, userId, uri);
+    const resource = await readMcpResource(tx, userId, uri);
     if (!resource) return rpcError(id, -32602, `Resource not found: ${uri}`, startedAt);
     return rpcSuccess(id, { contents: [resource] }, startedAt);
   }
   return rpcError(id, -32601, `Method not found: ${method}`, startedAt);
+}
+
+async function dispatchWorkspaceRpc(params: {
+  id: string | number | null | undefined;
+  method: string;
+  rpcParams: Record<string, unknown>;
+  userId: string;
+  scope: ApiTokenScope;
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
+  startedAt: number;
+}) {
+  return params.withDb((tx) => executeWorkspaceRpcInTx(tx, params));
 }
 
 async function dispatchRpcMethod(params: {
@@ -98,6 +112,7 @@ async function dispatchRpcMethod(params: {
   rpcParams: Record<string, unknown>;
   userId: string;
   scope: ApiTokenScope;
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
   startedAt: number;
 }) {
   const { id, method, startedAt } = params;
@@ -146,6 +161,7 @@ export async function POST(request: Request) {
     rpcParams: parsed.data.params ?? {},
     userId: auth.user.id,
     scope: auth.scope,
+    withDb: auth.withDb,
     startedAt,
   });
 }

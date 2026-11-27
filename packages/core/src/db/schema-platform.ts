@@ -7,6 +7,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { kanonUserOwnedPolicies } from "./repositories/security/rls-policies";
 
 export const aiUsageTable = pgTable(
   "ai_usage",
@@ -39,5 +40,8 @@ export const userAiCredentialsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("idx_user_ai_creds_user_provider").on(table.userId, table.provider)],
-);
+  (table) => [
+    uniqueIndex("idx_user_ai_creds_user_provider").on(table.userId, table.provider),
+    ...kanonUserOwnedPolicies("user_ai_credentials"),
+  ],
+).enableRLS();

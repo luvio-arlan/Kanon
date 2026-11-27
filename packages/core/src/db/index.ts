@@ -3,8 +3,10 @@ export {
   type DbHealthStats,
   getDbHealthStats,
   getKanonDb,
+  initExternalPostgres,
   type KanonDb,
   type KanonDbEngine,
+  MigrationsPendingError,
   pingKanonDb,
   runInTransaction,
 } from "./client";

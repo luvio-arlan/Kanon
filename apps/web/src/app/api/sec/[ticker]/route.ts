@@ -1,24 +1,15 @@
-import {
-  fetchSecEdgarWithPitFacts,
-  formatUsdCompact,
-  registerSecGlobalSlotAcquirer,
-} from "@kanon/ai";
-import {
-  type SecFinancialFact,
-  SecSnapshotSchema,
-  TickerSymbolSchema,
-  UpsertManualSecSnapshotSchema,
-} from "@kanon/core";
+import { fetchSecEdgarWithPitFacts, registerSecGlobalSlotAcquirer } from "@kanon/ai";
+import { TickerSymbolSchema, UpsertManualSecSnapshotSchema } from "@kanon/core";
 import {
   detectFactRestatements,
-  getKanonDb,
-  getSecSnapshot,
   getSecSnapshotForUser,
   getSecurityByTicker,
+  type KanonDb,
   markSecuritySecStatus,
-  upsertUserSecOverride,
 } from "@kanon/core/db";
+import { after } from "next/server";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
+import { withSystemDb } from "../../_lib/db-context";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { generateRequestId, logStructuredApiEvent } from "../../_lib/logger";
 import {
@@ -26,7 +17,13 @@ import {
   checkPersistentRateLimit,
   verifySameOrigin,
 } from "../../_lib/request-guards";
-import { commitSecSnapshotAndWarehouseAtomic } from "../../_lib/sec-warehouse-sync";
+import {
+  commitSecSnapshotAndWarehouseAtomic,
+  drainAlertFanoutJobsBestEffort,
+  type PreparedSecCommit,
+  prepareSecSnapshotCommit,
+} from "../../_lib/sec-warehouse-sync";
+import { buildManualFacts, saveManualSecOverride } from "./manual-override";
 
 registerSecGlobalSlotAcquirer((signal) => acquireSecGlobalSlot(signal));
 
@@ -38,29 +35,7 @@ interface RouteContext {
   params: Promise<{ ticker: string }>;
 }
 
-export async function GET(request: Request, context: RouteContext) {
-  const startedAt = performance.now();
-  const auth = await requireWorkspaceContext(startedAt);
-  if (!auth.ok) return auth.response;
-  const rateErr = await checkPersistentRateLimit(request, SEC_SYNC_RATE_POLICY, startedAt);
-  if (rateErr) return rateErr;
-  const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
-  if (!parsedTicker.success) {
-    return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
-  }
-  const db = await getKanonDb();
-  const [snapshot, security] = await Promise.all([
-    getSecSnapshotForUser(db, parsedTicker.data, auth.user.id),
-    getSecurityByTicker(db, parsedTicker.data),
-  ]);
-  const restatements = await loadTickerRestatements(db, security?.id);
-  return jsonOk({ snapshot, restatements }, startedAt);
-}
-
-async function loadTickerRestatements(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
-  securityId: string | undefined,
-) {
+async function loadTickerRestatements(db: KanonDb, securityId: string | undefined) {
   if (!securityId) return [];
   const list = (
     await Promise.all(
@@ -81,16 +56,39 @@ async function loadTickerRestatements(
     }));
 }
 
+export async function GET(request: Request, context: RouteContext) {
+  const startedAt = performance.now();
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+  const rateErr = await checkPersistentRateLimit(request, SEC_SYNC_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
+  const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
+  if (!parsedTicker.success) {
+    return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
+  }
+  const { snapshot, restatements } = await auth.withDb(async (tx) => {
+    const [snap, security] = await Promise.all([
+      getSecSnapshotForUser(tx, parsedTicker.data, auth.user.id),
+      getSecurityByTicker(tx, parsedTicker.data),
+    ]);
+    const rest = await loadTickerRestatements(tx, security?.id);
+    return { snapshot: snap, restatements: rest };
+  });
+  return jsonOk({ snapshot, restatements }, startedAt);
+}
+
 async function commitSecSafely(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
-  rawSnapshot: Parameters<typeof commitSecSnapshotAndWarehouseAtomic>[1],
+  prepared: PreparedSecCommit,
   pitFacts: Parameters<typeof commitSecSnapshotAndWarehouseAtomic>[2],
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>,
   userId: string,
   ticker: string,
   startedAt: number,
 ) {
   try {
-    const saved = await commitSecSnapshotAndWarehouseAtomic(db, rawSnapshot, pitFacts, userId);
+    const saved = await withSystemDb("user_triggered_sync", (tx) =>
+      commitSecSnapshotAndWarehouseAtomic(tx, prepared, pitFacts),
+    );
     return { saved, warehouseSynced: true as const };
   } catch (err) {
     logStructuredApiEvent({
@@ -102,47 +100,46 @@ async function commitSecSafely(
       code: "WAREHOUSE_SYNC_FAILED",
       message: err instanceof Error ? err.message : String(err),
     });
-    const fallback = await getSecSnapshotForUser(db, ticker, userId);
+    const fallback = await withDb((tx) => getSecSnapshotForUser(tx, ticker, userId));
     return { saved: fallback, warehouseSynced: false as const };
   }
 }
 
-export async function POST(request: Request, context: RouteContext) {
-  const startedAt = performance.now();
-  const originErr = verifySameOrigin(request, startedAt);
-  if (originErr) return originErr;
-  const auth = await requireWorkspaceContext(startedAt);
-  if (!auth.ok) return auth.response;
-  const rateErr = await checkPersistentRateLimit(request, SEC_SYNC_RATE_POLICY, startedAt);
-  if (rateErr) return rateErr;
-  const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
-  if (!parsedTicker.success) {
-    return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
-  }
-  const ticker = parsedTicker.data;
-  const db = await getKanonDb();
+async function syncLiveSecAndRespond(
+  ticker: string,
+  userId: string,
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>,
+  startedAt: number,
+) {
   const fetched = await fetchSecEdgarWithPitFacts(ticker);
   if (!fetched.ok) {
     if (fetched.errorKind === "not_sec_registrant") {
-      await markSecuritySecStatus(db, ticker, "not_registrant").catch(() => undefined);
+      await withSystemDb("user_triggered_sync", (tx) =>
+        markSecuritySecStatus(tx, ticker, "not_registrant"),
+      ).catch(() => undefined);
     }
-    const snapshot = await getSecSnapshotForUser(db, ticker, auth.user.id);
+    const snapshot = await withDb((tx) => getSecSnapshotForUser(tx, ticker, userId));
     return jsonOk(
       { snapshot, live: false, warehouseSynced: false, restatements: [], notice: fetched.error },
       startedAt,
     );
   }
+  const prepared = prepareSecSnapshotCommit(fetched.data);
   const { saved, warehouseSynced } = await commitSecSafely(
-    db,
-    fetched.data,
+    prepared,
     fetched.pitFacts,
-    auth.user.id,
+    withDb,
+    userId,
     ticker,
     startedAt,
   );
-  const restatements = await loadTickerRestatements(
-    db,
-    (await getSecurityByTicker(db, ticker))?.id,
+  if (warehouseSynced && prepared.fanout8kJobs.length > 0) {
+    after(async () => {
+      await drainAlertFanoutJobsBestEffort(prepared.fanout8kJobs.length).catch(() => undefined);
+    });
+  }
+  const restatements = await withDb(async (tx) =>
+    loadTickerRestatements(tx, (await getSecurityByTicker(tx, ticker))?.id),
   );
   const notice =
     warehouseSynced && saved
@@ -154,33 +151,17 @@ export async function POST(request: Request, context: RouteContext) {
   );
 }
 
-function buildManualFacts(
-  annuals: readonly {
-    fiscalYear: string;
-    revenue: number | null;
-    grossProfit: number | null;
-    freeCashFlow: number | null;
-    netIncome: number | null;
-  }[],
-): SecFinancialFact[] {
-  const latest = annuals[annuals.length - 1];
-  if (!latest) return [];
-  const specs: Array<[number | null, string, string, string]> = [
-    [latest.revenue, "Revenue", "年度营业收入", "manual:Revenue"],
-    [latest.grossProfit, "GrossProfit", "年度毛利润", "manual:GrossProfit"],
-    latest.freeCashFlow !== null
-      ? [latest.freeCashFlow, "FreeCashFlow", "年度自由现金流", "manual:FCF"]
-      : [latest.netIncome, "NetIncome", "年度净利润", "manual:NetIncome"],
-  ];
-  return specs
-    .filter((s): s is [number, string, string, string] => s[0] !== null)
-    .map(([val, metric, label, sourceTag]) => ({
-      metric,
-      label,
-      valueFormatted: formatUsdCompact(val),
-      period: latest.fiscalYear,
-      sourceTag,
-    }));
+export async function POST(request: Request, context: RouteContext) {
+  const startedAt = performance.now();
+  const originErr = verifySameOrigin(request, startedAt);
+  if (originErr) return originErr;
+  const auth = await requireWorkspaceContext(startedAt);
+  if (!auth.ok) return auth.response;
+  const rateErr = await checkPersistentRateLimit(request, SEC_SYNC_RATE_POLICY, startedAt);
+  if (rateErr) return rateErr;
+  const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
+  if (!parsedTicker.success) return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
+  return syncLiveSecAndRespond(parsedTicker.data, auth.user.id, auth.withDb, startedAt);
 }
 
 export async function PUT(request: Request, context: RouteContext) {
@@ -189,12 +170,8 @@ export async function PUT(request: Request, context: RouteContext) {
   if (originErr) return originErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-
   const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
-  if (!parsedTicker.success) {
-    return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
-  }
-  const upper = parsedTicker.data;
+  if (!parsedTicker.success) return jsonError("无效的证券代码。", 400, startedAt, "INVALID_TICKER");
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = UpsertManualSecSnapshotSchema.safeParse(body.data);
@@ -206,27 +183,20 @@ export async function PUT(request: Request, context: RouteContext) {
       "INVALID",
     );
   }
-  const db = await getKanonDb();
-  const existing = await getSecSnapshot(db, upper);
   const sortedAnnuals = [...parsed.data.annuals].sort((a, b) =>
     a.fiscalYear.localeCompare(b.fiscalYear),
   );
-  const snapshot = SecSnapshotSchema.parse({
-    ticker: upper,
-    cik: existing?.cik ?? `MANUAL-${upper}`,
-    entityName: parsed.data.entityName,
-    source: "manual-verified",
-    reportingCurrency: parsed.data.reportingCurrency,
-    fxToUsd: parsed.data.fxToUsd,
-    adrRatio: parsed.data.adrRatio,
-    fetchedAt: new Date().toISOString(),
-    filings: existing?.filings ?? [],
-    facts: buildManualFacts(sortedAnnuals),
-    annuals: sortedAnnuals,
-    quarterlies: existing?.quarterlies ?? [],
-    insiderSummary: existing?.insiderSummary ?? null,
-  });
-  const saved = await upsertUserSecOverride(db, auth.user.id, snapshot);
+  const manualFacts = buildManualFacts(sortedAnnuals);
+  const saved = await auth.withDb((tx) =>
+    saveManualSecOverride(
+      tx,
+      auth.user.id,
+      parsedTicker.data,
+      parsed.data,
+      sortedAnnuals,
+      manualFacts,
+    ),
+  );
   return jsonOk(
     { snapshot: saved, notice: `已保存 ${saved.entityName} 个人核验财务数据` },
     startedAt,

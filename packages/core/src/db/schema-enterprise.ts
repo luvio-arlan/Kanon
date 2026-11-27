@@ -9,6 +9,10 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import {
+  kanonThesisChildPolicies,
+  kanonThesisCommentsPolicies,
+} from "./repositories/security/rls-policies";
 
 export type OrgRole = "owner" | "pm" | "analyst" | "viewer" | "compliance";
 export type IcApprovalState = "draft" | "in_review" | "approved" | "rejected" | "archived";
@@ -74,19 +78,24 @@ export const icApprovalsTable = pgTable(
     uniqueIndex("idx_ic_approvals_one_in_review")
       .on(table.thesisId)
       .where(sql`${table.state} = 'in_review'`),
+    ...kanonThesisChildPolicies("ic_approvals"),
   ],
-);
+).enableRLS();
 
-export const thesisCommentsTable = pgTable("thesis_comments", {
-  id: text("id").primaryKey(),
-  thesisId: text("thesis_id").notNull(),
-  userId: text("user_id").notNull(),
-  anchorType: text("anchor_type").notNull().default("thesis"),
-  anchorId: text("anchor_id"),
-  body: text("body").notNull(),
-  resolved: boolean("resolved").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const thesisCommentsTable = pgTable(
+  "thesis_comments",
+  {
+    id: text("id").primaryKey(),
+    thesisId: text("thesis_id").notNull(),
+    userId: text("user_id").notNull(),
+    anchorType: text("anchor_type").notNull().default("thesis"),
+    anchorId: text("anchor_id"),
+    body: text("body").notNull(),
+    resolved: boolean("resolved").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => kanonThesisCommentsPolicies(),
+).enableRLS();
 
 export const auditLogTable = pgTable(
   "audit_log",

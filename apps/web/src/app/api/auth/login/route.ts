@@ -3,13 +3,14 @@ import {
   checkAccountLockout,
   clearAccountLockout,
   finalizeUserLogin,
-  getKanonDb,
   getUserTotpStatus,
+  type KanonDb,
   recordFailedLoginAttempt,
   verifyUserCredentials,
   verifyUserTotpFactor,
 } from "@kanon/core/db";
 import { setSessionCookie } from "../../_lib/auth-session";
+import { withSystemDb } from "../../_lib/db-context";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 
@@ -34,7 +35,7 @@ function buildLockoutResponse(retryAfterSec: number, startedAt: number) {
 }
 
 async function verifyTotpIfEnabled(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+  db: KanonDb,
   userId: string,
   phone: string,
   totpCode: string | undefined,
@@ -58,7 +59,7 @@ async function verifyTotpIfEnabled(
 }
 
 async function verifyLoginChallenge(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+  db: KanonDb,
   parsed: { phone: string; password: string; totpCode?: string },
   startedAt: number,
 ) {
@@ -119,14 +120,17 @@ export async function POST(request: Request) {
   );
   if (acctRateErr) return acctRateErr;
 
-  const db = await getKanonDb();
-  const challenge = await verifyLoginChallenge(db, parsed.data, startedAt);
-  if (!challenge.ok) return challenge.response;
+  const loginOutcome = await withSystemDb("auth_bootstrap", async (tx) => {
+    const challenge = await verifyLoginChallenge(tx, parsed.data, startedAt);
+    if (!challenge.ok) return challenge;
+    await clearAccountLockout(tx, parsed.data.phone);
+    const session = await finalizeUserLogin(tx, challenge.user.id);
+    return { ok: true as const, user: challenge.user, session };
+  });
+  if (!loginOutcome.ok) return loginOutcome.response;
 
-  await clearAccountLockout(db, parsed.data.phone);
-  const session = await finalizeUserLogin(db, challenge.user.id);
-  const payload = AuthSuccessResponseSchema.parse({ user: challenge.user, redirectTo: "/" });
+  const payload = AuthSuccessResponseSchema.parse({ user: loginOutcome.user, redirectTo: "/" });
   const response = jsonOk(payload, startedAt, 200);
-  setSessionCookie(response, session.token, session.expiresAt);
+  setSessionCookie(response, loginOutcome.session.token, loginOutcome.session.expiresAt);
   return response;
 }

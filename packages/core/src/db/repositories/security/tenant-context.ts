@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { KanonDb } from "../../bootstrap";
-import { runInTransaction } from "../../client";
+import { type KanonDb, runInTransaction } from "../../bootstrap";
 
 export type SystemDbReason =
   | "cron_tick"

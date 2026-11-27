@@ -1,5 +1,5 @@
 import { ThesisArchiveImportRequestSchema } from "@kanon/core";
-import { ArchiveTickerConflictError, getKanonDb, importThesisArchive } from "@kanon/core/db";
+import { ArchiveTickerConflictError, importThesisArchive } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import {
   formatZodError,
@@ -34,9 +34,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const db = await getKanonDb();
   try {
-    const imported = await importThesisArchive(db, parsed.data, auth.user.id);
+    const imported = await auth.withDb((tx) => importThesisArchive(tx, parsed.data, auth.user.id));
     return jsonOk(imported, startedAt, 201);
   } catch (err) {
     if (err instanceof ArchiveTickerConflictError) {

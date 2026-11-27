@@ -1,5 +1,6 @@
-import { consumePersistentRateLimit, getKanonDb, type KanonDb } from "@kanon/core/db";
+import { consumePersistentRateLimit, type KanonDb } from "@kanon/core/db";
 import type { NextResponse } from "next/server";
+import { withSystemDb } from "./db-context";
 import { jsonError } from "./http";
 
 interface RateBucketState {
@@ -96,12 +97,13 @@ export async function checkPersistentRateLimit(
   const ip = extractClientIp(request);
   const bucketKey = extraKey ? `${policy.bucket}:${ip}:${extraKey}` : `${policy.bucket}:${ip}`;
   try {
-    const db = await getKanonDb();
-    const res = await consumePersistentRateLimit(db, {
-      bucketKey,
-      maxRequests: policy.maxRequests,
-      windowMs: policy.windowMs,
-    });
+    const res = await withSystemDb("rate_limit", (tx) =>
+      consumePersistentRateLimit(tx, {
+        bucketKey,
+        maxRequests: policy.maxRequests,
+        windowMs: policy.windowMs,
+      }),
+    );
     if (res.allowed) return null;
     const response = jsonError(
       `请求过于频繁，请 ${res.retryAfterSec} 秒后再试。`,
@@ -179,12 +181,19 @@ export async function acquireSecGlobalSlot(
     if (signal?.aborted) throw signal.reason ?? new Error("Aborted");
     const epochSec = Math.floor(Date.now() / 1000);
     try {
-      const db = dbOverride ?? (await getKanonDb());
-      const res = await consumePersistentRateLimit(db, {
-        bucketKey: `sec:global:${epochSec}`,
-        maxRequests: maxPerSec,
-        windowMs: 1000,
-      });
+      const res = dbOverride
+        ? await consumePersistentRateLimit(dbOverride, {
+            bucketKey: `sec:global:${epochSec}`,
+            maxRequests: maxPerSec,
+            windowMs: 1000,
+          })
+        : await withSystemDb("rate_limit", (tx) =>
+            consumePersistentRateLimit(tx, {
+              bucketKey: `sec:global:${epochSec}`,
+              maxRequests: maxPerSec,
+              windowMs: 1000,
+            }),
+          );
       if (res.allowed) return;
     } catch (err) {
       void err;

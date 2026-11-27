@@ -1,5 +1,6 @@
 import { isCredentialsMasterKeyConfigured } from "@kanon/core";
-import { getJobQueueHealth, getKanonDb, pingKanonDb } from "@kanon/core/db";
+import { getJobQueueHealth, MigrationsPendingError, pingKanonDb } from "@kanon/core/db";
+import { withSystemDb } from "../_lib/db-context";
 import { jsonError, jsonOk } from "../_lib/http";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +10,10 @@ const MAX_QUEUE_AGE_SEC = 26 * 3600;
 export async function GET() {
   const startedAt = performance.now();
   try {
-    const db = await getKanonDb();
-    await pingKanonDb(db);
-    const jobQueue = await getJobQueueHealth(db).catch(() => null);
+    const jobQueue = await withSystemDb("health", async (tx) => {
+      await pingKanonDb(tx);
+      return getJobQueueHealth(tx).catch(() => null);
+    });
     const secUserAgentConfigured = Boolean(process.env.KANON_SEC_USER_AGENT?.trim());
     const secretsConfigured = {
       credentials: isCredentialsMasterKeyConfigured(),
@@ -35,7 +37,9 @@ export async function GET() {
       startedAt,
     );
   } catch (err) {
-    void err;
+    if (err instanceof MigrationsPendingError) {
+      return jsonError("数据库迁移尚未完成。", 503, startedAt, "MIGRATIONS_PENDING");
+    }
     return jsonError("数据库连接自检失败。", 503, startedAt, "DB_UNAVAILABLE");
   }
 }

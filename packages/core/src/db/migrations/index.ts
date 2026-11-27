@@ -24,6 +24,7 @@ import { KANON_WAVE_O_INVITATIONS_QUEUE_ALERTS_SQL } from "./v2/0023-wave-o-invi
 import { KANON_RLS_FORCE_SQL } from "./v3/0024-rls-force";
 import { KANON_RLS_SPLIT_POLICIES_SQL } from "./v3/0025-rls-split-policies";
 import { KANON_Q5_INVITES_LEDGER_OPENING_SQL } from "./v3/0026-q5-invites-ledger-opening";
+import { KANON_RLS_FUNCTIONS_AND_SPLIT_SQL } from "./v3/0027-rls-functions-and-split";
 
 export interface KanonMigration {
   id: string;
@@ -189,6 +190,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only org invitation revocation, security sec_status, nullable catalyst draft fields & opening-cash ledger backfill",
     sql: KANON_Q5_INVITES_LEDGER_OPENING_SQL,
+  },
+  {
+    id: "0027_rls_functions_and_split",
+    description:
+      "Expand-only RLS helper functions and command-split policies across 21 tenant tables (Phase B, fail-open switch)",
+    sql: KANON_RLS_FUNCTIONS_AND_SPLIT_SQL,
   },
 ];
 

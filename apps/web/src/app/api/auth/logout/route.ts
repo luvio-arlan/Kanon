@@ -1,5 +1,6 @@
-import { getKanonDb, revokeSession } from "@kanon/core/db";
+import { revokeSession } from "@kanon/core/db";
 import { clearAuthCookies, getRawSessionToken } from "../../_lib/auth-session";
+import { withSystemDb } from "../../_lib/db-context";
 import { jsonOk } from "../../_lib/http";
 import { verifySameOrigin } from "../../_lib/request-guards";
 
@@ -11,8 +12,7 @@ export async function POST(request: Request) {
   if (originErr) return originErr;
   const token = await getRawSessionToken();
   if (token) {
-    const db = await getKanonDb();
-    await revokeSession(db, token);
+    await withSystemDb("auth_bootstrap", (tx) => revokeSession(tx, token));
   }
   const response = jsonOk({ ok: true }, startedAt);
   clearAuthCookies(response);

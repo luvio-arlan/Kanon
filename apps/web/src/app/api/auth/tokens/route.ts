@@ -4,7 +4,7 @@ import {
   DeleteOkResponseSchema,
   ListApiTokensResponseSchema,
 } from "@kanon/core";
-import { createApiToken, getKanonDb, listApiTokens, revokeApiToken } from "@kanon/core/db";
+import { createApiToken, listApiTokens, revokeApiToken } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
@@ -18,8 +18,7 @@ export async function GET() {
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 
-  const db = await getKanonDb();
-  const tokens = await listApiTokens(db, auth.user.id);
+  const tokens = await auth.withDb((tx) => listApiTokens(tx, auth.user.id));
   return jsonOk(ListApiTokensResponseSchema.parse({ tokens }), startedAt);
 }
 
@@ -40,18 +39,19 @@ export async function POST(request: Request) {
     return jsonError(formatZodError(parsed.error, "令牌参数不合法。"), 400, startedAt, "INVALID");
   }
 
-  const db = await getKanonDb();
-  const existing = await listApiTokens(db, auth.user.id);
-  if (existing.length >= 12) {
-    return jsonError(
-      "每个账号最多同时持有 12 个访问令牌，请先撤销旧令牌。",
-      400,
-      startedAt,
-      "LIMIT",
-    );
-  }
-  const created = await createApiToken(db, auth.user.id, parsed.data);
-  return jsonOk(CreateApiTokenResponseSchema.parse(created), startedAt, 201);
+  return auth.withDb(async (tx) => {
+    const existing = await listApiTokens(tx, auth.user.id);
+    if (existing.length >= 12) {
+      return jsonError(
+        "每个账号最多同时持有 12 个访问令牌，请先撤销旧令牌。",
+        400,
+        startedAt,
+        "LIMIT",
+      );
+    }
+    const created = await createApiToken(tx, auth.user.id, parsed.data);
+    return jsonOk(CreateApiTokenResponseSchema.parse(created), startedAt, 201);
+  });
 }
 
 export async function DELETE(request: Request) {
@@ -65,8 +65,7 @@ export async function DELETE(request: Request) {
   if (!id) {
     return jsonError("请指定要撤销的令牌 ID。", 400, startedAt, "INVALID");
   }
-  const db = await getKanonDb();
-  const deleted = await revokeApiToken(db, auth.user.id, id);
+  const deleted = await auth.withDb((tx) => revokeApiToken(tx, auth.user.id, id));
   if (!deleted) {
     return jsonError("未找到对应访问令牌。", 404, startedAt, "NOT_FOUND");
   }

@@ -4,12 +4,7 @@ import {
   ForecastCreateRequestSchema,
   ForecastResolveRequestSchema,
 } from "@kanon/core";
-import {
-  createImmutableForecast,
-  getKanonDb,
-  listForecasts,
-  resolveForecast,
-} from "@kanon/core/db";
+import { createImmutableForecast, listForecasts, resolveForecast } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
@@ -22,25 +17,26 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const forecasts = await listForecasts(db, auth.user.id, id);
-  const resolved = forecasts
-    .filter((f) => f.outcomeJson !== null)
-    .map((f) => ({
-      probabilities: f.probabilitiesJson,
-      outcomeIndex: f.outcomeJson?.outcomeIndex ?? -1,
-    }));
-  return jsonOk(
-    {
-      forecasts,
-      resolvedCount: resolved.length,
-      brierScore: calculateMultiClassBrierScore(resolved),
-      logLoss: calculateLogLoss(resolved),
-    },
-    startedAt,
-  );
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard.response;
+    const forecasts = await listForecasts(tx, auth.user.id, id);
+    const resolved = forecasts
+      .filter((f) => f.outcomeJson !== null)
+      .map((f) => ({
+        probabilities: f.probabilitiesJson,
+        outcomeIndex: f.outcomeJson?.outcomeIndex ?? -1,
+      }));
+    return jsonOk(
+      {
+        forecasts,
+        resolvedCount: resolved.length,
+        brierScore: calculateMultiClassBrierScore(resolved),
+        logLoss: calculateLogLoss(resolved),
+      },
+      startedAt,
+    );
+  });
 }
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -50,9 +46,6 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
-  if (!guard.ok) return guard.response;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = ForecastCreateRequestSchema.safeParse(body.data);
@@ -65,12 +58,16 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     );
   }
   try {
-    const forecast = await createImmutableForecast(db, {
-      userId: auth.user.id,
-      thesisId: id,
-      ...parsed.data,
+    return await auth.withDb(async (tx) => {
+      const guard = await requireThesisAccess(tx, id, auth.user.id, "write", startedAt);
+      if (!guard.ok) return guard.response;
+      const forecast = await createImmutableForecast(tx, {
+        userId: auth.user.id,
+        thesisId: id,
+        ...parsed.data,
+      });
+      return jsonOk({ forecast }, startedAt, 201);
     });
-    return jsonOk({ forecast }, startedAt, 201);
   } catch (err) {
     return jsonError(
       err instanceof Error ? err.message : "预测创建失败。",
@@ -88,9 +85,6 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
-  if (!guard.ok) return guard.response;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = ForecastResolveRequestSchema.safeParse(body.data);
@@ -103,15 +97,24 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     );
   }
   try {
-    const ok = await resolveForecast(db, {
-      userId: auth.user.id,
-      thesisId: id,
-      ...parsed.data,
+    return await auth.withDb(async (tx) => {
+      const guard = await requireThesisAccess(tx, id, auth.user.id, "write", startedAt);
+      if (!guard.ok) return guard.response;
+      const ok = await resolveForecast(tx, {
+        userId: auth.user.id,
+        thesisId: id,
+        ...parsed.data,
+      });
+      if (!ok) {
+        return jsonError(
+          "该预测不存在或已结算，不可重复结算。",
+          409,
+          startedAt,
+          "ALREADY_RESOLVED",
+        );
+      }
+      return jsonOk({ ok: true }, startedAt);
     });
-    if (!ok) {
-      return jsonError("该预测不存在或已结算，不可重复结算。", 409, startedAt, "ALREADY_RESOLVED");
-    }
-    return jsonOk({ ok: true }, startedAt);
   } catch (err) {
     return jsonError(
       err instanceof Error ? err.message : "结算失败。",

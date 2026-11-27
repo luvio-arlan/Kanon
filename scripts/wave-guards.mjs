@@ -307,6 +307,25 @@ function hasTenantColumnDef(colsText) {
   return false;
 }
 
+function unwrapPgTableCall(expr, sf) {
+  let cur = expr;
+  while (
+    ts.isCallExpression(cur) &&
+    ts.isPropertyAccessExpression(cur.expression) &&
+    cur.expression.name.text === "enableRLS"
+  ) {
+    cur = cur.expression.expression;
+  }
+  if (
+    ts.isCallExpression(cur) &&
+    cur.expression.getText(sf) === "pgTable" &&
+    cur.arguments.length >= 2
+  ) {
+    return cur;
+  }
+  return null;
+}
+
 function discoverTenantTables(root) {
   const dbDir = path.join(root, "packages/core/src/db");
   const tables = new Set();
@@ -316,16 +335,11 @@ function discoverTenantTables(root) {
     const full = path.join(dbDir, entry);
     const sf = parseTs(full, fs.readFileSync(full, "utf8"));
     const visit = (node) => {
-      if (
-        ts.isVariableDeclaration(node) &&
-        ts.isIdentifier(node.name) &&
-        node.initializer &&
-        ts.isCallExpression(node.initializer) &&
-        node.initializer.expression.getText(sf) === "pgTable" &&
-        node.initializer.arguments.length >= 2 &&
-        hasTenantColumnDef(node.initializer.arguments[1].getText(sf))
-      ) {
-        tables.add(node.name.text);
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+        const pgCall = unwrapPgTableCall(node.initializer, sf);
+        if (pgCall && hasTenantColumnDef(pgCall.arguments[1].getText(sf))) {
+          tables.add(node.name.text);
+        }
       }
       ts.forEachChild(node, visit);
     };
@@ -420,7 +434,64 @@ export function checkRepoAst(rel, content, tenantTables, errors) {
   visit(sf);
 }
 
-/** G7: Thesis-scoped API routes MUST call requireThesisAccess (and never assertThesisOwnership). */
+const G7_POST_CAPS = new Set(["write", "comment", "decide"]);
+const G7_SUB_DELETE_CAPS = new Set(["delete", "write"]);
+
+function allowedG7Capabilities(rel, method) {
+  if (method === "GET") return new Set(["read"]);
+  if (method === "POST" || method === "PATCH" || method === "PUT") return G7_POST_CAPS;
+  if (method === "DELETE") {
+    return rel === "apps/web/src/app/api/theses/[id]/route.ts"
+      ? new Set(["delete"])
+      : G7_SUB_DELETE_CAPS;
+  }
+  return new Set();
+}
+
+function collectRequireThesisAccessCalls(root) {
+  const calls = [];
+  const walk = (n) => {
+    if (
+      ts.isCallExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      n.expression.text === "requireThesisAccess"
+    ) {
+      calls.push(n);
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(root);
+  return calls;
+}
+
+function validateG7Handler(rel, method, handlerNode, sf, errors) {
+  const calls = collectRequireThesisAccessCalls(handlerNode.body);
+  const line = getLine(sf, handlerNode.getStart(sf));
+  if (calls.length === 0) {
+    errors.push(
+      `${rel}:${line} [G7-api-route-capability-guard] Exported ${method} handler must contain a real CallExpression to requireThesisAccess(..., capability).`,
+    );
+    return;
+  }
+  const allowed = allowedG7Capabilities(rel, method);
+  for (const call of calls) {
+    const capArg = call.arguments[3];
+    const callLine = getLine(sf, call.getStart(sf));
+    if (!capArg || (!ts.isStringLiteral(capArg) && !ts.isNoSubstitutionTemplateLiteral(capArg))) {
+      errors.push(
+        `${rel}:${callLine} [G7-api-route-capability-guard] requireThesisAccess 4th argument in ${method} handler MUST be a string literal capability.`,
+      );
+      continue;
+    }
+    if (!allowed.has(capArg.text)) {
+      errors.push(
+        `${rel}:${callLine} [G7-api-route-capability-guard] ${method} handler used invalid capability "${capArg.text}" (allowed: ${[...allowed].join(", ")}).`,
+      );
+    }
+  }
+}
+
+/** G7+: Thesis-scoped & AI API routes MUST call requireThesisAccess with a literal capability matching the HTTP method. */
 export function checkG7ApiCapabilityGuard(rel, content, errors) {
   const isScopedRoute =
     /^apps\/web\/src\/app\/api\/theses\/\[id\]\/.*route\.ts$/.test(rel) ||
@@ -439,12 +510,9 @@ export function checkG7ApiCapabilityGuard(rel, content, errors) {
       node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
       node.name &&
       HTTP_METHODS.has(node.name.text) &&
-      node.body &&
-      !/\brequireThesisAccess\s*\(/.test(node.body.getText(sf))
+      node.body
     ) {
-      errors.push(
-        `${rel}:${getLine(sf, node.getStart(sf))} [G7-api-route-capability-guard] Exported ${node.name.text} handler must call requireThesisAccess(..., capability).`,
-      );
+      validateG7Handler(rel, node.name.text, node, sf, errors);
     }
     ts.forEachChild(node, visit);
   };

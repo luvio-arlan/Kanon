@@ -6,7 +6,6 @@ import {
 } from "@kanon/ai";
 import {
   completeJob,
-  getKanonDb,
   getPriceBarCoverage,
   getSecurityByTicker,
   type KanonDb,
@@ -20,9 +19,14 @@ import {
   upsertPriceBars,
   upsertSecurity,
 } from "@kanon/core/db";
+import { withSystemDb } from "./db-context";
 import { generateRequestId, logStructuredApiEvent } from "./logger";
 import { acquireSecGlobalSlot } from "./request-guards";
-import { commitSecSnapshotAndWarehouseAtomic } from "./sec-warehouse-sync";
+import {
+  commitSecSnapshotAndWarehouseAtomic,
+  drainAlertFanoutJobsBestEffort,
+  prepareSecSnapshotCommit,
+} from "./sec-warehouse-sync";
 
 registerSecGlobalSlotAcquirer((signal) => acquireSecGlobalSlot(signal));
 
@@ -57,17 +61,18 @@ function hasBarBasisDrift(
 }
 
 async function detectBasisDriftOrNewEvents(
-  db: KanonDb,
   securityId: string,
   bundle: DailyPriceBarsBundle,
 ): Promise<boolean> {
   const firstDate = bundle.bars[0]?.barDate;
   const lastDate = bundle.bars[bundle.bars.length - 1]?.barDate;
   if (!firstDate || !lastDate) return false;
-  const [existingBars, existingActions] = await Promise.all([
-    listPriceBars(db, securityId, { fromDate: firstDate, toDate: lastDate }),
-    listCorporateActions(db, securityId),
-  ]);
+  const [existingBars, existingActions] = await withSystemDb("on_demand_sync", (tx) =>
+    Promise.all([
+      listPriceBars(tx, securityId, { fromDate: firstDate, toDate: lastDate }),
+      listCorporateActions(tx, securityId),
+    ]),
+  );
   const actionIds = new Set(existingActions.map((a) => a.id));
   const hasNewSplit = bundle.splits.some(
     (sp) => !actionIds.has(`split:${securityId}:${sp.exDate}`),
@@ -78,12 +83,12 @@ async function detectBasisDriftOrNewEvents(
 }
 
 async function persistBundleCorporateActions(
-  db: KanonDb,
+  tx: KanonDb,
   securityId: string,
   bundle: DailyPriceBarsBundle,
 ) {
   for (const sp of bundle.splits) {
-    await recordCorporateAction(db, {
+    await recordCorporateAction(tx, {
       id: `split:${securityId}:${sp.exDate}`,
       securityId,
       exDate: sp.exDate,
@@ -92,7 +97,7 @@ async function persistBundleCorporateActions(
     });
   }
   for (const div of bundle.dividends) {
-    await recordCorporateAction(db, {
+    await recordCorporateAction(tx, {
       id: `div:${securityId}:${div.exDate}`,
       securityId,
       exDate: div.exDate,
@@ -102,25 +107,7 @@ async function persistBundleCorporateActions(
   }
 }
 
-async function saveSyncedBarsAndAnchor(
-  db: KanonDb,
-  securityId: string,
-  ticker: string,
-  bars: DailyPriceBarsBundle["bars"],
-  fullReplace: boolean,
-) {
-  if (bars.length === 0) return;
-  const mapped = bars.map((b) => ({ ...b, securityId }));
-  if (fullReplace) await replacePriceBarsForSecurity(db, securityId, mapped);
-  else await upsertPriceBars(db, mapped);
-  const latestBar = bars[bars.length - 1];
-  if (latestBar && Number.isFinite(latestBar.close) && latestBar.close > 0) {
-    await updateThesisPriceByTicker(db, ticker, latestBar.close);
-  }
-}
-
 export async function runSyncDailyBarsForTicker(
-  db: KanonDb,
   rawTicker: string,
   options?: {
     forceFullRebase?: boolean;
@@ -131,23 +118,35 @@ export async function runSyncDailyBarsForTicker(
   const ticker = rawTicker.trim().toUpperCase();
   if (!ticker) throw new Error("Missing ticker in sync_daily_bars payload");
   const fetchBars = options?.fetchBars ?? fetchDailyPriceBarsWithEvents;
-  const existing = await getSecurityByTicker(db, ticker);
-  const security = existing ?? (await upsertSecurity(db, { ticker, name: ticker }));
-  const coverage = await getPriceBarCoverage(db, security.id);
+  const { security, coverage } = await withSystemDb("on_demand_sync", async (tx) => {
+    const existing = await getSecurityByTicker(tx, ticker);
+    const sec = existing ?? (await upsertSecurity(tx, { ticker, name: ticker }));
+    const cov = await getPriceBarCoverage(tx, sec.id);
+    return { security: sec, coverage: cov };
+  });
   const initialRange = options?.forceFullRebase || coverage.count < 240 ? "5y" : "1mo";
   let bundle = await fetchBars({ ticker, range: initialRange, signal: options?.signal });
   let fullReplace = options?.forceFullRebase === true;
-  if (initialRange === "1mo" && (await detectBasisDriftOrNewEvents(db, security.id, bundle))) {
+  if (initialRange === "1mo" && (await detectBasisDriftOrNewEvents(security.id, bundle))) {
     bundle = await fetchBars({ ticker, range: "5y", signal: options?.signal });
     fullReplace = true;
   }
-  await saveSyncedBarsAndAnchor(db, security.id, ticker, bundle.bars, fullReplace);
-  await persistBundleCorporateActions(db, security.id, bundle);
+  await withSystemDb("on_demand_sync", async (tx) => {
+    if (bundle.bars.length > 0) {
+      const mapped = bundle.bars.map((b) => ({ ...b, securityId: security.id }));
+      if (fullReplace) await replacePriceBarsForSecurity(tx, security.id, mapped);
+      else await upsertPriceBars(tx, mapped);
+      const latestBar = bundle.bars[bundle.bars.length - 1];
+      if (latestBar && Number.isFinite(latestBar.close) && latestBar.close > 0) {
+        await updateThesisPriceByTicker(tx, ticker, latestBar.close);
+      }
+    }
+    await persistBundleCorporateActions(tx, security.id, bundle);
+  });
   return bundle.bars.length;
 }
 
 export async function runSyncSecForTicker(
-  db: KanonDb,
   rawTicker: string,
   options?: {
     signal?: AbortSignal;
@@ -160,12 +159,20 @@ export async function runSyncSecForTicker(
   const fetched = await fetchSec(ticker, undefined, { signal: options?.signal });
   if (!fetched.ok) {
     if (fetched.errorKind === "not_sec_registrant") {
-      await markSecuritySecStatus(db, ticker, "not_registrant");
+      await withSystemDb("on_demand_sync", (tx) =>
+        markSecuritySecStatus(tx, ticker, "not_registrant"),
+      );
       return { status: "skipped", reason: fetched.error };
     }
     throw new Error(fetched.error);
   }
-  await commitSecSnapshotAndWarehouseAtomic(db, fetched.data, fetched.pitFacts);
+  const prepared = prepareSecSnapshotCommit(fetched.data);
+  await withSystemDb("on_demand_sync", (tx) =>
+    commitSecSnapshotAndWarehouseAtomic(tx, prepared, fetched.pitFacts),
+  );
+  if (prepared.fanout8kJobs.length > 0) {
+    await drainAlertFanoutJobsBestEffort(prepared.fanout8kJobs.length).catch(() => undefined);
+  }
   return { status: "synced" };
 }
 
@@ -173,10 +180,9 @@ export async function runSyncSecForTicker(
 export async function runSingleTickerSyncBestEffort(
   ticker: string,
   day: string,
-  options?: { timeoutMs?: number; db?: KanonDb },
+  options?: { timeoutMs?: number },
 ): Promise<void> {
   const startedAt = performance.now();
-  const db = options?.db ?? (await getKanonDb());
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(new Error("on-demand sync timeout")),
@@ -184,18 +190,22 @@ export async function runSingleTickerSyncBestEffort(
   );
   try {
     try {
-      await runSyncDailyBarsForTicker(db, ticker, { signal: controller.signal });
-      await completeJob(db, `sync_daily_bars:${ticker}:${day}`);
+      await runSyncDailyBarsForTicker(ticker, { signal: controller.signal });
+      await withSystemDb("on_demand_sync", (tx) =>
+        completeJob(tx, `sync_daily_bars:${ticker}:${day}`),
+      );
     } catch (err) {
       logSyncFailure(`/api/theses/sync/${ticker}`, "ON_DEMAND_SYNC_FAILED", err, startedAt);
     }
     if (controller.signal.aborted) return;
     try {
-      const outcome = await runSyncSecForTicker(db, ticker, { signal: controller.signal });
+      const outcome = await runSyncSecForTicker(ticker, { signal: controller.signal });
       if (outcome.status === "skipped") {
-        await skipJob(db, `sync_sec:${ticker}:${day}`, outcome.reason);
+        await withSystemDb("on_demand_sync", (tx) =>
+          skipJob(tx, `sync_sec:${ticker}:${day}`, outcome.reason),
+        );
       } else {
-        await completeJob(db, `sync_sec:${ticker}:${day}`);
+        await withSystemDb("on_demand_sync", (tx) => completeJob(tx, `sync_sec:${ticker}:${day}`));
       }
     } catch (err) {
       logSyncFailure(`/api/theses/sync/${ticker}`, "ON_DEMAND_SYNC_FAILED", err, startedAt);

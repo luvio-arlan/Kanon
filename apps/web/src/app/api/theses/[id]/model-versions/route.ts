@@ -1,4 +1,4 @@
-import { getKanonDb, listModelVersions, saveModelVersion } from "@kanon/core/db";
+import { listModelVersions, saveModelVersion } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
@@ -31,11 +31,12 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const versions = await listModelVersions(db, id);
-  return jsonOk({ versions }, startedAt);
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard.response;
+    const versions = await listModelVersions(tx, id);
+    return jsonOk({ versions }, startedAt);
+  });
 }
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -45,17 +46,18 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
-  if (!guard.ok) return guard.response;
   const parsed = parseSaveVersionBody(await request.json().catch(() => null));
   if (!parsed) {
     return jsonError("请提供有效的模型输入与输出快照。", 400, startedAt, "INVALID_MODEL_VERSION");
   }
-  const version = await saveModelVersion(db, {
-    thesisId: id,
-    userId: auth.user.id,
-    ...parsed,
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "write", startedAt);
+    if (!guard.ok) return guard.response;
+    const version = await saveModelVersion(tx, {
+      thesisId: id,
+      userId: auth.user.id,
+      ...parsed,
+    });
+    return jsonOk({ version }, startedAt, 201);
   });
-  return jsonOk({ version }, startedAt, 201);
 }

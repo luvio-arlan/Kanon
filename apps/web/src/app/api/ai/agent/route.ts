@@ -5,12 +5,12 @@ import {
   fetchMarketQuote,
   streamResearchAgent,
 } from "@kanon/ai";
-import { AgentRunsListResponseSchema } from "@kanon/core";
+import { AgentRunsListResponseSchema, type ThesisDetail } from "@kanon/core";
 import {
-  getKanonDb,
   getSecSnapshot,
   getSecSnapshotForUser,
   getThesisById,
+  type KanonDb,
   listAgentRuns,
   listCachedSecFilingDocsByTicker,
   listQuarterlyReviews,
@@ -30,45 +30,48 @@ export const dynamic = "force-dynamic";
 const AGENT_RATE_POLICY = { bucket: "ai_agent", maxRequests: 15, windowMs: 60 * 1000 };
 const AGENT_STREAM_TIMEOUT_MS = 55_000;
 
-async function loadAgentEvidence(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
-  thesis: NonNullable<Awaited<ReturnType<typeof getThesisById>>>,
-  userId: string,
-  request: Request,
-) {
-  const marketCreds = parseMarketHeaders(request);
-  const [secSnapshot, reviews, revisions, cachedFilings, researchNotes, quoteRes] =
-    await Promise.all([
-      getSecSnapshotForUser(db, thesis.ticker, userId),
-      listQuarterlyReviews(db, thesis.id),
-      listThesisRevisions(db, thesis.id),
-      listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
-      listResearchNotes(db, thesis.id, 12),
-      fetchMarketQuote(thesis.ticker, { creds: marketCreds }),
-    ]);
+type WithDbFn = <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
+
+interface AgentStreamParams {
+  withDb: WithDbFn;
+  thesis: ThesisDetail;
+  userId: string;
+  request: Request;
+  sourceText?: string;
+  byok: ByokCredentials | undefined;
+}
+
+async function loadAgentEvidence(params: AgentStreamParams) {
+  const marketCreds = parseMarketHeaders(params.request);
+  const [dbBundle, quoteRes] = await Promise.all([
+    params.withDb(async (tx) => {
+      const [secSnapshot, reviews, revisions, cachedFilings, researchNotes] = await Promise.all([
+        getSecSnapshotForUser(tx, params.thesis.ticker, params.userId),
+        listQuarterlyReviews(tx, params.thesis.id),
+        listThesisRevisions(tx, params.thesis.id),
+        listCachedSecFilingDocsByTicker(tx, params.thesis.ticker, 3),
+        listResearchNotes(tx, params.thesis.id, 12),
+      ]);
+      return { secSnapshot, reviews, revisions, cachedFilings, researchNotes };
+    }),
+    fetchMarketQuote(params.thesis.ticker, { creds: marketCreds }),
+  ]);
   const marketQuote = quoteRes.ok ? quoteRes.quote : null;
   const benchmarks = await buildMarketBenchmarks({
-    ticker: thesis.ticker,
-    currentPrice: marketQuote?.effectivePrice ?? thesis.currentPrice,
-    secSnapshot,
+    ticker: params.thesis.ticker,
+    currentPrice: marketQuote?.effectivePrice ?? params.thesis.currentPrice,
+    secSnapshot: dbBundle.secSnapshot,
     loadCachedPeers: async (peerTickers) => {
-      const snaps = await Promise.all(peerTickers.map((pt) => getSecSnapshot(db, pt)));
+      const snaps = await params.withDb((tx) =>
+        Promise.all(peerTickers.map((pt) => getSecSnapshot(tx, pt))),
+      );
       const map = new Map<string, NonNullable<(typeof snaps)[number]>>();
       for (const s of snaps) if (s) map.set(s.ticker.toUpperCase(), s);
       return map;
     },
     creds: marketCreds,
   }).catch(() => null);
-  return { secSnapshot, reviews, revisions, cachedFilings, researchNotes, marketQuote, benchmarks };
-}
-
-interface AgentStreamParams {
-  db: Awaited<ReturnType<typeof getKanonDb>>;
-  thesis: NonNullable<Awaited<ReturnType<typeof getThesisById>>>;
-  userId: string;
-  request: Request;
-  sourceText?: string;
-  byok: ByokCredentials | undefined;
+  return { ...dbBundle, marketQuote, benchmarks };
 }
 
 async function pumpAgentEvents(
@@ -77,7 +80,7 @@ async function pumpAgentEvents(
   enqueue: (chunk: string) => void,
 ) {
   enqueue(": connected\n\n");
-  const evidence = await loadAgentEvidence(params.db, params.thesis, params.userId, params.request);
+  const evidence = await loadAgentEvidence(params);
   if (signal.aborted) return;
   for await (const event of streamResearchAgent({
     thesis: params.thesis,
@@ -88,12 +91,14 @@ async function pumpAgentEvents(
   })) {
     if (signal.aborted) break;
     if (event.type === "briefing_ready") {
-      const saved = await saveAgentRun(params.db, {
-        thesisId: params.thesis.id,
-        engine: event.briefing.engine,
-        fallbackReason: event.briefing.fallbackReason ?? null,
-        briefing: event.briefing,
-      });
+      const saved = await params.withDb((tx) =>
+        saveAgentRun(tx, {
+          thesisId: params.thesis.id,
+          engine: event.briefing.engine,
+          fallbackReason: event.briefing.fallbackReason ?? null,
+          briefing: event.briefing,
+        }),
+      );
       enqueue(`data: ${JSON.stringify({ ...event, runId: saved.id })}\n\n`);
       continue;
     }
@@ -167,12 +172,21 @@ export async function GET(request: Request) {
   if (!thesisId) {
     return jsonError("请提供研究标的 ID。", 400, startedAt, "INVALID");
   }
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, thesisId, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const runs = await listAgentRuns(db, thesisId, 5);
-  return jsonOk(AgentRunsListResponseSchema.parse({ runs }), startedAt);
+  const outcome = await auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, thesisId, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard;
+    const runs = await listAgentRuns(tx, thesisId, 5);
+    return { ok: true as const, runs };
+  });
+  if (!outcome.ok) return outcome.response;
+  return jsonOk(AgentRunsListResponseSchema.parse({ runs: outcome.runs }), startedAt);
 }
+
+const SSE_HEADERS = {
+  "Content-Type": "text/event-stream; charset=utf-8",
+  "Cache-Control": "no-cache, no-transform",
+  Connection: "keep-alive",
+} as const;
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
@@ -182,40 +196,42 @@ export async function POST(request: Request) {
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = AgentRequestSchema.safeParse(body.data);
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "Agent 参数不合法。"), 400, startedAt, "INVALID");
   }
-
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(
-    db,
-    parsed.data.thesisId,
-    auth.user.id,
-    "write",
-    startedAt,
-  );
-  if (!guard.ok) return guard.response;
-  const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
-  if (!thesis) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
-
-  const byok = await resolveEffectiveByok(db, auth.user.id, request);
+  const init = await auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(
+      tx,
+      parsed.data.thesisId,
+      auth.user.id,
+      "write",
+      startedAt,
+    );
+    if (!guard.ok) return { ok: false as const, response: guard.response };
+    const thesis = await getThesisById(tx, parsed.data.thesisId, auth.user.id);
+    if (!thesis) {
+      return {
+        ok: false as const,
+        response: jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND"),
+      };
+    }
+    return {
+      ok: true as const,
+      thesis,
+      byok: await resolveEffectiveByok(tx, auth.user.id, request),
+    };
+  });
+  if (!init.ok) return init.response;
   const stream = createAgentSseStream({
-    db,
-    thesis,
+    withDb: auth.withDb,
+    thesis: init.thesis,
     userId: auth.user.id,
     request,
     sourceText: parsed.data.sourceText,
-    byok,
+    byok: init.byok,
   });
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
+  return new Response(stream, { headers: SSE_HEADERS });
 }

@@ -1,6 +1,6 @@
 import { fetchMarketQuote, fetchMarketSparkline, fetchSecEdgarSnapshot } from "@kanon/ai";
 import { MarketBootstrapResponseSchema, type MarketQuoteSnapshot } from "@kanon/core";
-import { getKanonDb, getSecSnapshotForUser, upsertSecSnapshot } from "@kanon/core/db";
+import { getSecSnapshotForUser, type KanonDb, upsertSecSnapshot } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
@@ -41,12 +41,12 @@ function buildBootstrapNotice(
 }
 
 async function resolveBootstrapSec(
-  db: Awaited<ReturnType<typeof getKanonDb>>,
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>,
   secLive: Awaited<ReturnType<typeof fetchSecEdgarSnapshot>>,
   secCached: Awaited<ReturnType<typeof getSecSnapshotForUser>>,
 ) {
   if (secCached?.source === "manual-verified") return secCached;
-  if (secLive.ok) return upsertSecSnapshot(db, secLive.data);
+  if (secLive.ok) return withDb((tx) => upsertSecSnapshot(tx, secLive.data));
   return secCached;
 }
 
@@ -61,14 +61,13 @@ export async function GET(request: Request) {
     return jsonError("请输入有效的美股代码（如 NVDA / AVGO）。", 400, startedAt, "INVALID");
   }
 
-  const db = await getKanonDb();
   const [secLive, quoteRes, secCached, sparkline] = await Promise.all([
     fetchSecEdgarSnapshot(rawTicker),
     fetchMarketQuote(rawTicker, { creds: parseMarketHeaders(request) }),
-    getSecSnapshotForUser(db, rawTicker, auth.user.id),
+    auth.withDb((tx) => getSecSnapshotForUser(tx, rawTicker, auth.user.id)),
     fetchMarketSparkline(rawTicker),
   ]);
-  const snapshot = await resolveBootstrapSec(db, secLive, secCached);
+  const snapshot = await resolveBootstrapSec(auth.withDb, secLive, secCached);
   const quote = quoteRes.ok ? quoteRes.quote : null;
   const latestEps = latestAnnualEps(snapshot?.annuals ?? []);
   const years = snapshot?.annuals.length ?? 0;

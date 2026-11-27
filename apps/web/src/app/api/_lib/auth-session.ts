@@ -1,14 +1,9 @@
 import type { ApiTokenScope, PublicUser } from "@kanon/core";
-import {
-  authenticateApiToken,
-  getKanonDb,
-  getSessionUser,
-  type KanonDb,
-  withTenantContext,
-} from "@kanon/core/db";
+import { authenticateApiToken, getSessionUser, type KanonDb } from "@kanon/core/db";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 import { cache } from "react";
+import { withSystemDb, withUserDb } from "./db-context";
 import { jsonError } from "./http";
 
 export const KANON_SESSION_COOKIE = "kanon_session";
@@ -53,8 +48,7 @@ export const getServerAuthContext = cache(
       return { user: null };
     }
 
-    const db = await getKanonDb();
-    const user = await getSessionUser(db, token);
+    const user = await withSystemDb("auth_bootstrap", (tx) => getSessionUser(tx, token));
     if (user) {
       return { user };
     }
@@ -82,10 +76,7 @@ export async function requireWorkspaceContext(startedAt: number): Promise<
   return {
     ok: true,
     user,
-    withDb: async <T>(fn: (tx: KanonDb) => Promise<T>) => {
-      const db = await getKanonDb();
-      return withTenantContext(db, user.id, fn);
-    },
+    withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => withUserDb(user.id, fn),
   };
 }
 
@@ -93,23 +84,42 @@ export async function requireMcpAuthContext(
   request: Request,
   startedAt: number,
 ): Promise<
-  | { ok: true; user: PublicUser; authMethod: "pat" | "session"; scope: ApiTokenScope }
+  | {
+      ok: true;
+      user: PublicUser;
+      authMethod: "pat" | "session";
+      scope: ApiTokenScope;
+      withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
+    }
   | { ok: false; response: NextResponse }
 > {
   const authHeader = request.headers.get("authorization")?.trim();
   if (authHeader?.toLowerCase().startsWith("bearer ")) {
     const rawToken = authHeader.slice(7).trim();
-    const db = await getKanonDb();
-    const matched = await authenticateApiToken(db, rawToken);
+    const matched = await withSystemDb("auth_bootstrap", (tx) =>
+      authenticateApiToken(tx, rawToken),
+    );
     if (!matched) {
       return {
         ok: false,
         response: jsonError("个人访问令牌无效或已过期。", 401, startedAt, "INVALID_TOKEN"),
       };
     }
-    return { ok: true, user: matched.user, authMethod: "pat", scope: matched.scope };
+    return {
+      ok: true,
+      user: matched.user,
+      authMethod: "pat",
+      scope: matched.scope,
+      withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => withUserDb(matched.user.id, fn),
+    };
   }
   const sessionAuth = await requireWorkspaceContext(startedAt);
   if (!sessionAuth.ok) return sessionAuth;
-  return { ok: true, user: sessionAuth.user, authMethod: "session", scope: "read_write" };
+  return {
+    ok: true,
+    user: sessionAuth.user,
+    authMethod: "session",
+    scope: "read_write",
+    withDb: sessionAuth.withDb,
+  };
 }

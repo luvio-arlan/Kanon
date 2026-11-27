@@ -4,21 +4,24 @@ import {
   addRestrictedTicker,
   appendAuditLog,
   assignThesisToOrganization,
-  createInboxItem,
   createOrganization,
   createOrgInvitation,
   findUserByPhoneE164,
-  type getKanonDb,
   getOrgMemberRole,
   hasOrgCapability,
+  type KanonDb,
   OrgPolicyError,
   removeOrgMember,
   revokeOrgInvitation,
   updateOrgMemberRole,
 } from "@kanon/core/db";
+import type { NextResponse } from "next/server";
 import { jsonError, jsonOk } from "../_lib/http";
 
-type DbInstance = Awaited<ReturnType<typeof getKanonDb>>;
+export interface OrgMutationResult {
+  response: NextResponse;
+  inviteNotice?: { userId: string; role: string; invitationId: string };
+}
 
 const UNIFORM_INVITE_RESPONSE = {
   accepted: true,
@@ -26,7 +29,7 @@ const UNIFORM_INVITE_RESPONSE = {
 } as const;
 
 async function handleInviteMember(
-  db: DbInstance,
+  db: KanonDb,
   userId: string,
   data: {
     orgId: string;
@@ -34,13 +37,17 @@ async function handleInviteMember(
     role: "owner" | "pm" | "analyst" | "viewer" | "compliance";
   },
   startedAt: number,
-) {
+): Promise<OrgMutationResult> {
   const role = await getOrgMemberRole(db, data.orgId, userId);
   if (!hasOrgCapability(role, "org.manage_members")) {
-    return jsonError("权限不足：仅组织管理员可邀请成员。", 403, startedAt, "FORBIDDEN");
+    return {
+      response: jsonError("权限不足：仅组织管理员可邀请成员。", 403, startedAt, "FORBIDDEN"),
+    };
   }
   const phone = normalizeChinaPhone(data.phone);
-  if (!phone) return jsonError("请输入有效的 +86 手机号。", 400, startedAt, "INVALID_PHONE");
+  if (!phone) {
+    return { response: jsonError("请输入有效的 +86 手机号。", 400, startedAt, "INVALID_PHONE") };
+  }
   const target = await findUserByPhoneE164(db, phone);
   if (target) {
     const inv = await createOrgInvitation(db, {
@@ -49,29 +56,27 @@ async function handleInviteMember(
       role: data.role,
       invitedBy: userId,
     });
-    await createInboxItem(db, {
-      userId: target.id,
-      kind: "org_invite",
-      severity: "info",
-      title: "收到买方投研团队邀请",
-      body: `邀请角色：${data.role}。确认接受后才会加入该团队并共享研究与合规规则。`,
-      sourceUrl: `org_invite:${inv.id}`,
-    }).catch(() => undefined);
+    return {
+      response: jsonOk(UNIFORM_INVITE_RESPONSE, startedAt, 202),
+      inviteNotice: { userId: target.id, role: data.role, invitationId: inv.id },
+    };
   }
-  return jsonOk(UNIFORM_INVITE_RESPONSE, startedAt, 202);
+  return { response: jsonOk(UNIFORM_INVITE_RESPONSE, startedAt, 202) };
 }
 
+type MemberRoleMutation =
+  | {
+      op: "update_role";
+      orgId: string;
+      userId: string;
+      role: "owner" | "pm" | "analyst" | "viewer" | "compliance";
+    }
+  | { op: "remove_member"; orgId: string; userId: string };
+
 async function executeMemberRoleMutation(
-  db: DbInstance,
+  db: KanonDb,
   userId: string,
-  data:
-    | {
-        op: "update_role";
-        orgId: string;
-        userId: string;
-        role: "owner" | "pm" | "analyst" | "viewer" | "compliance";
-      }
-    | { op: "remove_member"; orgId: string; userId: string },
+  data: MemberRoleMutation,
   startedAt: number,
 ) {
   if (data.op === "remove_member") {
@@ -109,16 +114,9 @@ async function executeMemberRoleMutation(
 }
 
 async function handleMemberRoleChange(
-  db: DbInstance,
+  db: KanonDb,
   userId: string,
-  data:
-    | {
-        op: "update_role";
-        orgId: string;
-        userId: string;
-        role: "owner" | "pm" | "analyst" | "viewer" | "compliance";
-      }
-    | { op: "remove_member"; orgId: string; userId: string },
+  data: MemberRoleMutation,
   startedAt: number,
 ) {
   const role = await getOrgMemberRole(db, data.orgId, userId);
@@ -136,7 +134,7 @@ async function handleMemberRoleChange(
 }
 
 async function handleAssignThesis(
-  db: DbInstance,
+  db: KanonDb,
   userId: string,
   data: { orgId: string | null; thesisId: string },
   startedAt: number,
@@ -159,7 +157,7 @@ async function handleAssignThesis(
 }
 
 async function handleRestrictTicker(
-  db: DbInstance,
+  db: KanonDb,
   userId: string,
   data: { orgId: string; ticker: string; reason: string },
   startedAt: number,
@@ -178,7 +176,7 @@ async function handleRestrictTicker(
 }
 
 async function handleAcceptInvite(
-  db: DbInstance,
+  db: KanonDb,
   userId: string,
   data: { invitationId?: string; token?: string },
   startedAt: number,
@@ -199,7 +197,7 @@ async function handleAcceptInvite(
 }
 
 async function handleRevokeInvite(
-  db: DbInstance,
+  db: KanonDb,
   userId: string,
   data: { orgId: string; invitationId: string },
   startedAt: number,
@@ -218,32 +216,32 @@ async function handleRevokeInvite(
 }
 
 export async function handleOrgMutation(
-  db: DbInstance,
+  db: KanonDb,
   userId: string,
   data: ReturnType<typeof OrgPostRequestSchema.parse>,
   startedAt: number,
-) {
+): Promise<OrgMutationResult> {
   if (!("op" in data)) {
     const organization = await createOrganization(db, { name: data.name, createdBy: userId });
-    return jsonOk({ organization }, startedAt, 201);
+    return { response: jsonOk({ organization }, startedAt, 201) };
   }
   switch (data.op) {
     case "restrict_ticker":
-      return handleRestrictTicker(db, userId, data, startedAt);
+      return { response: await handleRestrictTicker(db, userId, data, startedAt) };
     case "invite":
       return handleInviteMember(db, userId, data, startedAt);
     case "accept_invite":
-      return handleAcceptInvite(db, userId, data, startedAt);
+      return { response: await handleAcceptInvite(db, userId, data, startedAt) };
     case "revoke_invite":
-      return handleRevokeInvite(db, userId, data, startedAt);
+      return { response: await handleRevokeInvite(db, userId, data, startedAt) };
     case "update_role":
     case "remove_member":
-      return handleMemberRoleChange(db, userId, data, startedAt);
+      return { response: await handleMemberRoleChange(db, userId, data, startedAt) };
     case "assign_thesis":
-      return handleAssignThesis(db, userId, data, startedAt);
+      return { response: await handleAssignThesis(db, userId, data, startedAt) };
     default: {
       const organization = await createOrganization(db, { name: data.name, createdBy: userId });
-      return jsonOk({ organization }, startedAt, 201);
+      return { response: jsonOk({ organization }, startedAt, 201) };
     }
   }
 }

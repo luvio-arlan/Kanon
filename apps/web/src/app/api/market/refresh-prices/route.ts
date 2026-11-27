@@ -8,7 +8,7 @@ import {
 import {
   batchUpdatePriceAnchors,
   buildMarketQuoteCacheKey,
-  getKanonDb,
+  type KanonDb,
   listTheses,
   upsertCachedMarketQuotes,
 } from "@kanon/core/db";
@@ -49,7 +49,7 @@ async function parseMode(request: Request): Promise<"regular" | "extended"> {
 }
 
 async function applyMarketQuotes(params: {
-  db: Awaited<ReturnType<typeof getKanonDb>>;
+  db: KanonDb;
   userId: string;
   active: readonly ThesisDetail[];
   rawQuotes: Map<
@@ -82,6 +82,26 @@ async function applyMarketQuotes(params: {
   return { updatedCount, skippedTickers, updatedMap, quotesRecord };
 }
 
+async function persistRefreshedQuotes(
+  tx: KanonDb,
+  params: Parameters<typeof applyMarketQuotes>[0] & {
+    creds: ReturnType<typeof parseMarketHeaders>;
+  },
+) {
+  const applied = await applyMarketQuotes(params);
+  if (!params.creds?.apiKey) {
+    const providerPref = params.creds?.provider ?? "auto";
+    await upsertCachedMarketQuotes(
+      tx,
+      Object.values(applied.quotesRecord).map((quote) => ({
+        cacheKey: buildMarketQuoteCacheKey(quote.ticker, providerPref),
+        quote,
+      })),
+    );
+  }
+  return applied;
+}
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
@@ -93,32 +113,24 @@ export async function POST(request: Request) {
 
   const mode = await parseMode(request);
   const creds = parseMarketHeaders(request);
-  const db = await getKanonDb();
-  const all = await listTheses(db, auth.user.id);
+  const all = await auth.withDb((tx) => listTheses(tx, auth.user.id));
   const active = all.filter((item) => item.status === "active");
   const rawQuotes = await fetchMarketQuotes(
     active.map((item) => item.ticker),
     { creds, bypassCache: true },
   );
-  const { updatedCount, skippedTickers, updatedMap, quotesRecord } = await applyMarketQuotes({
-    db,
-    userId: auth.user.id,
-    active,
-    rawQuotes,
-    mode,
-    label: formatAnchorLabel(new Date(), mode),
-  });
-  if (!creds?.apiKey) {
-    const providerPref = creds?.provider ?? "auto";
-    await upsertCachedMarketQuotes(
-      db,
-      Object.values(quotesRecord).map((quote) => ({
-        cacheKey: buildMarketQuoteCacheKey(quote.ticker, providerPref),
-        quote,
-      })),
-    );
-  }
-
+  const label = formatAnchorLabel(new Date(), mode);
+  const { updatedCount, skippedTickers, updatedMap, quotesRecord } = await auth.withDb((tx) =>
+    persistRefreshedQuotes(tx, {
+      db: tx,
+      userId: auth.user.id,
+      active,
+      rawQuotes,
+      mode,
+      label,
+      creds,
+    }),
+  );
   const updatedTheses = all.map((item) => updatedMap.get(item.id) ?? item);
   return jsonOk(
     RefreshPricesResponseSchema.parse({

@@ -9,6 +9,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { kanonUserOwnedPolicies } from "./repositories/security/rls-policies";
 
 export type AlertRuleKind =
   | "price_hurdle"
@@ -64,8 +65,9 @@ export const inboxItemsTable = pgTable(
     uniqueIndex("idx_inbox_items_dedupe")
       .on(table.userId, table.kind, table.sourceUrl)
       .where(sql`${table.sourceUrl} IS NOT NULL`),
+    ...kanonUserOwnedPolicies("inbox_items"),
   ],
-);
+).enableRLS();
 
 export const forecastsTable = pgTable(
   "forecasts",
@@ -83,8 +85,11 @@ export const forecastsTable = pgTable(
     lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
     lockedHash: text("locked_hash").notNull(),
   },
-  (table) => [index("idx_forecasts_user_thesis").on(table.userId, table.thesisId, table.resolveBy)],
-);
+  (table) => [
+    index("idx_forecasts_user_thesis").on(table.userId, table.thesisId, table.resolveBy),
+    ...kanonUserOwnedPolicies("forecasts"),
+  ],
+).enableRLS();
 
 export const calendarTokensTable = pgTable(
   "calendar_tokens",
@@ -102,17 +107,21 @@ export const calendarTokensTable = pgTable(
   ],
 );
 
-export const portfolioAccountsTable = pgTable("portfolio_accounts", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  orgId: text("org_id"),
-  name: text("name").notNull(),
-  baseCurrency: text("base_currency").notNull().default("USD"),
-  cashBalance: doublePrecision("cash_balance").notNull().default(0),
-  ledgerInconsistent: boolean("ledger_inconsistent").notNull().default(false),
-  noLeverageAcknowledgedAt: timestamp("no_leverage_acknowledged_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const portfolioAccountsTable = pgTable(
+  "portfolio_accounts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    orgId: text("org_id"),
+    name: text("name").notNull(),
+    baseCurrency: text("base_currency").notNull().default("USD"),
+    cashBalance: doublePrecision("cash_balance").notNull().default(0),
+    ledgerInconsistent: boolean("ledger_inconsistent").notNull().default(false),
+    noLeverageAcknowledgedAt: timestamp("no_leverage_acknowledged_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => kanonUserOwnedPolicies("portfolio_accounts"),
+).enableRLS();
 
 export const transactionsTable = pgTable(
   "transactions",
@@ -138,8 +147,9 @@ export const transactionsTable = pgTable(
     uniqueIndex("idx_transactions_account_external_ref")
       .on(table.accountId, table.externalRef)
       .where(sql`${table.externalRef} IS NOT NULL`),
+    ...kanonUserOwnedPolicies("transactions"),
   ],
-);
+).enableRLS();
 
 export const lotsTable = pgTable(
   "lots",
@@ -153,5 +163,8 @@ export const lotsTable = pgTable(
     costBasisPerShare: doublePrecision("cost_basis_per_share").notNull(),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
-  (table) => [index("idx_lots_account_ticker").on(table.accountId, table.ticker, table.openDate)],
-);
+  (table) => [
+    index("idx_lots_account_ticker").on(table.accountId, table.ticker, table.openDate),
+    ...kanonUserOwnedPolicies("lots"),
+  ],
+).enableRLS();

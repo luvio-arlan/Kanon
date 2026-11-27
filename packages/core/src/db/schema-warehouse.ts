@@ -12,6 +12,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { FinancialFactDuration } from "../contracts/financial-concepts";
+import { kanonThesisChildPolicies } from "./repositories/security/rls-policies";
 
 export type CorporateActionKind = "split" | "dividend" | "spinoff";
 export type JobStatus = "pending" | "running" | "done" | "failed" | "skipped";
@@ -176,14 +177,18 @@ export const filingChunksTable = pgTable("filing_chunks", {
   embeddingJson: jsonb("embedding_json").$type<number[] | null>(),
 });
 
-export const thesisPeersTable = pgTable("thesis_peers", {
-  id: text("id").primaryKey(),
-  thesisId: text("thesis_id").notNull(),
-  ticker: text("ticker").notNull(),
-  role: text("role").$type<ThesisPeerRole>().notNull().default("peer"),
-  addedBy: text("added_by").notNull().default("user"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const thesisPeersTable = pgTable(
+  "thesis_peers",
+  {
+    id: text("id").primaryKey(),
+    thesisId: text("thesis_id").notNull(),
+    ticker: text("ticker").notNull(),
+    role: text("role").$type<ThesisPeerRole>().notNull().default("peer"),
+    addedBy: text("added_by").notNull().default("user"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => kanonThesisChildPolicies("thesis_peers"),
+).enableRLS();
 
 export const estimatesSnapshotsTable = pgTable("estimates_snapshots", {
   id: text("id").primaryKey(),
@@ -215,5 +220,8 @@ export const modelVersionsTable = pgTable(
     notes: text("notes").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("idx_model_versions_thesis_num").on(table.thesisId, table.versionNum)],
-);
+  (table) => [
+    uniqueIndex("idx_model_versions_thesis_num").on(table.thesisId, table.versionNum),
+    ...kanonThesisChildPolicies("model_versions"),
+  ],
+).enableRLS();

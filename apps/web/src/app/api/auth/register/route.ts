@@ -1,6 +1,7 @@
 import { AuthSuccessResponseSchema, RegisterRequestSchema } from "@kanon/core";
-import { getKanonDb, registerUser } from "@kanon/core/db";
+import { registerUser } from "@kanon/core/db";
 import { setSessionCookie } from "../../_lib/auth-session";
+import { withSystemDb } from "../../_lib/db-context";
 import {
   formatZodError,
   isUniqueConstraintError,
@@ -29,14 +30,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const db = await getKanonDb();
-    const { user, sessionToken, expiresAt } = await registerUser(db, {
-      phone: parsed.data.phone,
-      displayName: parsed.data.displayName,
-      password: parsed.data.password,
-      confirmPassword: parsed.data.confirmPassword,
-      seedStarterWorkspace: parsed.data.seedStarterWorkspace,
-    });
+    const { user, sessionToken, expiresAt } = await withSystemDb("auth_bootstrap", (tx) =>
+      registerUser(tx, {
+        phone: parsed.data.phone,
+        displayName: parsed.data.displayName,
+        password: parsed.data.password,
+        confirmPassword: parsed.data.confirmPassword,
+        seedStarterWorkspace: parsed.data.seedStarterWorkspace,
+      }),
+    );
     const payload = AuthSuccessResponseSchema.parse({ user, redirectTo: "/" });
     const response = jsonOk(payload, startedAt, 201);
     setSessionCookie(response, sessionToken, expiresAt);

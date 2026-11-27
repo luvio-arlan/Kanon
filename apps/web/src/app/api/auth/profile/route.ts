@@ -1,5 +1,5 @@
 import { UpdateProfileRequestSchema, UpdateProfileResponseSchema } from "@kanon/core";
-import { getKanonDb, updateUserProfile } from "@kanon/core/db";
+import { updateUserProfile } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { verifySameOrigin } from "../../_lib/request-guards";
@@ -21,8 +21,9 @@ export async function PATCH(request: Request) {
     return jsonError(formatZodError(parsed.error, "称呼格式无效。"), 400, startedAt, "INVALID");
   }
 
-  const db = await getKanonDb();
-  const updated = await updateUserProfile(db, auth.user.id, parsed.data.displayName);
+  const updated = await auth.withDb((tx) =>
+    updateUserProfile(tx, auth.user.id, parsed.data.displayName),
+  );
   if (!updated) {
     return jsonError("未找到账号记录。", 404, startedAt, "NOT_FOUND");
   }

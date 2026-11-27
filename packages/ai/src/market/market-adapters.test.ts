@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchDailyPriceBars, fetchPolygonSplits } from "./daily-bars";
 import { finnhubAdapter } from "./finnhub-adapter";
 import { fmpAdapter } from "./fmp-adapter";
@@ -87,12 +87,18 @@ describe("KANON Multi-Provider Market Data Engine", () => {
         },
       ]);
     };
-    const fmp = await fmpAdapter.fetchQuote("NVDA", "fmp-key", fmpFetch);
-    expect(fmp.ok).toBe(true);
-    if (fmp.ok) {
-      expect(fmp.quote.postMarketPrice).toBe(145);
-      expect(fmp.quote.sessionState).toBe("POST");
-      expect(fmp.quote.effectivePrice).toBe(145);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-25T22:00:00Z"));
+    try {
+      const fmp = await fmpAdapter.fetchQuote("NVDA", "fmp-key", fmpFetch);
+      expect(fmp.ok).toBe(true);
+      if (fmp.ok) {
+        expect(fmp.quote.postMarketPrice).toBe(145);
+        expect(fmp.quote.sessionState).toBe("POST");
+        expect(fmp.quote.effectivePrice).toBe(145);
+      }
+    } finally {
+      vi.useRealTimers();
     }
 
     const polyFetch: typeof fetch = async () =>

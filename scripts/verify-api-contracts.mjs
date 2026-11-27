@@ -1048,7 +1048,12 @@ async function main() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kanon-api-verify-"));
   const server = spawn("pnpm", ["--filter", "@kanon/web", "start"], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), KANON_DATA_DIR: tmpDir },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      KANON_DATA_DIR: tmpDir,
+      KANON_RLS_ENFORCE_LOCAL: "1",
+    },
     stdio: "pipe",
   });
 

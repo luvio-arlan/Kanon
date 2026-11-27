@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { PgliteDatabase } from "drizzle-orm/pglite";
+import { PgliteDatabase } from "drizzle-orm/pglite";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type postgres from "postgres";
 import { DEFAULT_WORKSPACE_USER_ID } from "../contracts/auth-contracts";
@@ -13,9 +13,32 @@ import { SEED_THESIS_RECORDS } from "./seeds/seed-theses";
 
 export type KanonDb = PgliteDatabase<typeof schema> | PostgresJsDatabase<typeof schema>;
 
+export async function runInTransaction<T>(
+  db: KanonDb,
+  work: (tx: KanonDb) => Promise<T>,
+): Promise<T> {
+  if (db instanceof PgliteDatabase) {
+    return db.transaction((tx) => work(tx));
+  }
+  return db.transaction((tx) => work(tx));
+}
+
 interface BootstrapProbeRow {
   mig_count: number;
   glossary_count: number;
+}
+
+export async function areAllMigrationsApplied(sqlClient: postgres.Sql): Promise<boolean> {
+  const expectedMigIds = KANON_MIGRATIONS.map((m) => m.id);
+  try {
+    const rows = await sqlClient<{ mig_count: number }[]>`
+      SELECT count(*)::int AS mig_count FROM schema_migrations WHERE id = ANY(${expectedMigIds})
+    `;
+    return (rows[0]?.mig_count ?? 0) === expectedMigIds.length;
+  } catch (probeErr) {
+    void probeErr;
+    return false;
+  }
 }
 
 export async function isExternalDbBootstrapped(sqlClient: postgres.Sql): Promise<boolean> {

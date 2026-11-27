@@ -1,7 +1,6 @@
 import { UpdateThesisStepSchema } from "@kanon/core";
 import {
   deleteThesis,
-  getKanonDb,
   getSecSnapshotForUser,
   getThesisById,
   listThesisRevisions,
@@ -32,18 +31,19 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!auth.ok) return auth.response;
 
   const { id } = await context.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
-  if (!guard.ok) return guard.response;
-  const thesis = await getThesisById(db, id, auth.user.id);
-  if (!thesis) {
-    return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
-  }
-  const [secSnapshot, revisions] = await Promise.all([
-    getSecSnapshotForUser(db, thesis.ticker, auth.user.id),
-    listThesisRevisions(db, id),
-  ]);
-  return jsonOk({ thesis, access: guard.access, secSnapshot, revisions }, startedAt);
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "read", startedAt);
+    if (!guard.ok) return guard.response;
+    const thesis = await getThesisById(tx, id, auth.user.id);
+    if (!thesis) {
+      return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
+    }
+    const [secSnapshot, revisions] = await Promise.all([
+      getSecSnapshotForUser(tx, thesis.ticker, auth.user.id),
+      listThesisRevisions(tx, id),
+    ]);
+    return jsonOk({ thesis, access: guard.access, secSnapshot, revisions }, startedAt);
+  });
 }
 
 function extractExpectedUpdatedAt(raw: unknown): string | null {
@@ -90,18 +90,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     return jsonError(formatZodError(parsed.error, "更新参数校验失败。"), 400, startedAt, "INVALID");
   }
 
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
-  if (!guard.ok) return guard.response;
   try {
-    const result = await updateThesisStepChecked(
-      db,
-      id,
-      parsed.data,
-      auth.user.id,
-      extractExpectedUpdatedAt(body.data),
-    );
-    return buildStepUpdateResponse(result, startedAt);
+    return await auth.withDb(async (tx) => {
+      const guard = await requireThesisAccess(tx, id, auth.user.id, "write", startedAt);
+      if (!guard.ok) return guard.response;
+      const result = await updateThesisStepChecked(
+        tx,
+        id,
+        parsed.data,
+        auth.user.id,
+        extractExpectedUpdatedAt(body.data),
+      );
+      return buildStepUpdateResponse(result, startedAt);
+    });
   } catch (err) {
     if (isUniqueConstraintError(err)) {
       return jsonError("记录标识冲突，请刷新后重试。", 409, startedAt, "CONFLICT");
@@ -118,12 +119,13 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!auth.ok) return auth.response;
 
   const { id } = await context.params;
-  const db = await getKanonDb();
-  const guard = await requireThesisAccess(db, id, auth.user.id, "delete", startedAt);
-  if (!guard.ok) return guard.response;
-  const deleted = await deleteThesis(db, id, auth.user.id);
-  if (!deleted) {
-    return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
-  }
-  return jsonOk({ ok: true }, startedAt);
+  return auth.withDb(async (tx) => {
+    const guard = await requireThesisAccess(tx, id, auth.user.id, "delete", startedAt);
+    if (!guard.ok) return guard.response;
+    const deleted = await deleteThesis(tx, id, auth.user.id);
+    if (!deleted) {
+      return jsonError("标的档案不存在。", 404, startedAt, "NOT_FOUND");
+    }
+    return jsonOk({ ok: true }, startedAt);
+  });
 }

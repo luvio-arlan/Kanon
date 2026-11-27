@@ -3,7 +3,7 @@ import {
   calculatePortfolioCalibration,
   type QuarterlyReview,
 } from "@kanon/core";
-import { getKanonDb, listQuarterlyReviewsByThesisIds, listTheses } from "@kanon/core/db";
+import { listQuarterlyReviewsByThesisIds, listTheses } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonOk } from "../../_lib/http";
 
@@ -14,12 +14,14 @@ export async function GET() {
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
 
-  const db = await getKanonDb();
-  const theses = await listTheses(db, auth.user.id);
-  const reviews = await listQuarterlyReviewsByThesisIds(
-    db,
-    theses.map((t) => t.id),
-  );
+  const { theses, reviews } = await auth.withDb(async (tx) => {
+    const list = await listTheses(tx, auth.user.id);
+    const revs = await listQuarterlyReviewsByThesisIds(
+      tx,
+      list.map((t) => t.id),
+    );
+    return { theses: list, reviews: revs };
+  });
   const reviewsByThesis = new Map<string, QuarterlyReview[]>();
   for (const rev of reviews) {
     const existing = reviewsByThesis.get(rev.thesisId);

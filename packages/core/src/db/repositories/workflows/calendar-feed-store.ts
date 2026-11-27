@@ -69,18 +69,25 @@ function formatIcsUtcStamp(date: Date): string {
     .replace(/\.\d{3}Z$/, "Z");
 }
 
-/** Builds an RFC 5545 `.ics` calendar feed of explicitly dated catalysts across personal + org theses. */
-export async function buildCatalystIcsFeed(db: KanonDb, token: string): Promise<string | null> {
+/** Resolves the owner userId for a hashed calendar subscription token (system context). */
+export async function resolveCalendarTokenUserId(
+  db: KanonDb,
+  token: string,
+): Promise<string | null> {
   const trimmed = token.trim();
   if (!trimmed) return null;
   const hashed = hashCalendarToken(trimmed);
   const [tok] = await db
-    .select()
+    .select({ userId: calendarTokensTable.userId })
     .from(calendarTokensTable)
     .where(eq(calendarTokensTable.tokenHash, hashed))
     .limit(1);
-  if (!tok) return null;
-  const accessWhere = await buildThesisReadAccessWhere(db, tok.userId);
+  return tok?.userId ?? null;
+}
+
+/** Builds an RFC 5545 `.ics` calendar feed for an authenticated/resolved user inside tenant context. */
+export async function buildCatalystIcsFeedForUser(db: KanonDb, userId: string): Promise<string> {
+  const accessWhere = await buildThesisReadAccessWhere(db, userId);
   const rows = await db
     .select({
       id: thesisCatalystsTable.id,
@@ -116,4 +123,11 @@ export async function buildCatalystIcsFeed(db: KanonDb, token: string): Promise<
   }
   lines.push("END:VCALENDAR");
   return `${lines.join("\r\n")}\r\n`;
+}
+
+/** Builds an RFC 5545 `.ics` calendar feed of explicitly dated catalysts across personal + org theses. */
+export async function buildCatalystIcsFeed(db: KanonDb, token: string): Promise<string | null> {
+  const userId = await resolveCalendarTokenUserId(db, token);
+  if (!userId) return null;
+  return buildCatalystIcsFeedForUser(db, userId);
 }
