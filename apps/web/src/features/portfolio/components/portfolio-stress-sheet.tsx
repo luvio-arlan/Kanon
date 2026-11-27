@@ -5,6 +5,7 @@ import { Button, Sheet } from "@kanon/ui";
 import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { SizingLadderRow, StressKpiStrip, StressScenarioRow } from "./portfolio-stress-sections";
+import { RiskDecompositionSection } from "./risk/risk-decomposition-section";
 
 export interface PortfolioStressSheetProps {
   open: boolean;
@@ -43,15 +44,18 @@ function StressSheetFooter({
 }
 
 function StressSheetBody({
+  open,
   report,
   onInspectId,
 }: {
+  open: boolean;
   report: ReturnType<typeof calculatePortfolioStress>;
   onInspectId: (id: string) => void;
 }) {
   return (
     <div className="space-y-6">
       <StressKpiStrip report={report} />
+      <RiskDecompositionSection open={open} />
       <section className="space-y-2.5">
         <h3 className="text-xs font-semibold text-ink-muted">情景压力测试</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -108,7 +112,7 @@ export function PortfolioStressSheet({
         />
       }
     >
-      <StressSheetBody report={report} onInspectId={handleInspect} />
+      <StressSheetBody open={open} report={report} onInspectId={handleInspect} />
     </Sheet>
   );
 }

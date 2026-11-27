@@ -203,7 +203,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
         discoveredNames,
       );
     }
-    expect(rlsCoveredTables.size).toBe(25);
+    expect(rlsCoveredTables.size).toBe(27);
     for (const pending of RLS_STAGE6_PENDING) {
       expect(discoveredNames.has(pending), `Stale pending table "${pending}"`).toBe(true);
       expect(rlsCoveredTables.has(pending), `Remove "${pending}" from RLS_STAGE6_PENDING`).toBe(

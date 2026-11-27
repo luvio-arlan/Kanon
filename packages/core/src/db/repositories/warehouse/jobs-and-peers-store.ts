@@ -89,6 +89,25 @@ async function enqueueTickerDailyPair(
   return 2;
 }
 
+async function enqueueGlobalDailyJobs(db: KanonDb, day: string, isSunday: boolean) {
+  await enqueueJob(db, {
+    id: `sync_daily_bars:SPY:${day}`,
+    kind: "sync_daily_bars",
+    payload: isSunday ? { ticker: "SPY", forceFullRebase: true } : { ticker: "SPY" },
+    priority: 45,
+    maxAttempts: 4,
+  });
+  const daily = [
+    ["resolve_guidance", 80, 3],
+    ["prune_chunks", 95, 2],
+    ["evaluate_alerts", 90, 3],
+  ] as const;
+  for (const [kind, priority, maxAttempts] of daily) {
+    await enqueueJob(db, { id: `${kind}:${day}`, kind, payload: { day }, priority, maxAttempts });
+  }
+  return 4;
+}
+
 /**
  * Fans out daily idempotent watchlist jobs (daily bars, SEC sync, guidance resolution, chunk prune, alerts)
  * for all distinct tickers across non-archived theses.
@@ -118,28 +137,7 @@ export async function enqueueWatchlistJobs(db: KanonDb, dateKey?: string): Promi
       isSecRegistrant: !nonSecSet.has(ticker),
     });
   }
-  await enqueueJob(db, {
-    id: `resolve_guidance:${day}`,
-    kind: "resolve_guidance",
-    payload: { day },
-    priority: 80,
-    maxAttempts: 3,
-  });
-  await enqueueJob(db, {
-    id: `prune_chunks:${day}`,
-    kind: "prune_chunks",
-    payload: { day },
-    priority: 95,
-    maxAttempts: 2,
-  });
-  await enqueueJob(db, {
-    id: `evaluate_alerts:${day}`,
-    kind: "evaluate_alerts",
-    payload: { day },
-    priority: 90,
-    maxAttempts: 3,
-  });
-  return enqueued + 3;
+  return enqueued + (await enqueueGlobalDailyJobs(db, day, isSunday));
 }
 
 /**

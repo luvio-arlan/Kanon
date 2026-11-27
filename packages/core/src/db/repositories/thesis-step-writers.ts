@@ -9,6 +9,7 @@ import {
   thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
+import { appendHypothesisStatusEvent } from "./portfolio/hypothesis-events-store";
 import { resolveAllowedLinkedIds, resolveSafeChildId } from "./thesis/thesis-lookups";
 
 export async function writeBusinessFilterStep(
@@ -39,21 +40,34 @@ export async function writeHypothesesStep(
   now: Date,
 ): Promise<string> {
   const existing = await tx
-    .select({ id: hypothesesTable.id })
+    .select({ id: hypothesesTable.id, status: hypothesesTable.status })
     .from(hypothesesTable)
     .where(eq(hypothesesTable.thesisId, thesisId));
+  const prevStatusById = new Map(existing.map((r) => [r.id, r.status]));
   const owned = new Set(existing.map((r) => r.id));
   const used = new Set<string>();
+  const nextRows = parsed.hypotheses.map((h, idx) => ({
+    ...h,
+    id: resolveSafeChildId(h.id, thesisId, "h", owned, used),
+    kpiRule: h.kpiRule ?? null,
+    thesisId,
+    sortOrder: idx,
+  }));
   await tx.delete(hypothesesTable).where(eq(hypothesesTable.thesisId, thesisId));
-  await tx.insert(hypothesesTable).values(
-    parsed.hypotheses.map((h, idx) => ({
-      ...h,
-      id: resolveSafeChildId(h.id, thesisId, "h", owned, used),
-      kpiRule: h.kpiRule ?? null,
-      thesisId,
-      sortOrder: idx,
-    })),
-  );
+  await tx.insert(hypothesesTable).values(nextRows);
+  for (const row of nextRows) {
+    const prev = prevStatusById.get(row.id) ?? null;
+    if (prev !== row.status) {
+      await appendHypothesisStatusEvent(tx, {
+        thesisId,
+        hypothesisId: row.id,
+        fromStatus: prev,
+        toStatus: row.status,
+        source: "step_edit",
+        note: row.note,
+      });
+    }
+  }
   await tx
     .update(thesesTable)
     .set({ lastReviewedLabel: "刚刚更新 · 核心假设", updatedAt: now })
@@ -153,7 +167,7 @@ export async function writeValuationStep(
   parsed: Extract<UpdateThesisStepInput, { step: "valuation" }>,
   now: Date,
 ): Promise<string> {
-  const input = parsed.valuationInput;
+  const { valuationInput: input } = parsed;
   const horizonYears = Math.round(input.horizonYears ?? 3);
   await tx
     .update(thesesTable)
@@ -194,35 +208,7 @@ export async function writeValuationStep(
   return `校准 ${horizonYears} 年三情景估值模型（中性 EPS $${input.base.eps} × ${input.base.peMultiple}x）`;
 }
 
-export async function writePriceAnchorStep(
-  tx: KanonDb,
-  thesisId: string,
-  parsed: Extract<UpdateThesisStepInput, { step: "price_anchor" }>,
-  now: Date,
-): Promise<string> {
-  const price = roundTo(parsed.currentPrice, 2);
-  await tx
-    .update(thesesTable)
-    .set({ currentPrice: price, lastReviewedLabel: "刚刚校准 · 现价锚点", updatedAt: now })
-    .where(eq(thesesTable.id, thesisId));
-
-  const [existing] = await tx
-    .select()
-    .from(valuationScenariosTable)
-    .where(eq(valuationScenariosTable.thesisId, thesisId));
-
-  if (existing) {
-    const label = parsed.label ?? "现价";
-    const updatedHistory = existing.priceHistory.map((pt, idx, arr) =>
-      idx === arr.length - 1 ? { label, price } : pt,
-    );
-    await tx
-      .update(valuationScenariosTable)
-      .set({ priceHistory: updatedHistory })
-      .where(eq(valuationScenariosTable.thesisId, thesisId));
-  }
-  return `快速校准当前参考价至 $${price.toFixed(2)}`;
-}
+export { writePriceAnchorStep } from "./thesis/price-anchor-writer";
 
 export async function writePortfolioStep(
   tx: KanonDb,

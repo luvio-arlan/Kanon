@@ -170,6 +170,7 @@ const PORTFOLIO_CSV_HEADER = [
   "已验证假设",
   "待验证催化剂",
   "最近复盘",
+  "买入快照哈希",
 ];
 
 function formatValuationCsvCells(t: ThesisDetail): string[] {
@@ -190,7 +191,10 @@ function formatValuationCsvCells(t: ThesisDetail): string[] {
   ];
 }
 
-function formatPortfolioCsvRow(t: ThesisDetail): string {
+function formatPortfolioCsvRow(
+  t: ThesisDetail,
+  snapshotHashByThesisId?: ReadonlyMap<string, string>,
+): string {
   const validated = t.hypotheses.filter((h) => h.status === "validated").length;
   const costGainPct =
     t.avgCostBasis && t.avgCostBasis > 0
@@ -213,12 +217,16 @@ function formatPortfolioCsvRow(t: ThesisDetail): string {
     `${validated}/${t.hypotheses.length}`,
     upcomingCatalysts,
     t.lastReviewedAt,
+    snapshotHashByThesisId?.get(t.id) ?? "",
   ]
     .map(escapeCsvCell)
     .join(",");
 }
 
-export function formatPortfolioCsv(theses: readonly ThesisDetail[]): string {
-  const rows = theses.map(formatPortfolioCsvRow);
+export function formatPortfolioCsv(
+  theses: readonly ThesisDetail[],
+  snapshotHashByThesisId?: ReadonlyMap<string, string>,
+): string {
+  const rows = theses.map((t) => formatPortfolioCsvRow(t, snapshotHashByThesisId));
   return `\uFEFF${[PORTFOLIO_CSV_HEADER.map(escapeCsvCell).join(","), ...rows].join("\n")}`;
 }

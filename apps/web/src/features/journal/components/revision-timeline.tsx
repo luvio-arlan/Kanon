@@ -22,6 +22,7 @@ const HYP_STATUS_LABEL = {
   validated: "已验证",
   watching: "跟踪中",
   warning: "预警",
+  invalidated: "已证伪",
 } as const;
 
 function formatDeltaPct(before: number, after: number): string {

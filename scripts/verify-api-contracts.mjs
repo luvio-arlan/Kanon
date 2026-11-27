@@ -39,8 +39,11 @@ const KNOWN_ROUTES = [
   "mcp/context/route.ts",
   "mcp/route.ts",
   "orgs/route.ts",
+  "portfolio/attribution/route.ts",
   "portfolio/calibration/route.ts",
   "portfolio/ledger/route.ts",
+  "portfolio/performance/route.ts",
+  "portfolio/risk/route.ts",
   "sec/[ticker]/filing/route.ts",
   "sec/[ticker]/redline/route.ts",
   "sec/[ticker]/route.ts",
@@ -99,7 +102,16 @@ async function fetchJson(urlPath, init, cookieHeader = "") {
     ...(init?.headers ?? {}),
   };
   const res = await fetch(`${BASE}${urlPath}`, { ...init, headers });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    throw new Error(
+      `Invalid JSON from ${init?.method ?? "GET"} ${urlPath} (HTTP ${res.status}): ${text.slice(0, 300)}`,
+      { cause: err },
+    );
+  }
   return { status: res.status, data, cookie: extractCookieHeader(res) };
 }
 
@@ -1090,6 +1102,19 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
   );
   assert.equal(gConfirm.status, 200);
   assert.equal(gConfirm.data.items[0].status, "confirmed");
+
+  // Wave S contracts: performance, risk, attribution
+  const perfRes = await fetchJson("/api/portfolio/performance", {}, cookieA);
+  assert.equal(perfRes.status, 200);
+  assert.ok(typeof perfRes.data.status === "string");
+
+  const riskRes = await fetchJson("/api/portfolio/risk", {}, cookieA);
+  assert.equal(riskRes.status, 200);
+  assert.ok(riskRes.data.basis === "daily_cov" || riskRes.data.basis === "sector_tag");
+
+  const attrRes = await fetchJson("/api/portfolio/attribution", {}, cookieA);
+  assert.equal(attrRes.status, 200);
+  assert.ok(attrRes.data.status === "ready" || attrRes.data.status === "empty");
 }
 
 async function main() {

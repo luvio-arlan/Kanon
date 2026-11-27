@@ -5,18 +5,12 @@ import type { SavedAgentRun } from "../../contracts/api-contracts";
 import {
   type CreateQuarterlyReviewInput,
   CreateQuarterlyReviewSchema,
-  type InboundCrossCheck,
   type QuarterlyReview,
   type ThesisDetail,
 } from "../../schemas/research";
 import { type KanonDb, runInTransaction } from "../client";
-import {
-  agentRunsTable,
-  crossChecksTable,
-  hypothesesTable,
-  quarterlyReviewsTable,
-  thesesTable,
-} from "../schema";
+import { agentRunsTable, hypothesesTable, quarterlyReviewsTable, thesesTable } from "../schema";
+import { appendHypothesisStatusEvent } from "./portfolio/hypothesis-events-store";
 import { recordThesisRevision } from "./revision-queries";
 import { assertThesisAccess } from "./thesis/thesis-access";
 import { getThesisById } from "./thesis-queries";
@@ -160,6 +154,16 @@ async function applyVerdictStatuses(
       .update(hypothesesTable)
       .set({ status: nextStatus, note: v.evidence })
       .where(and(eq(hypothesesTable.id, match.id), eq(hypothesesTable.thesisId, thesis.id)));
+    if (match.status !== nextStatus) {
+      await appendHypothesisStatusEvent(tx, {
+        thesisId: thesis.id,
+        hypothesisId: match.id,
+        fromStatus: match.status,
+        toStatus: nextStatus,
+        source: "quarterly_review",
+        note: v.evidence,
+      });
+    }
   }
 }
 
@@ -217,28 +221,4 @@ export async function createQuarterlyReview(
   });
 }
 
-export async function listInboundCrossChecks(
-  db: KanonDb,
-  targetThesisId: string,
-  userId?: string,
-): Promise<InboundCrossCheck[]> {
-  const whereClause = userId
-    ? and(eq(crossChecksTable.linkedThesisId, targetThesisId), eq(thesesTable.userId, userId))
-    : eq(crossChecksTable.linkedThesisId, targetThesisId);
-  return db
-    .select({
-      id: crossChecksTable.id,
-      sourceThesisId: crossChecksTable.thesisId,
-      sourceTicker: thesesTable.ticker,
-      sourceCompanyName: thesesTable.companyName,
-      peerRole: crossChecksTable.peerRole,
-      topic: crossChecksTable.topic,
-      sourceAnchor: crossChecksTable.sourceAnchor,
-      statement: crossChecksTable.statement,
-      alignment: crossChecksTable.alignment,
-      takeaway: crossChecksTable.takeaway,
-    })
-    .from(crossChecksTable)
-    .innerJoin(thesesTable, eq(crossChecksTable.thesisId, thesesTable.id))
-    .where(whereClause);
-}
+export { listInboundCrossChecks } from "./thesis/inbound-cross-checks";

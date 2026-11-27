@@ -33,6 +33,7 @@ const DOT_CLASS: Record<Hypothesis["status"], string> = {
   validated: "bg-status-pass",
   watching: "bg-status-warn",
   warning: "bg-status-fail",
+  invalidated: "bg-status-fail",
 };
 
 function resolveNextStepHref(thesisId: string, readiness: ResearchReadiness) {

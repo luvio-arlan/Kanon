@@ -6,8 +6,15 @@ import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
 import { lotsTable, portfolioAccountsTable, transactionsTable } from "../../schema";
 import {
+  isTickerRestricted,
+  normalizeCanonicalTicker,
+} from "../enterprise/ic-and-compliance-store";
+import { lockDecisionSnapshotForBuy } from "../portfolio/decision-snapshot-store";
+import { replayAndCommitAccountTransaction } from "../portfolio/ledger-replay-store";
+import { assertThesisAccess, getThesisIdentity } from "../thesis/thesis-lookups";
+import {
   assertValidLedgerNumbers,
-  computeLedgerActionEffect,
+  buildNewReplayTx,
   LedgerPolicyError,
   type RecordTransactionInput,
 } from "./ledger-fifo-helpers";
@@ -106,51 +113,83 @@ async function lockAccountForUpdate(tx: KanonDb, accountId: string, userId: stri
   };
 }
 
-/** Records a portfolio ledger transaction atomically under row-level FOR UPDATE locking. */
+async function assertBuyAndThesisGuards(
+  tx: KanonDb,
+  acct: { orgId: string | null },
+  input: RecordTransactionInput,
+  canonicalTicker: string,
+  effectiveNoLeverage: boolean,
+) {
+  if (input.action === "buy" && !effectiveNoLeverage) {
+    throw new LedgerPolicyError(
+      "NO_LEVERAGE_REQUIRED",
+      "零杠杆铁律：买入成交必须确认零融资、零杠杆。",
+    );
+  }
+  if (
+    input.action === "buy" &&
+    acct.orgId &&
+    (await isTickerRestricted(tx, acct.orgId, canonicalTicker))
+  ) {
+    throw new LedgerPolicyError(
+      "RESTRICTED_TICKER",
+      `合规限制名单拦截：该组织账户禁止买入 ${canonicalTicker}。`,
+      403,
+    );
+  }
+  if (!input.thesisId) return;
+  const canRead = await assertThesisAccess(tx, input.thesisId, input.userId, "read");
+  const identity = canRead ? await getThesisIdentity(tx, input.thesisId, input.userId) : null;
+  if (!identity)
+    throw new LedgerPolicyError("THESIS_NOT_FOUND", "关联研究标的档案不存在或无权访问。", 404);
+  if (normalizeCanonicalTicker(identity.ticker) !== canonicalTicker) {
+    throw new LedgerPolicyError(
+      "THESIS_TICKER_MISMATCH",
+      `成交标的 ${canonicalTicker} 与关联档案 ${identity.ticker} 不一致。`,
+      400,
+    );
+  }
+}
+
+/** Records a portfolio ledger transaction atomically with S0 deterministic replay and S3 decision snapshot locking. */
 export async function recordPortfolioTransaction(db: KanonDb, input: RecordTransactionInput) {
   const fees = input.fees ?? 0;
   assertValidLedgerNumbers(input, fees);
-  const ticker = input.ticker.trim().toUpperCase();
-
+  const ticker = normalizeCanonicalTicker(input.ticker);
+  if (
+    (input.action === "deposit" || input.action === "dividend") &&
+    input.quantity * input.price - fees < 0
+  ) {
+    throw new LedgerPolicyError("INVALID_AMOUNT", "入账金额不能小于手续费。");
+  }
   return runInTransaction(db, async (tx) => {
     const acct = await lockAccountForUpdate(tx, input.accountId, input.userId);
     const effectiveNoLeverage = input.noLeverageConfirmed || acct.acknowledged;
-    const { nextCash, realizedPnl } = await computeLedgerActionEffect(
-      tx,
-      acct.id,
-      acct.orgId,
-      acct.cashBalance,
-      { ...input, noLeverageConfirmed: effectiveNoLeverage },
-      ticker,
-      fees,
-    );
+    await assertBuyAndThesisGuards(tx, acct, input, ticker, effectiveNoLeverage);
     const txId = `tx_${crypto.randomUUID()}`;
-    await tx.insert(transactionsTable).values({
-      id: txId,
+    const { cashBalance, realizedPnl } = await replayAndCommitAccountTransaction(tx, {
       accountId: acct.id,
       userId: input.userId,
-      thesisId: input.thesisId ?? null,
-      ticker,
-      action: input.action,
-      quantity: input.quantity,
-      price: input.price,
-      fees,
-      realizedPnl,
-      externalRef: input.externalRef?.trim() || null,
-      tradeDate: input.tradeDate,
-      noLeverageConfirmed: effectiveNoLeverage,
-      note: input.note?.trim() ?? "",
+      newTx: buildNewReplayTx(txId, input, ticker, fees, effectiveNoLeverage),
+      asOfDate: todayIsoUtc(),
     });
-    await tx
-      .update(portfolioAccountsTable)
-      .set({ cashBalance: nextCash })
-      .where(
-        and(
-          eq(portfolioAccountsTable.id, acct.id),
-          eq(portfolioAccountsTable.userId, input.userId),
-        ),
-      );
-    return { transactionId: txId, cashBalance: nextCash, realizedPnl };
+    const snap =
+      input.action === "buy" && input.thesisId
+        ? await lockDecisionSnapshotForBuy(tx, {
+            accountId: acct.id,
+            transactionId: txId,
+            userId: input.userId,
+            thesisId: input.thesisId,
+            ticker,
+            tradeDate: input.tradeDate,
+          })
+        : null;
+    return {
+      transactionId: txId,
+      cashBalance,
+      realizedPnl,
+      snapshotHash: snap?.snapshotHash ?? null,
+    };
   });
 }
 

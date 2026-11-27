@@ -1,3 +1,8 @@
+import {
+  PortfolioAttributionResponseSchema,
+  PortfolioPerformanceResponseSchema,
+  PortfolioRiskResponseSchema,
+} from "@kanon/core";
 import { type APIRequestContext, expect, test } from "@playwright/test";
 import { createAuthenticatedContext, GOLDEN_ACTORS } from "../support/actors";
 import {
@@ -64,6 +69,69 @@ async function verifyZeroLeverageRejections(
   );
 }
 
+async function verifyBackdatedCashPathRejection(
+  req: APIRequestContext,
+  accountId: string,
+  today: string,
+) {
+  // Deposit $10,000 today (raising current cash to $18,650), then attempt a $12,000 backdated buy on 2025-01-01
+  // when historical cash was only $10,000 -> MUST be blocked with CASH_PATH_NEGATIVE even though current cash suffices.
+  const dep = await req.post("/api/portfolio/ledger", {
+    data: {
+      op: "record_transaction",
+      accountId,
+      ticker: "CASH",
+      action: "deposit",
+      quantity: 10_000,
+      price: 1,
+      fees: 0,
+      tradeDate: today,
+      noLeverageConfirmed: true,
+    },
+  });
+  expect(dep.status()).toBe(201);
+
+  const backdatedBuy = await req.post("/api/portfolio/ledger", {
+    data: {
+      op: "record_transaction",
+      accountId,
+      ticker: "NVDA",
+      action: "buy",
+      quantity: 120,
+      price: 100,
+      fees: 0,
+      tradeDate: "2025-01-01",
+      noLeverageConfirmed: true,
+    },
+  });
+  expect(backdatedBuy.status()).toBe(400);
+  expect((await parseApiResponse(backdatedBuy, ErrorCodeResponseSchema, "backdatedBuy")).code).toBe(
+    "CASH_PATH_NEGATIVE",
+  );
+}
+
+async function verifyWaveSAnalyticsEndpoints(req: APIRequestContext, accountId: string) {
+  const [perfRes, riskRes, attrRes] = await Promise.all([
+    req.get(`/api/portfolio/performance?accountId=${encodeURIComponent(accountId)}`),
+    req.get("/api/portfolio/risk"),
+    req.get(`/api/portfolio/attribution?accountId=${encodeURIComponent(accountId)}`),
+  ]);
+  expect(perfRes.status()).toBe(200);
+  const perf = await parseApiResponse(perfRes, PortfolioPerformanceResponseSchema, "perf");
+  expect(perf.status).toBe("ready");
+  expect(perf.totalNav).toBeGreaterThan(0);
+
+  expect(riskRes.status()).toBe(200);
+  const risk = await parseApiResponse(riskRes, PortfolioRiskResponseSchema, "risk");
+  expect(["daily_cov", "sector_tag"]).toContain(risk.basis);
+  expect(risk.clusterCapPct).toBe(35);
+
+  expect(attrRes.status()).toBe(200);
+  const attr = await parseApiResponse(attrRes, PortfolioAttributionResponseSchema, "attr");
+  expect(attr.status).toBe("ready");
+  expect(attr.episodes.some((e) => e.ticker === "NVDA" && Boolean(e.snapshotHash))).toBe(true);
+}
+
 test.describe
   .serial("07 · Zero-Leverage Portfolio Ledger Guards", () => {
     test("creates $10,000 cash account, records buy, and blocks over-cash & short sell", async ({
@@ -93,6 +161,8 @@ test.describe
       });
       expect(buyOk.status()).toBe(201);
       await verifyZeroLeverageRejections(req, accountId, today);
+      await verifyBackdatedCashPathRejection(req, accountId, today);
+      await verifyWaveSAnalyticsEndpoints(req, accountId);
       await context.close();
     });
   });

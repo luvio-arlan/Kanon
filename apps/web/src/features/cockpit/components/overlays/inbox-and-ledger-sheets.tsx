@@ -1,15 +1,19 @@
 "use client";
 
-import { Sheet } from "@kanon/ui";
+import type { PortfolioPerformanceResponse } from "@kanon/core";
+import { Button, Sheet } from "@kanon/ui";
+import { IconPlus } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   apiCreateLedgerAccount,
   apiLoadPortfolioLedger,
+  apiLoadPortfolioPerformance,
   apiRecordLedgerTx,
   type LedgerAccountRow,
 } from "../../lib/inbox-ledger-api";
 import { ResearchInboxSheet } from "./inbox-sheet";
+import { LedgerPerformanceLine } from "./ledger-performance-line";
 import {
   EmptyLedgerState,
   LedgerPositionsList,
@@ -17,15 +21,61 @@ import {
   type LedgerTxPayload,
 } from "./ledger-sheet-parts";
 
-function PortfolioLedgerSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function ActiveLedgerContent({
+  active,
+  perf,
+  busy,
+  txFormOpen,
+  onToggleTxForm,
+  onSubmitTx,
+}: {
+  active: LedgerAccountRow;
+  perf: PortfolioPerformanceResponse | null;
+  busy: boolean;
+  txFormOpen: boolean;
+  onToggleTxForm: () => void;
+  onSubmitTx: (p: LedgerTxPayload) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <LedgerPerformanceLine
+        perf={perf}
+        accountName={active.name}
+        cashBalance={active.cashBalance}
+      />
+      <div className="flex justify-end">
+        <Button variant="outline" size="xs" onClick={onToggleTxForm}>
+          <IconPlus size={13} stroke={1.5} />
+          <span>{txFormOpen ? "收起记账" : "登记成交"}</span>
+        </Button>
+      </div>
+      {txFormOpen ? <LedgerTxForm accountId={active.id} busy={busy} onSubmit={onSubmitTx} /> : null}
+      <LedgerPositionsList positions={active.positions} />
+    </div>
+  );
+}
+
+function useLedgerSheetData(open: boolean) {
   const [accounts, setAccounts] = useState<LedgerAccountRow[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [perf, setPerf] = useState<PortfolioPerformanceResponse | null>(null);
   const reload = useCallback(() => {
-    if (open) void apiLoadPortfolioLedger().then(setAccounts);
+    if (!open) return;
+    void Promise.all([apiLoadPortfolioLedger(), apiLoadPortfolioPerformance()]).then(
+      ([accts, perfData]) => {
+        setAccounts(accts);
+        setPerf(perfData);
+      },
+    );
   }, [open]);
   useEffect(() => reload(), [reload]);
+  return { active: accounts[0], perf, reload };
+}
 
-  const active = accounts[0];
+function PortfolioLedgerSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { active, perf, reload } = useLedgerSheetData(open);
+  const [txFormOpen, setTxFormOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
   const handleCreate = async (initialCash: number, confirmed: boolean) => {
     setBusy(true);
     const res = await apiCreateLedgerAccount("主投研账本", initialCash, confirmed);
@@ -40,23 +90,23 @@ function PortfolioLedgerSheet({ open, onClose }: { open: boolean; onClose: () =>
     setBusy(false);
     if (!res.ok) return void toast.error(res.error);
     toast.success("已登记");
+    setTxFormOpen(false);
     reload();
   };
+
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()} title="账本" size="md">
       {!active ? (
         <EmptyLedgerState busy={busy} onCreate={(c, ok) => void handleCreate(c, ok)} />
       ) : (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-panel border border-hairline bg-canvas/50 px-4 py-3 text-xs">
-            <span className="font-semibold text-ink-primary">{active.name}</span>
-            <span className="font-mono text-sm font-semibold text-ink-primary tabular-nums">
-              可用现金 ${active.cashBalance.toLocaleString()}
-            </span>
-          </div>
-          <LedgerTxForm accountId={active.id} busy={busy} onSubmit={(p) => void handleTx(p)} />
-          <LedgerPositionsList positions={active.positions} />
-        </div>
+        <ActiveLedgerContent
+          active={active}
+          perf={perf}
+          busy={busy}
+          txFormOpen={txFormOpen}
+          onToggleTxForm={() => setTxFormOpen((v) => !v)}
+          onSubmitTx={(p) => void handleTx(p)}
+        />
       )}
     </Sheet>
   );

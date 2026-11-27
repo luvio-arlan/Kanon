@@ -629,7 +629,118 @@ export function checkG18NoSubstringChunkRetrievalAst(rel, content, errors) {
   visit(sf);
 }
 
-/** Runs Wave R/S/T AST-level L2 mechanical guards (G6+, G9, G10, G12, G13, G17, G18, G19, and subsequent wave guards). */
+const HYP_EVENT_EXEMPT_FILES = new Set([
+  "packages/core/src/db/repositories/archive-importer.ts",
+  "packages/core/src/db/repositories/starter-workspace.ts",
+  "packages/core/src/db/repositories/thesis-mutations.ts",
+]);
+
+function inspectHypWriteInFunction(fnNode, sf, rel, errors) {
+  let hasHypMutation = false;
+  let hasEventAppend = false;
+  let mutLine = 1;
+  const walk = (n) => {
+    if (ts.isCallExpression(n)) {
+      if (ts.isIdentifier(n.expression) && n.expression.text === "appendHypothesisStatusEvent") {
+        hasEventAppend = true;
+      } else if (
+        ts.isPropertyAccessExpression(n.expression) &&
+        (n.expression.name.text === "update" || n.expression.name.text === "insert") &&
+        n.arguments[0]?.getText(sf) === "hypothesesTable"
+      ) {
+        hasHypMutation = true;
+        mutLine = getLine(sf, n.getStart(sf));
+      }
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(fnNode);
+  if (hasHypMutation && !hasEventAppend) {
+    errors.push(
+      `${rel}:${mutLine} [G14-hypothesis-status-event-pairing] Mutations on hypothesesTable MUST call appendHypothesisStatusEvent in the same function.`,
+    );
+  }
+}
+
+/** G14: Every repository function mutating hypothesesTable must pair appendHypothesisStatusEvent. */
+export function checkG14HypothesisEventPairingAst(rel, content, errors) {
+  if (!rel.startsWith("packages/core/src/db/repositories/") || HYP_EVENT_EXEMPT_FILES.has(rel)) {
+    return;
+  }
+  if (!content.includes("hypothesesTable")) return;
+  const sf = parseTs(rel, content);
+  const visit = (node) => {
+    if (ts.isFunctionDeclaration(node) && node.body) {
+      inspectHypWriteInFunction(node.body, sf, rel, errors);
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
+const IMMUTABLE_TABLES = new Set(["decisionSnapshotsTable", "hypothesisStatusEventsTable"]);
+
+/** G15: Bans UPDATE/DELETE on immutable decision_snapshots and append-only hypothesis_status_events. */
+export function checkG15ImmutableLedgerTablesAst(rel, content, errors) {
+  if (rel.startsWith("packages/core/src/db/migrations/")) return;
+  const sf = parseTs(rel, content);
+  const visit = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      (node.expression.name.text === "update" || node.expression.name.text === "delete") &&
+      IMMUTABLE_TABLES.has(node.arguments[0]?.getText(sf) ?? "")
+    ) {
+      errors.push(
+        `${rel}:${getLine(sf, node.getStart(sf))} [G15-immutable-ledger-tables] ${node.expression.name.text}(${node.arguments[0]?.getText(sf)}) is forbidden on immutable/append-only table.`,
+      );
+    } else if (
+      isTextLiteralLike(node) &&
+      /\b(?:UPDATE|DELETE\s+FROM)\s+(?:decision_snapshots|hypothesis_status_events)\b/i.test(
+        node.text,
+      )
+    ) {
+      errors.push(
+        `${rel}:${getLine(sf, node.getStart(sf))} [G15-immutable-ledger-tables] Raw SQL UPDATE/DELETE on decision_snapshots or hypothesis_status_events is forbidden.`,
+      );
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
+const CLOSE_ONLY_PREFIXES = [
+  "packages/core/src/math/performance/",
+  "packages/core/src/math/risk/",
+  "packages/core/src/math/attribution/",
+  "packages/core/src/db/repositories/portfolio/",
+  "apps/web/src/app/api/portfolio/",
+];
+
+/** G16: Portfolio NAV, risk, and attribution paths must use unadjusted `.close` + corporate_actions (never `.adjClose`). */
+export function checkG16HoldingsUseCloseOnlyAst(rel, content, errors) {
+  if (!CLOSE_ONLY_PREFIXES.some((p) => rel.startsWith(p))) return;
+  const sf = parseTs(rel, content);
+  const visit = (node) => {
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      (node.name.text === "adjClose" || node.name.text === "adj_close")
+    ) {
+      errors.push(
+        `${rel}:${getLine(sf, node.getStart(sf))} [G16-holdings-use-close-only] Property .${node.name.text} is banned in portfolio performance/risk/attribution; use unadjusted .close + corporate_actions.`,
+      );
+    } else if (ts.isIdentifier(node) && (node.text === "adjClose" || node.text === "adj_close")) {
+      errors.push(
+        `${rel}:${getLine(sf, node.getStart(sf))} [G16-holdings-use-close-only] Identifier ${node.text} is banned in portfolio performance/risk/attribution; use unadjusted close + corporate_actions.`,
+      );
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
+/** Runs Wave R/S/T AST-level L2 mechanical guards (G6+, G9, G10, G12, G13, G14-G19). */
 export function checkWaveGuardsRs(root, errors) {
   const dirs = ["apps/web/src", "packages/ai/src", "packages/core/src"];
   for (const d of dirs) {
@@ -643,6 +754,9 @@ export function checkWaveGuardsRs(root, errors) {
       checkG10NoNetworkInDbTxAst(rel, content, errors);
       checkG12SystemContextAllowlistAst(rel, content, errors);
       checkG13SecFetchGatewayAst(rel, content, errors);
+      checkG14HypothesisEventPairingAst(rel, content, errors);
+      checkG15ImmutableLedgerTablesAst(rel, content, errors);
+      checkG16HoldingsUseCloseOnlyAst(rel, content, errors);
       checkG17HitlConfirmOnlyAst(rel, content, errors);
       checkG18NoSubstringChunkRetrievalAst(rel, content, errors);
     }

@@ -6,6 +6,8 @@ import {
   LedgerAccountCreateResponseSchema,
   LedgerAccountListResponseSchema,
   LedgerTransactionCreateResponseSchema,
+  type PortfolioPerformanceResponse,
+  PortfolioPerformanceResponseSchema,
 } from "@kanon/core";
 import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
@@ -99,6 +101,17 @@ export async function apiCreateLedgerAccount(
     fallbackError: "创建账本失败",
   });
   return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+export async function apiLoadPortfolioPerformance(
+  accountId?: string,
+): Promise<PortfolioPerformanceResponse | null> {
+  const qs = accountId ? `?accountId=${encodeURIComponent(accountId)}` : "";
+  const res = await kanonFetch(
+    `/api/portfolio/performance${qs}`,
+    PortfolioPerformanceResponseSchema,
+  );
+  return res.ok ? res.data : null;
 }
 
 export async function apiRecordLedgerTx(input: {

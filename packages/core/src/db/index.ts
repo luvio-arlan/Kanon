@@ -74,6 +74,10 @@ export {
   SERVERLESS_QUOTE_CACHE_TTL_MS,
   upsertCachedMarketQuotes,
 } from "./repositories/market/quote-cache-store";
+export * from "./repositories/portfolio/decision-snapshot-store";
+export * from "./repositories/portfolio/hypothesis-events-store";
+export * from "./repositories/portfolio/ledger-replay-store";
+export * from "./repositories/portfolio/performance-inputs-store";
 export {
   createQuarterlyReview,
   getLatestAgentRun,

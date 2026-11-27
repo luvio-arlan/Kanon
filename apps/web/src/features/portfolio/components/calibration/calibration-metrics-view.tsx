@@ -2,6 +2,7 @@
 
 import type { PortfolioCalibrationReport } from "@kanon/core";
 import { Badge, Card, cn } from "@kanon/ui";
+import { DecisionMatrixView } from "./decision-matrix-view";
 
 function KpiCell(props: { label: string; value: string; tone?: string }) {
   return (
@@ -16,56 +17,6 @@ function KpiCell(props: { label: string; value: string; tone?: string }) {
         {props.value}
       </div>
     </Card>
-  );
-}
-
-function EmotionAttributionTable({ report }: { report: PortfolioCalibrationReport }) {
-  return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-ink-muted">情绪与执行归因</h3>
-        <span className="font-mono text-xs text-ink-muted tabular-nums">
-          总样本 {report.totalDecisionCount} 笔
-        </span>
-      </div>
-      <div className="overflow-x-auto rounded-card border border-hairline bg-surface">
-        <table className="w-full min-w-[460px] text-left text-xs">
-          <thead className="border-b border-hairline bg-canvas/50 text-ink-muted">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">情绪状态</th>
-              <th className="px-4 py-2.5 text-right font-medium">笔数</th>
-              <th className="px-4 py-2.5 text-right font-medium">顺向胜率</th>
-              <th className="px-4 py-2.5 text-right font-medium">均值偏离</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-hairline font-mono tabular-nums">
-            {report.emotionBreakdown.map((row) => (
-              <tr key={row.emotion}>
-                <td className="px-4 py-2.5 font-sans font-medium text-ink-primary">{row.label}</td>
-                <td className="px-4 py-2.5 text-right text-ink-secondary">{row.entryCount}</td>
-                <td className="px-4 py-2.5 text-right text-ink-primary">
-                  {row.winRatePct !== null ? `${row.winRatePct}%` : "—"}
-                </td>
-                <td
-                  className={cn(
-                    "px-4 py-2.5 text-right",
-                    row.avgDeltaPct === null
-                      ? "text-ink-muted"
-                      : row.avgDeltaPct >= 0
-                        ? "text-status-pass"
-                        : "text-status-warn",
-                  )}
-                >
-                  {row.avgDeltaPct !== null
-                    ? `${row.avgDeltaPct >= 0 ? "+" : ""}${row.avgDeltaPct.toFixed(1)}%`
-                    : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
 
@@ -156,7 +107,7 @@ export function CalibrationMetricsView({ report }: { report: PortfolioCalibratio
           value={report.overallWinRatePct !== null ? `${report.overallWinRatePct}%` : "—"}
         />
       </div>
-      <EmotionAttributionTable report={report} />
+      <DecisionMatrixView />
       <VerdictTrackCard report={report} />
       <PositionEfficiencyTable report={report} />
     </div>

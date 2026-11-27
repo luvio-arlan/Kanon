@@ -21,7 +21,7 @@ export interface AssetRiskContribution {
 
 export interface PortfolioRiskReport {
   annualizedVolPct: number;
-  effectiveNumBets: number;
+  effectiveNumHoldings: number;
   maxDrawdownPct: number;
   historicalVar95Pct: number;
   historicalCvar95Pct: number;
@@ -106,12 +106,12 @@ export function calculatePortfolioRiskMetrics(input: PortfolioRiskInput): Portfo
   });
 
   const sumW2 = input.weights.reduce((s, w) => s + w * w, 0);
-  const effectiveNumBets = sumW2 > 1e-9 ? roundTo(1 / sumW2, 2) : 0;
+  const effectiveNumHoldings = sumW2 > 1e-9 ? roundTo(1 / sumW2, 2) : 0;
   const { var95, cvar95 } = computeVarAndCvar95(input.dailyPortfolioReturns);
 
   return {
     annualizedVolPct,
-    effectiveNumBets,
+    effectiveNumHoldings,
     maxDrawdownPct: computeMaxDrawdownPct(input.dailyPortfolioReturns),
     historicalVar95Pct: var95,
     historicalCvar95Pct: cvar95,

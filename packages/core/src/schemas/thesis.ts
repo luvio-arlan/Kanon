@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { HypothesisKpiRuleSchema } from "./v7-research-os";
 
-export const HypothesisStatusSchema = z.enum(["validated", "watching", "warning"]);
+export const HypothesisStatusSchema = z.enum(["validated", "watching", "warning", "invalidated"]);
 export type HypothesisStatus = z.infer<typeof HypothesisStatusSchema>;
 
 export const ConvictionZoneSchema = z.enum(["attractive", "balanced", "stretched"]);

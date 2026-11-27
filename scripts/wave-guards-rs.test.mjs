@@ -10,6 +10,9 @@ import {
   checkG10NoNetworkInDbTxAst,
   checkG12SystemContextAllowlistAst,
   checkG13SecFetchGatewayAst,
+  checkG14HypothesisEventPairingAst,
+  checkG15ImmutableLedgerTablesAst,
+  checkG16HoldingsUseCloseOnlyAst,
   checkG17HitlConfirmOnlyAst,
   checkG18NoSubstringChunkRetrievalAst,
   checkG19E2eNoArbitraryWaitAst,
@@ -402,6 +405,129 @@ expectClean(
   "G18 clean GIN FTS query",
 );
 
+// G14 negative examples (3)
+expectCaught(
+  (e) =>
+    checkG14HypothesisEventPairingAst(
+      "packages/core/src/db/repositories/review-and-agent-store.ts",
+      'async function badUpdate(tx) { await tx.update(hypothesesTable).set({ status: "invalidated" }); }',
+      e,
+    ),
+  "G14-hypothesis-status-event-pairing",
+  "G14 update hypothesesTable without appendHypothesisStatusEvent",
+);
+expectCaught(
+  (e) =>
+    checkG14HypothesisEventPairingAst(
+      "packages/core/src/db/repositories/thesis-step-writers.ts",
+      "export async function badStep(tx) { await tx.insert(hypothesesTable).values([]); }",
+      e,
+    ),
+  "G14-hypothesis-status-event-pairing",
+  "G14 insert hypothesesTable without appendHypothesisStatusEvent",
+);
+expectCaught(
+  (e) =>
+    checkG14HypothesisEventPairingAst(
+      "packages/core/src/db/repositories/agent/agent-apply-store.ts",
+      'async function applyProp(tx) { await tx.update(hypothesesTable).set({ status: "validated" }); }',
+      e,
+    ),
+  "G14-hypothesis-status-event-pairing",
+  "G14 agent apply without event pairing",
+);
+expectClean(
+  (e) =>
+    checkG14HypothesisEventPairingAst(
+      "packages/core/src/db/repositories/review-and-agent-store.ts",
+      'async function goodUpdate(tx) { await tx.update(hypothesesTable).set({ status: "validated" }); await appendHypothesisStatusEvent(tx, {}); }',
+      e,
+    ),
+  "G14 clean paired update",
+);
+
+// G15 negative examples (3)
+expectCaught(
+  (e) =>
+    checkG15ImmutableLedgerTablesAst(
+      "packages/core/src/db/repositories/portfolio/decision-snapshot-store.ts",
+      'tx.update(decisionSnapshotsTable).set({ snapshotHash: "tampered" });',
+      e,
+    ),
+  "G15-immutable-ledger-tables",
+  "G15 update decisionSnapshotsTable banned",
+);
+expectCaught(
+  (e) =>
+    checkG15ImmutableLedgerTablesAst(
+      "packages/core/src/db/repositories/portfolio/hypothesis-events-store.ts",
+      "tx.delete(hypothesisStatusEventsTable).where(eq(id, 1));",
+      e,
+    ),
+  "G15-immutable-ledger-tables",
+  "G15 delete hypothesisStatusEventsTable banned",
+);
+expectCaught(
+  (e) =>
+    checkG15ImmutableLedgerTablesAst(
+      "apps/web/src/app/api/portfolio/attribution/route.ts",
+      "tx.execute(sql`DELETE FROM decision_snapshots WHERE id = $1`);",
+      e,
+    ),
+  "G15-immutable-ledger-tables",
+  "G15 raw SQL delete decision_snapshots banned",
+);
+expectClean(
+  (e) =>
+    checkG15ImmutableLedgerTablesAst(
+      "packages/core/src/db/repositories/portfolio/decision-snapshot-store.ts",
+      "tx.insert(decisionSnapshotsTable).values({ id: 'ds_1' });",
+      e,
+    ),
+  "G15 clean insert decisionSnapshotsTable",
+);
+
+// G16 negative examples (3)
+expectCaught(
+  (e) =>
+    checkG16HoldingsUseCloseOnlyAst(
+      "packages/core/src/math/performance/nav-series.ts",
+      "const val = shares * bar.adjClose;",
+      e,
+    ),
+  "G16-holdings-use-close-only",
+  "G16 bar.adjClose banned in nav-series",
+);
+expectCaught(
+  (e) =>
+    checkG16HoldingsUseCloseOnlyAst(
+      "packages/core/src/db/repositories/portfolio/performance-inputs-store.ts",
+      "tx.select({ adjClose: dailyPriceBarsTable.adjClose }).from(dailyPriceBarsTable);",
+      e,
+    ),
+  "G16-holdings-use-close-only",
+  "G16 dailyPriceBarsTable.adjClose banned in portfolio store",
+);
+expectCaught(
+  (e) =>
+    checkG16HoldingsUseCloseOnlyAst(
+      "packages/core/src/math/risk/aligned-returns.ts",
+      "const r = curr.adjClose / prev.adjClose - 1;",
+      e,
+    ),
+  "G16-holdings-use-close-only",
+  "G16 adjClose banned in risk returns",
+);
+expectClean(
+  (e) =>
+    checkG16HoldingsUseCloseOnlyAst(
+      "packages/core/src/math/performance/nav-series.ts",
+      "const val = shares * bar.close;",
+      e,
+    ),
+  "G16 clean unadjusted close",
+);
+
 process.stdout.write(
-  "✓ wave-guards-rs.test.mjs: all G6+, G9, G10, G12, G13, G17, G18 & G19 adversarial fixtures caught and clean examples passed.\n",
+  "✓ wave-guards-rs.test.mjs: all G6+, G9, G10, G12, G13, G14, G15, G16, G17, G18 & G19 adversarial fixtures caught and clean examples passed.\n",
 );

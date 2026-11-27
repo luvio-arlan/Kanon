@@ -11,6 +11,7 @@ import {
   thesesTable,
   thesisCatalystsTable,
 } from "../../schema";
+import { appendHypothesisStatusEvent } from "../portfolio/hypothesis-events-store";
 import { listThesisRevisions, recordThesisRevision } from "../revision-queries";
 import { assertThesisAccess } from "../thesis/thesis-access";
 import { getThesisById } from "../thesis-queries";
@@ -65,10 +66,21 @@ async function applyHypothesisProposal(tx: KanonDb, thesis: ThesisDetail, prop: 
   const idx = prop.meta?.hypothesisIndex ?? 0;
   const targetHyp = thesis.hypotheses[idx];
   if (!targetHyp) return;
+  const nextStatus = prop.meta?.hypothesisStatus ?? targetHyp.status;
   await tx
     .update(hypothesesTable)
-    .set({ status: prop.meta?.hypothesisStatus ?? targetHyp.status, note: prop.content })
+    .set({ status: nextStatus, note: prop.content })
     .where(and(eq(hypothesesTable.id, targetHyp.id), eq(hypothesesTable.thesisId, thesis.id)));
+  if (nextStatus !== targetHyp.status) {
+    await appendHypothesisStatusEvent(tx, {
+      thesisId: thesis.id,
+      hypothesisId: targetHyp.id,
+      fromStatus: targetHyp.status,
+      toStatus: nextStatus,
+      source: "agent_apply",
+      note: prop.content,
+    });
+  }
 }
 
 async function applySingleProposal(

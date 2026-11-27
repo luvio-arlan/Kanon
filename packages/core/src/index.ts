@@ -39,6 +39,7 @@ export {
   type RedTeamReport,
   RedTeamReportSchema,
 } from "./contracts/ai-contracts";
+export * from "./contracts/analytics";
 export {
   AgentApplyRequestSchema,
   AgentApplyResponseSchema,
@@ -81,6 +82,7 @@ export {
   formatThesisMarkdown,
   type ThesisExportExtras,
 } from "./export/formatters";
+export * from "./math/attribution";
 export * from "./math/calibration";
 export * from "./math/dcf";
 export * from "./math/forensics";
@@ -100,6 +102,7 @@ export {
 } from "./math/implied-expectations";
 export * from "./math/institutional";
 export * from "./math/models";
+export * from "./math/performance";
 export {
   calculatePortfolioAnalytics,
   type KellySizingOptions,

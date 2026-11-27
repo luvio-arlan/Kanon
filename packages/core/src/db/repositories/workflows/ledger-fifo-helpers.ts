@@ -1,13 +1,5 @@
-import crypto from "node:crypto";
-import { and, asc, eq, gt, lte } from "drizzle-orm";
 import { todayIsoUtc } from "../../../contracts/workflow-contracts";
-import { roundTo } from "../../../math/valuation-scenarios";
-import type { KanonDb } from "../../bootstrap";
-import { type LedgerAction, lotsTable } from "../../schema";
-import {
-  isTickerRestricted,
-  normalizeCanonicalTicker,
-} from "../enterprise/ic-and-compliance-store";
+import type { LedgerAction } from "../../schema";
 
 export class LedgerPolicyError extends Error {
   readonly status: number;
@@ -54,149 +46,25 @@ export function assertValidLedgerNumbers(input: RecordTransactionInput, fees: nu
   }
 }
 
-async function consumeFifoLots(
-  tx: KanonDb,
-  accountId: string,
-  userId: string,
-  ticker: string,
-  sellQty: number,
-  tradeDate: string,
-): Promise<number> {
-  const canonical = normalizeCanonicalTicker(ticker);
-  const openLots = await tx
-    .select()
-    .from(lotsTable)
-    .where(
-      and(
-        eq(lotsTable.accountId, accountId),
-        eq(lotsTable.userId, userId),
-        eq(lotsTable.ticker, canonical),
-        gt(lotsTable.remainingQty, 0),
-        lte(lotsTable.openDate, tradeDate),
-      ),
-    )
-    .orderBy(asc(lotsTable.openDate), asc(lotsTable.id));
-  const totalAvailable = openLots.reduce((s, l) => s + l.remainingQty, 0);
-  if (sellQty > totalAvailable + 1e-6) {
-    throw new LedgerPolicyError(
-      "SHORT_SELL_BLOCKED",
-      `零杠杆风控拦截：截至 ${tradeDate} 可卖持仓 (${totalAvailable}) 不足卖出数量 (${sellQty})，严禁做空或倒填卖出日。`,
-    );
-  }
-  let remaining = sellQty;
-  let costSold = 0;
-  for (const lot of openLots) {
-    if (remaining <= 1e-8) break;
-    const take = Math.min(lot.remainingQty, remaining);
-    const nextQty = Math.max(0, lot.remainingQty - take);
-    costSold += take * lot.costBasisPerShare;
-    remaining -= take;
-    await tx
-      .update(lotsTable)
-      .set({ remainingQty: nextQty, closedAt: nextQty <= 1e-8 ? new Date() : null })
-      .where(and(eq(lotsTable.id, lot.id), eq(lotsTable.userId, userId)));
-  }
-  return costSold;
-}
-
-async function handleBuyEffect(
-  tx: KanonDb,
-  accountId: string,
-  accountOrgId: string | null,
-  cashBalance: number,
+export function buildNewReplayTx(
+  txId: string,
   input: RecordTransactionInput,
   ticker: string,
   fees: number,
-): Promise<{ nextCash: number; realizedPnl: number | null }> {
-  if (!input.noLeverageConfirmed) {
-    throw new LedgerPolicyError(
-      "NO_LEVERAGE_REQUIRED",
-      "零杠杆铁律：买入成交必须确认零融资、零杠杆。",
-    );
-  }
-  if (accountOrgId && (await isTickerRestricted(tx, accountOrgId, ticker))) {
-    throw new LedgerPolicyError(
-      "RESTRICTED_TICKER",
-      `合规限制名单拦截：该组织账户禁止买入 ${ticker}。`,
-      403,
-    );
-  }
-  const outlay = input.quantity * input.price + fees;
-  if (outlay > cashBalance + 1e-6) {
-    throw new LedgerPolicyError(
-      "INSUFFICIENT_CASH",
-      `零杠杆风控拦截：买入金额 $${outlay.toFixed(2)} 超过账户可用现金 $${cashBalance.toFixed(2)}。`,
-    );
-  }
-  const canonical = normalizeCanonicalTicker(ticker);
-  await tx.insert(lotsTable).values({
-    id: `lot_${crypto.randomUUID()}`,
-    accountId,
-    userId: input.userId,
-    ticker: canonical,
-    openDate: input.tradeDate,
-    remainingQty: input.quantity,
-    costBasisPerShare: outlay / input.quantity,
-  });
-  return { nextCash: roundTo(cashBalance - outlay, 2), realizedPnl: null };
-}
-
-async function handleSellEffect(
-  tx: KanonDb,
-  accountId: string,
-  cashBalance: number,
-  input: RecordTransactionInput,
-  ticker: string,
-  fees: number,
-): Promise<{ nextCash: number; realizedPnl: number }> {
-  const costSold = await consumeFifoLots(
-    tx,
-    accountId,
-    input.userId,
+  effectiveNoLeverage: boolean,
+) {
+  return {
+    id: txId,
+    thesisId: input.thesisId ?? null,
     ticker,
-    input.quantity,
-    input.tradeDate,
-  );
-  const proceeds = input.quantity * input.price - fees;
-  const nextCash = roundTo(cashBalance + proceeds, 2);
-  if (nextCash < 0) {
-    throw new LedgerPolicyError(
-      "INSUFFICIENT_CASH",
-      "零杠杆风控拦截：卖出手续费超过成交所得与可用现金，禁止产生负现金余额。",
-    );
-  }
-  return { nextCash, realizedPnl: roundTo(proceeds - costSold, 2) };
-}
-
-export async function computeLedgerActionEffect(
-  tx: KanonDb,
-  accountId: string,
-  accountOrgId: string | null,
-  cashBalance: number,
-  input: RecordTransactionInput,
-  ticker: string,
-  fees: number,
-): Promise<{ nextCash: number; realizedPnl: number | null }> {
-  if (input.action === "deposit" || input.action === "dividend") {
-    const net = input.quantity * input.price - fees;
-    const nextCash = roundTo(cashBalance + net, 2);
-    if (net < 0 || nextCash < 0) {
-      throw new LedgerPolicyError("INVALID_AMOUNT", "入账金额不能小于手续费或导致负现金余额。");
-    }
-    return { nextCash, realizedPnl: null };
-  }
-  if (input.action === "withdraw") {
-    const amt = input.quantity * input.price + fees;
-    if (amt > cashBalance + 1e-6) {
-      throw new LedgerPolicyError(
-        "INSUFFICIENT_CASH",
-        "零杠杆风控拦截：提现金额超出账户现金余额。",
-      );
-    }
-    return { nextCash: roundTo(cashBalance - amt, 2), realizedPnl: null };
-  }
-  if (input.action === "buy") {
-    return handleBuyEffect(tx, accountId, accountOrgId, cashBalance, input, ticker, fees);
-  }
-  return handleSellEffect(tx, accountId, cashBalance, input, ticker, fees);
+    action: input.action,
+    quantity: input.quantity,
+    price: input.price,
+    fees,
+    tradeDate: input.tradeDate,
+    createdAtMs: Date.now(),
+    externalRef: input.externalRef?.trim() || null,
+    noLeverageConfirmed: effectiveNoLeverage,
+    note: input.note?.trim() ?? "",
+  };
 }

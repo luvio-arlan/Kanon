@@ -7,6 +7,7 @@ import { KANON_FILING_REDLINES_SQL } from "./0029-filing-redlines";
 import { KANON_SEGMENT_REPORTS_SQL } from "./0030-segment-reports";
 import { KANON_GUIDANCE_LEDGER_SQL } from "./0031-guidance-ledger";
 import { KANON_FILING_CHUNKS_FTS_SQL } from "./0032-filing-chunks-fts";
+import { KANON_DECISION_SNAPSHOTS_SQL } from "./0033-decision-snapshots";
 
 export const KANON_V3_MIGRATIONS = [
   {
@@ -60,5 +61,11 @@ export const KANON_V3_MIGRATIONS = [
     description:
       "Expand-only expression GIN full-text index on filing_chunks(to_tsvector('english', text)) (R4)",
     sql: KANON_FILING_CHUNKS_FTS_SQL,
+  },
+  {
+    id: "0033_decision_snapshots",
+    description:
+      "Expand-only immutable decision_snapshots & append-only hypothesis_status_events with triggers, RLS & backfill (S3)",
+    sql: KANON_DECISION_SNAPSHOTS_SQL,
   },
 ] as const;

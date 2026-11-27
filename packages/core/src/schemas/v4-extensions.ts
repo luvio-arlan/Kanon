@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HypothesisStatusSchema } from "./thesis";
 import {
   LinkedOperatingDriversSchema,
   ReportingCurrencySchema,
@@ -99,7 +100,7 @@ export const RevisionSnapshotSchema = z.object({
   hypotheses: z.array(
     z.object({
       title: z.string(),
-      status: z.enum(["validated", "watching", "warning"]),
+      status: HypothesisStatusSchema,
       threshold: z.string(),
     }),
   ),

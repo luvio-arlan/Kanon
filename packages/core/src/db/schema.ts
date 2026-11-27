@@ -20,6 +20,7 @@ import {
 } from "./repositories/security/rls-policies";
 import { glossaryTermsTable } from "./schema-extensions";
 
+export * from "./schema-decisions";
 export * from "./schema-enterprise";
 export * from "./schema-extensions";
 export * from "./schema-intel";

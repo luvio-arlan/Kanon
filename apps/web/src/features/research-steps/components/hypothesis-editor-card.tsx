@@ -25,6 +25,7 @@ const STATUS_OPTS: ReadonlyArray<{ id: HypothesisStatus; label: string; tone: Bu
   { id: "validated", label: "已验证", tone: "pass" },
   { id: "watching", label: "待观察", tone: "warn" },
   { id: "warning", label: "证伪预警", tone: "fail" },
+  { id: "invalidated", label: "已证伪", tone: "fail" },
 ];
 
 function StatusButtonGroup({
