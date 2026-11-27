@@ -9,6 +9,7 @@ export interface RestatementMarker {
   originalValue: number;
   restatedValue: number;
   restatedAccession: string;
+  kind?: "restatement" | "split_recast";
 }
 
 function formatSignedEps(value: number | null): string {
@@ -22,7 +23,9 @@ function findRestatement(
   concept: string,
 ): RestatementMarker | undefined {
   if (!periodEnd || restatements.length === 0) return undefined;
-  return restatements.find((r) => r.periodEnd === periodEnd && r.concept === concept);
+  return restatements.find(
+    (r) => r.periodEnd === periodEnd && r.concept === concept && r.kind !== "split_recast",
+  );
 }
 
 function restatementAttrs(marker: RestatementMarker | undefined) {

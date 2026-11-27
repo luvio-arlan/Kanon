@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../../contracts/auth-contracts";
 import { formatLocaleCurrency, translateKanon } from "../../../contracts/i18n";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
-import { auditLogTable, thesesTable } from "../../schema";
+import { auditLogTable, thesesTable, usersTable } from "../../schema";
 import { assertThesisAccess } from "../thesis/thesis-lookups";
 import { getThesisById, listTheses } from "../thesis-queries";
 import {
@@ -18,9 +18,10 @@ import {
   submitIcApproval,
 } from "./ic-and-compliance-store";
 import {
-  addOrgMember,
+  acceptOrgInvitation,
   assignThesisToOrganization,
   createOrganization,
+  createOrgInvitation,
   hasOrgCapability,
   listUserOrganizations,
   withTenantContext,
@@ -40,10 +41,29 @@ describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Appe
     await close();
   });
 
+  async function joinOrg(
+    orgId: string,
+    invitedBy: string,
+    userId: string,
+    role: "owner" | "pm" | "analyst" | "viewer" | "compliance",
+  ) {
+    await db
+      .insert(usersTable)
+      .values({
+        id: userId,
+        phoneE164: `+86139${String(Math.abs(userId.split("").reduce((a, c) => a * 31 + c.charCodeAt(0), 7)) % 100_000_000).padStart(8, "0")}`,
+        displayName: userId,
+        passwordHash: "test-hash",
+      })
+      .onConflictDoNothing();
+    const inv = await createOrgInvitation(db, { orgId, inviteeUserId: userId, role, invitedBy });
+    await acceptOrgInvitation(db, { userId, invitationId: inv.id });
+  }
+
   it("enforces org capability RBAC, thesis-bound IC approvals, maker-checker, state machine & TRUNCATE-proof audit_log", async () => {
     const org = await createOrganization(db, { name: "Kanon Capital", createdBy: "user-pm" });
-    await addOrgMember(db, { orgId: org.id, userId: "user-analyst", role: "analyst" });
-    await addOrgMember(db, { orgId: org.id, userId: "user-comp", role: "compliance" });
+    await joinOrg(org.id, "user-pm", "user-analyst", "analyst");
+    await joinOrg(org.id, "user-pm", "user-comp", "compliance");
     expect((await listUserOrganizations(db, "user-analyst"))[0]?.role).toBe("analyst");
 
     // Capability RBAC separation of duties: analyst cannot restrict tickers, compliance cannot approve IC
@@ -161,7 +181,7 @@ describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Appe
 
   it("Wave M: shares org-assigned theses with org members, blocks outsiders, and sets RLS tenant context", async () => {
     const team = await createOrganization(db, { name: "Shared Desk", createdBy: "user-owner" });
-    await addOrgMember(db, { orgId: team.id, userId: "user-member", role: "analyst" });
+    await joinOrg(team.id, "user-owner", "user-member", "analyst");
 
     const [seed] = await listTheses(db);
     expect(seed).toBeDefined();
@@ -178,8 +198,8 @@ describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Appe
     expect(await assertThesisAccess(db, seed.id, "user-member", "delete")).toBe(false);
     expect(await assertThesisAccess(db, seed.id, "user-outsider", "read")).toBe(false);
 
-    await addOrgMember(db, { orgId: team.id, userId: "user-viewer", role: "viewer" });
-    await addOrgMember(db, { orgId: team.id, userId: "user-comp", role: "compliance" });
+    await joinOrg(team.id, "user-owner", "user-viewer", "viewer");
+    await joinOrg(team.id, "user-owner", "user-comp", "compliance");
     expect(await assertThesisAccess(db, seed.id, "user-viewer", "read")).toBe(true);
     expect(await assertThesisAccess(db, seed.id, "user-viewer", "write")).toBe(false);
     expect(await assertThesisAccess(db, seed.id, "user-comp", "read")).toBe(true);

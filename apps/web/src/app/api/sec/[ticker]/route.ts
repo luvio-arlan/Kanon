@@ -1,4 +1,8 @@
-import { fetchSecEdgarWithPitFacts, formatUsdCompact } from "@kanon/ai";
+import {
+  fetchSecEdgarWithPitFacts,
+  formatUsdCompact,
+  registerSecGlobalSlotAcquirer,
+} from "@kanon/ai";
 import {
   type SecFinancialFact,
   SecSnapshotSchema,
@@ -11,14 +15,20 @@ import {
   getSecSnapshot,
   getSecSnapshotForUser,
   getSecurityByTicker,
-  upsertSecSnapshot,
+  markSecuritySecStatus,
   upsertUserSecOverride,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { generateRequestId, logStructuredApiEvent } from "../../_lib/logger";
-import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
-import { syncSecSnapshotToWarehouse } from "../../_lib/sec-warehouse-sync";
+import {
+  acquireSecGlobalSlot,
+  checkPersistentRateLimit,
+  verifySameOrigin,
+} from "../../_lib/request-guards";
+import { commitSecSnapshotAndWarehouseAtomic } from "../../_lib/sec-warehouse-sync";
+
+registerSecGlobalSlotAcquirer((signal) => acquireSecGlobalSlot(signal));
 
 export const dynamic = "force-dynamic";
 
@@ -59,26 +69,29 @@ async function loadTickerRestatements(
       ),
     )
   ).flat();
-  return list.map((r) => ({
-    concept: r.concept,
-    periodEnd: r.periodEnd,
-    originalValue: r.originalValue,
-    restatedValue: r.restatedValue,
-    restatedAccession: r.restatedAccession,
-  }));
+  return list
+    .filter((r) => r.kind === "restatement")
+    .map((r) => ({
+      concept: r.concept,
+      periodEnd: r.periodEnd,
+      originalValue: r.originalValue,
+      restatedValue: r.restatedValue,
+      restatedAccession: r.restatedAccession,
+      kind: r.kind,
+    }));
 }
 
-async function syncWarehouseSafely(
+async function commitSecSafely(
   db: Awaited<ReturnType<typeof getKanonDb>>,
-  saved: Awaited<ReturnType<typeof upsertSecSnapshot>>,
+  rawSnapshot: Parameters<typeof commitSecSnapshotAndWarehouseAtomic>[1],
+  pitFacts: Parameters<typeof commitSecSnapshotAndWarehouseAtomic>[2],
   userId: string,
-  pitFacts: Parameters<typeof syncSecSnapshotToWarehouse>[3],
   ticker: string,
   startedAt: number,
-): Promise<boolean> {
+) {
   try {
-    await syncSecSnapshotToWarehouse(db, saved, userId, pitFacts);
-    return true;
+    const saved = await commitSecSnapshotAndWarehouseAtomic(db, rawSnapshot, pitFacts, userId);
+    return { saved, warehouseSynced: true as const };
   } catch (err) {
     logStructuredApiEvent({
       level: "warn",
@@ -86,10 +99,11 @@ async function syncWarehouseSafely(
       route: `/api/sec/${ticker}`,
       status: 200,
       durationMs: Math.round(performance.now() - startedAt),
-      code: "WAREHOUSE_SYNC_PARTIAL",
+      code: "WAREHOUSE_SYNC_FAILED",
       message: err instanceof Error ? err.message : String(err),
     });
-    return false;
+    const fallback = await getSecSnapshotForUser(db, ticker, userId);
+    return { saved: fallback, warehouseSynced: false as const };
   }
 }
 
@@ -109,18 +123,20 @@ export async function POST(request: Request, context: RouteContext) {
   const db = await getKanonDb();
   const fetched = await fetchSecEdgarWithPitFacts(ticker);
   if (!fetched.ok) {
+    if (fetched.errorKind === "not_sec_registrant") {
+      await markSecuritySecStatus(db, ticker, "not_registrant").catch(() => undefined);
+    }
     const snapshot = await getSecSnapshotForUser(db, ticker, auth.user.id);
     return jsonOk(
       { snapshot, live: false, warehouseSynced: false, restatements: [], notice: fetched.error },
       startedAt,
     );
   }
-  const saved = await upsertSecSnapshot(db, fetched.data);
-  const warehouseSynced = await syncWarehouseSafely(
+  const { saved, warehouseSynced } = await commitSecSafely(
     db,
-    saved,
-    auth.user.id,
+    fetched.data,
     fetched.pitFacts,
+    auth.user.id,
     ticker,
     startedAt,
   );
@@ -128,10 +144,14 @@ export async function POST(request: Request, context: RouteContext) {
     db,
     (await getSecurityByTicker(db, ticker))?.id,
   );
-  const notice = warehouseSynced
-    ? `已从 SEC EDGAR 官方接口同步 ${saved.entityName} 最新 10-K/10-Q 与财务锚点。`
-    : "SEC 快照已更新，历史口径校验未完成。";
-  return jsonOk({ snapshot: saved, live: true, warehouseSynced, restatements, notice }, startedAt);
+  const notice =
+    warehouseSynced && saved
+      ? `已从 SEC EDGAR 官方接口同步 ${saved.entityName} 最新 10-K/10-Q 与财务锚点。`
+      : "SEC 历史仓库写入失败，已原子回滚并保留旧快照。";
+  return jsonOk(
+    { snapshot: saved, live: warehouseSynced, warehouseSynced, restatements, notice },
+    startedAt,
+  );
 }
 
 function buildManualFacts(
@@ -145,43 +165,22 @@ function buildManualFacts(
 ): SecFinancialFact[] {
   const latest = annuals[annuals.length - 1];
   if (!latest) return [];
-  const facts: SecFinancialFact[] = [];
-  if (latest.revenue !== null) {
-    facts.push({
-      metric: "Revenue",
-      label: "年度营业收入",
-      valueFormatted: formatUsdCompact(latest.revenue),
+  const specs: Array<[number | null, string, string, string]> = [
+    [latest.revenue, "Revenue", "年度营业收入", "manual:Revenue"],
+    [latest.grossProfit, "GrossProfit", "年度毛利润", "manual:GrossProfit"],
+    latest.freeCashFlow !== null
+      ? [latest.freeCashFlow, "FreeCashFlow", "年度自由现金流", "manual:FCF"]
+      : [latest.netIncome, "NetIncome", "年度净利润", "manual:NetIncome"],
+  ];
+  return specs
+    .filter((s): s is [number, string, string, string] => s[0] !== null)
+    .map(([val, metric, label, sourceTag]) => ({
+      metric,
+      label,
+      valueFormatted: formatUsdCompact(val),
       period: latest.fiscalYear,
-      sourceTag: "manual:Revenue",
-    });
-  }
-  if (latest.grossProfit !== null) {
-    facts.push({
-      metric: "GrossProfit",
-      label: "年度毛利润",
-      valueFormatted: formatUsdCompact(latest.grossProfit),
-      period: latest.fiscalYear,
-      sourceTag: "manual:GrossProfit",
-    });
-  }
-  if (latest.freeCashFlow !== null) {
-    facts.push({
-      metric: "FreeCashFlow",
-      label: "年度自由现金流",
-      valueFormatted: formatUsdCompact(latest.freeCashFlow),
-      period: latest.fiscalYear,
-      sourceTag: "manual:FCF",
-    });
-  } else if (latest.netIncome !== null) {
-    facts.push({
-      metric: "NetIncome",
-      label: "年度净利润",
-      valueFormatted: formatUsdCompact(latest.netIncome),
-      period: latest.fiscalYear,
-      sourceTag: "manual:NetIncome",
-    });
-  }
-  return facts;
+      sourceTag,
+    }));
 }
 
 export async function PUT(request: Request, context: RouteContext) {

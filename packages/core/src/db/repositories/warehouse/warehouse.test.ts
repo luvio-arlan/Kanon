@@ -249,7 +249,7 @@ describe("Point-in-Time Data Warehouse (Stage 1: W1.1-W1.7)", () => {
   });
 
   it("W1.5 & W1.7: runs Postgres job queue with backoff, persists thesis peers, and computes estimate revision trend", async () => {
-    const jobId = await enqueueJob(db, {
+    const { id: jobId } = await enqueueJob(db, {
       kind: "noop",
       payload: { ticker: "MU" },
       maxAttempts: 2,

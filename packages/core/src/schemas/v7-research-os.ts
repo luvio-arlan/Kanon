@@ -24,10 +24,10 @@ export const SotpSegmentSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1).max(60),
   metricLabel: z.string().trim().min(1).max(24).default("EBIT"),
-  metricValueB: z.number().finite().min(0).max(10_000),
-  bearMultiple: z.number().finite().min(0).max(200),
-  baseMultiple: z.number().finite().min(0).max(200),
-  bullMultiple: z.number().finite().min(0).max(200),
+  metricValueB: z.number().finite().min(0).max(10_000).nullable(),
+  bearMultiple: z.number().finite().min(0).max(200).nullable(),
+  baseMultiple: z.number().finite().min(0).max(200).nullable(),
+  bullMultiple: z.number().finite().min(0).max(200).nullable(),
 });
 export type SotpSegment = z.infer<typeof SotpSegmentSchema>;
 

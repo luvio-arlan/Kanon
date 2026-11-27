@@ -14,7 +14,8 @@ import {
 import type { FinancialFactDuration } from "../contracts/financial-concepts";
 
 export type CorporateActionKind = "split" | "dividend" | "spinoff";
-export type JobStatus = "pending" | "running" | "done" | "failed";
+export type JobStatus = "pending" | "running" | "done" | "failed" | "skipped";
+export type SecuritySecStatus = "active" | "not_registrant";
 export type ThesisPeerRole = "peer" | "customer" | "supplier" | "competitor";
 export type EstimateMetric = "revenue" | "eps" | "ebit" | "fcf";
 
@@ -34,6 +35,7 @@ export const securitiesTable = pgTable(
     sectorCode: text("sector_code"),
     industryCode: text("industry_code"),
     isActive: boolean("is_active").notNull().default(true),
+    secStatus: text("sec_status").$type<SecuritySecStatus>().notNull().default("active"),
     listedAt: text("listed_at"),
     delistedAt: text("delisted_at"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

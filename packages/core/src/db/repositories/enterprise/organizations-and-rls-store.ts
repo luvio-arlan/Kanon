@@ -9,14 +9,19 @@ import {
   thesesTable,
   usersTable,
 } from "../../schema";
-import { assertOrgRetainsOwner } from "./org-invitations-store";
+import { assertOrgRetainsOwner, revokePendingInvitationsByInviter } from "./org-invitations-store";
 
+export {
+  type SystemDbReason,
+  withSystemContext,
+  withTenantContext,
+} from "../security/tenant-context";
 export {
   acceptOrgInvitation,
   createOrgInvitation,
   listPendingOrgInvitations,
   OrgPolicyError,
-  withTenantContext,
+  revokeOrgInvitation,
 } from "./org-invitations-store";
 
 export interface OrganizationSummary {
@@ -77,72 +82,8 @@ export async function createOrganization(
   return { id, name, slug, role: "owner" };
 }
 
-export async function addOrgMember(
-  db: KanonDb,
-  input: { orgId: string; userId: string; role: OrgRole },
-): Promise<void> {
-  await runInTransaction(db, async (tx) => {
-    const [existing] = await tx
-      .select({ role: membershipsTable.role })
-      .from(membershipsTable)
-      .where(
-        and(
-          eq(membershipsTable.orgId, input.orgId),
-          eq(membershipsTable.userId, input.userId),
-          isNotNull(membershipsTable.acceptedAt),
-        ),
-      )
-      .limit(1);
-    if (existing?.role === "owner" && input.role !== "owner") {
-      await assertOrgRetainsOwner(tx, input.orgId, input.userId);
-    }
-    const now = new Date();
-    await tx
-      .insert(membershipsTable)
-      .values({ orgId: input.orgId, userId: input.userId, role: input.role, acceptedAt: now })
-      .onConflictDoUpdate({
-        target: [membershipsTable.orgId, membershipsTable.userId],
-        set: { role: input.role, acceptedAt: now },
-      });
-  });
-}
-
-export async function removeOrgMember(
-  db: KanonDb,
-  input: { orgId: string; userId: string },
-): Promise<boolean> {
-  return runInTransaction(db, async (tx) => {
-    const [existing] = await tx
-      .select({ role: membershipsTable.role })
-      .from(membershipsTable)
-      .where(
-        and(
-          eq(membershipsTable.orgId, input.orgId),
-          eq(membershipsTable.userId, input.userId),
-          isNotNull(membershipsTable.acceptedAt),
-        ),
-      )
-      .limit(1);
-    if (!existing) return false;
-    if (existing.role === "owner") {
-      await assertOrgRetainsOwner(tx, input.orgId, input.userId);
-    }
-    const deleted = await tx
-      .delete(membershipsTable)
-      .where(
-        and(eq(membershipsTable.orgId, input.orgId), eq(membershipsTable.userId, input.userId)),
-      )
-      .returning();
-    return deleted.length > 0;
-  });
-}
-
-export async function getOrgMemberRole(
-  db: KanonDb,
-  orgId: string,
-  userId: string,
-): Promise<OrgRole | null> {
-  const [row] = await db
+async function findAcceptedMemberRole(tx: KanonDb, orgId: string, userId: string) {
+  const [row] = await tx
     .select({ role: membershipsTable.role })
     .from(membershipsTable)
     .where(
@@ -154,6 +95,77 @@ export async function getOrgMemberRole(
     )
     .limit(1);
   return row?.role ?? null;
+}
+
+export async function updateOrgMemberRole(
+  db: KanonDb,
+  input: { orgId: string; userId: string; role: OrgRole; actorUserId?: string },
+): Promise<boolean> {
+  return runInTransaction(db, async (tx) => {
+    const existingRole = await findAcceptedMemberRole(tx, input.orgId, input.userId);
+    if (!existingRole) return false;
+    if (existingRole === "owner" && input.role !== "owner") {
+      await assertOrgRetainsOwner(tx, input.orgId, input.userId);
+    }
+    const updated = await tx
+      .update(membershipsTable)
+      .set({ role: input.role })
+      .where(
+        and(
+          eq(membershipsTable.orgId, input.orgId),
+          eq(membershipsTable.userId, input.userId),
+          isNotNull(membershipsTable.acceptedAt),
+        ),
+      )
+      .returning();
+    if (
+      updated.length > 0 &&
+      hasOrgCapability(existingRole, "org.manage_members") &&
+      !hasOrgCapability(input.role, "org.manage_members")
+    ) {
+      await revokePendingInvitationsByInviter(
+        tx,
+        input.orgId,
+        input.userId,
+        input.actorUserId ?? input.userId,
+      );
+    }
+    return updated.length > 0;
+  });
+}
+
+export async function removeOrgMember(
+  db: KanonDb,
+  input: { orgId: string; userId: string; actorUserId?: string },
+): Promise<boolean> {
+  return runInTransaction(db, async (tx) => {
+    const existingRole = await findAcceptedMemberRole(tx, input.orgId, input.userId);
+    if (!existingRole) return false;
+    if (existingRole === "owner") await assertOrgRetainsOwner(tx, input.orgId, input.userId);
+    const deleted = await tx
+      .delete(membershipsTable)
+      .where(
+        and(eq(membershipsTable.orgId, input.orgId), eq(membershipsTable.userId, input.userId)),
+      )
+      .returning();
+    if (deleted.length > 0) {
+      await revokePendingInvitationsByInviter(
+        tx,
+        input.orgId,
+        input.userId,
+        input.actorUserId ?? input.userId,
+      );
+    }
+    return deleted.length > 0;
+  });
+}
+
+export async function getOrgMemberRole(
+  db: KanonDb,
+  orgId: string,
+  userId: string,
+): Promise<OrgRole | null> {
+  return findAcceptedMemberRole(db, orgId, userId);
 }
 
 export function hasOrgCapability(role: OrgRole | null, capability: OrgCapability): boolean {
@@ -213,11 +225,7 @@ export async function assignThesisToOrganization(
 }
 
 export async function listUserOrgIds(db: KanonDb, userId: string): Promise<string[]> {
-  const rows = await db
-    .select({ orgId: membershipsTable.orgId })
-    .from(membershipsTable)
-    .where(and(eq(membershipsTable.userId, userId), isNotNull(membershipsTable.acceptedAt)));
-  return rows.map((r) => r.orgId);
+  return listUserOrgIdsByRoles(db, userId, ["owner", "pm", "analyst", "viewer", "compliance"]);
 }
 
 export async function listUserOrgIdsByRoles(

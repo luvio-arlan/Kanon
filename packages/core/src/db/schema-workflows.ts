@@ -109,6 +109,7 @@ export const portfolioAccountsTable = pgTable("portfolio_accounts", {
   name: text("name").notNull(),
   baseCurrency: text("base_currency").notNull().default("USD"),
   cashBalance: doublePrecision("cash_balance").notNull().default(0),
+  ledgerInconsistent: boolean("ledger_inconsistent").notNull().default(false),
   noLeverageAcknowledgedAt: timestamp("no_leverage_acknowledged_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

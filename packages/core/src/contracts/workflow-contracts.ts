@@ -212,6 +212,11 @@ export const OrgPostRequestSchema = z.union([
     token: z.string().trim().min(1).optional(),
   }),
   z.object({
+    op: z.literal("revoke_invite"),
+    orgId: z.string().trim().min(1),
+    invitationId: z.string().trim().min(1),
+  }),
+  z.object({
     op: z.literal("update_role"),
     orgId: z.string().trim().min(1),
     userId: z.string().trim().min(1),

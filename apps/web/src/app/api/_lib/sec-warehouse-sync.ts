@@ -11,9 +11,11 @@ import {
   type KanonDb,
   listEnabledForm8kAlertRecipients,
   listThesisWatchersByTicker,
+  runInTransaction,
   upsertFiling,
   upsertFilingChunks,
   upsertFinancialFacts,
+  upsertSecSnapshot,
   upsertSecurity,
 } from "@kanon/core/db";
 import { buildFallbackAnnualFacts, persistExtractedPitFacts } from "./sec-pit-sync";
@@ -57,7 +59,7 @@ async function fanOutForm8kAlerts(db: KanonDb, snapshot: SecSnapshot): Promise<v
   }
 }
 
-/** Persists a synced SEC snapshot + per-fact PIT records and fans out deduplicated 8-K alerts. */
+/** Persists a synced SEC snapshot + per-fact PIT records (filings -> PIT facts -> snapshot) atomically. */
 export async function syncSecSnapshotToWarehouse(
   db: KanonDb,
   snapshot: SecSnapshot,
@@ -70,6 +72,7 @@ export async function syncSecSnapshotToWarehouse(
     name: snapshot.entityName,
     currency: snapshot.reportingCurrency,
     adrRatio: snapshot.adrRatio,
+    secStatus: "active",
   });
 
   for (const filing of snapshot.filings.slice(0, 10)) {
@@ -89,7 +92,6 @@ export async function syncSecSnapshotToWarehouse(
     });
   }
   void userId;
-  await fanOutForm8kAlerts(db, snapshot);
 
   if (pitFacts && pitFacts.length > 0) {
     await persistExtractedPitFacts(db, security.id, snapshot.cik, pitFacts);
@@ -97,6 +99,24 @@ export async function syncSecSnapshotToWarehouse(
   }
   const fallbackFacts = buildFallbackAnnualFacts(security.id, snapshot);
   if (fallbackFacts.length > 0) await upsertFinancialFacts(db, fallbackFacts);
+}
+
+/**
+ * Q5-11 atomic commit: writes security + filings + PIT facts FIRST and `sec_filings_cache`
+ * LAST inside a single transaction so any warehouse failure rolls back the snapshot commit marker.
+ */
+export async function commitSecSnapshotAndWarehouseAtomic(
+  db: KanonDb,
+  rawSnapshot: SecSnapshot,
+  pitFacts?: readonly ExtractedPitFact[],
+  userId?: string,
+): Promise<SecSnapshot> {
+  const saved = await runInTransaction(db, async (tx) => {
+    await syncSecSnapshotToWarehouse(tx, rawSnapshot, userId, pitFacts);
+    return upsertSecSnapshot(tx, rawSnapshot);
+  });
+  await fanOutForm8kAlerts(db, saved).catch(() => undefined);
+  return saved;
 }
 
 /** Indexes parsed 10-K/10-Q paragraphs into `filing_chunks` and scans for red-flag disclosures. */

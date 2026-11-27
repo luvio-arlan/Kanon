@@ -36,7 +36,7 @@ packages/
 pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards + knip (zero-skip, zero-ratchet)
 pnpm test         # Vitest: financial math goldens, dynamic DDL parity, zero-leverage & AI/API contracts
 pnpm build        # Full Turborepo production build
-pnpm test:api     # Isolated 32-route API + SSR + Auth/MCP/CSRF contract verification
+pnpm test:api     # Isolated 43-route API + SSR + Auth/MCP/CSRF contract verification
 pnpm dev          # Local Next.js dev server (persistent PGlite when DATABASE_URL unset)
 pnpm db:push      # Push Drizzle schema to an empty external PostgreSQL only (production uses expand-only KANON_MIGRATIONS)
 ```

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { AgentBriefingSchema, type AgentProposal } from "../../../contracts/ai-contracts";
 import type { SavedAgentRun } from "../../../contracts/api-contracts";
 import type { ThesisDetail, ThesisRevision } from "../../../schemas/research";
@@ -14,6 +14,15 @@ import {
 import { listThesisRevisions, recordThesisRevision } from "../revision-queries";
 import { assertThesisAccess } from "../thesis/thesis-access";
 import { getThesisById } from "../thesis-queries";
+
+export async function getAgentRunThesisId(db: KanonDb, runId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ thesisId: agentRunsTable.thesisId })
+    .from(agentRunsTable)
+    .where(eq(agentRunsTable.id, runId))
+    .limit(1);
+  return row?.thesisId ?? null;
+}
 
 export async function listAgentRuns(
   db: KanonDb,
@@ -81,10 +90,10 @@ async function applySingleProposal(
       id: `cat-ag-${crypto.randomUUID().slice(0, 6)}`,
       thesisId: thesis.id,
       title: prop.title.slice(0, 120),
-      dateLabel: prop.meta?.catalystDateLabel ?? "下一季财报",
+      dateLabel: prop.meta?.catalystDateLabel?.trim() ?? "",
       category: prop.meta?.catalystCategory ?? "earnings",
-      impact: "high",
-      direction: "bullish",
+      impact: null,
+      direction: null,
       status: "upcoming",
       verificationMetric: prop.meta?.catalystMetric ?? "核心业绩与毛利率指引",
       note: prop.content.slice(0, 380),
@@ -106,17 +115,15 @@ async function applySingleProposal(
   }
 }
 
-function mergeFilterUpdates(
-  thesis: ThesisDetail,
+function collectFilterKeyPatches(
   proposals: readonly AgentProposal[],
-): ThesisDetail["businessFilter"] | null {
-  let nextFilter: ThesisDetail["businessFilter"] | null = null;
+): Array<["variantPerception" | "keyDebate" | "preMortem", string]> {
+  const map = new Map<"variantPerception" | "keyDebate" | "preMortem", string>();
   for (const prop of proposals) {
     const key = FILTER_KEY_BY_TARGET[prop.target];
-    if (!key) continue;
-    nextFilter = { ...(nextFilter ?? thesis.businessFilter), [key]: prop.content };
+    if (key) map.set(key, prop.content);
   }
-  return nextFilter;
+  return [...map.entries()];
 }
 
 async function applyPendingBatch(
@@ -126,13 +133,21 @@ async function applyPendingBatch(
 ): Promise<string[]> {
   const promotedExitRules: string[] = [];
   if (pendingProposals.length === 0) return promotedExitRules;
-  const mergedFilter = mergeFilterUpdates(thesis, pendingProposals);
-  if (mergedFilter) {
-    // @kanon-tenant-checked: thesis ownership verified in loadAuthorizedRunContext
+  const patches = collectFilterKeyPatches(pendingProposals);
+  if (patches.length > 0) {
+    let filterExpr = sql<
+      ThesisDetail["businessFilter"]
+    >`COALESCE(${thesesTable.businessFilter}, '{}'::jsonb)`;
+    for (const [key, value] of patches) {
+      filterExpr = sql<
+        ThesisDetail["businessFilter"]
+      >`jsonb_set(${filterExpr}, ARRAY[${key}], to_jsonb(${value}::text), true)`;
+    }
+    // @kanon-tenant-checked: thesis write capability verified and row locked in loadAuthorizedRunContext
     await tx
       .update(thesesTable)
       .set({
-        businessFilter: mergedFilter,
+        businessFilter: filterExpr,
         lastReviewedLabel: "刚刚采纳 · 投委会修订",
         updatedAt: new Date(),
       })
@@ -154,7 +169,7 @@ export interface AtomicAgentApplyResult {
 async function loadAuthorizedRunContext(
   tx: KanonDb,
   runId: string,
-  userId?: string,
+  userId: string,
 ): Promise<{
   proposals: AgentProposal[];
   appliedProposalIds: string[];
@@ -166,11 +181,12 @@ async function loadAuthorizedRunContext(
     .where(eq(agentRunsTable.id, runId))
     .for("update");
   if (!row) return null;
-  if (userId && !(await assertThesisAccess(tx, row.run.thesisId, userId, "write"))) {
+  if (!(await assertThesisAccess(tx, row.run.thesisId, userId, "write"))) {
     return null;
   }
+  await tx.execute(sql`SELECT id FROM theses WHERE id = ${row.run.thesisId} FOR UPDATE`);
   const parsed = AgentBriefingSchema.safeParse(row.run.briefingJson);
-  const thesis = await getThesisById(tx, row.run.thesisId);
+  const thesis = await getThesisById(tx, row.run.thesisId, userId);
   if (!thesis) return null;
   return {
     proposals: parsed.success ? parsed.data.proposals : [],
@@ -181,7 +197,7 @@ async function loadAuthorizedRunContext(
 
 export async function applyAgentProposalsAtomic(
   db: KanonDb,
-  params: { runId: string; proposalIds: readonly string[]; userId?: string },
+  params: { runId: string; proposalIds: readonly string[]; userId: string },
 ): Promise<AtomicAgentApplyResult | null> {
   return runInTransaction(db, async (tx) => {
     const ctx = await loadAuthorizedRunContext(tx, params.runId, params.userId);

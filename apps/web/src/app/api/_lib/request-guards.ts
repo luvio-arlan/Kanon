@@ -1,4 +1,4 @@
-import { consumePersistentRateLimit, getKanonDb } from "@kanon/core/db";
+import { consumePersistentRateLimit, getKanonDb, type KanonDb } from "@kanon/core/db";
 import type { NextResponse } from "next/server";
 import { jsonError } from "./http";
 
@@ -151,4 +151,46 @@ export function verifySameOrigin(
   if (options?.allowBearerBypass && hasBearer) return null;
   if (matchesRequestHost(request)) return null;
   return jsonError("跨站请求来源校验未通过，请刷新页面后重试。", 403, startedAt, "ORIGIN_MISMATCH");
+}
+
+function waitMsWithSignal(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
+  if (signal.aborted) return Promise.reject(signal.reason ?? new Error("Aborted"));
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason ?? new Error("Aborted"));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/** Distributed SEC fair-access token bucket (<= 8 req/s across all serverless instances). */
+export async function acquireSecGlobalSlot(
+  signal?: AbortSignal,
+  dbOverride?: KanonDb,
+  maxPerSec = 8,
+): Promise<void> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    if (signal?.aborted) throw signal.reason ?? new Error("Aborted");
+    const epochSec = Math.floor(Date.now() / 1000);
+    try {
+      const db = dbOverride ?? (await getKanonDb());
+      const res = await consumePersistentRateLimit(db, {
+        bucketKey: `sec:global:${epochSec}`,
+        maxRequests: maxPerSec,
+        windowMs: 1000,
+      });
+      if (res.allowed) return;
+    } catch (err) {
+      void err;
+      return;
+    }
+    const waitMs = Math.max(25, 1000 - (Date.now() % 1000) + 15);
+    await waitMsWithSignal(waitMs, signal);
+  }
 }

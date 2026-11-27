@@ -1,6 +1,7 @@
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { roundTo } from "../../../math/valuation-scenarios";
 import type { KanonDb } from "../../bootstrap";
+import { runInTransaction } from "../../client";
 import {
   type CorporateActionKind,
   corporateActionsTable,
@@ -54,6 +55,30 @@ export async function upsertPriceBars(
       });
   }
   return rows.length;
+}
+
+export async function replacePriceBarsForSecurity(
+  db: KanonDb,
+  securityId: string,
+  bars: readonly DailyPriceBarInput[],
+): Promise<number> {
+  return runInTransaction(db, async (tx) => {
+    await tx.delete(priceBarsDailyTable).where(eq(priceBarsDailyTable.securityId, securityId));
+    return upsertPriceBars(tx, bars);
+  });
+}
+
+export async function getLatestPriceBar(
+  db: KanonDb,
+  securityId: string,
+): Promise<DailyPriceBar | null> {
+  const [row] = await db
+    .select()
+    .from(priceBarsDailyTable)
+    .where(eq(priceBarsDailyTable.securityId, securityId))
+    .orderBy(desc(priceBarsDailyTable.barDate))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getPriceBarCoverage(

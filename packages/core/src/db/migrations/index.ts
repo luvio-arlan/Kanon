@@ -23,6 +23,7 @@ import { KANON_WAVE_L_M_VECTORS_RLS_SQL } from "./v2/0022-wave-l-m-vectors-rls";
 import { KANON_WAVE_O_INVITATIONS_QUEUE_ALERTS_SQL } from "./v2/0023-wave-o-invitations-queue-alerts";
 import { KANON_RLS_FORCE_SQL } from "./v3/0024-rls-force";
 import { KANON_RLS_SPLIT_POLICIES_SQL } from "./v3/0025-rls-split-policies";
+import { KANON_Q5_INVITES_LEDGER_OPENING_SQL } from "./v3/0026-q5-invites-ledger-opening";
 
 export interface KanonMigration {
   id: string;
@@ -182,6 +183,12 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     id: "0025_rls_split_policies",
     description: "Expand-only read/write split RLS policies on theses & child tenant tables",
     sql: KANON_RLS_SPLIT_POLICIES_SQL,
+  },
+  {
+    id: "0026_q5_invites_ledger_opening",
+    description:
+      "Expand-only org invitation revocation, security sec_status, nullable catalyst draft fields & opening-cash ledger backfill",
+    sql: KANON_Q5_INVITES_LEDGER_OPENING_SQL,
   },
 ];
 

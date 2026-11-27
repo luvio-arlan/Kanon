@@ -132,6 +132,10 @@ export const TickerSymbolSchema = z
   .transform((v) => v.toUpperCase())
   .refine((v) => /^[A-Z0-9.-]{1,10}$/.test(v), "请输入有效的证券代码（字母/数字/./-）");
 
+export function normalizeCanonicalTicker(raw: string): string {
+  return raw.trim().toUpperCase().replace(/\./g, "-");
+}
+
 export const CreateThesisInputSchema = z.object({
   ticker: TickerSymbolSchema,
   companyName: z.string().trim().min(1).max(60),

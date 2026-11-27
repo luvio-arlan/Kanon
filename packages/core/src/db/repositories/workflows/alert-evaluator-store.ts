@@ -1,21 +1,32 @@
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, lte } from "drizzle-orm";
 import { todayIsoUtc } from "../../../contracts/workflow-contracts";
+import type { ValuationBand } from "../../../schemas/v7-research-os";
 import type { KanonDb } from "../../bootstrap";
 import { alertRulesTable, forecastsTable, thesesTable } from "../../schema";
 import { assertThesisAccess } from "../thesis/thesis-access";
-import { getFactsAsOf } from "../warehouse/facts-pit-store";
-import {
-  computeRealHistoricalValuationBand,
-  listCorporateActions,
-  listPriceBars,
-} from "../warehouse/price-bars-store";
-import { getSecurityByTicker } from "../warehouse/securities-and-fx-store";
-import { evalForm8kRule } from "./alert-form8k-eval";
+import { getLatestPriceBar } from "../warehouse/price-bars-store";
+import { getSecurityByTicker, type SecurityRecord } from "../warehouse/securities-and-fx-store";
+import { evalForm8kRule, loadPeBandForSecurity } from "./alert-form8k-eval";
 import { createInboxItem } from "./inbox-and-forecasts-store";
 
 export interface AlertEvalSummary {
   evaluatedRules: number;
   triggeredCount: number;
+  completed: boolean;
+  nextCursor: string | null;
+}
+
+export interface AlertEvalOptions {
+  now?: Date;
+  budgetMs?: number;
+  afterRuleId?: string | null;
+}
+
+interface EvalTickCache {
+  securityByTicker: Map<string, SecurityRecord | null>;
+  priceByTicker: Map<string, number>;
+  bandByTicker: Map<string, ValuationBand | null>;
+  thesisById: Map<string, typeof thesesTable.$inferSelect | null>;
 }
 
 async function updateRuleState(
@@ -34,15 +45,27 @@ async function updateRuleState(
     .where(and(eq(alertRulesTable.id, ruleId), eq(alertRulesTable.userId, userId)));
 }
 
+async function resolveSecurityCached(db: KanonDb, ticker: string, cache: EvalTickCache) {
+  const key = ticker.trim().toUpperCase();
+  if (cache.securityByTicker.has(key)) return cache.securityByTicker.get(key) ?? null;
+  const sec = await getSecurityByTicker(db, key);
+  cache.securityByTicker.set(key, sec);
+  return sec;
+}
+
 async function resolveLatestPrice(
   db: KanonDb,
   thesis: typeof thesesTable.$inferSelect,
+  cache: EvalTickCache,
 ): Promise<number> {
-  const sec = await getSecurityByTicker(db, thesis.ticker);
-  if (!sec) return thesis.currentPrice;
-  const bars = await listPriceBars(db, sec.id);
-  const lastClose = bars[bars.length - 1]?.close;
-  return lastClose && lastClose > 0 ? lastClose : thesis.currentPrice;
+  const key = thesis.ticker.trim().toUpperCase();
+  const cached = cache.priceByTicker.get(key);
+  if (cached !== undefined) return cached;
+  const sec = await resolveSecurityCached(db, key, cache);
+  const latestBar = sec ? await getLatestPriceBar(db, sec.id) : null;
+  const resolved = latestBar && latestBar.close > 0 ? latestBar.close : thesis.currentPrice;
+  cache.priceByTicker.set(key, resolved);
+  return resolved;
 }
 
 async function evalPriceHurdleRule(
@@ -51,16 +74,15 @@ async function evalPriceHurdleRule(
   thesis: typeof thesesTable.$inferSelect,
   day: string,
   now: Date,
+  cache: EvalTickCache,
 ): Promise<boolean> {
   const target = Number(rule.configJson.targetPrice);
   if (!Number.isFinite(target) || target <= 0) return false;
   const direction = rule.configJson.direction === "above" ? "above" : "below";
-  const price = await resolveLatestPrice(db, thesis);
+  const price = await resolveLatestPrice(db, thesis, cache);
   const hit = direction === "above" ? price >= target : price <= target;
   if (!hit) {
-    if (rule.lastState !== "inside") {
-      await updateRuleState(db, rule.id, rule.userId, "inside");
-    }
+    if (rule.lastState !== "inside") await updateRuleState(db, rule.id, rule.userId, "inside");
     return false;
   }
   if (rule.lastState === "breach") return false;
@@ -77,34 +99,19 @@ async function evalPriceHurdleRule(
   return true;
 }
 
-async function loadPeBandForThesis(
+async function loadPeBandCached(
   db: KanonDb,
   ticker: string,
   day: string,
   fallbackPrice: number | null,
+  cache: EvalTickCache,
 ) {
-  const sec = await getSecurityByTicker(db, ticker);
-  if (!sec) return null;
-  const [bars, epsFacts, sharesFacts, actions] = await Promise.all([
-    listPriceBars(db, sec.id),
-    getFactsAsOf(db, { securityId: sec.id, concept: "diluted_eps", asOfDate: day }),
-    getFactsAsOf(db, { securityId: sec.id, concept: "diluted_shares", asOfDate: day }),
-    listCorporateActions(db, sec.id),
-  ]);
-  const splits = actions
-    .filter(
-      (a): a is typeof a & { ratio: number } =>
-        a.kind === "split" && typeof a.ratio === "number" && a.ratio > 0,
-    )
-    .map((a) => ({ exDate: a.exDate, ratio: a.ratio }));
-  return computeRealHistoricalValuationBand({
-    bars,
-    annuals: [],
-    pitEpsFacts: epsFacts,
-    pitSharesFacts: sharesFacts,
-    splits,
-    currentPrice: bars[bars.length - 1]?.close ?? fallbackPrice,
-  });
+  const key = ticker.trim().toUpperCase();
+  if (cache.bandByTicker.has(key)) return cache.bandByTicker.get(key) ?? null;
+  const sec = await resolveSecurityCached(db, key, cache);
+  const band = sec ? await loadPeBandForSecurity(db, sec.id, day, fallbackPrice) : null;
+  cache.bandByTicker.set(key, band);
+  return band;
 }
 
 async function evalPeBandBreachRule(
@@ -113,8 +120,9 @@ async function evalPeBandBreachRule(
   thesis: typeof thesesTable.$inferSelect,
   day: string,
   now: Date,
+  cache: EvalTickCache,
 ): Promise<boolean> {
-  const band = await loadPeBandForThesis(db, thesis.ticker, day, thesis.currentPrice);
+  const band = await loadPeBandCached(db, thesis.ticker, day, thesis.currentPrice, cache);
   if (!band || band.current === null || band.p10 === null || band.p90 === null) return false;
   const breached = band.current <= band.p10 || band.current >= band.p90;
   if (!breached) {
@@ -169,24 +177,28 @@ async function evalForecastDueRule(
   return true;
 }
 
+async function loadThesisCached(db: KanonDb, thesisId: string, cache: EvalTickCache) {
+  if (cache.thesisById.has(thesisId)) return cache.thesisById.get(thesisId) ?? null;
+  const [thesis] = await db.select().from(thesesTable).where(eq(thesesTable.id, thesisId)).limit(1);
+  cache.thesisById.set(thesisId, thesis ?? null);
+  return thesis ?? null;
+}
+
 async function evaluateSingleRule(
   db: KanonDb,
   rule: typeof alertRulesTable.$inferSelect,
   day: string,
   now: Date,
+  cache: EvalTickCache,
 ): Promise<boolean> {
   if (rule.kind === "forecast_due") return evalForecastDueRule(db, rule, day, now);
   if (!rule.thesisId) return false;
-  const canRead = await assertThesisAccess(db, rule.thesisId, rule.userId, "read");
-  if (!canRead) return false;
-  const [thesis] = await db
-    .select()
-    .from(thesesTable)
-    .where(eq(thesesTable.id, rule.thesisId))
-    .limit(1);
+  if (!(await assertThesisAccess(db, rule.thesisId, rule.userId, "read"))) return false;
+  const thesis = await loadThesisCached(db, rule.thesisId, cache);
   if (!thesis) return false;
-  if (rule.kind === "price_hurdle") return evalPriceHurdleRule(db, rule, thesis, day, now);
-  if (rule.kind === "pe_band_breach") return evalPeBandBreachRule(db, rule, thesis, day, now);
+  if (rule.kind === "price_hurdle") return evalPriceHurdleRule(db, rule, thesis, day, now, cache);
+  if (rule.kind === "pe_band_breach")
+    return evalPeBandBreachRule(db, rule, thesis, day, now, cache);
   if (rule.kind === "form8k_redflag") {
     return evalForm8kRule(db, rule, thesis, now, () =>
       updateRuleState(db, rule.id, rule.userId, "breach", now),
@@ -195,13 +207,43 @@ async function evaluateSingleRule(
   return false;
 }
 
-/** Evaluates all enabled alert rules with edge-triggered state transitions and org-shared thesis support. */
-export async function evaluateAlertRules(db: KanonDb, now = new Date()): Promise<AlertEvalSummary> {
+/** Evaluates enabled alert rules in deterministic `id` order with per-ticker caching & time budget cursor. */
+export async function evaluateAlertRules(
+  db: KanonDb,
+  nowOrOptions: Date | AlertEvalOptions = new Date(),
+): Promise<AlertEvalSummary> {
+  const opts: AlertEvalOptions =
+    nowOrOptions instanceof Date ? { now: nowOrOptions } : nowOrOptions;
+  const now = opts.now ?? new Date();
   const day = now.toISOString().slice(0, 10) || todayIsoUtc();
-  const rules = await db.select().from(alertRulesTable).where(eq(alertRulesTable.enabled, true));
+  const startedAt = performance.now();
+  const conds = [eq(alertRulesTable.enabled, true)];
+  if (opts.afterRuleId) conds.push(gt(alertRulesTable.id, opts.afterRuleId));
+  const rules = await db
+    .select()
+    .from(alertRulesTable)
+    .where(and(...conds))
+    .orderBy(asc(alertRulesTable.id));
+  const cache: EvalTickCache = {
+    securityByTicker: new Map(),
+    priceByTicker: new Map(),
+    bandByTicker: new Map(),
+    thesisById: new Map(),
+  };
+  let evaluatedRules = 0;
   let triggeredCount = 0;
+  let lastRuleId: string | null = opts.afterRuleId ?? null;
   for (const rule of rules) {
-    if (await evaluateSingleRule(db, rule, day, now)) triggeredCount += 1;
+    if (
+      opts.budgetMs !== undefined &&
+      evaluatedRules > 0 &&
+      performance.now() - startedAt >= opts.budgetMs
+    ) {
+      return { evaluatedRules, triggeredCount, completed: false, nextCursor: lastRuleId };
+    }
+    if (await evaluateSingleRule(db, rule, day, now, cache)) triggeredCount += 1;
+    evaluatedRules += 1;
+    lastRuleId = rule.id;
   }
-  return { evaluatedRules: rules.length, triggeredCount };
+  return { evaluatedRules, triggeredCount, completed: true, nextCursor: null };
 }

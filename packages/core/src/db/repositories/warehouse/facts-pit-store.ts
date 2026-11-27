@@ -2,17 +2,20 @@ import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
 import type { FinancialFactDuration } from "../../../contracts/financial-concepts";
 import { roundTo } from "../../../math/valuation-scenarios";
 import type { KanonDb } from "../../bootstrap";
-import { filingsTable, financialFactsTable } from "../../schema";
-import type {
-  FactRestatement,
-  PitFinancialFact,
-  UpsertFilingInput,
-  UpsertFinancialFactInput,
+import { corporateActionsTable, filingsTable, financialFactsTable } from "../../schema";
+import {
+  evaluateFactRestatements,
+  type FactRestatement,
+  isSplitSensitiveConcept,
+  type PitFinancialFact,
+  type UpsertFilingInput,
+  type UpsertFinancialFactInput,
 } from "./facts-pit-types";
 
 export type {
   FactRestatement,
   PitFinancialFact,
+  RestatementKind,
   UpsertFilingInput,
   UpsertFinancialFactInput,
 } from "./facts-pit-types";
@@ -61,7 +64,7 @@ async function recomputeLatestFlagsForSecurities(db: KanonDb, securityIds: reado
       WITH ranked AS (
         SELECT id,
                ROW_NUMBER() OVER (
-                 PARTITION BY security_id, concept, period_end, duration
+                 PARTITION BY security_id, concept, period_end, COALESCE(period_start, ''), duration
                  ORDER BY filed_at DESC, id DESC
                ) AS rn
         FROM financial_facts
@@ -156,50 +159,54 @@ export async function getFactsAsOf(
   return [...latestByPeriod.values()];
 }
 
-/** Detects restatements (> `thresholdPct`, default 0.5%) across filings for the same `periodEnd`. */
+/** Detects restatements (> `thresholdPct`, default 0.5%) grouped by `(periodEnd, periodStart, duration)` with split normalization. */
 export async function detectFactRestatements(
   db: KanonDb,
-  params: { securityId: string; concept: string; thresholdPct?: number },
+  params: {
+    securityId: string;
+    concept: string;
+    thresholdPct?: number;
+    includeSplitRecasts?: boolean;
+  },
 ): Promise<FactRestatement[]> {
-  const threshold = params.thresholdPct ?? 0.5;
-  const rows = await db
-    .select()
-    .from(financialFactsTable)
-    .where(
-      and(
-        eq(financialFactsTable.securityId, params.securityId),
-        eq(financialFactsTable.concept, params.concept),
+  const needsSplits = isSplitSensitiveConcept(params.concept);
+  const [rows, splitRows] = await Promise.all([
+    db
+      .select()
+      .from(financialFactsTable)
+      .where(
+        and(
+          eq(financialFactsTable.securityId, params.securityId),
+          eq(financialFactsTable.concept, params.concept),
+        ),
+      )
+      .orderBy(
+        asc(financialFactsTable.periodEnd),
+        asc(financialFactsTable.filedAt),
+        asc(financialFactsTable.id),
       ),
-    )
-    .orderBy(asc(financialFactsTable.periodEnd), asc(financialFactsTable.filedAt));
-  const grouped = new Map<string, typeof rows>();
-  for (const r of rows) {
-    const list = grouped.get(r.periodEnd) ?? [];
-    list.push(r);
-    grouped.set(r.periodEnd, list);
-  }
-  const alerts: FactRestatement[] = [];
-  for (const [periodEnd, list] of grouped.entries()) {
-    if (list.length < 2) continue;
-    const orig = list[0];
-    const latest = list[list.length - 1];
-    if (!orig || !latest || orig.value === 0) continue;
-    const deltaPct = ((latest.value - orig.value) / Math.abs(orig.value)) * 100;
-    if (Math.abs(deltaPct) >= threshold) {
-      alerts.push({
-        concept: params.concept,
-        periodEnd,
-        originalAccession: orig.accession,
-        originalFiledAt: orig.filedAt,
-        originalValue: orig.value,
-        restatedAccession: latest.accession,
-        restatedFiledAt: latest.filedAt,
-        restatedValue: latest.value,
-        deltaPct: roundTo(deltaPct, 2),
-      });
-    }
-  }
-  return alerts;
+    needsSplits
+      ? db
+          .select({ exDate: corporateActionsTable.exDate, ratio: corporateActionsTable.ratio })
+          .from(corporateActionsTable)
+          .where(
+            and(
+              eq(corporateActionsTable.securityId, params.securityId),
+              eq(corporateActionsTable.kind, "split"),
+            ),
+          )
+      : Promise.resolve([]),
+  ]);
+  const splits = splitRows.flatMap((s) =>
+    typeof s.ratio === "number" && s.ratio > 0 ? [{ exDate: s.exDate, ratio: s.ratio }] : [],
+  );
+  return evaluateFactRestatements({
+    concept: params.concept,
+    rows,
+    splits,
+    thresholdPct: params.thresholdPct ?? 0.5,
+    includeSplitRecasts: params.includeSplitRecasts ?? false,
+  });
 }
 
 /** Derives standalone Q4 flow metric from 10-K full-year minus 9M YTD (3Q cumulative). */

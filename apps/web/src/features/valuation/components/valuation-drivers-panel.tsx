@@ -84,7 +84,6 @@ export function ValuationDriversPanel(props: DriversPanelProps) {
         {...common}
         dilutedSharesM={sharesM}
         netCashB={(cashB ?? 0) - (debtB ?? 0)}
-        fallbackRevenueB={revB}
         segments={dr.sotpSegments}
         holdingDiscountPct={dr.sotpHoldingDiscountPct}
         onChange={props.onPatchDrivers}
@@ -113,6 +112,7 @@ export function ValuationDriversPanel(props: DriversPanelProps) {
       currentSharesM={sharesM}
       cashB={cashB ?? 0}
       totalDebtB={debtB ?? 0}
+      secAnnuals={props.secAnnuals}
       latestAnnual={latestAnnual}
       linkedDrivers={dr.linkedDrivers}
       onChangeDrivers={(linkedDrivers) => props.onPatchDrivers({ linkedDrivers })}

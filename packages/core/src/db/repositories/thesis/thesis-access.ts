@@ -32,6 +32,7 @@ export interface BootstrapRestatementMarker {
   originalValue: number;
   restatedValue: number;
   restatedAccession: string;
+  kind?: "restatement" | "split_recast";
 }
 
 const RESTATEMENT_CONCEPTS = ["revenue", "net_income", "diluted_eps"] as const;
@@ -151,11 +152,15 @@ export async function loadRestatementsForTicker(
       detectFactRestatements(db, { securityId: sec.id, concept }),
     ),
   );
-  return groups.flat().map((r) => ({
-    concept: r.concept,
-    periodEnd: r.periodEnd,
-    originalValue: r.originalValue,
-    restatedValue: r.restatedValue,
-    restatedAccession: r.restatedAccession,
-  }));
+  return groups
+    .flat()
+    .filter((r) => r.kind === "restatement")
+    .map((r) => ({
+      concept: r.concept,
+      periodEnd: r.periodEnd,
+      originalValue: r.originalValue,
+      restatedValue: r.restatedValue,
+      restatedAccession: r.restatedAccession,
+      kind: r.kind,
+    }));
 }

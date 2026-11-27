@@ -9,12 +9,12 @@ import { addRestrictedTicker, listAuditLogs } from "../enterprise/audit-and-rest
 import { decideIcApproval, submitIcApproval } from "../enterprise/ic-and-compliance-store";
 import {
   acceptOrgInvitation,
-  addOrgMember,
   assignThesisToOrganization,
   createOrganization,
   createOrgInvitation,
   OrgPolicyError,
   removeOrgMember,
+  updateOrgMemberRole,
 } from "../enterprise/organizations-and-rls-store";
 import { createResearchNote, listResearchNotes } from "../library/research-notes-store";
 import { createQuarterlyReview, saveAgentRun } from "../review-and-agent-store";
@@ -54,6 +54,16 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
     return res.user;
   }
 
+  async function joinOrg(
+    orgId: string,
+    invitedBy: string,
+    userId: string,
+    role: "owner" | "pm" | "analyst" | "viewer" | "compliance",
+  ) {
+    const inv = await createOrgInvitation(db, { orgId, inviteeUserId: userId, role, invitedBy });
+    await acceptOrgInvitation(db, { userId, invitationId: inv.id });
+  }
+
   it("blocks viewer/compliance from mutating discipline, reviews, steps, and agent apply while allowing analyst writes", async () => {
     const owner = await reg("+8613800001001", "Owner");
     const pm = await reg("+8613800001002", "PM");
@@ -62,10 +72,10 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
     const compliance = await reg("+8613800001005", "Compliance");
 
     const org = await createOrganization(db, { name: "Alpha Fund", createdBy: owner.id });
-    await addOrgMember(db, { orgId: org.id, userId: pm.id, role: "pm" });
-    await addOrgMember(db, { orgId: org.id, userId: analyst.id, role: "analyst" });
-    await addOrgMember(db, { orgId: org.id, userId: viewer.id, role: "viewer" });
-    await addOrgMember(db, { orgId: org.id, userId: compliance.id, role: "compliance" });
+    await joinOrg(org.id, owner.id, pm.id, "pm");
+    await joinOrg(org.id, owner.id, analyst.id, "analyst");
+    await joinOrg(org.id, owner.id, viewer.id, "viewer");
+    await joinOrg(org.id, owner.id, compliance.id, "compliance");
 
     const thesis = await createThesis(
       db,
@@ -246,7 +256,7 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
     const sub = await submitIcApproval(db, { thesisId: personal.id, submittedBy: victim.id });
     // Now share thesis to an org
     const org = await createOrganization(db, { name: "Handover Org", createdBy: victim.id });
-    await addOrgMember(db, { orgId: org.id, userId: viewer.id, role: "viewer" });
+    await joinOrg(org.id, victim.id, viewer.id, "viewer");
     await assignThesisToOrganization(db, {
       thesisId: personal.id,
       userId: victim.id,
@@ -370,7 +380,7 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
 
     // P2-2: last owner cannot demote or remove themselves
     await expect(
-      addOrgMember(db, { orgId: evilOrg.id, userId: attacker.id, role: "analyst" }),
+      updateOrgMemberRole(db, { orgId: evilOrg.id, userId: attacker.id, role: "analyst" }),
     ).rejects.toThrow(OrgPolicyError);
     await expect(removeOrgMember(db, { orgId: evilOrg.id, userId: attacker.id })).rejects.toThrow(
       OrgPolicyError,

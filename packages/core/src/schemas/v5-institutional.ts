@@ -21,10 +21,10 @@ export type CatalystStatus = z.infer<typeof CatalystStatusSchema>;
 export const ThesisCatalystSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(2).max(120),
-  dateLabel: z.string().min(2).max(32),
+  dateLabel: z.string().max(32).default(""),
   category: CatalystCategorySchema,
-  impact: CatalystImpactSchema,
-  direction: CatalystDirectionSchema,
+  impact: CatalystImpactSchema.nullable(),
+  direction: CatalystDirectionSchema.nullable(),
   status: CatalystStatusSchema.default("upcoming"),
   verificationMetric: z.string().min(1).max(120),
   note: z.string().max(400).default(""),

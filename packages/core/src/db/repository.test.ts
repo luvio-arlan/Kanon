@@ -1,6 +1,7 @@
 import { is, sql } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { DEFAULT_WORKSPACE_USER_ID } from "../contracts/auth-contracts";
 import { calculateResearchReadiness } from "../math/research-readiness";
 import { calculateSensitivityMatrix } from "../math/sensitivity-matrix";
 import { createMemoryKanonDb, getDbHealthStats, type KanonDb } from "./client";
@@ -593,6 +594,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     const atomicRes: AtomicAgentApplyResult | null = await applyAgentProposalsAtomic(db, {
       runId: savedRun.id,
       proposalIds: ["p-var", "p-pre"],
+      userId: DEFAULT_WORKSPACE_USER_ID,
     });
     expect(atomicRes?.appliedProposalIds).toEqual(["p-var", "p-pre"]);
     expect(atomicRes?.thesis.businessFilter.variantPerception).toContain("互联带宽粘性");

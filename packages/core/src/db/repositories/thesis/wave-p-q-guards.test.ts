@@ -11,9 +11,10 @@ import { calendarTokensTable, thesesTable, userTotpFactorsTable } from "../../sc
 import { registerUser } from "../auth-store";
 import { addRestrictedTicker } from "../enterprise/audit-and-restricted-store";
 import {
-  addOrgMember,
+  acceptOrgInvitation,
   assignThesisToOrganization,
   createOrganization,
+  createOrgInvitation,
   withTenantContext,
 } from "../enterprise/organizations-and-rls-store";
 import {
@@ -149,7 +150,13 @@ describe("Wave P1 & Wave Q Negative Security, Data Integrity & RLS Tests", () =>
     const owner = await reg("+8613800003001", "AlertOwner");
     const member = await reg("+8613800003002", "AlertMember");
     const org = await createOrganization(db, { name: "Alert Org", createdBy: owner.id });
-    await addOrgMember(db, { orgId: org.id, userId: member.id, role: "viewer" });
+    const inv = await createOrgInvitation(db, {
+      orgId: org.id,
+      inviteeUserId: member.id,
+      role: "viewer",
+      invitedBy: owner.id,
+    });
+    await acceptOrgInvitation(db, { userId: member.id, invitationId: inv.id });
     const thesis = await createThesis(
       db,
       { ticker: "EDGE", companyName: "Edge Corp", sectorTag: "Tech", currentPrice: 80 },

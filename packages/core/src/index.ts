@@ -188,6 +188,7 @@ export {
   HypothesisVerdictItemSchema,
   type InboundCrossCheck,
   InboundCrossCheckSchema,
+  normalizeCanonicalTicker,
   type PeerRole,
   PeerRoleSchema,
   type PortfolioRole,

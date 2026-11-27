@@ -39,6 +39,7 @@ export const RestatementMarkerSchema = z.object({
   originalValue: z.number(),
   restatedValue: z.number(),
   restatedAccession: z.string(),
+  kind: z.enum(["restatement", "split_recast"]).optional(),
 });
 
 export const SecSyncResponseSchema = z.object({

@@ -17,11 +17,17 @@ import {
   jsonOk,
   readJsonBody,
 } from "../_lib/http";
-import { verifySameOrigin } from "../_lib/request-guards";
+import { generateRequestId, logStructuredApiEvent } from "../_lib/logger";
+import { checkPersistentRateLimit, verifySameOrigin } from "../_lib/request-guards";
 
 export const dynamic = "force-dynamic";
 
 const MAX_PENDING_JOBS_PER_USER = 50;
+const THESIS_CREATE_RATE_POLICY = {
+  bucket: "thesis_create",
+  maxRequests: 10,
+  windowMs: 600_000,
+};
 
 export async function GET() {
   const startedAt = performance.now();
@@ -36,14 +42,26 @@ export async function GET() {
   return jsonOk({ theses, glossary }, startedAt);
 }
 
-async function scheduleInitialThesisSync(
+function logSyncWarn(err: unknown, startedAt: number) {
+  logStructuredApiEvent({
+    level: "warn",
+    requestId: generateRequestId(),
+    route: "/api/theses",
+    status: 201,
+    durationMs: Math.round(performance.now() - startedAt),
+    code: "ON_DEMAND_SYNC_FAILED",
+    message: err instanceof Error ? err.message : String(err),
+  });
+}
+
+async function enqueueInitialSyncJobs(
   db: Awaited<ReturnType<typeof getKanonDb>>,
   userId: string,
   thesisId: string,
   ticker: string,
-) {
-  const day = new Date().toISOString().slice(0, 10);
-  await Promise.all([
+  day: string,
+): Promise<boolean> {
+  const [secJob, barsJob] = await Promise.all([
     enqueueJob(db, {
       id: `sync_sec:${ticker}:${day}`,
       kind: "sync_sec",
@@ -67,14 +85,33 @@ async function scheduleInitialThesisSync(
       configJson: {},
       enabled: true,
     }),
-  ]).catch(() => undefined);
+  ]);
+  return secJob.inserted || barsJob.inserted;
+}
+
+async function scheduleInitialThesisSync(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  userId: string,
+  thesisId: string,
+  ticker: string,
+  startedAt: number,
+) {
+  const day = new Date().toISOString().slice(0, 10);
+  let shouldRunAfter = false;
+  try {
+    shouldRunAfter = await enqueueInitialSyncJobs(db, userId, thesisId, ticker, day);
+  } catch (err) {
+    logSyncWarn(err, startedAt);
+    return;
+  }
+  if (!shouldRunAfter) return;
   try {
     after(async () => {
       const { runSingleTickerSyncBestEffort } = await import("../_lib/on-demand-sync");
       await runSingleTickerSyncBestEffort(ticker, day);
     });
   } catch (err) {
-    void err;
+    logSyncWarn(err, startedAt);
   }
 }
 
@@ -84,16 +121,30 @@ export async function POST(request: Request) {
   if (originErr) return originErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-
+  const rateErr = await checkPersistentRateLimit(
+    request,
+    THESIS_CREATE_RATE_POLICY,
+    startedAt,
+    auth.user.id,
+  );
+  if (rateErr) return rateErr;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = CreateThesisInputSchema.safeParse(body.data);
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "标的参数校验失败。"), 400, startedAt, "INVALID");
   }
+  return createThesisAndSchedule(parsed.data, auth.user.id, startedAt);
+}
+
+async function createThesisAndSchedule(
+  data: ReturnType<typeof CreateThesisInputSchema.parse>,
+  userId: string,
+  startedAt: number,
+) {
   try {
     const db = await getKanonDb();
-    if ((await countUserPendingJobs(db, auth.user.id)) >= MAX_PENDING_JOBS_PER_USER) {
+    if ((await countUserPendingJobs(db, userId)) >= MAX_PENDING_JOBS_PER_USER) {
       return jsonError(
         "后台同步队列已达配额上限，请稍后再新建标的。",
         429,
@@ -101,13 +152,13 @@ export async function POST(request: Request) {
         "QUEUE_QUOTA_EXCEEDED",
       );
     }
-    const thesis = await createThesis(db, parsed.data, auth.user.id);
-    await scheduleInitialThesisSync(db, auth.user.id, thesis.id, thesis.ticker.toUpperCase());
+    const thesis = await createThesis(db, data, userId);
+    await scheduleInitialThesisSync(db, userId, thesis.id, thesis.ticker.toUpperCase(), startedAt);
     return jsonOk({ thesis }, startedAt, 201);
   } catch (err) {
     if (isUniqueConstraintError(err)) {
       return jsonError(
-        `标的 ${parsed.data.ticker} 已在跟踪列表中，请直接进入原画布编辑。`,
+        `标的 ${data.ticker} 已在跟踪列表中，请直接进入原画布编辑。`,
         409,
         startedAt,
         "CONFLICT",

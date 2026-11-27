@@ -10,7 +10,14 @@ import {
 } from "@kanon/core";
 import { Badge, Button, Card } from "@kanon/ui";
 import { IconArrowDownRight, IconTableOptions } from "@tabler/icons-react";
+import { useState } from "react";
 import { DriverNumInput } from "../ev-owner-fcf-card";
+import {
+  type BaseSeedInputs,
+  deriveHistoricalSeed,
+  isSeedComplete,
+  LinkedSeedSetup,
+} from "./linked-seed-setup";
 
 type CaseKey = "bear" | "base" | "bull";
 
@@ -100,59 +107,51 @@ function CaseDriverRow(p: {
   );
 }
 
-function resolveInitialLinkedDrivers(
-  latestAnnual: SecAnnualFinancial | null,
-): LinkedOperatingDrivers {
-  const rev =
-    latestAnnual && latestAnnual.revenue != null && latestAnnual.revenue > 0
-      ? latestAnnual.revenue
-      : null;
-  return deriveDefaultLinkedDrivers({
-    baseRevCagrPct: 14,
-    baseOperatingMarginPct:
-      rev !== null && latestAnnual?.operatingIncome != null
-        ? (latestAnnual.operatingIncome / rev) * 100
-        : 28,
-    sbcPctOfRev:
-      rev !== null && latestAnnual?.sbc != null ? (Math.abs(latestAnnual.sbc) / rev) * 100 : 2.5,
-    capexPctOfRev:
-      rev !== null && latestAnnual?.capex != null ? (Math.abs(latestAnnual.capex) / rev) * 100 : 9,
-    basePe: 22,
-  });
-}
-
-function LinkedModelFooter({
-  model,
-  treatSbcAsCashCost,
-  onToggleSbc,
-  onApply,
-}: {
+function LinkedModelBody(p: {
+  drivers: LinkedOperatingDrivers;
   model: LinkedOperatingModelResult;
-  treatSbcAsCashCost: boolean;
+  onPatchCase: (key: CaseKey, patch: Partial<OperatingCaseDrivers>) => void;
   onToggleSbc: () => void;
   onApply: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-3.5">
-      <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-ink-secondary tabular-nums">
-        <span>
-          中性远期营收 <strong className="text-ink-primary">${model.base.endingRevenueB}B</strong> ·
-          期间累积 FCF <strong className="text-ink-primary">${model.base.cumulativeFcfB}B</strong> ·
-          年化 <strong className="text-accent-coral">{model.base.cagrPct}%</strong>
-        </span>
-        <button
-          type="button"
-          onClick={onToggleSbc}
-          className="cursor-pointer rounded-pill border border-hairline px-2.5 py-0.5 font-sans text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
-        >
-          {treatSbcAsCashCost ? "SBC 按现金成本再扣减：开" : "GAAP EBIT 已含 SBC：默认"}
-        </button>
+    <>
+      <div className="divide-y divide-hairline">
+        {CASE_ROWS.map((row) => (
+          <CaseDriverRow
+            key={row.key}
+            label={row.label}
+            val={p.drivers[row.key]}
+            targetPrice={p.model[row.key].evFcfTargetPrice}
+            eps={p.model[row.key].impliedEps}
+            ownerFcfB={p.model[row.key].endingOwnerFcfB}
+            growthCapexB={p.model[row.key].endingGrowthCapexB}
+            onPatch={(patch) => p.onPatchCase(row.key, patch)}
+          />
+        ))}
       </div>
-      <Button variant="primary" size="sm" onClick={onApply}>
-        <IconArrowDownRight size={14} stroke={1.5} />
-        <span>联动写入三情景</span>
-      </Button>
-    </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-3.5">
+        <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-ink-secondary tabular-nums">
+          <span>
+            中性远期营收{" "}
+            <strong className="text-ink-primary">${p.model.base.endingRevenueB}B</strong> · 期间累积
+            FCF <strong className="text-ink-primary">${p.model.base.cumulativeFcfB}B</strong> · 年化{" "}
+            <strong className="text-accent-coral">{p.model.base.cagrPct}%</strong>
+          </span>
+          <button
+            type="button"
+            onClick={p.onToggleSbc}
+            className="cursor-pointer rounded-pill border border-hairline px-2.5 py-0.5 font-sans text-xs text-ink-secondary transition-colors hover:border-strong hover:text-ink-primary"
+          >
+            {p.drivers.treatSbcAsCashCost ? "SBC 按现金成本再扣减：开" : "GAAP EBIT 已含 SBC：默认"}
+          </button>
+        </div>
+        <Button variant="primary" size="sm" onClick={p.onApply}>
+          <IconArrowDownRight size={14} stroke={1.5} />
+          <span>联动写入三情景</span>
+        </Button>
+      </div>
+    </>
   );
 }
 
@@ -163,59 +162,78 @@ interface LinkedOperatingCardProps {
   currentSharesM: number;
   cashB: number;
   totalDebtB: number;
+  secAnnuals: readonly SecAnnualFinancial[];
   latestAnnual: SecAnnualFinancial | null;
   linkedDrivers?: LinkedOperatingDrivers;
   onChangeDrivers: (next: LinkedOperatingDrivers) => void;
   onApplyAllCases: (targets: { bear: number; base: number; bull: number }) => void;
 }
 
+function LinkedCardHeader({
+  horizonYears,
+  endingNetCashB,
+}: {
+  horizonYears: number;
+  endingNetCashB: number | null;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <IconTableOptions size={16} stroke={1.5} className="text-ink-muted" />
+        <h3 className="text-sm font-semibold text-ink-primary">
+          三情景联动经营与现金流模型（{horizonYears} 年）
+        </h3>
+      </div>
+      {endingNetCashB !== null ? (
+        <Badge variant="titanium">中性期末净现金 ${endingNetCashB}B</Badge>
+      ) : null}
+    </div>
+  );
+}
+
 export function LinkedOperatingCard(props: LinkedOperatingCardProps) {
-  const drivers = props.linkedDrivers ?? resolveInitialLinkedDrivers(props.latestAnnual);
-  const model = calculateLinkedOperatingModel({ ...props, drivers });
-  const patchCase = (key: CaseKey, patch: Partial<OperatingCaseDrivers>) =>
-    props.onChangeDrivers({ ...drivers, [key]: { ...drivers[key], ...patch } });
-  const handleApply = () =>
-    props.onApplyAllCases({
-      bear: model.bear.evFcfTargetPrice,
-      base: model.base.evFcfTargetPrice,
-      bull: model.bull.evFcfTargetPrice,
-    });
+  const [draftSeed, setDraftSeed] = useState<BaseSeedInputs>(() =>
+    deriveHistoricalSeed(props.secAnnuals, props.latestAnnual),
+  );
+  const drivers = props.linkedDrivers;
+  const model = drivers ? calculateLinkedOperatingModel({ ...props, drivers }) : null;
   return (
     <Card className="space-y-4 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <IconTableOptions size={16} stroke={1.5} className="text-ink-muted" />
-          <h3 className="text-sm font-semibold text-ink-primary">
-            三情景联动经营与现金流模型（{props.horizonYears} 年）
-          </h3>
-        </div>
-        <Badge variant="titanium">中性期末净现金 ${model.base.endingNetCashB}B</Badge>
-      </div>
-      <div className="divide-y divide-hairline">
-        {CASE_ROWS.map((row) => (
-          <CaseDriverRow
-            key={row.key}
-            label={row.label}
-            val={drivers[row.key]}
-            targetPrice={model[row.key].evFcfTargetPrice}
-            eps={model[row.key].impliedEps}
-            ownerFcfB={model[row.key].endingOwnerFcfB}
-            growthCapexB={model[row.key].endingGrowthCapexB}
-            onPatch={(p) => patchCase(row.key, p)}
-          />
-        ))}
-      </div>
-      <LinkedModelFooter
-        model={model}
-        treatSbcAsCashCost={drivers.treatSbcAsCashCost ?? false}
-        onToggleSbc={() =>
-          props.onChangeDrivers({
-            ...drivers,
-            treatSbcAsCashCost: !(drivers.treatSbcAsCashCost ?? false),
-          })
-        }
-        onApply={handleApply}
+      <LinkedCardHeader
+        horizonYears={props.horizonYears}
+        endingNetCashB={model ? model.base.endingNetCashB : null}
       />
+      {drivers && model ? (
+        <LinkedModelBody
+          drivers={drivers}
+          model={model}
+          onPatchCase={(key, patch) =>
+            props.onChangeDrivers({ ...drivers, [key]: { ...drivers[key], ...patch } })
+          }
+          onToggleSbc={() =>
+            props.onChangeDrivers({
+              ...drivers,
+              treatSbcAsCashCost: !(drivers.treatSbcAsCashCost ?? false),
+            })
+          }
+          onApply={() =>
+            props.onApplyAllCases({
+              bear: model.bear.evFcfTargetPrice,
+              base: model.base.evFcfTargetPrice,
+              bull: model.bull.evFcfTargetPrice,
+            })
+          }
+        />
+      ) : (
+        <LinkedSeedSetup
+          seed={draftSeed}
+          onPatchSeed={(patch) => setDraftSeed((prev) => ({ ...prev, ...patch }))}
+          onInitialize={() => {
+            if (isSeedComplete(draftSeed))
+              props.onChangeDrivers(deriveDefaultLinkedDrivers(draftSeed));
+          }}
+        />
+      )}
     </Card>
   );
 }

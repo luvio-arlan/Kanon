@@ -29,6 +29,7 @@ export {
 export {
   type AtomicAgentApplyResult,
   applyAgentProposalsAtomic,
+  getAgentRunThesisId,
   listAgentRuns,
 } from "./repositories/agent/agent-apply-store";
 export {

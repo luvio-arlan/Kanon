@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { normalizeCanonicalTicker } from "../../../schemas/research";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
 import {
@@ -9,11 +10,9 @@ import {
   securitiesTable,
 } from "../../schema";
 
-const AUDIT_CHAIN_LOCK_KEY = 72839104;
+export { normalizeCanonicalTicker };
 
-export function normalizeCanonicalTicker(raw: string): string {
-  return raw.trim().toUpperCase().replace(/\./g, "-");
-}
+const AUDIT_CHAIN_LOCK_KEY = 72839104;
 
 async function writeChainedAuditRow(
   tx: KanonDb,

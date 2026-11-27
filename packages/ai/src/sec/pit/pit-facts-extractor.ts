@@ -101,7 +101,7 @@ const PIT_CONCEPT_SPECS: readonly PitConceptSpec[] = [
   },
 ];
 
-const ALLOWED_PIT_FORMS = new Set(["10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "6-K"]);
+const ALLOWED_PIT_FORMS = new Set(["10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F"]);
 
 function inferFactDuration(row: SecFactUnit, isInstant: boolean): FinancialFactDuration | null {
   if (isInstant) return "instant";

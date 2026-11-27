@@ -47,7 +47,6 @@ const G5_CRITICAL_REPOS = new Set([
   "org-invitations-store.ts",
   "organizations-and-rls-store.ts",
 ]);
-const G7_EXEMPT_ROUTES = new Set(["apps/web/src/app/api/ai/agent/apply/route.ts"]);
 const HTTP_METHODS = new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
 
 function walkTsFiles(dirPath, results) {
@@ -427,7 +426,7 @@ export function checkG7ApiCapabilityGuard(rel, content, errors) {
     /^apps\/web\/src\/app\/api\/theses\/\[id\]\/.*route\.ts$/.test(rel) ||
     /^apps\/web\/src\/app\/api\/ai\/.*route\.ts$/.test(rel) ||
     rel === "apps/web/src/app/api/export/thesis/[id]/route.ts";
-  if (!isScopedRoute || G7_EXEMPT_ROUTES.has(rel)) return;
+  if (!isScopedRoute) return;
   const sf = parseTs(rel, content);
   const visit = (node) => {
     if (ts.isIdentifier(node) && node.text === "assertThesisOwnership") {

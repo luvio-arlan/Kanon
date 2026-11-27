@@ -52,10 +52,10 @@ function CompactPicker<T extends string>({
 }: {
   ariaLabel: string;
   options: ReadonlyArray<{ id: T; label: string }>;
-  value: T;
+  value: T | null;
   onChange: (next: T) => void;
 }) {
-  const active = options.find((o) => o.id === value)?.label ?? "";
+  const active = (value ? options.find((o) => o.id === value)?.label : null) ?? "待判定";
   return (
     <ActionMenu
       ariaLabel={ariaLabel}

@@ -1,4 +1,9 @@
-import { roundTo, type SecAnnualFinancial, type SecFinancialFact } from "@kanon/core";
+import {
+  roundTo,
+  type SecAnnualFinancial,
+  type SecFilingItem,
+  type SecFinancialFact,
+} from "@kanon/core";
 import { extractBalanceSheetMaps, extractIncomeCashMaps } from "./annuals/extract-maps";
 import {
   type CurrencyNormalization,
@@ -6,6 +11,7 @@ import {
   resolveCurrencyNormalization,
   type SecFactsPayload,
 } from "./xbrl-helpers";
+import type { SecSubmissionsResponse } from "./xbrl-period-utils";
 
 export { formatUsdCompact, resolveCurrencyNormalization, type SecFactsPayload };
 
@@ -126,4 +132,86 @@ export function summarizeLatestFacts(annuals: readonly SecAnnualFinancial[]): Se
     );
   }
   return list;
+}
+
+const FINANCIAL_FORMS = new Set([
+  "10-K",
+  "10-K/A",
+  "10-Q",
+  "10-Q/A",
+  "20-F",
+  "20-F/A",
+  "40-F",
+  "6-K",
+  "DEF 14A",
+]);
+const GOVERNANCE_FORMS = new Set(["8-K"]);
+const FORM4_FORMS = new Set(["4"]);
+const MAX_FINANCIAL_FILINGS = 10;
+
+function buildFilingItem(
+  cik: string,
+  cikNumeric: string,
+  recent: NonNullable<NonNullable<SecSubmissionsResponse["filings"]>["recent"]>,
+  index: number,
+): SecFilingItem | null {
+  const form = recent.form?.[index] ?? "";
+  if (!FINANCIAL_FORMS.has(form) && !GOVERNANCE_FORMS.has(form) && !FORM4_FORMS.has(form)) {
+    return null;
+  }
+  const accessionNumber = recent.accessionNumber?.[index] ?? "";
+  const primaryDoc = recent.primaryDocument?.[index] ?? "";
+  const accClean = accessionNumber.replaceAll("-", "");
+  const documentUrl = primaryDoc
+    ? `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${accClean}/${primaryDoc}`
+    : `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik}&type=${form}`;
+  const defaultDesc = form === "4" ? "Form 4 内部人持股变动" : `${form} 官方披露原文`;
+  return {
+    form,
+    filingDate: recent.filingDate?.[index] ?? "",
+    reportDate: recent.reportDate?.[index] ?? "",
+    accessionNumber,
+    documentUrl,
+    description: recent.primaryDocDescription?.[index] || defaultDesc,
+  };
+}
+
+function pushFilingBucket(
+  item: SecFilingItem,
+  buckets: { financial: SecFilingItem[]; governance: SecFilingItem[]; form4s: SecFilingItem[] },
+) {
+  if (FINANCIAL_FORMS.has(item.form) && buckets.financial.length < MAX_FINANCIAL_FILINGS) {
+    buckets.financial.push(item);
+    return;
+  }
+  if (GOVERNANCE_FORMS.has(item.form) && buckets.governance.length < 4) {
+    buckets.governance.push(item);
+    return;
+  }
+  if (FORM4_FORMS.has(item.form) && buckets.form4s.length < 6) {
+    buckets.form4s.push(item);
+  }
+}
+
+export function extractRecentFilings(cik: string, data: SecSubmissionsResponse): SecFilingItem[] {
+  const recent = data.filings?.recent;
+  if (!recent?.form || !recent.filingDate || !recent.accessionNumber) return [];
+  const cikNumeric = String(Number(cik));
+  const buckets = {
+    financial: [] as SecFilingItem[],
+    governance: [] as SecFilingItem[],
+    form4s: [] as SecFilingItem[],
+  };
+  for (let i = 0; i < recent.form.length; i += 1) {
+    const full =
+      buckets.financial.length >= MAX_FINANCIAL_FILINGS &&
+      buckets.governance.length >= 4 &&
+      buckets.form4s.length >= 6;
+    if (full) break;
+    const item = buildFilingItem(cik, cikNumeric, recent, i);
+    if (item) pushFilingBucket(item, buckets);
+  }
+  return [...buckets.financial, ...buckets.governance, ...buckets.form4s].sort((a, b) =>
+    b.filingDate.localeCompare(a.filingDate),
+  );
 }

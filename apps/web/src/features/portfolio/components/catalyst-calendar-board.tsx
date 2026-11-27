@@ -60,7 +60,9 @@ const STATUS_STYLE: Record<
 
 function CatalystRow({ item }: { item: FlatCatalystItem }) {
   const { thesis, catalyst } = item;
-  const dir = DIRECTION_STYLE[catalyst.direction];
+  const dir = catalyst.direction
+    ? DIRECTION_STYLE[catalyst.direction]
+    : { label: "待判定", variant: "default" as const };
   const st = STATUS_STYLE[catalyst.status];
 
   return (
@@ -70,7 +72,7 @@ function CatalystRow({ item }: { item: FlatCatalystItem }) {
     >
       <div className="min-w-0 space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="mono">{catalyst.dateLabel}</Badge>
+          <Badge variant="mono">{catalyst.dateLabel || "待定日期"}</Badge>
           <Badge variant="titanium">{thesis.ticker}</Badge>
           <Badge variant="default">{CATEGORY_LABEL[catalyst.category]}</Badge>
           <Badge variant={dir.variant}>{dir.label}</Badge>

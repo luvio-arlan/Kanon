@@ -1,7 +1,6 @@
 import { normalizeChinaPhone, type OrgPostRequestSchema } from "@kanon/core";
 import {
   acceptOrgInvitation,
-  addOrgMember,
   addRestrictedTicker,
   appendAuditLog,
   assignThesisToOrganization,
@@ -14,6 +13,8 @@ import {
   hasOrgCapability,
   OrgPolicyError,
   removeOrgMember,
+  revokeOrgInvitation,
+  updateOrgMemberRole,
 } from "@kanon/core/db";
 import { jsonError, jsonOk } from "../_lib/http";
 
@@ -60,6 +61,53 @@ async function handleInviteMember(
   return jsonOk(UNIFORM_INVITE_RESPONSE, startedAt, 202);
 }
 
+async function executeMemberRoleMutation(
+  db: DbInstance,
+  userId: string,
+  data:
+    | {
+        op: "update_role";
+        orgId: string;
+        userId: string;
+        role: "owner" | "pm" | "analyst" | "viewer" | "compliance";
+      }
+    | { op: "remove_member"; orgId: string; userId: string },
+  startedAt: number,
+) {
+  if (data.op === "remove_member") {
+    const removed = await removeOrgMember(db, {
+      orgId: data.orgId,
+      userId: data.userId,
+      actorUserId: userId,
+    });
+    if (!removed) return jsonError("成员不存在。", 404, startedAt, "NOT_FOUND");
+    await appendAuditLog(db, {
+      actorUserId: userId,
+      orgId: data.orgId,
+      action: "org.remove_member",
+      targetType: "membership",
+      targetId: data.userId,
+    });
+    return jsonOk({ ok: true }, startedAt);
+  }
+  const updated = await updateOrgMemberRole(db, {
+    orgId: data.orgId,
+    userId: data.userId,
+    role: data.role,
+    actorUserId: userId,
+  });
+  if (!updated) return jsonError("成员不存在或尚未接受邀请。", 404, startedAt, "NOT_FOUND");
+  await appendAuditLog(db, {
+    actorUserId: userId,
+    orgId: data.orgId,
+    action: "org.update_role",
+    targetType: "membership",
+    targetId: data.userId,
+    metadata: { role: data.role },
+  });
+  return jsonOk({ ok: true }, startedAt);
+}
+
 async function handleMemberRoleChange(
   db: DbInstance,
   userId: string,
@@ -78,28 +126,7 @@ async function handleMemberRoleChange(
     return jsonError("权限不足：仅组织管理员可调整成员角色。", 403, startedAt, "FORBIDDEN");
   }
   try {
-    if (data.op === "remove_member") {
-      const removed = await removeOrgMember(db, { orgId: data.orgId, userId: data.userId });
-      if (!removed) return jsonError("成员不存在。", 404, startedAt, "NOT_FOUND");
-      await appendAuditLog(db, {
-        actorUserId: userId,
-        orgId: data.orgId,
-        action: "org.remove_member",
-        targetType: "membership",
-        targetId: data.userId,
-      });
-      return jsonOk({ ok: true }, startedAt);
-    }
-    await addOrgMember(db, { orgId: data.orgId, userId: data.userId, role: data.role });
-    await appendAuditLog(db, {
-      actorUserId: userId,
-      orgId: data.orgId,
-      action: "org.update_role",
-      targetType: "membership",
-      targetId: data.userId,
-      metadata: { role: data.role },
-    });
-    return jsonOk({ ok: true }, startedAt);
+    return await executeMemberRoleMutation(db, userId, data, startedAt);
   } catch (err) {
     if (err instanceof OrgPolicyError) {
       return jsonError(err.message, err.status, startedAt, err.code);
@@ -171,6 +198,25 @@ async function handleAcceptInvite(
   }
 }
 
+async function handleRevokeInvite(
+  db: DbInstance,
+  userId: string,
+  data: { orgId: string; invitationId: string },
+  startedAt: number,
+) {
+  const role = await getOrgMemberRole(db, data.orgId, userId);
+  if (!hasOrgCapability(role, "org.manage_members")) {
+    return jsonError("权限不足：仅组织管理员可撤销邀请。", 403, startedAt, "FORBIDDEN");
+  }
+  const revoked = await revokeOrgInvitation(db, {
+    orgId: data.orgId,
+    invitationId: data.invitationId,
+    actorUserId: userId,
+  });
+  if (!revoked) return jsonError("邀请不存在或已失效。", 404, startedAt, "NOT_FOUND");
+  return jsonOk({ ok: true }, startedAt);
+}
+
 export async function handleOrgMutation(
   db: DbInstance,
   userId: string,
@@ -188,6 +234,8 @@ export async function handleOrgMutation(
       return handleInviteMember(db, userId, data, startedAt);
     case "accept_invite":
       return handleAcceptInvite(db, userId, data, startedAt);
+    case "revoke_invite":
+      return handleRevokeInvite(db, userId, data, startedAt);
     case "update_role":
     case "remove_member":
       return handleMemberRoleChange(db, userId, data, startedAt);

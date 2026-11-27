@@ -5,13 +5,17 @@ import {
   enqueueWatchlistJobs,
   evaluateAlertRules,
   failJobWithBackoff,
+  getAlertEvalCursor,
   getJobQueueHealth,
   getKanonDb,
   type KanonDb,
   listChunksPendingEmbedding,
   type QueuedJobRow,
   recordTickHeartbeat,
+  requeueJobForCursor,
   saveChunkEmbedding,
+  setAlertEvalCursor,
+  skipJob,
 } from "@kanon/core/db";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { generateRequestId, logStructuredApiEvent } from "../../../_lib/logger";
@@ -20,8 +24,8 @@ import { runSyncDailyBarsForTicker, runSyncSecForTicker } from "../../../_lib/on
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const TICK_BUDGET_MS = maxDuration * 1000 - 20_000;
 const ALERT_EVAL_BUDGET_MS = 15_000;
+const TICK_BUDGET_MS = maxDuration * 1000 - ALERT_EVAL_BUDGET_MS - 5_000;
 
 function verifyCronSecret(request: Request, startedAt: number): Response | null {
   const expected = process.env.CRON_SECRET?.trim();
@@ -36,14 +40,6 @@ function verifyCronSecret(request: Request, startedAt: number): Response | null 
     return jsonError("Cron 认证令牌无效。", 401, startedAt, "UNAUTHORIZED");
   }
   return null;
-}
-
-async function runSyncDailyBarsJob(db: KanonDb, payload: Record<string, unknown>) {
-  await runSyncDailyBarsForTicker(db, String(payload.ticker ?? ""));
-}
-
-async function runSyncSecJob(db: KanonDb, payload: Record<string, unknown>) {
-  await runSyncSecForTicker(db, String(payload.ticker ?? ""));
 }
 
 function extractEmbeddingVectors(raw: unknown): Array<number[] | null> {
@@ -80,22 +76,33 @@ async function runEmbedChunksJob(db: KanonDb) {
   }
 }
 
-async function executeJob(db: KanonDb, job: QueuedJobRow): Promise<void> {
-  if (job.kind === "noop") return;
-  if (job.kind === "evaluate_alerts") {
-    await evaluateAlertRules(db);
-    return;
+async function executeNonAlertJob(
+  db: KanonDb,
+  job: QueuedJobRow,
+): Promise<"done" | { skipped: string }> {
+  if (job.kind === "noop") return "done";
+  if (job.kind === "embed_chunks") {
+    await runEmbedChunksJob(db);
+    return "done";
   }
-  if (job.kind === "embed_chunks") return runEmbedChunksJob(db);
-  if (job.kind === "sync_daily_bars") return runSyncDailyBarsJob(db, job.payload);
-  if (job.kind === "sync_sec") return runSyncSecJob(db, job.payload);
+  if (job.kind === "sync_daily_bars") {
+    await runSyncDailyBarsForTicker(db, String(job.payload.ticker ?? ""), {
+      forceFullRebase: job.payload.forceFullRebase === true,
+    });
+    return "done";
+  }
+  if (job.kind === "sync_sec") {
+    const outcome = await runSyncSecForTicker(db, String(job.payload.ticker ?? ""));
+    return outcome.status === "skipped" ? { skipped: outcome.reason } : "done";
+  }
   throw new Error(`Unsupported job kind: ${job.kind}`);
 }
 
 async function runSingleJob(db: KanonDb, job: QueuedJobRow, workerId: string, startedAt: number) {
   try {
-    await executeJob(db, job);
-    await completeJob(db, job.id, workerId);
+    const outcome = await executeNonAlertJob(db, job);
+    if (outcome !== "done") await skipJob(db, job.id, outcome.skipped, workerId);
+    else await completeJob(db, job.id, workerId);
     return true;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -113,37 +120,70 @@ async function runSingleJob(db: KanonDb, job: QueuedJobRow, workerId: string, st
   }
 }
 
-export async function GET(request: Request) {
-  return POST(request);
-}
-
-async function drainJobQueue(db: KanonDb, workerId: string, startedAt: number) {
+async function drainSyncQueue(db: KanonDb, workerId: string, startedAt: number) {
   let claimed = 0;
   let completed = 0;
   let failed = 0;
-  let alertsEvaluated = false;
   while (performance.now() - startedAt < TICK_BUDGET_MS) {
-    const [job] = await claimDueJobs(db, { workerId, limit: 1, leaseSeconds: 120 });
+    const [job] = await claimDueJobs(db, {
+      workerId,
+      limit: 1,
+      leaseSeconds: 120,
+      excludeKinds: ["evaluate_alerts"],
+    });
     if (!job) break;
     claimed += 1;
-    const ok = await runSingleJob(db, job, workerId, startedAt);
-    if (ok) {
-      completed += 1;
-      if (job.kind === "evaluate_alerts") alertsEvaluated = true;
-    } else {
-      failed += 1;
-    }
+    if (await runSingleJob(db, job, workerId, startedAt)) completed += 1;
+    else failed += 1;
   }
-  return { claimed, completed, failed, alertsEvaluated };
+  return { claimed, completed, failed };
 }
 
-async function runGuaranteedAlertPhase(db: KanonDb, day: string): Promise<number> {
-  const result = await Promise.race([
-    evaluateAlertRules(db).then((s) => s.triggeredCount),
-    new Promise<number>((resolve) => setTimeout(() => resolve(0), ALERT_EVAL_BUDGET_MS)),
-  ]).catch(() => 0);
-  await completeJob(db, `evaluate_alerts:${day}`).catch(() => undefined);
-  return result;
+async function runFinalAlertPhase(
+  db: KanonDb,
+  workerId: string,
+  day: string,
+  startedAt: number,
+): Promise<{ triggeredCount: number; completed: boolean; failed: boolean }> {
+  const [alertJob] = await claimDueJobs(db, {
+    workerId,
+    limit: 1,
+    leaseSeconds: 60,
+    excludeKinds: ["sync_daily_bars", "sync_sec", "embed_chunks", "noop"],
+  });
+  const jobId = alertJob?.id ?? `evaluate_alerts:${day}`;
+  try {
+    const cursor = await getAlertEvalCursor(db, day);
+    const summary = await evaluateAlertRules(db, {
+      budgetMs: ALERT_EVAL_BUDGET_MS,
+      afterRuleId: cursor,
+    });
+    if (!summary.completed) {
+      await setAlertEvalCursor(db, day, summary.nextCursor);
+      await requeueJobForCursor(db, jobId, alertJob ? workerId : undefined);
+      return { triggeredCount: summary.triggeredCount, completed: false, failed: false };
+    }
+    await setAlertEvalCursor(db, day, null);
+    await completeJob(db, jobId, alertJob ? workerId : undefined);
+    return { triggeredCount: summary.triggeredCount, completed: true, failed: false };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await failJobWithBackoff(db, jobId, msg, alertJob ? workerId : undefined);
+    logStructuredApiEvent({
+      level: "warn",
+      requestId: generateRequestId(),
+      route: "/api/internal/jobs/tick",
+      status: 500,
+      durationMs: Math.round(performance.now() - startedAt),
+      code: "evaluate_alerts",
+      message: msg,
+    });
+    return { triggeredCount: 0, completed: false, failed: true };
+  }
+}
+
+export async function GET(request: Request) {
+  return POST(request);
 }
 
 export async function POST(request: Request) {
@@ -155,16 +195,24 @@ export async function POST(request: Request) {
   const workerId = `tick_${crypto.randomUUID().slice(0, 8)}`;
   const day = new Date().toISOString().slice(0, 10);
   const enqueued = await enqueueWatchlistJobs(db, day);
-  const { claimed, completed, failed, alertsEvaluated } = await drainJobQueue(
-    db,
-    workerId,
-    startedAt,
+  const syncStats = await drainSyncQueue(db, workerId, startedAt);
+  const alertStats = await runFinalAlertPhase(db, workerId, day, startedAt);
+  const completed = syncStats.completed + (alertStats.completed ? 1 : 0);
+  const failed = syncStats.failed + (alertStats.failed ? 1 : 0);
+  await recordTickHeartbeat(db, { claimed: syncStats.claimed + 1, completed, failed }).catch(
+    () => undefined,
   );
-  const alertsTriggered = alertsEvaluated ? 0 : await runGuaranteedAlertPhase(db, day);
-  await recordTickHeartbeat(db, { claimed, completed, failed }).catch(() => undefined);
   const queueHealth = await getJobQueueHealth(db);
   return jsonOk(
-    { workerId, enqueued, claimed, completed, failed, alertsTriggered, queueHealth },
+    {
+      workerId,
+      enqueued,
+      claimed: syncStats.claimed + 1,
+      completed,
+      failed,
+      alertsTriggered: alertStats.triggeredCount,
+      queueHealth,
+    },
     startedAt,
   );
 }

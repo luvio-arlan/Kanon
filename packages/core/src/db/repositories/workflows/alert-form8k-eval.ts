@@ -1,8 +1,42 @@
 import { and, desc, eq, gt } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { type alertRulesTable, filingsTable, type thesesTable } from "../../schema";
+import { getFactsAsOf } from "../warehouse/facts-pit-store";
+import {
+  computeRealHistoricalValuationBand,
+  listCorporateActions,
+  listPriceBars,
+} from "../warehouse/price-bars-store";
 import { getSecurityByTicker } from "../warehouse/securities-and-fx-store";
 import { createInboxItem } from "./inbox-and-forecasts-store";
+
+export async function loadPeBandForSecurity(
+  db: KanonDb,
+  securityId: string,
+  day: string,
+  fallbackPrice: number | null,
+) {
+  const [bars, epsFacts, sharesFacts, actions] = await Promise.all([
+    listPriceBars(db, securityId),
+    getFactsAsOf(db, { securityId, concept: "diluted_eps", asOfDate: day }),
+    getFactsAsOf(db, { securityId, concept: "diluted_shares", asOfDate: day }),
+    listCorporateActions(db, securityId),
+  ]);
+  const splits = actions
+    .filter(
+      (a): a is typeof a & { ratio: number } =>
+        a.kind === "split" && typeof a.ratio === "number" && a.ratio > 0,
+    )
+    .map((a) => ({ exDate: a.exDate, ratio: a.ratio }));
+  return computeRealHistoricalValuationBand({
+    bars,
+    annuals: [],
+    pitEpsFacts: epsFacts,
+    pitSharesFacts: sharesFacts,
+    splits,
+    currentPrice: bars[bars.length - 1]?.close ?? fallbackPrice,
+  });
+}
 
 const CRITICAL_8K_ITEMS = new Set(["1.03", "2.06", "3.01", "4.01", "4.02", "5.02"]);
 

@@ -14,25 +14,25 @@ export interface SotpSegmentBreakdown {
   id: string;
   name: string;
   metricLabel: string;
-  bearValueB: number;
-  baseValueB: number;
-  bullValueB: number;
-  baseSharePct: number;
+  bearValueB: number | null;
+  baseValueB: number | null;
+  bullValueB: number | null;
+  baseSharePct: number | null;
 }
 
 export interface SotpValuationResult {
   segments: SotpSegmentBreakdown[];
-  bearEnterpriseB: number;
-  baseEnterpriseB: number;
-  bullEnterpriseB: number;
-  bearEquityB: number;
-  baseEquityB: number;
-  bullEquityB: number;
-  bearTargetPrice: number;
-  baseTargetPrice: number;
-  bullTargetPrice: number;
-  baseUpsidePct: number;
-  baseCagrPct: number;
+  bearEnterpriseB: number | null;
+  baseEnterpriseB: number | null;
+  bullEnterpriseB: number | null;
+  bearEquityB: number | null;
+  baseEquityB: number | null;
+  bullEquityB: number | null;
+  bearTargetPrice: number | null;
+  baseTargetPrice: number | null;
+  bullTargetPrice: number | null;
+  baseUpsidePct: number | null;
+  baseCagrPct: number | null;
   riskRewardRatio: number | null;
 }
 
@@ -40,11 +40,41 @@ function toTargetPrice(equityB: number, sharesM: number): number {
   return roundTo((Math.max(0, equityB) * 1000) / sharesM, 2);
 }
 
+function isSegmentComplete(seg: SotpSegment): seg is SotpSegment & {
+  metricValueB: number;
+  bearMultiple: number;
+  baseMultiple: number;
+  bullMultiple: number;
+} {
+  return (
+    seg.metricValueB !== null &&
+    seg.bearMultiple !== null &&
+    seg.baseMultiple !== null &&
+    seg.bullMultiple !== null &&
+    Number.isFinite(seg.metricValueB) &&
+    Number.isFinite(seg.bearMultiple) &&
+    Number.isFinite(seg.baseMultiple) &&
+    Number.isFinite(seg.bullMultiple)
+  );
+}
+
 function aggregateSegments(segments: readonly SotpSegment[]) {
   let bearEv = 0;
   let baseEv = 0;
   let bullEv = 0;
+  let allComplete = segments.length > 0;
   const raw = segments.map((seg) => {
+    if (!isSegmentComplete(seg)) {
+      allComplete = false;
+      return {
+        id: seg.id,
+        name: seg.name,
+        metricLabel: seg.metricLabel,
+        bv: null,
+        mv: null,
+        hv: null,
+      };
+    }
     const bv = seg.metricValueB * seg.bearMultiple;
     const mv = seg.metricValueB * seg.baseMultiple;
     const hv = seg.metricValueB * seg.bullMultiple;
@@ -57,37 +87,78 @@ function aggregateSegments(segments: readonly SotpSegment[]) {
     id: item.id,
     name: item.name,
     metricLabel: item.metricLabel,
-    bearValueB: roundTo(item.bv, 2),
-    baseValueB: roundTo(item.mv, 2),
-    bullValueB: roundTo(item.hv, 2),
-    baseSharePct: baseEv > 0 ? roundTo((item.mv / baseEv) * 100, 1) : 0,
+    bearValueB: item.bv !== null ? roundTo(item.bv, 2) : null,
+    baseValueB: item.mv !== null ? roundTo(item.mv, 2) : null,
+    bullValueB: item.hv !== null ? roundTo(item.hv, 2) : null,
+    baseSharePct: item.mv !== null && baseEv > 0 ? roundTo((item.mv / baseEv) * 100, 1) : null,
   }));
-  return { bearEv, baseEv, bullEv, breakdown };
+  return { allComplete, bearEv, baseEv, bullEv, breakdown };
+}
+
+function emptySotpResult(segments: SotpSegmentBreakdown[]): SotpValuationResult {
+  return {
+    segments,
+    bearEnterpriseB: null,
+    baseEnterpriseB: null,
+    bullEnterpriseB: null,
+    bearEquityB: null,
+    baseEquityB: null,
+    bullEquityB: null,
+    bearTargetPrice: null,
+    baseTargetPrice: null,
+    bullTargetPrice: null,
+    baseUpsidePct: null,
+    baseCagrPct: null,
+    riskRewardRatio: null,
+  };
+}
+
+function computeSotpReturnMetrics(
+  currentPrice: number,
+  horizonYears: number,
+  bearTargetPrice: number,
+  baseTargetPrice: number,
+) {
+  if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+    return { baseUpsidePct: null, baseCagrPct: null, riskRewardRatio: null };
+  }
+  const years = Math.max(1, horizonYears);
+  const riskRewardRatio =
+    baseTargetPrice <= currentPrice
+      ? 0
+      : bearTargetPrice >= currentPrice
+        ? null
+        : roundTo((baseTargetPrice - currentPrice) / (currentPrice - bearTargetPrice), 2);
+  const baseCagrPct =
+    baseTargetPrice <= 0
+      ? -100
+      : roundTo(((baseTargetPrice / currentPrice) ** (1 / years) - 1) * 100, 1);
+  return {
+    baseUpsidePct: roundTo(((baseTargetPrice - currentPrice) / currentPrice) * 100, 1),
+    baseCagrPct,
+    riskRewardRatio,
+  };
 }
 
 export function calculateSotpValuation(input: SotpValuationInput): SotpValuationResult {
-  const shares = Math.max(0.01, input.dilutedSharesM);
-  const price = Math.max(0.01, input.currentPrice);
-  const years = Math.max(1, input.horizonYears);
+  const { allComplete, bearEv, baseEv, bullEv, breakdown } = aggregateSegments(input.segments);
+  if (!allComplete || !Number.isFinite(input.dilutedSharesM) || input.dilutedSharesM <= 0) {
+    return emptySotpResult(breakdown);
+  }
   const disc = 1 - Math.min(40, Math.max(0, input.holdingDiscountPct ?? 0)) / 100;
-  const { bearEv, baseEv, bullEv, breakdown } = aggregateSegments(input.segments);
-
   const applyHoldcoDisc = (rawEquity: number) => (rawEquity > 0 ? rawEquity * disc : rawEquity);
   const bearEquityB = roundTo(applyHoldcoDisc(bearEv + input.netCashB), 2);
   const baseEquityB = roundTo(applyHoldcoDisc(baseEv + input.netCashB), 2);
   const bullEquityB = roundTo(applyHoldcoDisc(bullEv + input.netCashB), 2);
-  const bearTargetPrice = toTargetPrice(bearEquityB, shares);
-  const baseTargetPrice = toTargetPrice(baseEquityB, shares);
-  const bullTargetPrice = toTargetPrice(bullEquityB, shares);
-  const riskRewardRatio =
-    baseTargetPrice <= price
-      ? 0
-      : bearTargetPrice >= price
-        ? null
-        : roundTo((baseTargetPrice - price) / (price - bearTargetPrice), 2);
-  const baseCagrPct =
-    baseTargetPrice <= 0 ? -100 : roundTo(((baseTargetPrice / price) ** (1 / years) - 1) * 100, 1);
-
+  const bearTargetPrice = toTargetPrice(bearEquityB, input.dilutedSharesM);
+  const baseTargetPrice = toTargetPrice(baseEquityB, input.dilutedSharesM);
+  const bullTargetPrice = toTargetPrice(bullEquityB, input.dilutedSharesM);
+  const metrics = computeSotpReturnMetrics(
+    input.currentPrice,
+    input.horizonYears,
+    bearTargetPrice,
+    baseTargetPrice,
+  );
   return {
     segments: breakdown,
     bearEnterpriseB: roundTo(bearEv, 2),
@@ -99,8 +170,6 @@ export function calculateSotpValuation(input: SotpValuationInput): SotpValuation
     bearTargetPrice,
     baseTargetPrice,
     bullTargetPrice,
-    baseUpsidePct: roundTo(((baseTargetPrice - price) / price) * 100, 1),
-    baseCagrPct,
-    riskRewardRatio,
+    ...metrics,
   };
 }

@@ -44,8 +44,8 @@ function collectUpcomingCatalysts(active: readonly ThesisDetail[]): DigestCataly
           ticker: t.ticker,
           companyName: t.companyName,
           title: c.title,
-          dateLabel: c.dateLabel,
-          impact: c.impact,
+          dateLabel: c.dateLabel || "待定",
+          impact: c.impact ?? "待判定",
         })),
     )
     .sort((a, b) => parseCatalystSortKey(a.dateLabel) - parseCatalystSortKey(b.dateLabel))

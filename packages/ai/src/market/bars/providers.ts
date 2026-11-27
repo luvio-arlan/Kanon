@@ -104,17 +104,23 @@ function toIsoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+function buildFetchSignal(timeoutMs: number, signal?: AbortSignal): AbortSignal {
+  const timer = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([timer, signal]) : timer;
+}
+
 export async function fetchPolygonDailyBars(
   ticker: string,
   fromDate: string,
   toDate: string,
   apiKey: string,
   fetchImpl: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<DailyBarPoint[] | null> {
   const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/day/${fromDate}/${toDate}?adjusted=true&sort=asc&limit=5000`;
   const res = await fetchImpl(url, {
     headers: { Authorization: `Bearer ${apiKey}` },
-    signal: AbortSignal.timeout(10_000),
+    signal: buildFetchSignal(10_000, signal),
   });
   if (!res.ok) return null;
   const parsed = PolygonAggResponseSchema.safeParse(await res.json());
@@ -140,11 +146,12 @@ export async function fetchPolygonSplitsRaw(
   ticker: string,
   token: string,
   fetchImpl: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<PolygonSplitEvent[]> {
   const url = `https://api.polygon.io/v3/reference/splits?ticker=${encodeURIComponent(ticker)}&limit=50`;
   const res = await fetchImpl(url, {
     headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(10_000),
+    signal: buildFetchSignal(10_000, signal),
   }).catch(() => null);
   if (!res?.ok) return [];
   const parsed = PolygonSplitsResponseSchema.safeParse(await res.json().catch(() => null));
@@ -215,11 +222,12 @@ export async function fetchYahooDailyBundle(
   ticker: string,
   range: "1mo" | "1y" | "5y",
   fetchImpl: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<DailyPriceBarsBundle | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d&events=split%7Cdiv`;
   const res = await fetchImpl(url, {
     headers: { "User-Agent": "Mozilla/5.0" },
-    signal: AbortSignal.timeout(10_000),
+    signal: buildFetchSignal(10_000, signal),
   });
   if (!res.ok) return null;
   const parsed = YahooChartResponseSchema.safeParse(await res.json());

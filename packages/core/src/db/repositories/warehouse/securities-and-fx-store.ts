@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
-import { fxRatesDailyTable, securitiesTable } from "../../schema";
+import { fxRatesDailyTable, type SecuritySecStatus, securitiesTable } from "../../schema";
 
 export interface UpsertSecurityInput {
   id?: string;
@@ -16,6 +16,7 @@ export interface UpsertSecurityInput {
   sectorCode?: string | null;
   industryCode?: string | null;
   isActive?: boolean;
+  secStatus?: SecuritySecStatus;
   listedAt?: string | null;
   delistedAt?: string | null;
 }
@@ -34,6 +35,7 @@ export interface SecurityRecord {
   sectorCode: string | null;
   industryCode: string | null;
   isActive: boolean;
+  secStatus: SecuritySecStatus;
   listedAt: string | null;
   delistedAt: string | null;
 }
@@ -54,6 +56,7 @@ function normalizeSecurityFields(input: UpsertSecurityInput) {
     sectorCode: input.sectorCode ?? null,
     industryCode: input.industryCode ?? null,
     isActive: input.isActive ?? true,
+    secStatus: input.secStatus ?? "active",
     listedAt: input.listedAt ?? null,
     delistedAt: input.delistedAt ?? null,
     updatedAt: new Date(),
@@ -76,6 +79,7 @@ function buildPartialSecurityUpdate(input: UpsertSecurityInput) {
     ["sectorCode", input.sectorCode],
     ["industryCode", input.industryCode],
     ["isActive", input.isActive],
+    ["secStatus", input.secStatus],
     ["listedAt", input.listedAt],
     ["delistedAt", input.delistedAt],
   ];
@@ -121,6 +125,24 @@ export async function getSecurityByTicker(
     : eq(securitiesTable.ticker, upper);
   const [row] = await db.select().from(securitiesTable).where(cond).limit(1);
   return row ?? null;
+}
+
+export async function markSecuritySecStatus(
+  db: KanonDb,
+  ticker: string,
+  secStatus: SecuritySecStatus,
+): Promise<void> {
+  const upper = ticker.trim().toUpperCase();
+  if (!upper) return;
+  const existing = await getSecurityByTicker(db, upper);
+  if (existing) {
+    await db
+      .update(securitiesTable)
+      .set({ secStatus, updatedAt: new Date() })
+      .where(eq(securitiesTable.id, existing.id));
+    return;
+  }
+  await upsertSecurity(db, { ticker: upper, name: upper, secStatus });
 }
 
 export async function listSecuritiesByCik(db: KanonDb, cik: string): Promise<SecurityRecord[]> {

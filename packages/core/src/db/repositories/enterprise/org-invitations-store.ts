@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
 import {
@@ -87,6 +87,56 @@ export async function createOrgInvitation(
   return { id, token: rawToken, expiresAt };
 }
 
+export async function revokePendingInvitationsByInviter(
+  tx: KanonDb,
+  orgId: string,
+  inviterUserId: string,
+  revokedBy: string,
+): Promise<number> {
+  const updated = await tx
+    .update(orgInvitationsTable)
+    .set({ revokedAt: new Date(), revokedBy })
+    .where(
+      and(
+        eq(orgInvitationsTable.orgId, orgId),
+        eq(orgInvitationsTable.invitedBy, inviterUserId),
+        isNull(orgInvitationsTable.acceptedAt),
+        isNull(orgInvitationsTable.revokedAt),
+      ),
+    )
+    .returning();
+  return updated.length;
+}
+
+export async function revokeOrgInvitation(
+  db: KanonDb,
+  input: { orgId: string; invitationId: string; actorUserId: string },
+): Promise<boolean> {
+  return runInTransaction(db, async (tx) => {
+    const updated = await tx
+      .update(orgInvitationsTable)
+      .set({ revokedAt: new Date(), revokedBy: input.actorUserId })
+      .where(
+        and(
+          eq(orgInvitationsTable.id, input.invitationId),
+          eq(orgInvitationsTable.orgId, input.orgId),
+          isNull(orgInvitationsTable.acceptedAt),
+          isNull(orgInvitationsTable.revokedAt),
+        ),
+      )
+      .returning();
+    if (updated.length === 0) return false;
+    await appendAuditLog(tx, {
+      actorUserId: input.actorUserId,
+      orgId: input.orgId,
+      action: "org.revoke_invite",
+      targetType: "org_invitation",
+      targetId: input.invitationId,
+    });
+    return true;
+  });
+}
+
 export async function listPendingOrgInvitations(db: KanonDb, userId: string) {
   const now = new Date();
   return db
@@ -105,6 +155,7 @@ export async function listPendingOrgInvitations(db: KanonDb, userId: string) {
       and(
         eq(orgInvitationsTable.inviteeUserId, userId),
         isNull(orgInvitationsTable.acceptedAt),
+        isNull(orgInvitationsTable.revokedAt),
         gt(orgInvitationsTable.expiresAt, now),
       ),
     )
@@ -118,19 +169,32 @@ function buildInvitationLookupWhere(input: {
 }) {
   if (input.token) {
     const tokenHash = crypto.createHash("sha256").update(input.token.trim()).digest("hex");
-    return and(
-      eq(orgInvitationsTable.tokenHash, tokenHash),
-      isNull(orgInvitationsTable.acceptedAt),
-    );
+    return eq(orgInvitationsTable.tokenHash, tokenHash);
   }
   if (input.invitationId) {
     return and(
       eq(orgInvitationsTable.id, input.invitationId),
       eq(orgInvitationsTable.inviteeUserId, input.userId),
-      isNull(orgInvitationsTable.acceptedAt),
     );
   }
   return null;
+}
+
+async function assertInviterStillCanManage(tx: KanonDb, orgId: string, invitedBy: string) {
+  const [inviter] = await tx
+    .select({ role: membershipsTable.role })
+    .from(membershipsTable)
+    .where(
+      and(
+        eq(membershipsTable.orgId, orgId),
+        eq(membershipsTable.userId, invitedBy),
+        isNotNull(membershipsTable.acceptedAt),
+      ),
+    )
+    .limit(1);
+  if (inviter?.role !== "owner") {
+    throw new OrgPolicyError("INVALID_INVITATION", "邀请人权限已变更，该邀请已失效。", 409);
+  }
 }
 
 export async function acceptOrgInvitation(
@@ -142,13 +206,15 @@ export async function acceptOrgInvitation(
     const cond = buildInvitationLookupWhere(input);
     if (!cond) throw new OrgPolicyError("INVALID_INVITATION", "缺少有效的邀请凭证。", 400);
     const [inv] = await tx.select().from(orgInvitationsTable).where(cond).limit(1);
-    if (!inv || inv.expiresAt.getTime() <= now.getTime()) {
-      throw new OrgPolicyError("INVALID_INVITATION", "邀请不存在、已使用或已过期。", 404);
-    }
+    if (!inv) throw new OrgPolicyError("INVALID_INVITATION", "邀请不存在。", 404);
     if (inv.inviteeUserId && inv.inviteeUserId !== input.userId) {
       throw new OrgPolicyError("FORBIDDEN", "该邀请不属于当前登录账号。", 403);
     }
-    await tx
+    if (inv.acceptedAt || inv.revokedAt || inv.expiresAt.getTime() <= now.getTime()) {
+      throw new OrgPolicyError("INVALID_INVITATION", "邀请已使用、已撤销或已过期。", 409);
+    }
+    await assertInviterStillCanManage(tx, inv.orgId, inv.invitedBy);
+    const claimed = await tx
       .update(orgInvitationsTable)
       .set({ acceptedAt: now })
       .where(
@@ -156,8 +222,13 @@ export async function acceptOrgInvitation(
           eq(orgInvitationsTable.id, inv.id),
           eq(orgInvitationsTable.orgId, inv.orgId),
           isNull(orgInvitationsTable.acceptedAt),
+          isNull(orgInvitationsTable.revokedAt),
         ),
-      );
+      )
+      .returning();
+    if (claimed.length === 0) {
+      throw new OrgPolicyError("INVALID_INVITATION", "邀请已被使用或撤销。", 409);
+    }
     await tx
       .insert(membershipsTable)
       .values({ orgId: inv.orgId, userId: input.userId, role: inv.role, acceptedAt: now })
@@ -174,17 +245,5 @@ export async function acceptOrgInvitation(
       metadata: { invitationId: inv.id, role: inv.role },
     });
     return { orgId: inv.orgId, role: inv.role };
-  });
-}
-
-/** Runs a callback inside a transaction with Postgres RLS `kanon.current_user_id` bound locally. */
-export async function withTenantContext<T>(
-  db: KanonDb,
-  userId: string,
-  fn: (tx: KanonDb) => Promise<T>,
-): Promise<T> {
-  return runInTransaction(db, async (tx) => {
-    await tx.execute(sql`SELECT set_config('kanon.current_user_id', ${userId}, true)`);
-    return fn(tx);
   });
 }

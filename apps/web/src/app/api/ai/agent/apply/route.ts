@@ -1,8 +1,9 @@
 import { AgentApplyRequestSchema, AgentApplyResponseSchema } from "@kanon/core";
-import { applyAgentProposalsAtomic, getKanonDb } from "@kanon/core/db";
+import { applyAgentProposalsAtomic, getAgentRunThesisId, getKanonDb } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../../_lib/request-guards";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,13 @@ export async function POST(request: Request) {
       : [];
 
   const db = await getKanonDb();
+  const thesisId = await getAgentRunThesisId(db, parsed.data.runId);
+  if (!thesisId) {
+    return jsonError("未找到对应的 Agent 审计记录。", 404, startedAt, "NOT_FOUND");
+  }
+  const guard = await requireThesisAccess(db, thesisId, auth.user.id, "write", startedAt);
+  if (!guard.ok) return guard.response;
+
   const applied = await applyAgentProposalsAtomic(db, {
     runId: parsed.data.runId,
     proposalIds,

@@ -84,6 +84,8 @@ export {
   fetchSecEdgarSnapshot,
   fetchSecEdgarWithPitFacts,
   formatUsdCompact,
+  type SecEdgarErrorKind,
+  type SecEdgarPitResult,
 } from "./sec/edgar-client";
 export { fetchSecFilingReaderData } from "./sec/filing-reader";
 export * from "./sec/filing-redline";
@@ -99,3 +101,9 @@ export {
   type Form8kSeverity,
   parseForm8kItemCodes,
 } from "./sec/form8k-parser";
+export {
+  type FetchSecOptions,
+  fetchSecWithRetry,
+  getSecUserAgent,
+  registerSecGlobalSlotAcquirer,
+} from "./sec/sec-http";

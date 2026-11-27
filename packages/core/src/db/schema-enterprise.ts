@@ -48,6 +48,8 @@ export const orgInvitationsTable = pgTable(
     tokenHash: text("token_hash").notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedBy: text("revoked_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("idx_org_invitations_invitee").on(table.inviteeUserId, table.acceptedAt)],

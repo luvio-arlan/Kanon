@@ -16,6 +16,7 @@ export async function fetchPolygonSplits(params: {
   ticker: string;
   apiKey?: string;
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 }): Promise<PolygonSplitEvent[]> {
   const token = params.apiKey?.trim() || process.env.POLYGON_API_KEY?.trim();
   if (!token) return [];
@@ -23,6 +24,7 @@ export async function fetchPolygonSplits(params: {
     params.ticker.trim().toUpperCase(),
     token,
     params.fetchImpl ?? fetch,
+    params.signal,
   );
 }
 
@@ -50,13 +52,14 @@ async function tryPolygonBundle(
   range: "1mo" | "1y" | "5y",
   polygonKey: string,
   fetchImpl: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<DailyPriceBarsBundle | null> {
   const toDate = new Date().toISOString().slice(0, 10);
   const days = range === "5y" ? 1825 : range === "1y" ? 365 : 35;
   const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const [poly, polySplits] = await Promise.all([
-    fetchPolygonDailyBars(ticker, from, toDate, polygonKey, fetchImpl).catch(() => null),
-    fetchPolygonSplits({ ticker, apiKey: polygonKey, fetchImpl }).catch(() => []),
+    fetchPolygonDailyBars(ticker, from, toDate, polygonKey, fetchImpl, signal).catch(() => null),
+    fetchPolygonSplits({ ticker, apiKey: polygonKey, fetchImpl, signal }).catch(() => []),
   ]);
   if (!poly) return null;
   return {
@@ -76,16 +79,19 @@ export async function fetchDailyPriceBarsWithEvents(params: {
   range?: "1mo" | "1y" | "5y";
   creds?: MarketAdapterCredentials;
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 }): Promise<DailyPriceBarsBundle> {
   const fetchImpl = params.fetchImpl ?? fetch;
   const ticker = params.ticker.trim().toUpperCase();
   const range = params.range ?? "5y";
   const polygonKey = resolvePolygonKey(params.creds);
   if (polygonKey) {
-    const polyBundle = await tryPolygonBundle(ticker, range, polygonKey, fetchImpl);
+    const polyBundle = await tryPolygonBundle(ticker, range, polygonKey, fetchImpl, params.signal);
     if (polyBundle) return polyBundle;
   }
-  const yahoo = await fetchYahooDailyBundle(ticker, range, fetchImpl).catch(() => null);
+  const yahoo = await fetchYahooDailyBundle(ticker, range, fetchImpl, params.signal).catch(
+    () => null,
+  );
   return yahoo ?? { bars: [], splits: [], dividends: [], dividendAdjusted: true };
 }
 

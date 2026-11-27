@@ -106,7 +106,7 @@ export function ConsensusCard({
 }
 
 function HistoricalBandCard({ b, thesisId }: { b: ValuationBand; thesisId?: string }) {
-  const posPct = Math.max(4, Math.min(96, b.percentileRank ?? 50));
+  const posPct = b.percentileRank !== null ? Math.max(4, Math.min(96, b.percentileRank)) : null;
   const rankLabel = b.percentileRank !== null ? `${b.percentileRank}% 分位` : "待同步";
   return (
     <Card className="space-y-3 p-5">
@@ -129,10 +129,13 @@ function HistoricalBandCard({ b, thesisId }: { b: ValuationBand; thesisId?: stri
       </div>
       <div className="space-y-2 border-t border-hairline pt-3">
         <div className="relative h-2 w-full rounded-pill bg-muted">
-          <div
-            className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-pill border-2 border-surface bg-accent-coral"
-            style={{ left: `${posPct}%` }}
-          />
+          {posPct !== null ? (
+            <div
+              data-band-marker="true"
+              className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-pill border-2 border-surface bg-accent-coral"
+              style={{ left: `${posPct}%` }}
+            />
+          ) : null}
         </div>
         <div className="flex justify-between font-mono text-xs text-ink-muted tabular-nums">
           <span>P10 · {b.p10 ?? "—"}×</span>

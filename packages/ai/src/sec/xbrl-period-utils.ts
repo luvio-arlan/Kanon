@@ -1,3 +1,55 @@
+import { z } from "zod";
+
+export const SecTickerTableSchema = z.record(
+  z.string(),
+  z.object({
+    ticker: z.string().optional(),
+    cik_str: z.union([z.number(), z.string()]).optional(),
+  }),
+);
+export const SecSubmissionsSchema = z.object({
+  name: z.string().optional(),
+  filings: z
+    .object({
+      recent: z
+        .object({
+          form: z.array(z.string()).optional(),
+          filingDate: z.array(z.string()).optional(),
+          reportDate: z.array(z.string()).optional(),
+          accessionNumber: z.array(z.string()).optional(),
+          primaryDocument: z.array(z.string()).optional(),
+          primaryDocDescription: z.array(z.string()).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+export type SecSubmissionsResponse = z.infer<typeof SecSubmissionsSchema>;
+
+const SecFactUnitSchema = z.object({
+  accn: z.string().optional(),
+  val: z.number().optional(),
+  form: z.string().optional(),
+  fy: z.number().optional(),
+  fp: z.string().optional(),
+  start: z.string().optional(),
+  end: z.string().optional(),
+  filed: z.string().optional(),
+  frame: z.string().optional(),
+});
+const SecNamespaceSchema = z.record(
+  z.string(),
+  z.object({ units: z.record(z.string(), z.array(SecFactUnitSchema).optional()).optional() }),
+);
+export const SecCompanyFactsSchema = z.object({
+  facts: z
+    .object({
+      "us-gaap": SecNamespaceSchema.optional(),
+      "ifrs-full": SecNamespaceSchema.optional(),
+    })
+    .optional(),
+});
+
 export interface SecFactUnit {
   accn?: string;
   val?: number;

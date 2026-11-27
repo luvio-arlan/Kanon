@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { todayIsoUtc } from "../../../contracts/workflow-contracts";
 import { roundTo } from "../../../math/valuation-scenarios";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
@@ -37,14 +38,35 @@ export async function createPortfolioAccount(
   }
   const cashBalance = roundTo(initialCash, 2);
   const id = `acct_${crypto.randomUUID()}`;
-  await db.insert(portfolioAccountsTable).values({
-    id,
-    userId: input.userId,
-    orgId: input.orgId ?? null,
-    name: input.name.trim() || "主投研账户",
-    baseCurrency: (input.baseCurrency ?? "USD").toUpperCase(),
-    cashBalance,
-    noLeverageAcknowledgedAt: input.noLeverageConfirmed === false ? null : new Date(),
+  const now = new Date();
+  await runInTransaction(db, async (tx) => {
+    await tx.insert(portfolioAccountsTable).values({
+      id,
+      userId: input.userId,
+      orgId: input.orgId ?? null,
+      name: input.name.trim() || "主投研账户",
+      baseCurrency: (input.baseCurrency ?? "USD").toUpperCase(),
+      cashBalance,
+      noLeverageAcknowledgedAt: input.noLeverageConfirmed === false ? null : now,
+    });
+    if (cashBalance > 0.005) {
+      await tx.insert(transactionsTable).values({
+        id: `tx_open_${id}`,
+        accountId: id,
+        userId: input.userId,
+        thesisId: null,
+        ticker: "CASH",
+        action: "deposit",
+        quantity: cashBalance,
+        price: 1,
+        fees: 0,
+        realizedPnl: null,
+        externalRef: "opening_balance",
+        tradeDate: todayIsoUtc(),
+        noLeverageConfirmed: true,
+        note: "账户期初现金",
+      });
+    }
   });
   return { id, cashBalance, orgId: input.orgId ?? null };
 }
