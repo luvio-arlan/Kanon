@@ -153,3 +153,20 @@ export async function getJobQueueHealth(db: KanonDb): Promise<JobQueueHealth> {
     lastTickCompleted: typeof hb?.completed === "number" ? hb.completed : null,
   };
 }
+
+const DEFAULT_DB_QUOTA_BYTES = 512 * 1024 * 1024;
+
+export async function getDbSizePct(
+  db: KanonDb,
+  quotaBytes = DEFAULT_DB_QUOTA_BYTES,
+): Promise<number | null> {
+  try {
+    const res = await db.execute(sql`SELECT pg_database_size(current_database())::bigint AS bytes`);
+    const rows = Array.isArray(res) ? res : res.rows;
+    const bytes = Number((rows[0] as Record<string, unknown> | undefined)?.bytes);
+    if (!Number.isFinite(bytes) || bytes <= 0) return null;
+    return Number(((bytes / quotaBytes) * 100).toFixed(1));
+  } catch {
+    return null;
+  }
+}

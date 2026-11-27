@@ -124,6 +124,7 @@ function renderLensPanel(p: ValuationLensBodyProps) {
     return <ScenariosCoreSection epsRange={epsRange} d={d} onExpandCeiling={p.onExpandCeiling} />;
   return (
     <ValuationDriversPanel
+      ticker={ticker}
       currentPrice={d.currentPrice}
       horizonYears={d.horizonYears}
       modelMode={d.modelMode}

@@ -20,14 +20,24 @@ export const HypothesisKpiRuleSchema = z.object({
 });
 export type HypothesisKpiRule = z.infer<typeof HypothesisKpiRuleSchema>;
 
+export const SotpSegmentSourceSchema = z.object({
+  kind: z.literal("sec_segment"),
+  accession: z.string(),
+  periodEnd: z.string(),
+  memberQname: z.string(),
+  concept: z.string(),
+});
+export type SotpSegmentSource = z.infer<typeof SotpSegmentSourceSchema>;
+
 export const SotpSegmentSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1).max(60),
   metricLabel: z.string().trim().min(1).max(24).default("EBIT"),
-  metricValueB: z.number().finite().min(0).max(10_000).nullable(),
+  metricValueB: z.number().finite().min(-10_000).max(10_000).nullable(),
   bearMultiple: z.number().finite().min(0).max(200).nullable(),
   baseMultiple: z.number().finite().min(0).max(200).nullable(),
   bullMultiple: z.number().finite().min(0).max(200).nullable(),
+  source: SotpSegmentSourceSchema.optional(),
 });
 export type SotpSegment = z.infer<typeof SotpSegmentSchema>;
 

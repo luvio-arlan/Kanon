@@ -66,6 +66,18 @@ export function kanonResearchNotesPolicies() {
   ];
 }
 
+export function kanonPublicDerivedPolicies(tableName: string) {
+  const sysPred = sql`kanon_rls_is_system()`;
+  return [
+    pgPolicy(`kanon_rls_${tableName}_read`, { for: "select", using: sql`true` }),
+    pgPolicy(`kanon_rls_${tableName}_write`, {
+      for: "all",
+      using: sysPred,
+      withCheck: sysPred,
+    }),
+  ];
+}
+
 export function kanonThesisCommentsPolicies() {
   return [
     pgPolicy("kanon_rls_thesis_comments_select", { for: "select", using: THESIS_READ_PRED }),

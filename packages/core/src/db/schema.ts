@@ -22,6 +22,7 @@ import { glossaryTermsTable } from "./schema-extensions";
 
 export * from "./schema-enterprise";
 export * from "./schema-extensions";
+export * from "./schema-intel";
 export * from "./schema-platform";
 export * from "./schema-warehouse";
 export * from "./schema-workflows";

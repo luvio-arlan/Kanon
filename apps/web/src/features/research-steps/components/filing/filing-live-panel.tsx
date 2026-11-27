@@ -6,27 +6,23 @@ import { IconCloudDownload, IconExternalLink, IconRefresh } from "@tabler/icons-
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { fetchLiveSecFiling } from "../../lib/filing-api";
-import { FilingDiffBox } from "./filing-diff-box";
+import { FilingRedlineView } from "./filing-redline-view";
 
-function SectionSwitcher({
-  reader,
-  activeId,
-  onSelect,
-}: {
+function SectionSwitcher(p: {
   reader: SecFilingReaderResponse;
   activeId: string;
   onSelect: (id: string) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {reader.sections.map((sec) => (
+      {p.reader.sections.map((sec) => (
         <button
           key={sec.id}
           type="button"
-          onClick={() => onSelect(sec.id)}
+          onClick={() => p.onSelect(sec.id)}
           className={cn(
             "cursor-pointer rounded-pill border px-2.5 py-1 text-xs font-medium transition-colors",
-            activeId === sec.id
+            p.activeId === sec.id
               ? "border-strong bg-titanium text-ink-primary"
               : "border-hairline bg-surface text-ink-secondary hover:border-strong hover:text-ink-primary",
           )}
@@ -36,20 +32,6 @@ function SectionSwitcher({
       ))}
     </div>
   );
-}
-
-function emitLoadedFiling(
-  data: SecFilingReaderResponse,
-  setReader: (d: SecFilingReaderResponse) => void,
-  setSectionId: (id: string) => void,
-  onLoadedText: (text: string, anchor: string) => void,
-) {
-  setReader(data);
-  const first = data.sections[0];
-  setSectionId(first?.id ?? "");
-  const anchor = `${data.form} (${data.filingDate || "SEC"})`;
-  onLoadedText(first ? first.paragraphs.join("\n\n") : data.fullExcerpt, anchor);
-  toast.success(data.notice);
 }
 
 function useFilingLoader(
@@ -79,7 +61,14 @@ function useFilingLoader(
       });
       if (ctrl.signal.aborted) return;
       if (!res.ok) return void toast.error(res.error);
-      emitLoadedFiling(res.data, setReader, setSectionId, onLoadedText);
+      setReader(res.data);
+      const first = res.data.sections[0];
+      setSectionId(first?.id ?? "");
+      onLoadedText(
+        first ? first.paragraphs.join("\n\n") : res.data.fullExcerpt,
+        `${res.data.form} (${res.data.filingDate || "SEC"})`,
+      );
+      toast.success(res.data.notice);
     } finally {
       if (abortRef.current === ctrl) setLoading(false);
     }
@@ -169,6 +158,51 @@ function FilingPickRow(p: {
   );
 }
 
+function FilingSourceSection(p: {
+  reader: SecFilingReaderResponse;
+  sectionId: string;
+  onSelect: (id: string) => void;
+}) {
+  const badgeLabel = p.reader.cached
+    ? "本地已缓存 · 即时"
+    : p.reader.source === "sec-edgar-live"
+      ? "SEC EDGAR 直连"
+      : "本地摘要回退";
+  return (
+    <div className="space-y-2.5 border-t border-hairline pt-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SectionSwitcher reader={p.reader} activeId={p.sectionId} onSelect={p.onSelect} />
+        <Badge variant={p.reader.source === "sec-edgar-live" ? "pass" : "default"}>
+          {badgeLabel}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
+function ViewModeToggle(p: {
+  mode: "source" | "redline";
+  onChange: (m: "source" | "redline") => void;
+}) {
+  return (
+    <div className="inline-flex rounded-pill border border-hairline bg-surface p-0.5 text-xs">
+      {(["source", "redline"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          onClick={() => p.onChange(mode)}
+          className={cn(
+            "cursor-pointer rounded-pill px-2.5 py-0.5 transition-colors",
+            p.mode === mode ? "bg-titanium font-medium text-ink-primary" : "text-ink-muted",
+          )}
+        >
+          {mode === "source" ? "原文" : "对照"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function FilingLivePanel({
   ticker,
   filings,
@@ -180,39 +214,35 @@ export function FilingLivePanel({
   onLoadedText: (text: string, anchor: string) => void;
   onSelectExcerpt?: (snippet: string) => void;
 }) {
+  const [viewMode, setViewMode] = useState<"source" | "redline">("source");
   const loader = useFilingLoader(ticker, filings, onLoadedText);
   const picks = filings.filter((f) => f.form !== "4").slice(0, 4);
   return (
     <div className="mb-4 space-y-3 rounded-card border border-hairline bg-titanium-subtle/60 p-3.5">
-      <FilingPickRow
-        picks={picks}
-        selectedAcc={loader.selectedAcc}
-        documentUrl={loader.reader?.documentUrl}
-        hasReader={Boolean(loader.reader)}
-        loading={loader.loading}
-        onSelect={loader.setSelectedAcc}
-        onLoad={(refresh) => void loader.load(loader.selectedAcc, Boolean(refresh))}
-      />
-      {loader.reader ? (
-        <div className="space-y-2.5 border-t border-hairline pt-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <SectionSwitcher
-              reader={loader.reader}
-              activeId={loader.sectionId}
-              onSelect={loader.selectSection}
-            />
-            <Badge variant={loader.reader.source === "sec-edgar-live" ? "pass" : "default"}>
-              {loader.reader.cached
-                ? "本地已缓存 · 即时"
-                : loader.reader.source === "sec-edgar-live"
-                  ? "SEC EDGAR 直连"
-                  : "本地摘要回退"}
-            </Badge>
-          </div>
-          {loader.reader.diff ? (
-            <FilingDiffBox diff={loader.reader.diff} onClipSnippet={onSelectExcerpt} />
-          ) : null}
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <FilingPickRow
+          picks={picks}
+          selectedAcc={loader.selectedAcc}
+          documentUrl={loader.reader?.documentUrl}
+          hasReader={Boolean(loader.reader)}
+          loading={loader.loading}
+          onSelect={loader.setSelectedAcc}
+          onLoad={(refresh) => void loader.load(loader.selectedAcc, Boolean(refresh))}
+        />
+        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+      </div>
+      {viewMode === "redline" ? (
+        <FilingRedlineView
+          ticker={ticker}
+          currentAccession={loader.selectedAcc || undefined}
+          onClipSnippet={onSelectExcerpt}
+        />
+      ) : loader.reader ? (
+        <FilingSourceSection
+          reader={loader.reader}
+          sectionId={loader.sectionId}
+          onSelect={loader.selectSection}
+        />
       ) : null}
     </div>
   );

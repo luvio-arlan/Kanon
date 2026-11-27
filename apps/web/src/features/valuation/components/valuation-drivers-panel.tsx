@@ -7,6 +7,7 @@ import { SotpBuilderCard } from "./drivers/sotp-builder-card";
 import { EvOwnerFcfCard } from "./ev-owner-fcf-card";
 
 interface DriversPanelProps {
+  ticker?: string;
   currentPrice: number;
   horizonYears: number;
   modelMode: ValuationModelMode;
@@ -74,14 +75,14 @@ export function ValuationDriversPanel(props: DriversPanelProps) {
   const { latestAnnual, defaults, revB, sharesM, cashB, debtB } = resolveBaseMetrics(props);
   const dr = props.driverInputs;
   const applyTargets = props.onApplyEvTargets ?? (() => undefined);
-  if (!revB || revB <= 0 || !sharesM || sharesM <= 0) {
+  if (!revB || revB <= 0 || !sharesM || sharesM <= 0)
     return <MissingBaseCard onGoToSec={props.onGoToSec} />;
-  }
   const common = { currentPrice: props.currentPrice, horizonYears: props.horizonYears };
   if (props.modelMode === "sotp") {
     return (
       <SotpBuilderCard
         {...common}
+        ticker={props.ticker}
         dilutedSharesM={sharesM}
         netCashB={(cashB ?? 0) - (debtB ?? 0)}
         segments={dr.sotpSegments}

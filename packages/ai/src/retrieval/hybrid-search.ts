@@ -1,4 +1,4 @@
-import { expandBilingualFinanceQuery } from "../agent/filing-search-tool";
+import { planBilingualQuery } from "./query-plan";
 
 export interface SearchableFilingChunk {
   id: string;
@@ -7,14 +7,12 @@ export interface SearchableFilingChunk {
   paraIndex: number;
   text: string;
   documentUrl?: string;
-  embedding?: readonly number[];
 }
 
 export interface HybridSearchHit {
   chunk: SearchableFilingChunk;
   rrfScore: number;
   bm25Score: number;
-  vectorScore: number | null;
   deepLinkUrl: string | null;
 }
 
@@ -39,7 +37,17 @@ const STOP_WORDS = new Set([
 ]);
 
 function tokenizeQuery(text: string): string[] {
-  return expandBilingualFinanceQuery(text).filter((tok) => tok.length >= 2 && !STOP_WORDS.has(tok));
+  const plan = planBilingualQuery(text);
+  const tokens = new Set<string>();
+  for (const phrase of plan.englishTerms) {
+    for (const tok of phrase.toLowerCase().split(/[^a-z0-9]+/)) {
+      if (tok.length >= 2 && !STOP_WORDS.has(tok)) tokens.add(tok);
+    }
+  }
+  for (const tok of text.toLowerCase().split(/[^a-z0-9\u4e00-\u9fff]+/)) {
+    if (tok.length >= 2 && !STOP_WORDS.has(tok)) tokens.add(tok);
+  }
+  return [...tokens];
 }
 
 function tokenizeDocument(text: string): string[] {
@@ -47,21 +55,6 @@ function tokenizeDocument(text: string): string[] {
     .toLowerCase()
     .split(/[^a-z0-9\u4e00-\u9fff]+/)
     .filter((tok) => tok.length >= 2 && !STOP_WORDS.has(tok));
-}
-
-function cosineSimilarity(a: readonly number[], b: readonly number[]): number {
-  if (a.length === 0 || a.length !== b.length) return 0;
-  let dot = 0;
-  let na = 0;
-  let nb = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    const x = a[i] ?? 0;
-    const y = b[i] ?? 0;
-    dot += x * y;
-    na += x * x;
-    nb += y * y;
-  }
-  return na > 0 && nb > 0 ? dot / Math.sqrt(na * nb) : 0;
 }
 
 function scoreBm25Chunk(
@@ -99,17 +92,14 @@ export function buildSecTextFragmentUrl(
   return `${documentUrl.split("#")[0]}#:~:text=${encodeURIComponent(fragment)}`;
 }
 
-/**
- * Hybrid BM25 + optional vector similarity retrieval fused via Reciprocal Rank Fusion (RRF, k=60).
- */
+/** Pure BM25 bilingual reranker over FTS/filing candidate chunks (vector branch removed per R4). */
 export function hybridSearchChunks(params: {
   query: string;
   chunks: readonly SearchableFilingChunk[];
-  queryEmbedding?: readonly number[];
   topK?: number;
 }): HybridSearchHit[] {
-  const { query, chunks, queryEmbedding } = params;
-  const topK = Math.max(1, Math.min(25, params.topK ?? 8));
+  const { query, chunks } = params;
+  const topK = Math.max(1, Math.min(25, params.topK ?? 6));
   if (chunks.length === 0) return [];
   const queryTerms = tokenizeQuery(query);
   const tokenizedDocs = chunks.map((c) => tokenizeDocument(c.text));
@@ -120,34 +110,18 @@ export function hybridSearchChunks(params: {
     for (const uniq of new Set(doc)) df.set(uniq, (df.get(uniq) ?? 0) + 1);
   }
 
-  const scored = chunks.map((chunk, idx) => {
-    const bm25 = scoreBm25Chunk(queryTerms, tokenizedDocs[idx] ?? [], avgLen, df, chunks.length);
-    const vec =
-      queryEmbedding && chunk.embedding ? cosineSimilarity(queryEmbedding, chunk.embedding) : null;
-    return { chunk, bm25, vec };
-  });
-
-  const lexOrder = [...scored].sort((a, b) => b.bm25 - a.bm25);
-  const lexRank = new Map(lexOrder.map((item, i) => [item.chunk.id, i + 1]));
-  const hasVec = scored.some((s) => s.vec !== null);
-  const vecOrder = hasVec ? [...scored].sort((a, b) => (b.vec ?? -1) - (a.vec ?? -1)) : [];
-  const vecRank = new Map(vecOrder.map((item, i) => [item.chunk.id, i + 1]));
-
-  const k = 60;
-  return scored
-    .filter((s) => s.bm25 > 0 || (s.vec !== null && s.vec > 0.25))
-    .map((s) => {
-      const lr = lexRank.get(s.chunk.id) ?? chunks.length;
-      const vr = vecRank.get(s.chunk.id);
-      const rrfScore = 1 / (k + lr) + (vr ? 1 / (k + vr) : 0);
-      return {
-        chunk: s.chunk,
-        rrfScore,
-        bm25Score: s.bm25,
-        vectorScore: s.vec,
-        deepLinkUrl: buildSecTextFragmentUrl(s.chunk.documentUrl, s.chunk.text),
-      };
-    })
-    .sort((a, b) => b.rrfScore - a.rrfScore)
-    .slice(0, topK);
+  return chunks
+    .map((chunk, idx) => ({
+      chunk,
+      bm25Score: scoreBm25Chunk(queryTerms, tokenizedDocs[idx] ?? [], avgLen, df, chunks.length),
+    }))
+    .filter((s) => s.bm25Score > 0)
+    .sort((a, b) => b.bm25Score - a.bm25Score)
+    .slice(0, topK)
+    .map((s, rank) => ({
+      chunk: s.chunk,
+      bm25Score: s.bm25Score,
+      rrfScore: 1 / (60 + rank + 1),
+      deepLinkUrl: buildSecTextFragmentUrl(s.chunk.documentUrl, s.chunk.text),
+    }));
 }

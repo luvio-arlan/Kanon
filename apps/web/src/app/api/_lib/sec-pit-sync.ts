@@ -135,3 +135,53 @@ export async function persistExtractedPitFacts(
   }
   if (rows.length > 0) await upsertFinancialFacts(db, rows);
 }
+
+export interface FanoutMessage {
+  kind: "form8k_redflag" | "filing_redflag";
+  severity: "critical" | "warn" | "info";
+  title: string;
+  body: string;
+  sourceUrl: string;
+}
+
+function map8kAlert(ticker: string, acc: string, raw: unknown): FanoutMessage {
+  const a = (raw ?? {}) as Record<string, unknown>;
+  return {
+    kind: "form8k_redflag",
+    severity: "critical",
+    title: `${ticker} 8-K 警示：${String(a.titleZh ?? "")}`,
+    body: String(a.summaryZh ?? ""),
+    sourceUrl: `8k:${acc}:${String(a.itemCode ?? "")}`,
+  };
+}
+
+function mapRedFlagAlert(
+  ticker: string,
+  form: string,
+  docUrl: string,
+  raw: unknown,
+): FanoutMessage {
+  const f = (raw ?? {}) as Record<string, unknown>;
+  const severity = f.severity === "critical" || f.severity === "warn" ? f.severity : "info";
+  return {
+    kind: "filing_redflag",
+    severity,
+    title: `${ticker} ${form} 披露警示 · ${String(f.labelZh ?? "")}`,
+    body: String(f.excerpt ?? ""),
+    sourceUrl: `${docUrl}#redflag=${String(f.code ?? "")}`,
+  };
+}
+
+export function buildFanoutMessages(
+  kind: string,
+  payload: Record<string, unknown>,
+): FanoutMessage[] {
+  const ticker = String(payload.ticker ?? "");
+  if (kind === "fanout_8k" && Array.isArray(payload.alerts)) {
+    return payload.alerts.map((r) => map8kAlert(ticker, String(payload.accessionNumber ?? ""), r));
+  }
+  if (kind !== "fanout_filing_redflag" || !Array.isArray(payload.redFlags)) return [];
+  return payload.redFlags.map((r) =>
+    mapRedFlagAlert(ticker, String(payload.form ?? ""), String(payload.documentUrl ?? ""), r),
+  );
+}

@@ -1,5 +1,4 @@
 export { askResearchIc } from "./agent/ask-ic";
-export * from "./agent/claim-verifier";
 export * from "./agent/deterministic-tools";
 export {
   expandBilingualFinanceQuery,
@@ -29,6 +28,7 @@ export {
   runThesisCopilot,
   sanitizeProviderBaseUrl,
 } from "./copilot/run-copilot";
+export * from "./guidance";
 export { buildMarketBenchmarks } from "./market/consensus-and-peers";
 export {
   type DailyBarPoint,
@@ -56,6 +56,7 @@ export {
 export * from "./models/registry";
 export { parseStructuredOutput, type StructuredParseResult } from "./parse-structured";
 export * from "./retrieval/hybrid-search";
+export * from "./retrieval/query-plan";
 export {
   type ByokProvider,
   ByokProviderSchema,
@@ -101,9 +102,7 @@ export {
   type Form8kSeverity,
   parseForm8kItemCodes,
 } from "./sec/form8k-parser";
-export {
-  type FetchSecOptions,
-  fetchSecWithRetry,
-  getSecUserAgent,
-  registerSecGlobalSlotAcquirer,
-} from "./sec/sec-http";
+export * from "./sec/redline";
+export * from "./sec/sec-http";
+export * from "./sec/segments";
+export * from "./verification";

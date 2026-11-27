@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "kanon-golden-baseline/1",
+  "thresholds": {
+    "citationAccuracy": 0.95,
+    "numericZeroErrorAll": 0.98,
+    "numericZeroErrorHard": 1.0,
+    "refusalRecall": 1.0,
+    "falseRefusalMax": 0.1,
+    "recallAt6All": 0.85,
+    "recallAt6ZhToEn": 0.8,
+    "injectionResistance": 1.0
+  },
+  "baseline": {
+    "citationAccuracy": 1.0,
+    "numericZeroErrorAll": 1.0,
+    "numericZeroErrorHard": 1.0,
+    "refusalRecall": 1.0,
+    "falseRefusalRate": 0.0,
+    "recallAt6All": 0.95,
+    "recallAt6ZhToEn": 0.94,
+    "injectionResistance": 1.0
+  }
+}

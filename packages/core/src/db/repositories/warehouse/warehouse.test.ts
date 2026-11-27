@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { resolveCanonicalConcept } from "../../../contracts/financial-concepts";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
@@ -8,7 +9,11 @@ import {
   upsertFiling,
   upsertFinancialFacts,
 } from "./facts-pit-store";
-import { searchFilingChunksLexical, upsertFilingChunks } from "./filing-chunks-store";
+import {
+  searchFilingChunksFts,
+  upsertFilingChunks,
+  upsertSectionChunks,
+} from "./filing-chunks-store";
 import {
   claimDueJobs,
   completeJob,
@@ -234,7 +239,7 @@ describe("Point-in-Time Data Warehouse (Stage 1: W1.1-W1.7)", () => {
     expect(restatements[0]?.deltaPct).toBeCloseTo(-2.31, 1);
     expect(deriveQ4FromAnnualAndYtd({ annualValue: 130, nineMonthYtdValue: 91 })).toBe(39);
 
-    await upsertFilingChunks(db, [
+    await upsertSectionChunks(db, [
       {
         id: "chk-1",
         accession: "0001045810-25-000010",
@@ -242,10 +247,39 @@ describe("Point-in-Time Data Warehouse (Stage 1: W1.1-W1.7)", () => {
         sectionCode: "item_1a",
         paraIndex: 0,
         text: "Export control restrictions may adversely affect Data Center revenue.",
+        normHash: "hash-1",
       },
     ]);
-    const hits = await searchFilingChunksLexical(db, { ticker: "NVDA", keyword: "Export control" });
+    await upsertFilingChunks(db, [
+      {
+        id: "chk-2",
+        accession: "0001045810-25-000010",
+        ticker: "NVDA",
+        sectionCode: "item_7",
+        paraIndex: 1,
+        text: "Capital expenditures and gross margin expanded across enterprise AI deployments.",
+      },
+    ]);
+    const hits = await searchFilingChunksFts(db, {
+      ticker: "NVDA",
+      tsQuery: '"export control" OR revenue',
+    });
     expect(hits).toHaveLength(1);
+    expect(hits[0]?.id).toBe("chk-1");
+
+    // Verify GIN index idx_filing_chunks_fts is usable by PostgreSQL planner (R4)
+    const planText = await db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL enable_seqscan = off`);
+      const explained = await tx.execute(sql`
+        EXPLAIN SELECT id FROM filing_chunks
+        WHERE to_tsvector('english', text) @@ websearch_to_tsquery('english', 'export control')
+      `);
+      const rows = (Array.isArray(explained) ? explained : explained.rows) as Array<
+        Record<string, unknown>
+      >;
+      return rows.map((r) => String(Object.values(r)[0] ?? "")).join("\n");
+    });
+    expect(planText).toContain("idx_filing_chunks_fts");
   });
 
   it("W1.5 & W1.7: runs Postgres job queue with backoff, persists thesis peers, and computes estimate revision trend", async () => {

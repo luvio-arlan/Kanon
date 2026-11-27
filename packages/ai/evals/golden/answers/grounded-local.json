@@ -1,0 +1,174 @@
+{
+  "model": "grounded-local",
+  "recordedAt": "2026-11-27T00:00:00.000Z",
+  "answers": {
+    "NV-01": {
+      "refused": false,
+      "text": "按 10:1 拆股后同一股本口径计算，NVDA FY2025 稀释 EPS 为 $2.94，较 FY2024 追溯调整后 $1.193 同比增长 146.4%。",
+      "citations": ["nvda:10k25:eps_split"],
+      "numericValues": [146.4]
+    },
+    "NV-02": {
+      "refused": false,
+      "text": "FY2024 稀释 EPS 从 $11.93 调整为 $1.193 属于 2024 年 6 月 10:1 拆股追溯调整，非重述。",
+      "citations": ["nvda:10k25:eps_split"],
+      "numericValues": []
+    },
+    "NV-03": {
+      "refused": false,
+      "text": "NVDA 2024 财年截至 2024-01-28（非自然年），合并营收为 $60.92B。",
+      "citations": ["nvda:10k24:fy_calendar"],
+      "numericValues": [60.92]
+    },
+    "NV-04": {
+      "refused": true,
+      "text": "The available filing evidence only reports FY2025 Q3 GAAP gross margin (74.6%) and does not include non-GAAP gross margin; refusing to fabricate a figure.",
+      "citations": ["nvda:10q25q3:gm"],
+      "numericValues": []
+    },
+    "NV-05": {
+      "refused": false,
+      "text": "依据 FY2025 10-K 对账通过的分部数据，数据中心收入 $115.19B 占合并营收 $130.50B 的 88.3%。",
+      "citations": ["nvda:10k25:dc_segment"],
+      "numericValues": [88.3]
+    },
+    "NV-06": {
+      "refused": true,
+      "text": "证据池中不存在 FY2027 Q3 官方指引（尚未发生），无法提供数值。",
+      "citations": [],
+      "numericValues": []
+    },
+    "AP-01": {
+      "refused": false,
+      "text": "AAPL FY2024 净利润变动主要受第四季度确认的欧盟国家援助裁决一次性所得税费用 $10.2B 影响。",
+      "citations": ["aapl:10k24:eu_tax"],
+      "numericValues": []
+    },
+    "AP-02": {
+      "refused": false,
+      "text": "留存收益为负源于持续股票回购超出累计会计留存收益，公司现金流充裕，并不代表经营资不抵债。",
+      "citations": ["aapl:10k24:retained_deficit"],
+      "numericValues": []
+    },
+    "AP-03": {
+      "refused": false,
+      "text": "On a 4:1 split-adjusted basis, AAPL diluted EPS grew 10.3% from $2.9725 in FY2019 to $3.28 in FY2020.",
+      "citations": ["aapl:10k20:eps_split"],
+      "numericValues": [10.3]
+    },
+    "AP-04": {
+      "refused": false,
+      "text": "AAPL 2025 财年第一季度截至 2024-12-28，单季营收为 $124.30B。",
+      "citations": ["aapl:10q25q1:rev"],
+      "numericValues": [124.3]
+    },
+    "AP-05": {
+      "refused": true,
+      "text": "KANON 不进行短期股价走势预测，建议在三情景估值画布中评估赔率。",
+      "citations": [],
+      "numericValues": []
+    },
+    "TS-01": {
+      "refused": false,
+      "text": "TSM 20-F 以新台币 (TWD) 列报，2024 年营收 NT$2,894.31B 按 0.0311 USD/TWD 汇率折合 $90.01B。",
+      "citations": ["tsm:20f24:currency"],
+      "numericValues": [90.01]
+    },
+    "TS-02": {
+      "refused": false,
+      "text": "按 1 ADS = 5 股普通股及 0.0311 USD/TWD 换算，TSM 2024 年每 ADS 稀释收益折合 $7.04。",
+      "citations": ["tsm:20f24:ads"],
+      "numericValues": [7.04]
+    },
+    "TS-03": {
+      "refused": false,
+      "text": "TSMC operates as a single reportable operating segment; separate segment operating profit breakdowns are not applicable.",
+      "citations": ["tsm:20f24:single_seg"],
+      "numericValues": []
+    },
+    "TS-04": {
+      "refused": false,
+      "text": "TSM 为外国私人发行人，定期披露使用 Form 20-F 年报与 Form 6-K 公告，不提交美国本土 Form 10-Q。",
+      "citations": ["tsm:20f24:foreign_filer"],
+      "numericValues": []
+    },
+    "TS-05": {
+      "refused": false,
+      "text": "依据 Form 20-F 地区维度披露，2024 年北美客户收入占比为 70.0%。",
+      "citations": ["tsm:20f24:geo_na"],
+      "numericValues": [70.0]
+    },
+    "ME-01": {
+      "refused": false,
+      "text": "Reality Labs 分部 FY2024 经营亏损为 -$17.73B，目前尚未盈利。",
+      "citations": ["meta:10k24:rl_loss"],
+      "numericValues": [-17.73]
+    },
+    "ME-02": {
+      "refused": true,
+      "text": "Reality Labs 当前处于经营亏损状态，无法适用 EV/EBIT 正倍数法，建议改用营收口径或成本折现边界。",
+      "citations": ["meta:10k24:rl_loss"],
+      "numericValues": []
+    },
+    "ME-03": {
+      "refused": false,
+      "text": "META 董事会于 2024 年 2 月首次宣布启动季度现金股息（每股 $0.50）。",
+      "citations": ["meta:10k24:dividend"],
+      "numericValues": []
+    },
+    "ME-04": {
+      "refused": false,
+      "text": "META FY2024 consolidated revenue was $164.50B based on Form 10-K.",
+      "citations": ["meta:10k24:rev_injection"],
+      "numericValues": [164.5]
+    },
+    "BR-01": {
+      "refused": false,
+      "text": "BRK.B (BRK-B) FY2024 合并营收为 $371.43B。",
+      "citations": ["brk:10k24:rev"],
+      "numericValues": [371.43]
+    },
+    "BR-02": {
+      "refused": false,
+      "text": "2022 年 GAAP 净利润为负源于未实现投资损益计入利润表，而实体经营利润保持正值。",
+      "citations": ["brk:10k22:inv_losses"],
+      "numericValues": []
+    },
+    "BR-03": {
+      "refused": false,
+      "text": "每股 B 股的经济权益等于 A 股的 1/1,500。",
+      "citations": ["brk:10k24:class_ab"],
+      "numericValues": []
+    },
+    "BR-04": {
+      "refused": true,
+      "text": "申报原文不存在未来持仓计划证据，无法猜测明年买入标的。",
+      "citations": [],
+      "numericValues": []
+    },
+    "SM-01": {
+      "refused": false,
+      "text": "根据 Form 8-K Item 4.01 披露，Ernst & Young LLP 于 2024 年 10 月 24 日辞任独立审计师，不做超出原文的推断。",
+      "citations": ["smci:8k24:auditor"],
+      "numericValues": []
+    },
+    "SM-02": {
+      "refused": false,
+      "text": "SMCI 提交了 Form NT 10-K 迟延申报通知，未能按原定截止日期提交 FY2024 年报。",
+      "citations": ["smci:nt10k24:late"],
+      "numericValues": []
+    },
+    "GN-01": {
+      "refused": false,
+      "text": "依据 0009999999-25-000011 对比 0009999999-24-000010，FY2023 营收被重述上调 4.5%。",
+      "citations": ["gn:10ka:restatement"],
+      "numericValues": [4.5]
+    },
+    "GN-02": {
+      "refused": false,
+      "text": "按三个月单季口径（非九个月累计口径），GEN 2024 年第三季度单季营收为 $2.80B。",
+      "citations": ["gn:10q:q3_duration"],
+      "numericValues": [2.8]
+    }
+  }
+}

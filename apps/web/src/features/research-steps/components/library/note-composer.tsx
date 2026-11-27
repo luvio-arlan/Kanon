@@ -16,9 +16,6 @@ export interface NoteDraft {
   periodLabel: string;
   title: string;
   content: string;
-  guidanceMetric: string;
-  guidancePromised: string;
-  guidanceDelivered: string;
 }
 
 export const EMPTY_NOTE_DRAFT: NoteDraft = {
@@ -26,9 +23,6 @@ export const EMPTY_NOTE_DRAFT: NoteDraft = {
   periodLabel: `FY${String(new Date().getFullYear()).slice(-2)} Q${Math.ceil((new Date().getMonth() + 1) / 3)}`,
   title: "",
   content: "",
-  guidanceMetric: "",
-  guidancePromised: "",
-  guidanceDelivered: "",
 };
 
 function NoteMetaRow({
@@ -72,37 +66,6 @@ function NoteMetaRow({
   );
 }
 
-function GuidanceFieldsRow({
-  draft,
-  onPatch,
-}: {
-  draft: NoteDraft;
-  onPatch: (p: Partial<NoteDraft>) => void;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-2 border-t border-hairline pt-3 sm:grid-cols-3">
-      <Input
-        value={draft.guidanceMetric}
-        onChange={(e) => onPatch({ guidanceMetric: e.target.value })}
-        placeholder="指引指标（可选，如毛利率）"
-        className="h-8 text-xs"
-      />
-      <Input
-        value={draft.guidancePromised}
-        onChange={(e) => onPatch({ guidancePromised: e.target.value })}
-        placeholder="管理层承诺（如 70%±0.5%）"
-        className="h-8 font-mono text-xs"
-      />
-      <Input
-        value={draft.guidanceDelivered}
-        onChange={(e) => onPatch({ guidanceDelivered: e.target.value })}
-        placeholder="实际兑现（如 70.6%）"
-        className="h-8 font-mono text-xs"
-      />
-    </div>
-  );
-}
-
 export function NewNoteComposer({
   draft,
   saving,
@@ -126,7 +89,6 @@ export function NewNoteComposer({
         placeholder="粘贴电话会问答、管理层原话或 10-K 附注摘录…"
         className="min-h-[92px]"
       />
-      <GuidanceFieldsRow draft={draft} onPatch={onPatch} />
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="xs" onClick={onCancel}>
           取消

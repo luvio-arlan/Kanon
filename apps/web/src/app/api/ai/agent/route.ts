@@ -5,7 +5,11 @@ import {
   fetchMarketQuote,
   streamResearchAgent,
 } from "@kanon/ai";
-import { AgentRunsListResponseSchema, type ThesisDetail } from "@kanon/core";
+import {
+  AgentRunsListResponseSchema,
+  computeGuidanceCredibility,
+  type ThesisDetail,
+} from "@kanon/core";
 import {
   getSecSnapshot,
   getSecSnapshotForUser,
@@ -13,6 +17,7 @@ import {
   type KanonDb,
   listAgentRuns,
   listCachedSecFilingDocsByTicker,
+  listGuidanceCommitments,
   listQuarterlyReviews,
   listResearchNotes,
   listThesisRevisions,
@@ -45,14 +50,23 @@ async function loadAgentEvidence(params: AgentStreamParams) {
   const marketCreds = parseMarketHeaders(params.request);
   const [dbBundle, quoteRes] = await Promise.all([
     params.withDb(async (tx) => {
-      const [secSnapshot, reviews, revisions, cachedFilings, researchNotes] = await Promise.all([
-        getSecSnapshotForUser(tx, params.thesis.ticker, params.userId),
-        listQuarterlyReviews(tx, params.thesis.id),
-        listThesisRevisions(tx, params.thesis.id),
-        listCachedSecFilingDocsByTicker(tx, params.thesis.ticker, 3),
-        listResearchNotes(tx, params.thesis.id, 12),
-      ]);
-      return { secSnapshot, reviews, revisions, cachedFilings, researchNotes };
+      const [secSnapshot, reviews, revisions, cachedFilings, researchNotes, guidanceItems] =
+        await Promise.all([
+          getSecSnapshotForUser(tx, params.thesis.ticker, params.userId),
+          listQuarterlyReviews(tx, params.thesis.id),
+          listThesisRevisions(tx, params.thesis.id),
+          listCachedSecFilingDocsByTicker(tx, params.thesis.ticker, 3),
+          listResearchNotes(tx, params.thesis.id, 12),
+          listGuidanceCommitments(tx, params.thesis.id),
+        ]);
+      return {
+        secSnapshot,
+        reviews,
+        revisions,
+        cachedFilings,
+        researchNotes,
+        guidanceCredibility: computeGuidanceCredibility(guidanceItems),
+      };
     }),
     fetchMarketQuote(params.thesis.ticker, { creds: marketCreds }),
   ]);
@@ -169,14 +183,11 @@ export async function GET(request: Request) {
   if (!auth.ok) return auth.response;
 
   const thesisId = new URL(request.url).searchParams.get("thesisId")?.trim();
-  if (!thesisId) {
-    return jsonError("请提供研究标的 ID。", 400, startedAt, "INVALID");
-  }
+  if (!thesisId) return jsonError("请提供研究标的 ID。", 400, startedAt, "INVALID");
   const outcome = await auth.withDb(async (tx) => {
     const guard = await requireThesisAccess(tx, thesisId, auth.user.id, "read", startedAt);
     if (!guard.ok) return guard;
-    const runs = await listAgentRuns(tx, thesisId, 5);
-    return { ok: true as const, runs };
+    return { ok: true as const, runs: await listAgentRuns(tx, thesisId, 5) };
   });
   if (!outcome.ok) return outcome.response;
   return jsonOk(AgentRunsListResponseSchema.parse({ runs: outcome.runs }), startedAt);

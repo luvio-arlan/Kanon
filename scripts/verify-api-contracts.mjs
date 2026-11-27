@@ -42,9 +42,12 @@ const KNOWN_ROUTES = [
   "portfolio/calibration/route.ts",
   "portfolio/ledger/route.ts",
   "sec/[ticker]/filing/route.ts",
+  "sec/[ticker]/redline/route.ts",
   "sec/[ticker]/route.ts",
+  "sec/[ticker]/segments/route.ts",
   "theses/[id]/discipline/route.ts",
   "theses/[id]/forecasts/route.ts",
+  "theses/[id]/guidance/route.ts",
   "theses/[id]/ic/route.ts",
   "theses/[id]/model-versions/route.ts",
   "theses/[id]/notes/route.ts",
@@ -1035,6 +1038,58 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
   const icGet = await fetchJson(`/api/theses/${nvdaId}/ic`, {}, cookieA);
   assert.equal(icGet.status, 200);
   assert.equal(icGet.data.approvals[0].state, "approved");
+
+  // Wave R contracts: redline, segments, guidance HITL lifecycle
+  const redlineRes = await fetchJson("/api/sec/NVDA/redline?section=risk_factors", {}, cookieA);
+  assert.ok(redlineRes.status === 200 || redlineRes.status === 202);
+  assert.equal(redlineRes.data.algoVersion, "redline/1");
+
+  const segRes = await fetchJson("/api/sec/NVDA/segments?axis=business", {}, cookieA);
+  assert.ok(segRes.status === 200 || segRes.status === 202);
+  assert.equal(segRes.data.ticker, "NVDA");
+
+  const gCreate = await fetchJson(
+    `/api/theses/${nvdaId}/guidance`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        op: "create",
+        input: {
+          metric: "revenue",
+          basis: "gaap",
+          unit: "usd",
+          targetFiscalYear: 2026,
+          targetFiscalPeriod: "Q1",
+          issuedOn: "2025-02-26",
+          low: 42e9,
+          high: 44e9,
+          source: {
+            kind: "manual",
+            url: "https://www.sec.gov/nvda-q4",
+            quote: "Revenue is expected to be $43.0 billion, plus or minus 2%.",
+          },
+        },
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(gCreate.status, 201);
+  const draftItem = gCreate.data.items[0];
+  assert.equal(draftItem.status, "draft_legacy");
+  const gConfirm = await fetchJson(
+    `/api/theses/${nvdaId}/guidance`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        op: "confirm",
+        id: draftItem.id,
+        expectedUpdatedAt: draftItem.updatedAt,
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(gConfirm.status, 200);
+  assert.equal(gConfirm.data.items[0].status, "confirmed");
 }
 
 async function main() {

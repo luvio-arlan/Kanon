@@ -7,6 +7,7 @@ import { SYSTEM_META_JOB_KINDS } from "./job-queue-helpers";
 export {
   ALERT_CURSOR_JOB_ID,
   getAlertEvalCursor,
+  getDbSizePct,
   getJobQueueHealth,
   type JobQueueHealth,
   recordTickHeartbeat,
@@ -64,8 +65,32 @@ export async function countUserPendingJobs(db: KanonDb, userId: string): Promise
   return Number(row?.cnt ?? 0);
 }
 
+async function enqueueTickerDailyPair(
+  db: KanonDb,
+  params: { ticker: string; day: string; isSunday: boolean; isSecRegistrant: boolean },
+): Promise<number> {
+  await enqueueJob(db, {
+    id: `sync_daily_bars:${params.ticker}:${params.day}`,
+    kind: "sync_daily_bars",
+    payload: params.isSunday
+      ? { ticker: params.ticker, forceFullRebase: true }
+      : { ticker: params.ticker },
+    priority: 50,
+    maxAttempts: 4,
+  });
+  if (!params.isSecRegistrant) return 1;
+  await enqueueJob(db, {
+    id: `sync_sec:${params.ticker}:${params.day}`,
+    kind: "sync_sec",
+    payload: { ticker: params.ticker },
+    priority: 60,
+    maxAttempts: 4,
+  });
+  return 2;
+}
+
 /**
- * Fans out daily idempotent watchlist jobs (daily bars, SEC sync, alert evaluation)
+ * Fans out daily idempotent watchlist jobs (daily bars, SEC sync, guidance resolution, chunk prune, alerts)
  * for all distinct tickers across non-archived theses.
  */
 export async function enqueueWatchlistJobs(db: KanonDb, dateKey?: string): Promise<number> {
@@ -86,25 +111,27 @@ export async function enqueueWatchlistJobs(db: KanonDb, dateKey?: string): Promi
   for (const row of rows) {
     const ticker = row.ticker.trim().toUpperCase();
     if (!ticker) continue;
-    await enqueueJob(db, {
-      id: `sync_daily_bars:${ticker}:${day}`,
-      kind: "sync_daily_bars",
-      payload: isSunday ? { ticker, forceFullRebase: true } : { ticker },
-      priority: 50,
-      maxAttempts: 4,
+    enqueued += await enqueueTickerDailyPair(db, {
+      ticker,
+      day,
+      isSunday,
+      isSecRegistrant: !nonSecSet.has(ticker),
     });
-    enqueued += 1;
-    if (!nonSecSet.has(ticker)) {
-      await enqueueJob(db, {
-        id: `sync_sec:${ticker}:${day}`,
-        kind: "sync_sec",
-        payload: { ticker },
-        priority: 60,
-        maxAttempts: 4,
-      });
-      enqueued += 1;
-    }
   }
+  await enqueueJob(db, {
+    id: `resolve_guidance:${day}`,
+    kind: "resolve_guidance",
+    payload: { day },
+    priority: 80,
+    maxAttempts: 3,
+  });
+  await enqueueJob(db, {
+    id: `prune_chunks:${day}`,
+    kind: "prune_chunks",
+    payload: { day },
+    priority: 95,
+    maxAttempts: 2,
+  });
   await enqueueJob(db, {
     id: `evaluate_alerts:${day}`,
     kind: "evaluate_alerts",
@@ -112,7 +139,7 @@ export async function enqueueWatchlistJobs(db: KanonDb, dateKey?: string): Promi
     priority: 90,
     maxAttempts: 3,
   });
-  return enqueued + 1;
+  return enqueued + 3;
 }
 
 /**

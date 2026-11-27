@@ -10,6 +10,8 @@ import {
   checkG10NoNetworkInDbTxAst,
   checkG12SystemContextAllowlistAst,
   checkG13SecFetchGatewayAst,
+  checkG17HitlConfirmOnlyAst,
+  checkG18NoSubstringChunkRetrievalAst,
   checkG19E2eNoArbitraryWaitAst,
 } from "./wave-guards-rs.mjs";
 
@@ -318,6 +320,88 @@ expectClean(
   "G19 clean waitForRequest and quarantined skip",
 );
 
+// G17 negative examples (3)
+expectCaught(
+  (e) =>
+    checkG17HitlConfirmOnlyAst(
+      "packages/core/src/db/repositories/intel/guidance-drafts-store.ts",
+      'db.insert(guidanceCommitmentsTable).values({ status: "confirmed" });',
+      e,
+    ),
+  "G17-hitl-confirm-only",
+  "G17 AI draft writer setting confirmed",
+);
+expectCaught(
+  (e) =>
+    checkG17HitlConfirmOnlyAst(
+      "apps/web/src/app/api/theses/[id]/guidance/route.ts",
+      'tx.update(guidanceCommitmentsTable).set({ status: "confirmed" });',
+      e,
+    ),
+  "G17-hitl-confirm-only",
+  "G17 route bypassing confirmGuidanceCommitment",
+);
+expectCaught(
+  (e) =>
+    checkG17HitlConfirmOnlyAst(
+      "packages/core/src/db/repositories/intel/guidance-resolver.ts",
+      "db.execute(sql`UPDATE guidance_commitments SET status = 'confirmed' WHERE id = $1`);",
+      e,
+    ),
+  "G17-hitl-confirm-only",
+  "G17 raw SQL setting confirmed on guidance_commitments",
+);
+expectClean(
+  (e) =>
+    checkG17HitlConfirmOnlyAst(
+      "packages/core/src/db/repositories/intel/guidance-store.ts",
+      'export async function confirmGuidanceCommitment(db) { return db.update(guidanceCommitmentsTable).set({ status: "confirmed" }); }',
+      e,
+    ),
+  "G17 clean confirmGuidanceCommitment",
+);
+
+// G18 negative examples (3)
+expectCaught(
+  (e) =>
+    checkG18NoSubstringChunkRetrievalAst(
+      "apps/web/src/app/api/ai/agent/ask/route.ts",
+      'import { searchFilingChunksLexical } from "@kanon/core/db"; searchFilingChunksLexical(tx, {});',
+      e,
+    ),
+  "G18-no-substring-chunk-retrieval",
+  "G18 searchFilingChunksLexical banned",
+);
+expectCaught(
+  (e) =>
+    checkG18NoSubstringChunkRetrievalAst(
+      "packages/core/src/db/repositories/warehouse/filing-chunks-store.ts",
+      'db.select().from(filingChunksTable).where(ilike(filingChunksTable.text, "%margin%"));',
+      e,
+    ),
+  "G18-no-substring-chunk-retrieval",
+  "G18 ilike on filingChunksTable.text banned",
+);
+expectCaught(
+  (e) =>
+    checkG18NoSubstringChunkRetrievalAst(
+      "packages/core/src/db/repositories/warehouse/filing-chunks-store.ts",
+      "db.execute(sql`SELECT id FROM filing_chunks WHERE text ILIKE $1`);",
+      e,
+    ),
+  "G18-no-substring-chunk-retrieval",
+  "G18 raw SQL ILIKE on filing_chunks banned",
+);
+expectClean(
+  (e) =>
+    checkG18NoSubstringChunkRetrievalAst(
+      "packages/core/src/db/repositories/warehouse/filing-chunks-store.ts",
+      "db.select().from(filingChunksTable).where(sql`to_tsvector('english', text) @@ websearch_to_tsquery('english', $1)`);",
+      e,
+    ),
+  "G18 clean GIN FTS query",
+);
+
 process.stdout.write(
-  "✓ wave-guards-rs.test.mjs: all G6+, G9, G10, G12, G13 & G19 adversarial fixtures caught and clean examples passed.\n",
+  "✓ wave-guards-rs.test.mjs: all G6+, G9, G10, G12, G13, G17, G18 & G19 adversarial fixtures caught and clean examples passed.\n",
 );

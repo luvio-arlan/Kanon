@@ -21,11 +21,7 @@ import { KANON_TEAMS_IC_AUDIT_SQL } from "./v2/0020-teams-ic-audit";
 import { KANON_WAVE_I_SECURITY_SQL } from "./v2/0021-wave-i-security";
 import { KANON_WAVE_L_M_VECTORS_RLS_SQL } from "./v2/0022-wave-l-m-vectors-rls";
 import { KANON_WAVE_O_INVITATIONS_QUEUE_ALERTS_SQL } from "./v2/0023-wave-o-invitations-queue-alerts";
-import { KANON_RLS_FORCE_SQL } from "./v3/0024-rls-force";
-import { KANON_RLS_SPLIT_POLICIES_SQL } from "./v3/0025-rls-split-policies";
-import { KANON_Q5_INVITES_LEDGER_OPENING_SQL } from "./v3/0026-q5-invites-ledger-opening";
-import { KANON_RLS_FUNCTIONS_AND_SPLIT_SQL } from "./v3/0027-rls-functions-and-split";
-import { KANON_RLS_FAIL_CLOSED_SQL } from "./v3/0028-rls-fail-closed";
+import { KANON_V3_MIGRATIONS } from "./v3";
 
 export interface KanonMigration {
   id: string;
@@ -175,34 +171,7 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
       "Expand-only org invitations, accepted_at membership gating, org-scoped accounts, job priority/quota, single in-review IC & edge-triggered alert state",
     sql: KANON_WAVE_O_INVITATIONS_QUEUE_ALERTS_SQL,
   },
-  {
-    id: "0024_rls_force",
-    description:
-      "Expand-only FORCE ROW LEVEL SECURITY on primary tenant tables & calendar token hash backfill",
-    sql: KANON_RLS_FORCE_SQL,
-  },
-  {
-    id: "0025_rls_split_policies",
-    description: "Expand-only read/write split RLS policies on theses & child tenant tables",
-    sql: KANON_RLS_SPLIT_POLICIES_SQL,
-  },
-  {
-    id: "0026_q5_invites_ledger_opening",
-    description:
-      "Expand-only org invitation revocation, security sec_status, nullable catalyst draft fields & opening-cash ledger backfill",
-    sql: KANON_Q5_INVITES_LEDGER_OPENING_SQL,
-  },
-  {
-    id: "0027_rls_functions_and_split",
-    description:
-      "Expand-only RLS helper functions and command-split policies across 21 tenant tables (Phase B, fail-open switch)",
-    sql: KANON_RLS_FUNCTIONS_AND_SPLIT_SQL,
-  },
-  {
-    id: "0028_rls_fail_closed",
-    description: "Atomic fail-closed RLS switch: flip kanon_rls_open() to constant false (Phase D)",
-    sql: KANON_RLS_FAIL_CLOSED_SQL,
-  },
+  ...KANON_V3_MIGRATIONS,
 ];
 
 export const KANON_POSTGRES_DDL = KANON_MIGRATIONS.map((m) => m.sql).join("\n\n");

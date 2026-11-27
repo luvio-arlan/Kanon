@@ -162,20 +162,32 @@ export const jobsTable = pgTable(
   ],
 );
 
-export const filingChunksTable = pgTable("filing_chunks", {
-  id: text("id").primaryKey(),
-  accession: text("accession")
-    .notNull()
-    .references(() => filingsTable.accession, { onDelete: "cascade" }),
-  ticker: text("ticker").notNull(),
-  sectionCode: text("section_code").notNull(),
-  paraIndex: integer("para_index").notNull(),
-  text: text("text").notNull(),
-  charStart: integer("char_start").notNull().default(0),
-  charEnd: integer("char_end").notNull().default(0),
-  contentHash: text("content_hash").notNull().default(""),
-  embeddingJson: jsonb("embedding_json").$type<number[] | null>(),
-});
+export const filingChunksTable = pgTable(
+  "filing_chunks",
+  {
+    id: text("id").primaryKey(),
+    accession: text("accession")
+      .notNull()
+      .references(() => filingsTable.accession, { onDelete: "cascade" }),
+    ticker: text("ticker").notNull(),
+    sectionCode: text("section_code").notNull(),
+    paraIndex: integer("para_index").notNull(),
+    text: text("text").notNull(),
+    charStart: integer("char_start").notNull().default(0),
+    charEnd: integer("char_end").notNull().default(0),
+    contentHash: text("content_hash").notNull().default(""),
+    normHash: text("norm_hash").notNull().default(""),
+    extractVersion: text("extract_version").notNull().default("reader/1"),
+    embeddingJson: jsonb("embedding_json").$type<number[] | null>(),
+  },
+  (table) => [
+    index("idx_filing_chunks_accession_section").on(
+      table.accession,
+      table.sectionCode,
+      table.paraIndex,
+    ),
+  ],
+);
 
 export const thesisPeersTable = pgTable(
   "thesis_peers",

@@ -341,6 +341,7 @@ function buildFilingHtml(year, includeExportControl) {
   <p>Item 1A. Risk Factors</p>
   <p>Our semiconductor supply chain relies on third-party foundry and advanced packaging partners whose manufacturing capacity constraints may delay product ramps across fiscal ${year}.</p>
   <p>Demand for accelerated computing platforms depends on cloud hyperscaler capital expenditure cycles and sustained adoption of generative artificial intelligence workloads.</p>
+  <p>Intense competition from custom silicon accelerators developed internally by major cloud customers could pressure pricing and gross margins over time.</p>
   ${extraRisk}
   <p>Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations</p>
   <p>Data center revenue expanded significantly during fiscal ${year} driven by Hopper and Blackwell architecture deployments across global cloud service providers.</p>

@@ -1,5 +1,10 @@
 import { isCredentialsMasterKeyConfigured } from "@kanon/core";
-import { getJobQueueHealth, MigrationsPendingError, pingKanonDb } from "@kanon/core/db";
+import {
+  getDbSizePct,
+  getJobQueueHealth,
+  MigrationsPendingError,
+  pingKanonDb,
+} from "@kanon/core/db";
 import { withSystemDb } from "../_lib/db-context";
 import { jsonError, jsonOk } from "../_lib/http";
 
@@ -10,9 +15,13 @@ const MAX_QUEUE_AGE_SEC = 26 * 3600;
 export async function GET() {
   const startedAt = performance.now();
   try {
-    const jobQueue = await withSystemDb("health", async (tx) => {
+    const { jobQueue, dbSizePct } = await withSystemDb("health", async (tx) => {
       await pingKanonDb(tx);
-      return getJobQueueHealth(tx).catch(() => null);
+      const [queue, sizePct] = await Promise.all([
+        getJobQueueHealth(tx).catch(() => null),
+        getDbSizePct(tx),
+      ]);
+      return { jobQueue: queue, dbSizePct: sizePct };
     });
     const secUserAgentConfigured = Boolean(process.env.KANON_SEC_USER_AGENT?.trim());
     const secretsConfigured = {
@@ -25,7 +34,8 @@ export async function GET() {
     const tickStale =
       jobQueue?.lastTickAt != null &&
       Date.now() - Date.parse(jobQueue.lastTickAt) > MAX_QUEUE_AGE_SEC * 1000;
-    const status = pendingStale || tickStale ? "degraded" : "healthy";
+    const storageDegraded = dbSizePct !== null && dbSizePct > 70;
+    const status = pendingStale || tickStale || storageDegraded ? "degraded" : "healthy";
     return jsonOk(
       {
         status,
@@ -33,6 +43,7 @@ export async function GET() {
         secUserAgentConfigured,
         secretsConfigured,
         jobQueue,
+        dbSizePct,
       },
       startedAt,
     );

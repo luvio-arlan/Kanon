@@ -107,7 +107,7 @@ describe("SEC Filing Reader & Custom BYOK Providers", () => {
     });
     expect(live.source).toBe("sec-edgar-live");
     expect(live.sections.length).toBeGreaterThanOrEqual(2);
-    expect(live.diff?.previousFilingDate).toBe("2026-05-28");
+    expect(live.diff).toBeNull();
 
     const failingFetch: typeof fetch = async () => new Response("rate limited", { status: 429 });
     const fallback = await fetchSecFilingReaderData({

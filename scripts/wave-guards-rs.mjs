@@ -187,21 +187,27 @@ const SYSTEM_ONLY_DB_FUNCS = new Set([
   "enqueueWatchlistJobs",
   "evaluateAlertRules",
   "listThesisWatchersByTicker",
+  "resolvePendingGuidanceCommitments",
+  "pruneStaleFilingChunks",
 ]);
 
 const SYSTEM_DB_ALLOWLIST = new Map([
   ["apps/web/src/app/api/_lib/auth-session.ts", new Set(["auth_bootstrap"])],
   ["apps/web/src/app/api/_lib/on-demand-sync.ts", new Set(["on_demand_sync"])],
   ["apps/web/src/app/api/_lib/request-guards.ts", new Set(["rate_limit"])],
+  ["apps/web/src/app/api/_lib/sec-intel-jobs.ts", new Set(["cron_tick", "user_triggered_sync"])],
   ["apps/web/src/app/api/_lib/sec-warehouse-sync.ts", new Set(["alert_fanout"])],
   ["apps/web/src/app/api/auth/login/route.ts", new Set(["auth_bootstrap"])],
   ["apps/web/src/app/api/auth/logout/route.ts", new Set(["auth_bootstrap"])],
   ["apps/web/src/app/api/auth/register/route.ts", new Set(["auth_bootstrap"])],
   ["apps/web/src/app/api/calendar/[token]/route.ts", new Set(["calendar_feed"])],
   ["apps/web/src/app/api/health/route.ts", new Set(["health"])],
+  ["apps/web/src/app/api/internal/jobs/tick/job-handlers.ts", new Set(["cron_tick"])],
   ["apps/web/src/app/api/internal/jobs/tick/route.ts", new Set(["cron_tick"])],
   ["apps/web/src/app/api/sec/[ticker]/route.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/sec/[ticker]/filing/route.ts", new Set(["user_triggered_sync"])],
+  ["apps/web/src/app/api/sec/[ticker]/redline/route.ts", new Set(["user_triggered_sync"])],
+  ["apps/web/src/app/api/sec/[ticker]/segments/route.ts", new Set(["user_triggered_sync"])],
 ]);
 
 const SET_CONFIG_ALLOWED_FILES = new Set([
@@ -538,7 +544,92 @@ export function checkG19E2eNoArbitraryWaitAst(rel, content, errors) {
   visit(sf);
 }
 
-/** Runs Wave R/S/T AST-level L2 mechanical guards (G6+, G9, G10, G12, G13, G19, and subsequent wave guards). */
+const GUIDANCE_STORE_FILE = "packages/core/src/db/repositories/intel/guidance-store.ts";
+
+function isInsideConfirmGuidanceFn(node) {
+  let cur = node.parent;
+  while (cur) {
+    if (ts.isFunctionDeclaration(cur) && cur.name?.text === "confirmGuidanceCommitment")
+      return true;
+    cur = cur.parent;
+  }
+  return false;
+}
+
+/** G17: Only confirmGuidanceCommitment in guidance-store.ts may write status='confirmed' to guidance_commitments. */
+export function checkG17HitlConfirmOnlyAst(rel, content, errors) {
+  if (rel.startsWith("packages/core/src/db/migrations/")) return;
+  if (!content.includes("guidanceCommitmentsTable") && !content.includes("guidance_commitments")) {
+    return;
+  }
+  const sf = parseTs(rel, content);
+  const visit = (node) => {
+    if (
+      ts.isPropertyAssignment(node) &&
+      readPropName(node) === "status" &&
+      ts.isStringLiteral(node.initializer) &&
+      node.initializer.text === "confirmed"
+    ) {
+      const allowed = rel === GUIDANCE_STORE_FILE && isInsideConfirmGuidanceFn(node);
+      if (!allowed) {
+        errors.push(
+          `${rel}:${getLine(sf, node.getStart(sf))} [G17-hitl-confirm-only] Writing status="confirmed" for guidance_commitments is only allowed inside confirmGuidanceCommitment.`,
+        );
+      }
+    } else if (
+      isTextLiteralLike(node) &&
+      /guidance_commitments/i.test(node.text) &&
+      /['"]confirmed['"]/.test(node.text) &&
+      /\b(?:INSERT|UPDATE)\b/i.test(node.text)
+    ) {
+      errors.push(
+        `${rel}:${getLine(sf, node.getStart(sf))} [G17-hitl-confirm-only] Raw SQL writing confirmed status to guidance_commitments is forbidden.`,
+      );
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
+/** G18: Bans ILIKE/LIKE substring search on filing_chunks.text and removed searchFilingChunksLexical. */
+export function checkG18NoSubstringChunkRetrievalAst(rel, content, errors) {
+  if (
+    !rel.startsWith("apps/web/src/") &&
+    !rel.startsWith("packages/ai/src/") &&
+    !rel.startsWith("packages/core/src/")
+  ) {
+    return;
+  }
+  const sf = parseTs(rel, content);
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && node.text === "searchFilingChunksLexical") {
+      errors.push(
+        `${rel}:${getLine(sf, node.getStart(sf))} [G18-no-substring-chunk-retrieval] searchFilingChunksLexical is banned; use searchFilingChunksFts.`,
+      );
+    } else if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      (node.expression.text === "ilike" || node.expression.text === "like") &&
+      node.arguments[0]?.getText(sf).includes("filingChunksTable.text")
+    ) {
+      errors.push(
+        `${rel}:${getLine(sf, node.getStart(sf))} [G18-no-substring-chunk-retrieval] Substring ${node.expression.text}() on filingChunksTable.text is banned; use GIN FTS.`,
+      );
+    } else if (
+      isTextLiteralLike(node) &&
+      /filing_chunks/i.test(node.text) &&
+      /\bI?LIKE\b/i.test(node.text)
+    ) {
+      errors.push(
+        `${rel}:${getLine(sf, node.getStart(sf))} [G18-no-substring-chunk-retrieval] Raw SQL ILIKE/LIKE on filing_chunks is banned; use to_tsvector/websearch_to_tsquery.`,
+      );
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
+/** Runs Wave R/S/T AST-level L2 mechanical guards (G6+, G9, G10, G12, G13, G17, G18, G19, and subsequent wave guards). */
 export function checkWaveGuardsRs(root, errors) {
   const dirs = ["apps/web/src", "packages/ai/src", "packages/core/src"];
   for (const d of dirs) {
@@ -552,6 +643,8 @@ export function checkWaveGuardsRs(root, errors) {
       checkG10NoNetworkInDbTxAst(rel, content, errors);
       checkG12SystemContextAllowlistAst(rel, content, errors);
       checkG13SecFetchGatewayAst(rel, content, errors);
+      checkG17HitlConfirmOnlyAst(rel, content, errors);
+      checkG18NoSubstringChunkRetrievalAst(rel, content, errors);
     }
   }
   const e2eFiles = [];

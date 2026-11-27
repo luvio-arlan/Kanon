@@ -23,7 +23,11 @@ import {
   upsertSecurity,
 } from "@kanon/core/db";
 import { withSystemDb } from "./db-context";
-import { buildFallbackAnnualFacts, persistExtractedPitFacts } from "./sec-pit-sync";
+import {
+  buildFallbackAnnualFacts,
+  buildFanoutMessages,
+  persistExtractedPitFacts,
+} from "./sec-pit-sync";
 
 export interface PreparedSecCommit {
   snapshot: SecSnapshot;
@@ -71,6 +75,28 @@ export function prepareFilingDocChunks(doc: SecFilingReaderResponse) {
   return { chunks, redFlags };
 }
 
+async function enqueuePostCommitJobs(tx: KanonDb, prepared: PreparedSecCommit) {
+  for (const job of prepared.fanout8kJobs) {
+    await enqueueJob(tx, {
+      id: `fanout_8k:${job.accessionNumber}`,
+      kind: "fanout_8k",
+      payload: { ...job },
+      priority: 20,
+      maxAttempts: 3,
+    });
+  }
+  const target = prepared.snapshot.filings.find((f) => /^(?:10-K|10-Q|20-F)$/i.test(f.form));
+  if (target) {
+    await enqueueJob(tx, {
+      id: `build_redline:${target.accessionNumber}`,
+      kind: "build_redline",
+      payload: { ticker: prepared.snapshot.ticker, accession: target.accessionNumber },
+      priority: 40,
+      maxAttempts: 3,
+    });
+  }
+}
+
 async function persistWarehouseData(
   tx: KanonDb,
   prepared: PreparedSecCommit,
@@ -103,18 +129,10 @@ async function persistWarehouseData(
     const fallback = buildFallbackAnnualFacts(security.id, snapshot);
     if (fallback.length > 0) await upsertFinancialFacts(tx, fallback);
   }
-  for (const job of prepared.fanout8kJobs) {
-    await enqueueJob(tx, {
-      id: `fanout_8k:${job.accessionNumber}`,
-      kind: "fanout_8k",
-      payload: { ...job },
-      priority: 20,
-      maxAttempts: 3,
-    });
-  }
+  await enqueuePostCommitJobs(tx, prepared);
 }
 
-/** Q5-11 atomic commit: writes security + filings + PIT facts + fanout_8k job FIRST and snapshot LAST. */
+/** Q5-11 atomic commit: writes security + filings + PIT facts + jobs FIRST and snapshot LAST. */
 export async function commitSecSnapshotAndWarehouseAtomic(
   db: KanonDb,
   prepared: PreparedSecCommit,
@@ -157,45 +175,6 @@ export async function persistFilingDocChunksAndEnqueueFanout(
   return enq.inserted;
 }
 
-interface FanoutMessage {
-  kind: "form8k_redflag" | "filing_redflag";
-  severity: "critical" | "warn" | "info";
-  title: string;
-  body: string;
-  sourceUrl: string;
-}
-
-function buildFanoutMessages(kind: string, payload: Record<string, unknown>): FanoutMessage[] {
-  const ticker = String(payload.ticker ?? "");
-  if (kind === "fanout_8k" && Array.isArray(payload.alerts)) {
-    const acc = String(payload.accessionNumber ?? "");
-    return payload.alerts.map((raw) => {
-      const a = (raw ?? {}) as Record<string, unknown>;
-      return {
-        kind: "form8k_redflag" as const,
-        severity: "critical" as const,
-        title: `${ticker} 8-K 警示：${String(a.titleZh ?? "")}`,
-        body: String(a.summaryZh ?? ""),
-        sourceUrl: `8k:${acc}:${String(a.itemCode ?? "")}`,
-      };
-    });
-  }
-  if (kind !== "fanout_filing_redflag" || !Array.isArray(payload.redFlags)) return [];
-  const form = String(payload.form ?? "");
-  const docUrl = String(payload.documentUrl ?? "");
-  return payload.redFlags.map((raw) => {
-    const f = (raw ?? {}) as Record<string, unknown>;
-    const severity = f.severity === "critical" || f.severity === "warn" ? f.severity : "info";
-    return {
-      kind: "filing_redflag" as const,
-      severity,
-      title: `${ticker} ${form} 披露警示 · ${String(f.labelZh ?? "")}`,
-      body: String(f.excerpt ?? ""),
-      sourceUrl: `${docUrl}#redflag=${String(f.code ?? "")}`,
-    };
-  });
-}
-
 /** Executes a `fanout_8k` or `fanout_filing_redflag` job inside `alert_fanout` system context. */
 export async function executeAlertFanoutJobInSystemDb(
   kind: "fanout_8k" | "fanout_filing_redflag",
@@ -207,8 +186,9 @@ export async function executeAlertFanoutJobInSystemDb(
   return withSystemDb("alert_fanout", async (tx) => {
     const watchers = await listThesisWatchersByTicker(tx, ticker);
     if (watchers.length === 0) return 0;
-    const ids = [...new Set(watchers.map((w) => w.thesisId))];
-    const recipients = await listEnabledForm8kAlertRecipients(tx, ids);
+    const recipients = await listEnabledForm8kAlertRecipients(tx, [
+      ...new Set(watchers.map((w) => w.thesisId)),
+    ]);
     let delivered = 0;
     for (const msg of messages) {
       for (const r of recipients) {
@@ -220,23 +200,32 @@ export async function executeAlertFanoutJobInSystemDb(
   });
 }
 
-/** Drains due fanout jobs best-effort from `after()` inside `alert_fanout` system context. */
 export async function drainAlertFanoutJobsBestEffort(maxJobs = 5): Promise<void> {
   const workerId = `fanout_${Date.now().toString(36)}`;
-  const exclude = ["sync_daily_bars", "sync_sec", "embed_chunks", "evaluate_alerts", "noop"];
+  const excludeKinds = [
+    "sync_daily_bars",
+    "sync_sec",
+    "build_redline",
+    "sync_segments",
+    "resolve_guidance",
+    "prune_chunks",
+    "backfill_bars",
+    "evaluate_alerts",
+    "noop",
+  ];
   for (let i = 0; i < maxJobs; i += 1) {
     const [job] = await withSystemDb("alert_fanout", (tx) =>
-      claimDueJobs(tx, { workerId, limit: 1, leaseSeconds: 60, excludeKinds: exclude }),
+      claimDueJobs(tx, { workerId, limit: 1, leaseSeconds: 60, excludeKinds }),
     );
     if (!job) break;
     try {
-      if (job.kind === "fanout_8k" || job.kind === "fanout_filing_redflag") {
+      if (job.kind === "fanout_8k" || job.kind === "fanout_filing_redflag")
         await executeAlertFanoutJobInSystemDb(job.kind, job.payload);
-      }
       await withSystemDb("alert_fanout", (tx) => completeJob(tx, job.id, workerId));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await withSystemDb("alert_fanout", (tx) => failJobWithBackoff(tx, job.id, msg, workerId));
+      await withSystemDb("alert_fanout", (tx) =>
+        failJobWithBackoff(tx, job.id, err instanceof Error ? err.message : String(err), workerId),
+      );
     }
   }
 }

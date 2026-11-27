@@ -4,6 +4,7 @@ import { calculateSotpValuation, type SotpSegment, type SotpValuationResult } fr
 import { Badge, Button, Card, Input } from "@kanon/ui";
 import { IconArrowDownRight, IconLayersSubtract, IconPlus, IconTrash } from "@tabler/icons-react";
 import { DriverNumInput } from "../ev-owner-fcf-card";
+import { SotpSecImport } from "./sotp-sec-import";
 
 const SEG_NUM_FIELDS: ReadonlyArray<{
   key: "metricValueB" | "bearMultiple" | "baseMultiple" | "bullMultiple";
@@ -118,6 +119,7 @@ function SotpFooter(p: {
 }
 
 interface SotpBuilderProps {
+  ticker?: string;
   currentPrice: number;
   horizonYears: number;
   dilutedSharesM: number;
@@ -126,7 +128,6 @@ interface SotpBuilderProps {
   holdingDiscountPct?: number;
   onChange: (next: { sotpSegments: SotpSegment[]; sotpHoldingDiscountPct: number }) => void;
   onApplyTargets: (targets: { bear: number; base: number; bull: number }) => void;
-  onImportSecSegments?: () => void;
 }
 
 function makeEmptySegment(count: number): SotpSegment {
@@ -141,24 +142,21 @@ function makeEmptySegment(count: number): SotpSegment {
   };
 }
 
-function SotpEmptyState(p: { onAddFirst: () => void; onImportSecSegments?: () => void }) {
+function SotpEmptyState(p: {
+  ticker?: string;
+  onAddFirst: () => void;
+  onImported: (segments: SotpSegment[]) => void;
+}) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-4 text-xs text-ink-muted">
-      <span>尚未配置业务分部</span>
-      <div className="flex items-center gap-2">
+    <div className="space-y-3 border-t border-hairline pt-4 text-xs text-ink-muted">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span>尚未配置业务分部</span>
         <Button variant="outline" size="xs" onClick={p.onAddFirst}>
           <IconPlus size={13} stroke={1.5} />
           <span>添加分部</span>
         </Button>
-        <Button
-          variant="outline"
-          size="xs"
-          disabled={!p.onImportSecSegments}
-          onClick={p.onImportSecSegments}
-        >
-          <span>从 SEC 分部带入</span>
-        </Button>
       </div>
+      {p.ticker ? <SotpSecImport ticker={p.ticker} onImported={p.onImported} /> : null}
     </div>
   );
 }
@@ -218,18 +216,24 @@ export function SotpBuilderCard(props: SotpBuilderProps) {
       />
       {list.length === 0 ? (
         <SotpEmptyState
+          ticker={props.ticker}
           onAddFirst={() => update([makeEmptySegment(0)])}
-          onImportSecSegments={props.onImportSecSegments}
+          onImported={(segs) => update(segs)}
         />
       ) : (
-        <SotpSegmentsList
-          list={list}
-          res={res}
-          onPatchAt={(idx, p) => update(list.map((s, i) => (i === idx ? { ...s, ...p } : s)))}
-          onRemoveAt={(idx) => update(list.filter((_, i) => i !== idx))}
-          onAdd={() => update([...list, makeEmptySegment(list.length)])}
-          onApply={apply}
-        />
+        <>
+          {props.ticker ? (
+            <SotpSecImport ticker={props.ticker} onImported={(segs) => update(segs)} />
+          ) : null}
+          <SotpSegmentsList
+            list={list}
+            res={res}
+            onPatchAt={(idx, p) => update(list.map((s, i) => (i === idx ? { ...s, ...p } : s)))}
+            onRemoveAt={(idx) => update(list.filter((_, i) => i !== idx))}
+            onAdd={() => update([...list, makeEmptySegment(list.length)])}
+            onApply={apply}
+          />
+        </>
       )}
     </Card>
   );

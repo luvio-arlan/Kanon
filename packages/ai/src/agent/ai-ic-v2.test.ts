@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { wrapUntrustedEvidence } from "../copilot/safe-provider-fetch";
 import { AI_MODEL_REGISTRY, estimateTokenCostUsd, resolveDefaultModelId } from "../models/registry";
 import { buildSecTextFragmentUrl, hybridSearchChunks } from "../retrieval/hybrid-search";
-import { computeFilingParagraphRedline } from "../sec/filing-redline";
-import { verifyGroundedClaims } from "./claim-verifier";
+import { scanFilingRedFlags } from "../sec/filing-redline";
+import { verifyGroundedClaims } from "../verification";
 import {
   compareSecPeriodsTool,
   evaluateKpiRuleTool,
@@ -35,7 +35,6 @@ describe("AI IC 2.0: Hybrid Retrieval, Claim Grounding, Tools, Redline & Prompt-
     const hits = hybridSearchChunks({
       query: "export control data center",
       chunks,
-      queryEmbedding: [0.9, 0.1, 0.0],
       topK: 2,
     });
     expect(hits[0]?.chunk.id).toBe("c1");
@@ -62,8 +61,10 @@ describe("AI IC 2.0: Hybrid Retrieval, Claim Grounding, Tools, Redline & Prompt-
           citations: ["nonexistent-chunk"],
         },
       ],
-      knownFactValues: [115.2e9],
-      knownFactPcts: [75.2],
+      knownConceptFacts: [
+        { concept: "revenue", value: 115.2e9, kind: "scalar", fiscalYear: 2025 },
+        { concept: "gross_margin", value: 75.2, kind: "pct", fiscalYear: 2025 },
+      ],
       chunkMap,
     });
     expect(report.totalClaims).toBe(3);
@@ -154,22 +155,12 @@ describe("AI IC 2.0: Hybrid Retrieval, Claim Grounding, Tools, Redline & Prompt-
     expect(wrapped).toContain("<untrusted_evidence_");
     expect(wrapped).not.toContain("</untrusted_evidence_sec>\n");
 
-    const redline = computeFilingParagraphRedline({
-      sectionCode: "item_1a",
-      previousParagraphs: [
-        "Our business depends heavily on global semiconductor foundry capacity and wafer supply.",
-        "Foreign currency fluctuations may impact our reported international revenues.",
-      ],
-      currentParagraphs: [
-        "Our business depends heavily on global semiconductor foundry capacity, advanced CoWoS packaging, and wafer supply.",
-        "Management identified a material weakness in internal control over financial reporting related to revenue recognition.",
-        "These conditions raise substantial doubt about the company's ability to continue as a going concern.",
-      ],
-    });
-    expect(redline.modifiedParagraphs).toHaveLength(1);
-    expect(redline.addedParagraphs).toHaveLength(2);
-    expect(redline.removedParagraphs).toHaveLength(1);
-    expect(redline.redFlagAlerts.map((a) => a.code)).toEqual(
+    const alerts = scanFilingRedFlags([
+      "Our business depends heavily on global semiconductor foundry capacity, advanced CoWoS packaging, and wafer supply.",
+      "Management identified a material weakness in internal control over financial reporting related to revenue recognition.",
+      "These conditions raise substantial doubt about the company's ability to continue as a going concern.",
+    ]);
+    expect(alerts.map((a) => a.code)).toEqual(
       expect.arrayContaining(["material_weakness", "going_concern"]),
     );
   });

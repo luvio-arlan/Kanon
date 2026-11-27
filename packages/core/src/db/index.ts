@@ -58,6 +58,10 @@ export {
 } from "./repositories/discipline-mutations";
 export * from "./repositories/enterprise/ic-and-compliance-store";
 export * from "./repositories/enterprise/organizations-and-rls-store";
+export * from "./repositories/intel/guidance-resolver";
+export * from "./repositories/intel/guidance-store";
+export * from "./repositories/intel/redline-store";
+export * from "./repositories/intel/segment-store";
 export {
   createResearchNote,
   deleteResearchNote,

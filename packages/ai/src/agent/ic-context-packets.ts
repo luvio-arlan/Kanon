@@ -4,6 +4,7 @@ import {
   calculateImpliedExpectations,
   calculateResearchReadiness,
   evaluateHypothesisKpi,
+  type GuidanceCredibility,
   type MarketBenchmarkResponse,
   type QuarterlyReview,
   type ResearchNote,
@@ -22,6 +23,7 @@ export interface AutonomousIcContext {
   cachedFilings?: readonly SecFilingReaderResponse[];
   researchNotes?: readonly ResearchNote[];
   benchmarks?: MarketBenchmarkResponse | null;
+  guidanceCredibility?: GuidanceCredibility | null;
   sourceText?: string;
 }
 
@@ -139,10 +141,16 @@ export function buildFullDossierContext(
     crossBlock ? wrapUntrustedEvidence("产业链互证", crossBlock) : "产业链互证：暂无",
   ];
   if (options?.includePackets === false) return baseLines.join("\n");
+  const cred = ctx.guidanceCredibility;
+  const credLine =
+    cred && cred.resolved > 0
+      ? `管理层指引兑现：兑现率 ${cred.keptRatio ?? "样本不足"}（已验证 ${cred.resolved} 条：超预期 ${cred.beat} / 兑现 ${cred.kept} / 失约 ${cred.miss}）`
+      : null;
   return [
     ...baseLines,
     `财务与内部人：${formatFinancialsPacket(ctx.secSnapshot)}`,
     `行业同业与外部预期：${buildPeersPacket(ctx.benchmarks)}`,
+    ...(credLine ? [credLine] : []),
   ].join("\n");
 }
 

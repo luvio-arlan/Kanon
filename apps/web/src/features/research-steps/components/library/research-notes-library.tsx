@@ -1,27 +1,56 @@
 "use client";
 
 import type { ResearchNote } from "@kanon/core";
-import { AgentThinking, Button, Card, Textarea } from "@kanon/ui";
+import { AgentThinking, Button, Card, cn, Textarea } from "@kanon/ui";
 import { IconPlus, IconScissors, IconSparkles } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { apiCreateResearchNote, apiDeleteResearchNote } from "../../lib/notes-api";
+import { GuidanceLedgerList } from "./guidance-ledger-list";
 import { EMPTY_NOTE_DRAFT, NewNoteComposer, type NoteDraft, NoteRowItem } from "./note-composer";
+
+function LibraryTabSwitch(p: {
+  tab: "notes" | "guidance";
+  onTab: (t: "notes" | "guidance") => void;
+}) {
+  return (
+    <div className="inline-flex rounded-pill border border-hairline bg-surface p-0.5 text-xs">
+      {(["notes", "guidance"] as const).map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => p.onTab(t)}
+          className={cn(
+            "cursor-pointer rounded-pill px-2.5 py-0.5 transition-colors",
+            p.tab === t ? "bg-titanium font-medium text-ink-primary" : "text-ink-muted",
+          )}
+        >
+          {t === "notes" ? "纪要" : "指引"}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function LibraryHeader(p: {
   count: number;
+  tab: "notes" | "guidance";
   composerOpen: boolean;
   digestLoading: boolean;
+  onTab: (t: "notes" | "guidance") => void;
   onToggleComposer: () => void;
   onOpenClipper: () => void;
   onRunDigest: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-6 py-4 sm:px-7">
-      <div className="flex items-center gap-2">
-        <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">
-          一手资料与法说会纪要库
-        </h3>
-        <span className="font-mono text-xs text-ink-muted tabular-nums">{p.count} 篇</span>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-ink-primary">
+            一手资料与法说会纪要库
+          </h3>
+          <span className="font-mono text-xs text-ink-muted tabular-nums">{p.count} 篇</span>
+        </div>
+        <LibraryTabSwitch tab={p.tab} onTab={p.onTab} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="xs" onClick={p.onToggleComposer}>
@@ -166,12 +195,16 @@ function useNotesLibraryState(props: ResearchNotesLibraryProps) {
 
 export function ResearchNotesLibrary(props: ResearchNotesLibraryProps) {
   const s = useNotesLibraryState(props);
+  const [tab, setTab] = useState<"notes" | "guidance">("notes");
+  const selectedNote = props.notes.find((n) => n.id === s.selectedId) ?? props.notes[0] ?? null;
   return (
     <Card className="overflow-hidden">
       <LibraryHeader
         count={props.notes.length}
+        tab={tab}
         composerOpen={s.composerOpen}
         digestLoading={props.digestLoading}
+        onTab={setTab}
         onToggleComposer={() => s.setComposerOpen((v) => !v)}
         onOpenClipper={props.onOpenClipper}
         onRunDigest={() => void props.onRunDigest(props.activeText)}
@@ -185,21 +218,25 @@ export function ResearchNotesLibrary(props: ResearchNotesLibraryProps) {
           onCancel={() => s.setComposerOpen(false)}
         />
       ) : null}
-      <NotesListSection
-        notes={props.notes}
-        selectedId={s.selectedId}
-        deletingIds={s.deletingIds}
-        showAll={s.showAll}
-        activeText={props.activeText}
-        digestLoading={props.digestLoading}
-        onToggleShowAll={() => s.setShowAll((v) => !v)}
-        onSelect={(note) => {
-          s.setSelectedId(note.id);
-          props.onActiveTextChange(note.content);
-        }}
-        onDelete={(id) => void s.handleDelete(id)}
-        onText={props.onActiveTextChange}
-      />
+      {tab === "guidance" ? (
+        <GuidanceLedgerList thesisId={props.thesisId} selectedNote={selectedNote} />
+      ) : (
+        <NotesListSection
+          notes={props.notes}
+          selectedId={s.selectedId}
+          deletingIds={s.deletingIds}
+          showAll={s.showAll}
+          activeText={props.activeText}
+          digestLoading={props.digestLoading}
+          onToggleShowAll={() => s.setShowAll((v) => !v)}
+          onSelect={(note) => {
+            s.setSelectedId(note.id);
+            props.onActiveTextChange(note.content);
+          }}
+          onDelete={(id) => void s.handleDelete(id)}
+          onText={props.onActiveTextChange}
+        />
+      )}
     </Card>
   );
 }

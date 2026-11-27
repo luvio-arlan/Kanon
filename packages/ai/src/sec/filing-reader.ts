@@ -4,11 +4,7 @@ import {
   SecFilingReaderResponseSchema,
   type SecSnapshot,
 } from "@kanon/core";
-import {
-  computeFilingSectionDiff,
-  extractSecKeySections,
-  stripSecHtmlToParagraphs,
-} from "./filing-text-parser";
+import { extractSecKeySections, stripSecHtmlToParagraphs } from "./filing-text-parser";
 import { fetchSecWithRetry } from "./sec-http";
 
 const ALLOWED_SEC_ARCHIVE_PREFIX = "https://www.sec.gov/Archives/edgar/data/";
@@ -60,31 +56,19 @@ async function fetchSecDocumentHtml(
   }
 }
 
-function selectTargetAndPreviousFiling(
+function selectTargetFiling(
   filings: readonly SecFilingItem[],
   accessionNumber?: string,
   form?: string,
-): { target: SecFilingItem | null; previous: SecFilingItem | null } {
-  if (filings.length === 0) return { target: null, previous: null };
+): SecFilingItem | null {
+  if (filings.length === 0) return null;
   const byAcc = accessionNumber
     ? filings.find((f) => f.accessionNumber === accessionNumber)
     : undefined;
   const byForm = form
     ? filings.find((f) => f.form.toUpperCase() === form.toUpperCase())
     : filings.find((f) => f.form === "10-K" || f.form === "10-Q" || f.form === "20-F");
-  const target = byAcc ?? byForm ?? filings[0] ?? null;
-  if (!target) return { target: null, previous: null };
-
-  const targetIdx = filings.findIndex((f) => f.accessionNumber === target.accessionNumber);
-  const previous =
-    filings.find(
-      (f, idx) =>
-        idx > targetIdx &&
-        (f.form === target.form ||
-          ((target.form === "10-K" || target.form === "10-Q") &&
-            (f.form === "10-K" || f.form === "10-Q"))),
-    ) ?? null;
-  return { target, previous };
+  return byAcc ?? byForm ?? filings[0] ?? null;
 }
 
 function buildFallbackResponse(
@@ -126,34 +110,10 @@ function buildFallbackResponse(
   });
 }
 
-async function computeOptionalDiff(
-  previous: SecFilingItem | null,
-  currentParagraphs: readonly string[],
-  heading: string,
-  category: SecFilingReaderResponse["sections"][number]["category"],
-  fetchImpl: typeof fetch,
-) {
-  if (!previous) return null;
-  const prevRes = await fetchSecDocumentHtml(previous.documentUrl, fetchImpl);
-  if (!prevRes.ok) return null;
-  const prevParas = stripSecHtmlToParagraphs(prevRes.html);
-  const prevSections = extractSecKeySections(prevParas);
-  const matchedPrev = prevSections.find((s) => s.category === category) ?? prevSections[0];
-  const comparablePrev = matchedPrev?.paragraphs ?? prevParas.slice(0, 20);
-  return computeFilingSectionDiff({
-    sectionHeading: heading,
-    previousForm: previous.form,
-    previousFilingDate: previous.filingDate,
-    currentParagraphs,
-    previousParagraphs: comparablePrev,
-  });
-}
-
 function buildLiveFilingPayload(
   upper: string,
   target: SecFilingItem,
   sections: SecFilingReaderResponse["sections"],
-  diff: SecFilingReaderResponse["diff"],
 ): SecFilingReaderResponse {
   const fullExcerpt = sections
     .slice(0, 2)
@@ -168,7 +128,7 @@ function buildLiveFilingPayload(
     source: "sec-edgar-live",
     sections,
     fullExcerpt,
-    diff,
+    diff: null,
     notice: `已直拉 ${target.form} (${target.filingDate}) 原文并提取 ${sections.length} 个核心章节`,
   });
 }
@@ -182,7 +142,7 @@ export async function fetchSecFilingReaderData(params: {
 }): Promise<SecFilingReaderResponse> {
   const fetchImpl = params.fetchImpl ?? fetch;
   const upper = params.ticker.trim().toUpperCase();
-  const { target, previous } = selectTargetAndPreviousFiling(
+  const target = selectTargetFiling(
     params.snapshot?.filings ?? [],
     params.accessionNumber,
     params.form,
@@ -197,15 +157,5 @@ export async function fetchSecFilingReaderData(params: {
   if (sections.length === 0) {
     return buildFallbackResponse(upper, params.snapshot, target, "原文未解析出有效正文段落");
   }
-  const primarySection = sections[0];
-  const diff = primarySection
-    ? await computeOptionalDiff(
-        previous,
-        primarySection.paragraphs,
-        primarySection.heading,
-        primarySection.category,
-        fetchImpl,
-      )
-    : null;
-  return buildLiveFilingPayload(upper, target, sections, diff);
+  return buildLiveFilingPayload(upper, target, sections);
 }

@@ -1,4 +1,5 @@
 import type {
+  GuidanceCredibility,
   MarketBenchmarkResponse,
   MarketQuoteSnapshot,
   QuarterlyReview,
@@ -189,6 +190,7 @@ export async function* streamResearchAgent(params: {
   cachedFilings?: readonly SecFilingReaderResponse[];
   researchNotes?: readonly ResearchNote[];
   benchmarks?: MarketBenchmarkResponse | null;
+  guidanceCredibility?: GuidanceCredibility | null;
   sourceText?: string;
   byok?: ByokCredentials;
   abortSignal?: AbortSignal;

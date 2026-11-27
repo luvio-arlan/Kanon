@@ -1,12 +1,18 @@
-import { askResearchIc, expandBilingualFinanceQuery, verifyGroundedClaims } from "@kanon/ai";
+import {
+  askResearchIc,
+  hybridSearchChunks,
+  planBilingualQuery,
+  verifyGroundedClaims,
+} from "@kanon/ai";
 import { AgentAskRequestSchema, type ThesisDetail } from "@kanon/core";
 import {
   getSecSnapshot,
   getThesisById,
+  type KanonDb,
   listCachedSecFilingDocsByTicker,
   listResearchNotes,
   recordAiUsage,
-  searchFilingChunksLexical,
+  searchFilingChunksFts,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { buildAiUsageEntry, resolveEffectiveByok } from "../../../_lib/byok-headers";
@@ -18,39 +24,44 @@ export const dynamic = "force-dynamic";
 
 const ASK_IC_RATE_POLICY = { bucket: "ai_agent_ask", maxRequests: 25, windowMs: 60 * 1000 };
 
-function verifyAskResult(thesis: ThesisDetail, answer: string, citations: readonly string[]) {
-  const chunkMap = new Map(citations.map((c, idx) => [`cit-${idx}`, c]));
+function verifyAskResult(
+  thesis: ThesisDetail,
+  answer: string,
+  citations: readonly string[],
+  evidenceTexts: ReadonlyMap<string, string>,
+) {
+  const chunkMap = new Map<string, string>();
+  for (let i = 0; i < citations.length; i += 1) {
+    const cit = citations[i];
+    if (!cit) continue;
+    chunkMap.set(`cit-${i}`, evidenceTexts.get(cit) ?? cit);
+  }
   return verifyGroundedClaims({
     claims: [{ text: answer, citations: [...chunkMap.keys()] }],
-    knownFactValues: [
-      thesis.currentPrice,
-      thesis.valuation.bear.targetPrice,
-      thesis.valuation.base.targetPrice,
-      thesis.valuation.bull.targetPrice,
+    knownConceptFacts: [
+      { concept: "price", value: thesis.currentPrice, kind: "scalar" },
+      { concept: "target_price", value: thesis.valuation.bear.targetPrice, kind: "scalar" },
+      { concept: "target_price", value: thesis.valuation.base.targetPrice, kind: "scalar" },
+      { concept: "target_price", value: thesis.valuation.bull.targetPrice, kind: "scalar" },
     ],
     chunkMap,
   });
 }
 
-function extractAsciiSearchKeyword(question: string): string | null {
-  const terms = expandBilingualFinanceQuery(question).filter((t) => /^[a-z0-9-]+$/i.test(t));
-  return terms[0] ?? null;
-}
-
 async function loadAskContextInTx(
-  tx: import("@kanon/core/db").KanonDb,
-  params: { thesisId: string; userId: string; request: Request; expandedKeyword: string | null },
+  tx: KanonDb,
+  params: { thesisId: string; userId: string; request: Request; tsQuery: string },
 ) {
   const thesis = await getThesisById(tx, params.thesisId, params.userId);
   if (!thesis) return null;
-  const [secSnapshot, cachedFilings, researchNotes, chunkRows, byok] = await Promise.all([
+  const [secSnapshot, cachedFilings, researchNotes, ftsRows, byok] = await Promise.all([
     getSecSnapshot(tx, thesis.ticker),
     listCachedSecFilingDocsByTicker(tx, thesis.ticker, 3),
     listResearchNotes(tx, thesis.id, 12),
-    searchFilingChunksLexical(tx, {
+    searchFilingChunksFts(tx, {
       ticker: thesis.ticker,
-      keyword: params.expandedKeyword ?? thesis.ticker,
-      limit: 24,
+      tsQuery: params.tsQuery || thesis.ticker,
+      limit: 60,
     }),
     resolveEffectiveByok(tx, params.userId, params.request),
   ]);
@@ -59,7 +70,7 @@ async function loadAskContextInTx(
     secSnapshot,
     cachedFilings,
     researchNotes,
-    warehouseChunks: chunkRows.map((r) => ({
+    warehouseChunks: ftsRows.map((r) => ({
       id: r.id,
       accession: r.accession,
       sectionCode: r.sectionCode,
@@ -75,19 +86,33 @@ async function runAskAndMeter(params: {
   userId: string;
   question: string;
   sourceText?: string;
-  withDb: <T>(fn: (tx: import("@kanon/core/db").KanonDb) => Promise<T>) => Promise<T>;
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
 }) {
+  const reranked = hybridSearchChunks({
+    query: params.question,
+    chunks: params.loaded.warehouseChunks,
+    topK: 6,
+  });
+  const topChunks = reranked.map((r) => r.chunk);
   const result = await askResearchIc({
     thesis: params.loaded.thesis,
     secSnapshot: params.loaded.secSnapshot,
     question: params.question,
     cachedFilings: params.loaded.cachedFilings,
-    warehouseChunks: params.loaded.warehouseChunks,
+    warehouseChunks: topChunks.length > 0 ? topChunks : params.loaded.warehouseChunks,
     researchNotes: params.loaded.researchNotes,
     sourceText: params.sourceText,
     byok: params.loaded.byok,
   });
-  const groundingReport = verifyAskResult(params.loaded.thesis, result.answer, result.citations);
+  const evidenceTexts = new Map(
+    topChunks.map((c) => [`${c.accession} · ${c.sectionCode} · ¶${c.paraIndex + 1}`, c.text]),
+  );
+  const groundingReport = verifyAskResult(
+    params.loaded.thesis,
+    result.answer,
+    result.citations,
+    evidenceTexts,
+  );
   const usageEntry = await buildAiUsageEntry({
     userId: params.userId,
     thesisId: params.loaded.thesis.id,
@@ -114,7 +139,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "质询参数不合法。"), 400, startedAt, "INVALID");
   }
-  const expandedKeyword = extractAsciiSearchKeyword(parsed.data.question);
+  const plan = planBilingualQuery(parsed.data.question);
   const loaded = await auth.withDb(async (tx) => {
     const guard = await requireThesisAccess(
       tx,
@@ -128,7 +153,7 @@ export async function POST(request: Request) {
       thesisId: parsed.data.thesisId,
       userId: auth.user.id,
       request,
-      expandedKeyword,
+      tsQuery: plan.tsQuery,
     });
     if (!ctx) {
       return {
@@ -139,12 +164,11 @@ export async function POST(request: Request) {
     return { ok: true as const, ctx };
   });
   if (!loaded.ok) return loaded.response;
-  const { question, sourceText } = parsed.data;
   const payload = await runAskAndMeter({
     loaded: loaded.ctx,
     userId: auth.user.id,
-    question,
-    sourceText,
+    question: parsed.data.question,
+    sourceText: parsed.data.sourceText,
     withDb: auth.withDb,
   });
   return jsonOk(payload, startedAt);

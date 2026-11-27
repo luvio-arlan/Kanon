@@ -67,6 +67,7 @@ export {
 export * from "./contracts/auth-contracts";
 export * from "./contracts/financial-concepts";
 export * from "./contracts/i18n";
+export * from "./contracts/intel";
 export * from "./contracts/market-contracts";
 export * from "./contracts/portfolio-contracts";
 export * from "./contracts/provenance";
@@ -83,6 +84,7 @@ export {
 export * from "./math/calibration";
 export * from "./math/dcf";
 export * from "./math/forensics";
+export * from "./math/guidance";
 export {
   calculateHurdleLadder,
   type HurdleLadderReport,
@@ -135,6 +137,7 @@ export {
   type SecForensicReport,
   type WorkingCapitalCycle,
 } from "./math/sec-forensics";
+export * from "./math/segments";
 export {
   calculateSensitivityMatrix,
   type SensitivityCell,

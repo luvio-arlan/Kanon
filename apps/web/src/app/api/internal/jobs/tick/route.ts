@@ -7,19 +7,16 @@ import {
   failJobWithBackoff,
   getAlertEvalCursor,
   getJobQueueHealth,
-  listChunksPendingEmbedding,
   type QueuedJobRow,
   recordTickHeartbeat,
   requeueJobForCursor,
-  saveChunkEmbedding,
   setAlertEvalCursor,
   skipJob,
 } from "@kanon/core/db";
 import { withSystemDb } from "../../../_lib/db-context";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { generateRequestId, logStructuredApiEvent } from "../../../_lib/logger";
-import { runSyncDailyBarsForTicker, runSyncSecForTicker } from "../../../_lib/on-demand-sync";
-import { executeAlertFanoutJobInSystemDb } from "../../../_lib/sec-warehouse-sync";
+import { executeNonAlertJob, NON_ALERT_JOB_KINDS } from "./job-handlers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -40,65 +37,6 @@ function verifyCronSecret(request: Request, startedAt: number): Response | null 
     return jsonError("Cron 认证令牌无效。", 401, startedAt, "UNAUTHORIZED");
   }
   return null;
-}
-
-function extractEmbeddingVectors(raw: unknown): Array<number[] | null> {
-  if (!raw || typeof raw !== "object" || !("data" in raw)) return [];
-  const data = (raw as { data: unknown }).data;
-  if (!Array.isArray(data)) return [];
-  return data.map((item) => {
-    if (!item || typeof item !== "object" || !("embedding" in item)) return null;
-    const emb = (item as { embedding: unknown }).embedding;
-    return Array.isArray(emb) && emb.every((n) => typeof n === "number") ? emb : null;
-  });
-}
-
-async function runEmbedChunksJob() {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return;
-  const pending = await withSystemDb("cron_tick", (tx) => listChunksPendingEmbedding(tx, 20));
-  if (pending.length === 0) return;
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: "text-embedding-3-small",
-      input: pending.map((c) => c.text.slice(0, 6000)),
-    }),
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) throw new Error(`Embedding provider HTTP ${res.status}`);
-  const vectors = extractEmbeddingVectors(await res.json());
-  await withSystemDb("cron_tick", async (tx) => {
-    for (let i = 0; i < pending.length; i += 1) {
-      const chunk = pending[i];
-      const emb = vectors[i];
-      if (chunk && emb && emb.length > 0) await saveChunkEmbedding(tx, chunk.id, emb);
-    }
-  });
-}
-
-async function executeNonAlertJob(job: QueuedJobRow): Promise<"done" | { skipped: string }> {
-  if (job.kind === "noop") return "done";
-  if (job.kind === "embed_chunks") {
-    await runEmbedChunksJob();
-    return "done";
-  }
-  if (job.kind === "fanout_8k" || job.kind === "fanout_filing_redflag") {
-    await executeAlertFanoutJobInSystemDb(job.kind, job.payload);
-    return "done";
-  }
-  if (job.kind === "sync_daily_bars") {
-    await runSyncDailyBarsForTicker(String(job.payload.ticker ?? ""), {
-      forceFullRebase: job.payload.forceFullRebase === true,
-    });
-    return "done";
-  }
-  if (job.kind === "sync_sec") {
-    const outcome = await runSyncSecForTicker(String(job.payload.ticker ?? ""));
-    return outcome.status === "skipped" ? { skipped: outcome.reason } : "done";
-  }
-  throw new Error(`Unsupported job kind: ${job.kind}`);
 }
 
 async function runSingleJob(job: QueuedJobRow, workerId: string, startedAt: number) {
@@ -147,22 +85,18 @@ async function drainSyncQueue(workerId: string, startedAt: number) {
   return { claimed, completed, failed };
 }
 
-const NON_ALERT_JOB_KINDS = [
-  "sync_daily_bars",
-  "sync_sec",
-  "embed_chunks",
-  "fanout_8k",
-  "fanout_filing_redflag",
-  "noop",
-];
-
 async function runFinalAlertPhase(
   workerId: string,
   day: string,
   startedAt: number,
 ): Promise<{ triggeredCount: number; completed: boolean; failed: boolean }> {
   const [alertJob] = await withSystemDb("cron_tick", (tx) =>
-    claimDueJobs(tx, { workerId, limit: 1, leaseSeconds: 60, excludeKinds: NON_ALERT_JOB_KINDS }),
+    claimDueJobs(tx, {
+      workerId,
+      limit: 1,
+      leaseSeconds: 60,
+      excludeKinds: [...NON_ALERT_JOB_KINDS],
+    }),
   );
   const jobId = alertJob?.id ?? `evaluate_alerts:${day}`;
   const lockOwner = alertJob ? workerId : undefined;
