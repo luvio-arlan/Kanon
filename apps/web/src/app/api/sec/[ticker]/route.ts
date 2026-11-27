@@ -16,6 +16,7 @@ import {
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
+import { generateRequestId, logStructuredApiEvent } from "../../_lib/logger";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 import { syncSecSnapshotToWarehouse } from "../../_lib/sec-warehouse-sync";
 
@@ -42,16 +43,54 @@ export async function GET(request: Request, context: RouteContext) {
     getSecSnapshotForUser(db, parsedTicker.data, auth.user.id),
     getSecurityByTicker(db, parsedTicker.data),
   ]);
-  const restatements = security
-    ? (
-        await Promise.all(
-          ["revenue", "net_income", "diluted_eps"].map((concept) =>
-            detectFactRestatements(db, { securityId: security.id, concept }),
-          ),
-        )
-      ).flat()
-    : [];
+  const restatements = await loadTickerRestatements(db, security?.id);
   return jsonOk({ snapshot, restatements }, startedAt);
+}
+
+async function loadTickerRestatements(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  securityId: string | undefined,
+) {
+  if (!securityId) return [];
+  const list = (
+    await Promise.all(
+      ["revenue", "net_income", "diluted_eps"].map((concept) =>
+        detectFactRestatements(db, { securityId, concept }),
+      ),
+    )
+  ).flat();
+  return list.map((r) => ({
+    concept: r.concept,
+    periodEnd: r.periodEnd,
+    originalValue: r.originalValue,
+    restatedValue: r.restatedValue,
+    restatedAccession: r.restatedAccession,
+  }));
+}
+
+async function syncWarehouseSafely(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  saved: Awaited<ReturnType<typeof upsertSecSnapshot>>,
+  userId: string,
+  pitFacts: Parameters<typeof syncSecSnapshotToWarehouse>[3],
+  ticker: string,
+  startedAt: number,
+): Promise<boolean> {
+  try {
+    await syncSecSnapshotToWarehouse(db, saved, userId, pitFacts);
+    return true;
+  } catch (err) {
+    logStructuredApiEvent({
+      level: "warn",
+      requestId: generateRequestId(),
+      route: `/api/sec/${ticker}`,
+      status: 200,
+      durationMs: Math.round(performance.now() - startedAt),
+      code: "WAREHOUSE_SYNC_PARTIAL",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -69,31 +108,30 @@ export async function POST(request: Request, context: RouteContext) {
   const ticker = parsedTicker.data;
   const db = await getKanonDb();
   const fetched = await fetchSecEdgarWithPitFacts(ticker);
-
-  if (fetched.ok) {
-    const saved = await upsertSecSnapshot(db, fetched.data);
-    await syncSecSnapshotToWarehouse(db, saved, auth.user.id, fetched.pitFacts).catch(
-      () => undefined,
-    );
+  if (!fetched.ok) {
+    const snapshot = await getSecSnapshotForUser(db, ticker, auth.user.id);
     return jsonOk(
-      {
-        snapshot: saved,
-        live: true,
-        notice: `已从 SEC EDGAR 官方接口同步 ${saved.entityName} 最新 10-K/10-Q 与财务锚点。`,
-      },
+      { snapshot, live: false, warehouseSynced: false, restatements: [], notice: fetched.error },
       startedAt,
     );
   }
-
-  const cached = await getSecSnapshotForUser(db, ticker, auth.user.id);
-  return jsonOk(
-    {
-      snapshot: cached,
-      live: false,
-      notice: fetched.error,
-    },
+  const saved = await upsertSecSnapshot(db, fetched.data);
+  const warehouseSynced = await syncWarehouseSafely(
+    db,
+    saved,
+    auth.user.id,
+    fetched.pitFacts,
+    ticker,
     startedAt,
   );
+  const restatements = await loadTickerRestatements(
+    db,
+    (await getSecurityByTicker(db, ticker))?.id,
+  );
+  const notice = warehouseSynced
+    ? `已从 SEC EDGAR 官方接口同步 ${saved.entityName} 最新 10-K/10-Q 与财务锚点。`
+    : "SEC 快照已更新，历史口径校验未完成。";
+  return jsonOk({ snapshot: saved, live: true, warehouseSynced, restatements, notice }, startedAt);
 }
 
 function buildManualFacts(

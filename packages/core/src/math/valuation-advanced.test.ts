@@ -20,10 +20,21 @@ describe("KANON v4 Advanced Financial Math & Forensics Golden Suite", () => {
       annualShareChangePct: -2,
       horizonYears: 3,
     });
-    expect(res.projectedRevenueB).toBe(172.8);
-    expect(res.projectedNetIncomeB).toBe(51.84);
-    expect(res.projectedSharesM).toBe(941.2);
-    expect(res.impliedEps).toBeCloseTo(55.08, 1);
+    expect(res).not.toBeNull();
+    expect(res?.projectedRevenueB).toBe(172.8);
+    expect(res?.projectedNetIncomeB).toBe(51.84);
+    expect(res?.projectedSharesM).toBe(941.2);
+    expect(res?.impliedEps).toBeCloseTo(55.08, 1);
+    expect(
+      calculateTopDownEps({
+        currentRevenueB: 0,
+        revenueCagrPct: 10,
+        targetNetMarginPct: 20,
+        currentSharesM: 100,
+        annualShareChangePct: 0,
+        horizonYears: 3,
+      }),
+    ).toBeNull();
   });
 
   it("computes EV / Owner-FCF valuation bridge accurately with net cash", () => {
@@ -40,12 +51,28 @@ describe("KANON v4 Advanced Financial Math & Forensics Golden Suite", () => {
       bullEvMultiple: 24,
       horizonYears: 3,
     });
-    expect(res.currentMarketCapB).toBe(120);
-    expect(res.currentEvB).toBe(100);
-    expect(res.bearTargetPrice).toBe(100);
-    expect(res.baseTargetPrice).toBe(200);
-    expect(res.bullTargetPrice).toBe(308);
-    expect(res.riskRewardRatio).toBe(4);
+    expect(res).not.toBeNull();
+    expect(res?.currentMarketCapB).toBe(120);
+    expect(res?.currentEvB).toBe(100);
+    expect(res?.bearTargetPrice).toBe(100);
+    expect(res?.baseTargetPrice).toBe(200);
+    expect(res?.bullTargetPrice).toBe(308);
+    expect(res?.riskRewardRatio).toBe(4);
+    expect(
+      calculateEvOwnerFcfValuation({
+        currentPrice: 120,
+        dilutedSharesM: 0,
+        cashB: 0,
+        totalDebtB: 0,
+        bearOwnerFcfB: 0,
+        baseOwnerFcfB: 0,
+        bullOwnerFcfB: 0,
+        bearEvMultiple: 15,
+        baseEvMultiple: 20,
+        bullEvMultiple: 25,
+        horizonYears: 3,
+      }),
+    ).toBeNull();
   });
 
   it("solves exact Reverse-DCF required growth and flags expectations gap", () => {

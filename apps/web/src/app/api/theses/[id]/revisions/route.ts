@@ -1,6 +1,7 @@
-import { assertThesisOwnership, getKanonDb, listThesisRevisions } from "@kanon/core/db";
+import { getKanonDb, listThesisRevisions } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
-import { jsonError, jsonOk } from "../../../_lib/http";
+import { jsonOk } from "../../../_lib/http";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +16,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { id } = await context.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
-    return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
+  if (!guard.ok) return guard.response;
   const revisions = await listThesisRevisions(db, id);
   return jsonOk({ revisions }, startedAt);
 }

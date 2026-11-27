@@ -1,7 +1,6 @@
 import { IcDecisionRequestSchema, IcPostRequestSchema } from "@kanon/core";
 import {
   addThesisComment,
-  assertThesisAccess,
   decideIcApproval,
   getKanonDb,
   IcApprovalError,
@@ -12,6 +11,7 @@ import {
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +21,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
+  if (!guard.ok) return guard.response;
   const [approvals, comments] = await Promise.all([
     listIcApprovals(db, id),
     listThesisComments(db, id),
@@ -38,16 +37,16 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
-  const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = IcPostRequestSchema.safeParse(body.data);
   if (!parsed.success) {
     return jsonError(formatZodError(parsed.error, "无效请求体。"), 400, startedAt, "INVALID");
   }
+  const db = await getKanonDb();
+  const need = parsed.data.op === "comment" ? "comment" : "write";
+  const guard = await requireThesisAccess(db, id, auth.user.id, need, startedAt);
+  if (!guard.ok) return guard.response;
   if (parsed.data.op === "comment") {
     const commentId = await addThesisComment(db, {
       thesisId: id,
@@ -81,9 +80,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "decide", startedAt);
+  if (!guard.ok) return guard.response;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = IcDecisionRequestSchema.safeParse(body.data);

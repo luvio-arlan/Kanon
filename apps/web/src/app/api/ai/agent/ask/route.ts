@@ -12,6 +12,7 @@ import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { meterAiRouteUsage, resolveEffectiveByok } from "../../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../../_lib/request-guards";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,44 @@ async function fetchWarehouseChunksForQuestion(
   }));
 }
 
+async function executeIcAsk(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  thesis: ThesisDetail,
+  userId: string,
+  request: Request,
+  question: string,
+  sourceText?: string,
+) {
+  const [secSnapshot, cachedFilings, researchNotes, warehouseChunks, byok] = await Promise.all([
+    getSecSnapshot(db, thesis.ticker),
+    listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
+    listResearchNotes(db, thesis.id, 12),
+    fetchWarehouseChunksForQuestion(db, thesis.ticker, question),
+    resolveEffectiveByok(db, userId, request),
+  ]);
+  const result = await askResearchIc({
+    thesis,
+    secSnapshot,
+    question,
+    cachedFilings,
+    warehouseChunks,
+    researchNotes,
+    sourceText,
+    byok,
+  });
+  const groundingReport = verifyAskResult(thesis, result.answer, result.citations);
+  await meterAiRouteUsage({
+    db,
+    userId,
+    thesisId: thesis.id,
+    route: "/api/ai/agent/ask",
+    engine: result.engine,
+    byok,
+    usage: result.usage,
+  });
+  return { ...result, groundingReport };
+}
+
 export async function POST(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
@@ -65,35 +104,23 @@ export async function POST(request: Request) {
   }
 
   const db = await getKanonDb();
+  const guard = await requireThesisAccess(
+    db,
+    parsed.data.thesisId,
+    auth.user.id,
+    "read",
+    startedAt,
+  );
+  if (!guard.ok) return guard.response;
   const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
   if (!thesis) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
-
-  const [secSnapshot, cachedFilings, researchNotes, warehouseChunks, byok] = await Promise.all([
-    getSecSnapshot(db, thesis.ticker),
-    listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
-    listResearchNotes(db, thesis.id, auth.user.id, 12),
-    fetchWarehouseChunksForQuestion(db, thesis.ticker, parsed.data.question),
-    resolveEffectiveByok(db, auth.user.id, request),
-  ]);
-  const result = await askResearchIc({
-    thesis,
-    secSnapshot,
-    question: parsed.data.question,
-    cachedFilings,
-    warehouseChunks,
-    researchNotes,
-    sourceText: parsed.data.sourceText,
-    byok,
-  });
-  const groundingReport = verifyAskResult(thesis, result.answer, result.citations);
-  await meterAiRouteUsage({
+  const payload = await executeIcAsk(
     db,
-    userId: auth.user.id,
-    thesisId: thesis.id,
-    route: "/api/ai/agent/ask",
-    engine: result.engine,
-    byok,
-    usage: result.usage,
-  });
-  return jsonOk({ ...result, groundingReport }, startedAt);
+    thesis,
+    auth.user.id,
+    request,
+    parsed.data.question,
+    parsed.data.sourceText,
+  );
+  return jsonOk(payload, startedAt);
 }

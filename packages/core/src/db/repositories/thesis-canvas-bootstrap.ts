@@ -38,13 +38,16 @@ import { getSecSnapshotForUser } from "./sec/user-sec-overrides-store";
 import {
   type BootstrapRestatementMarker,
   buildThesisReadAccessWhere,
+  getThesisAccess,
   loadRestatementsForTicker,
+  type ThesisAccess,
 } from "./thesis/thesis-access";
 import { fetchSiblingValuations, type ValuationScalarRow } from "./thesis/thesis-lookups";
 import { hydrateThesis } from "./thesis-queries";
 
 interface ThesisCanvasBootstrap {
   thesis: ThesisDetail;
+  access: ThesisAccess;
   allTheses: ThesisSummary[];
   glossary: GlossaryTerm[];
   secSnapshot: SecSnapshot | null;
@@ -177,7 +180,8 @@ function fetchHydrationWave(
     listQuarterlyReviews(db, id),
     getLatestAgentRun(db, id),
     listInboundCrossChecks(db, id, userId),
-    listResearchNotes(db, id, userId),
+    listResearchNotes(db, id),
+    getThesisAccess(db, id, userId),
   ]);
 }
 
@@ -189,44 +193,32 @@ export async function loadThesisCanvasBootstrap(
   const [[targetRow], siblingRows, glossary] = await fetchTargetAndSiblings(db, id, userId);
   if (!targetRow) return null;
   const otherIds = siblingRows.map((r) => r.id).filter((sid) => sid !== id);
-  const [
-    hypotheses,
-    catalysts,
-    crossChecks,
-    disciplineRows,
-    targetValRows,
-    otherValRows,
-    secSnapshot,
-    restatements,
-    savedOutputs,
-    revisions,
-    reviews,
-    latestAgentRun,
-    inboundCrossChecks,
-    researchNotes,
-  ] = await fetchHydrationWave(db, id, targetRow.ticker, userId, otherIds);
-  const targetVal = targetValRows[0];
-  const scalarMap = new Map<string, ValuationScalarRow>(otherValRows.map((v) => [v.thesisId, v]));
+  const wave = await fetchHydrationWave(db, id, targetRow.ticker, userId, otherIds);
+  const access = wave[14];
+  if (!access) return null;
+  const targetVal = wave[4][0];
+  const scalarMap = new Map<string, ValuationScalarRow>(wave[5].map((v) => [v.thesisId, v]));
   if (targetVal) scalarMap.set(targetVal.thesisId, targetVal);
   const thesis = hydrateThesis({
     row: targetRow,
-    hypotheses,
-    catalysts,
-    crossChecks,
+    hypotheses: wave[0],
+    catalysts: wave[1],
+    crossChecks: wave[2],
     valuationRow: targetVal,
-    disciplineRows,
+    disciplineRows: wave[3],
   });
   return {
     thesis,
+    access,
     allTheses: buildSummaries(siblingRows, scalarMap),
     glossary,
-    secSnapshot,
-    restatements,
-    savedOutputs,
-    revisions,
-    reviews,
-    latestAgentRun,
-    inboundCrossChecks,
-    researchNotes,
+    secSnapshot: wave[6],
+    restatements: wave[7],
+    savedOutputs: wave[8],
+    revisions: wave[9],
+    reviews: wave[10],
+    latestAgentRun: wave[11],
+    inboundCrossChecks: wave[12],
+    researchNotes: wave[13],
   };
 }

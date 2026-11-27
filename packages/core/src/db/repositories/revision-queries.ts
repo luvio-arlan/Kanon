@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { calculateResearchReadiness } from "../../math/research-readiness";
 import type {
   RevisionSnapshot,
@@ -105,7 +105,9 @@ export async function recordThesisRevision(
     await db
       .update(thesisRevisionsTable)
       .set(payload)
-      .where(eq(thesisRevisionsTable.id, existingId));
+      .where(
+        and(eq(thesisRevisionsTable.id, existingId), eq(thesisRevisionsTable.thesisId, thesis.id)),
+      );
     return toRevisionDto({
       id: existingId,
       thesis,

@@ -1,6 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalPassThroughEnv": [
+    "DATABASE_URL",
+    "KANON_CREDENTIALS_MASTER_KEY",
+    "KANON_CREDENTIALS_MASTER_KEY_PREV",
+    "KANON_CREDENTIALS_KEY_ID"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

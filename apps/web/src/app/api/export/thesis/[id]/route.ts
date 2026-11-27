@@ -11,6 +11,7 @@ import {
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { apiHeaders, jsonError } from "../../../_lib/http";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,8 @@ export async function GET(request: Request, context: RouteContext) {
   const { id } = await context.params;
   const format = new URL(request.url).searchParams.get("format") ?? "md";
   const db = await getKanonDb();
+  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
+  if (!guard.ok) return guard.response;
   const thesis = await getThesisById(db, id, auth.user.id);
   if (!thesis) return jsonError("未找到该研究标的。", 404, startedAt, "NOT_FOUND");
 
@@ -70,7 +73,7 @@ export async function GET(request: Request, context: RouteContext) {
       listQuarterlyReviews(db, id),
       listCopilotOutputs(db, id),
       listAgentRuns(db, id, 5),
-      listResearchNotes(db, id, auth.user.id, 200),
+      listResearchNotes(db, id, 200),
     ]);
   return buildExportResponse(
     format,

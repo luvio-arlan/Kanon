@@ -6,10 +6,13 @@ import {
 } from "@kanon/core";
 import {
   beginTotpEnrollment,
+  checkAccountLockout,
+  clearAccountLockout,
   confirmTotpEnrollment,
   disableUserTotpFactor,
   getKanonDb,
   getUserTotpStatus,
+  recordFailedLoginAttempt,
   TotpAlreadyEnabledError,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
@@ -33,10 +36,15 @@ export async function POST(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
   if (originErr) return originErr;
-  const rateErr = await checkPersistentRateLimit(request, TOTP_RATE_POLICY, startedAt);
-  if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
+  const rateErr = await checkPersistentRateLimit(
+    request,
+    TOTP_RATE_POLICY,
+    startedAt,
+    auth.user.id,
+  );
+  if (rateErr) return rateErr;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
 
@@ -77,10 +85,15 @@ export async function DELETE(request: Request) {
   const startedAt = performance.now();
   const originErr = verifySameOrigin(request, startedAt);
   if (originErr) return originErr;
-  const rateErr = await checkPersistentRateLimit(request, TOTP_RATE_POLICY, startedAt);
-  if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
+  const rateErr = await checkPersistentRateLimit(
+    request,
+    TOTP_RATE_POLICY,
+    startedAt,
+    auth.user.id,
+  );
+  if (rateErr) return rateErr;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
 
@@ -89,9 +102,21 @@ export async function DELETE(request: Request) {
     return jsonError("请提供 6 位动态验证码或恢复码以停用两步验证。", 400, startedAt, "INVALID");
   }
   const db = await getKanonDb();
+  const lockKey = `totp_disable:${auth.user.id}`;
+  const lock = await checkAccountLockout(db, lockKey);
+  if (lock.locked) {
+    return jsonError(
+      `尝试次数过多，请 ${lock.retryAfterSec} 秒后再试。`,
+      429,
+      startedAt,
+      "TOTP_LOCKED",
+    );
+  }
   const disabled = await disableUserTotpFactor(db, auth.user.id, parsed.data.code);
   if (!disabled) {
+    await recordFailedLoginAttempt(db, lockKey);
     return jsonError("动态验证码或恢复码无效。", 400, startedAt, "INVALID_TOTP");
   }
+  await clearAccountLockout(db, lockKey);
   return jsonOk({ ok: true as const, enabled: false }, startedAt, 200);
 }

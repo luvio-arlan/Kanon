@@ -16,6 +16,7 @@ import {
   thesesTable,
 } from "../schema";
 import { recordThesisRevision } from "./revision-queries";
+import { assertThesisAccess, buildThesisDeleteAccessWhere } from "./thesis/thesis-access";
 import { getThesisById } from "./thesis-queries";
 
 const ACTION_CN: Record<CreateDisciplineEntryInput["action"], string> = {
@@ -73,7 +74,10 @@ export async function addDisciplineEntry(
 ): Promise<ThesisDetail | null> {
   const parsed = CreateDisciplineEntrySchema.parse(rawInput);
   return runInTransaction(db, async (tx) => {
-    const existing = await getThesisById(tx, thesisId, userId);
+    if (userId && !(await assertThesisAccess(tx, thesisId, userId, "write"))) {
+      return null;
+    }
+    const existing = await getThesisById(tx, thesisId);
     if (!existing) return null;
 
     await tx.insert(disciplineEntriesTable).values({
@@ -117,10 +121,13 @@ export async function deleteThesis(
   thesisId: string,
   userId?: string,
 ): Promise<boolean> {
-  const where = userId
-    ? and(eq(thesesTable.id, thesisId), eq(thesesTable.userId, userId))
-    : eq(thesesTable.id, thesisId);
-  const deleted = await db.delete(thesesTable).where(where).returning();
+  const accessWhere = userId ? await buildThesisDeleteAccessWhere(db, userId) : undefined;
+  const deleted = await db
+    .delete(thesesTable)
+    .where(
+      accessWhere ? and(eq(thesesTable.id, thesisId), accessWhere) : eq(thesesTable.id, thesisId),
+    )
+    .returning();
   return deleted.length > 0;
 }
 

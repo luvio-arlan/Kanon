@@ -13,6 +13,7 @@ import {
 import { requireWorkspaceContext } from "../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../_lib/http";
 import { verifySameOrigin } from "../_lib/request-guards";
+import { requireThesisAccess } from "../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -29,30 +30,42 @@ export async function GET() {
   return jsonOk({ items, rules, calendarConfigured }, startedAt);
 }
 
+async function handleUpsertRulePost(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  userId: string,
+  data: Extract<ReturnType<typeof InboxPostRequestSchema.parse>, { op: "upsert_rule" }>,
+  startedAt: number,
+) {
+  if (data.thesisId) {
+    const guard = await requireThesisAccess(db, data.thesisId, userId, "read", startedAt);
+    if (!guard.ok) return guard.response;
+  }
+  const ruleId = await upsertAlertRule(db, {
+    userId,
+    thesisId: data.thesisId ?? null,
+    kind: data.kind,
+    configJson: data.configJson,
+    enabled: data.enabled,
+  });
+  return jsonOk({ ruleId }, startedAt, 201);
+}
+
 async function dispatchInboxPost(
   db: Awaited<ReturnType<typeof getKanonDb>>,
   userId: string,
   data: ReturnType<typeof InboxPostRequestSchema.parse>,
   startedAt: number,
 ) {
-  if ("op" in data && data.op === "rotate_calendar") {
-    const calendarToken = await issueCalendarToken(db, userId);
-    return jsonOk({ calendarToken }, startedAt, 201);
-  }
-  if ("op" in data && data.op === "mark_all_read") {
-    const markedCount = await markAllInboxItemsRead(db, userId);
-    return jsonOk({ ok: true, markedCount }, startedAt);
-  }
-  if ("op" in data && data.op === "upsert_rule") {
-    const ruleId = await upsertAlertRule(db, {
-      id: data.id,
-      userId,
-      thesisId: data.thesisId ?? null,
-      kind: data.kind,
-      configJson: data.configJson,
-      enabled: data.enabled,
-    });
-    return jsonOk({ ruleId }, startedAt, 201);
+  if ("op" in data) {
+    if (data.op === "rotate_calendar") {
+      return jsonOk({ calendarToken: await issueCalendarToken(db, userId) }, startedAt, 201);
+    }
+    if (data.op === "mark_all_read") {
+      return jsonOk({ ok: true, markedCount: await markAllInboxItemsRead(db, userId) }, startedAt);
+    }
+    if (data.op === "upsert_rule") {
+      return handleUpsertRulePost(db, userId, data, startedAt);
+    }
   }
   const id = await createInboxItem(db, {
     userId,

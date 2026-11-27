@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { calendarTokensTable, thesesTable, thesisCatalystsTable } from "../../schema";
+import { buildThesisReadAccessWhere } from "../thesis/thesis-access";
 
 function hashCalendarToken(raw: string): string {
   return crypto.createHash("sha256").update(`kanon-ics:${raw.trim()}`).digest("hex");
@@ -30,7 +31,35 @@ export async function issueCalendarToken(db: KanonDb, userId: string): Promise<s
 }
 
 function escapeIcsText(raw: string): string {
-  return raw.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+  return raw
+    .replace(/\\/g, "\\\\")
+    .replace(/\r\n|\r|\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+/** Folds a single ICS content line at <= 75 UTF-8 octets per RFC 5545 Section 3.1. */
+export function foldIcsLine(line: string, maxOctets = 75): string {
+  const encoder = new TextEncoder();
+  if (encoder.encode(line).length <= maxOctets) return line;
+  const out: string[] = [];
+  let current = "";
+  let currentBytes = 0;
+  let limit = maxOctets;
+  for (const ch of line) {
+    const chBytes = encoder.encode(ch).length;
+    if (currentBytes + chBytes > limit && current.length > 0) {
+      out.push(current);
+      current = ` ${ch}`;
+      currentBytes = 1 + chBytes;
+      limit = maxOctets;
+    } else {
+      current += ch;
+      currentBytes += chBytes;
+    }
+  }
+  if (current.length > 0) out.push(current);
+  return out.join("\r\n");
 }
 
 function formatIcsUtcStamp(date: Date): string {
@@ -40,16 +69,18 @@ function formatIcsUtcStamp(date: Date): string {
     .replace(/\.\d{3}Z$/, "Z");
 }
 
-/** Builds an RFC 5545 `.ics` calendar feed of explicitly dated catalysts. */
+/** Builds an RFC 5545 `.ics` calendar feed of explicitly dated catalysts across personal + org theses. */
 export async function buildCatalystIcsFeed(db: KanonDb, token: string): Promise<string | null> {
   const trimmed = token.trim();
+  if (!trimmed) return null;
   const hashed = hashCalendarToken(trimmed);
   const [tok] = await db
     .select()
     .from(calendarTokensTable)
-    .where(or(eq(calendarTokensTable.tokenHash, hashed), eq(calendarTokensTable.token, trimmed)))
+    .where(eq(calendarTokensTable.tokenHash, hashed))
     .limit(1);
   if (!tok) return null;
+  const accessWhere = await buildThesisReadAccessWhere(db, tok.userId);
   const rows = await db
     .select({
       id: thesisCatalystsTable.id,
@@ -61,7 +92,7 @@ export async function buildCatalystIcsFeed(db: KanonDb, token: string): Promise<
     })
     .from(thesisCatalystsTable)
     .innerJoin(thesesTable, eq(thesesTable.id, thesisCatalystsTable.thesisId))
-    .where(eq(thesesTable.userId, tok.userId));
+    .where(accessWhere);
 
   const dtstamp = formatIcsUtcStamp(new Date());
   const lines = [
@@ -78,8 +109,8 @@ export async function buildCatalystIcsFeed(db: KanonDb, token: string): Promise<
       `UID:${row.id}@kanon.hk`,
       `DTSTAMP:${dtstamp}`,
       `DTSTART;VALUE=DATE:${dt}`,
-      `SUMMARY:[${escapeIcsText(row.ticker)}] ${escapeIcsText(row.title)}`,
-      `DESCRIPTION:${escapeIcsText(`${row.dateLabel} · ${row.verificationMetric}`)}`,
+      foldIcsLine(`SUMMARY:[${escapeIcsText(row.ticker)}] ${escapeIcsText(row.title)}`),
+      foldIcsLine(`DESCRIPTION:${escapeIcsText(`${row.dateLabel} · ${row.verificationMetric}`)}`),
       "END:VEVENT",
     );
   }

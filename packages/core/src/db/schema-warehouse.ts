@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
@@ -133,19 +134,30 @@ export const financialFactsTable = pgTable(
   ],
 );
 
-export const jobsTable = pgTable("jobs", {
-  id: text("id").primaryKey(),
-  kind: text("kind").notNull(),
-  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
-  runAt: timestamp("run_at", { withTimezone: true }).notNull().defaultNow(),
-  attempts: integer("attempts").notNull().default(0),
-  maxAttempts: integer("max_attempts").notNull().default(5),
-  lockedBy: text("locked_by"),
-  lockedUntil: timestamp("locked_until", { withTimezone: true }),
-  lastError: text("last_error"),
-  status: text("status").$type<JobStatus>().notNull().default("pending"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const jobsTable = pgTable(
+  "jobs",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    priority: integer("priority").notNull().default(100),
+    ownerUserId: text("owner_user_id"),
+    runAt: timestamp("run_at", { withTimezone: true }).notNull().defaultNow(),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(5),
+    lockedBy: text("locked_by"),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    lastError: text("last_error"),
+    status: text("status").$type<JobStatus>().notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_jobs_pending_priority").on(table.status, table.priority, table.runAt),
+    index("idx_jobs_owner_status")
+      .on(table.ownerUserId, table.status)
+      .where(sql`${table.ownerUserId} IS NOT NULL`),
+  ],
+);
 
 export const filingChunksTable = pgTable("filing_chunks", {
   id: text("id").primaryKey(),

@@ -116,7 +116,9 @@ export async function authenticateApiToken(
     await db
       .update(apiTokensTable)
       .set({ lastUsedAt: now })
-      .where(eq(apiTokensTable.id, match.token.id));
+      .where(
+        and(eq(apiTokensTable.id, match.token.id), eq(apiTokensTable.userId, match.token.userId)),
+      );
   }
 
   return {

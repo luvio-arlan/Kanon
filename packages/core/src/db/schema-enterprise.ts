@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -28,23 +29,51 @@ export const membershipsTable = pgTable(
       .references(() => organizationsTable.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     role: text("role").$type<OrgRole>().notNull().default("analyst"),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.orgId, table.userId] })],
 );
 
-export const icApprovalsTable = pgTable("ic_approvals", {
-  id: text("id").primaryKey(),
-  thesisId: text("thesis_id").notNull(),
-  orgId: text("org_id"),
-  state: text("state").$type<IcApprovalState>().notNull().default("draft"),
-  submittedBy: text("submitted_by").notNull(),
-  decidedBy: text("decided_by"),
-  decisionNote: text("decision_note").notNull().default(""),
-  snapshotHash: text("snapshot_hash").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const orgInvitationsTable = pgTable(
+  "org_invitations",
+  {
+    id: text("id").primaryKey(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizationsTable.id, { onDelete: "cascade" }),
+    inviteeUserId: text("invitee_user_id"),
+    role: text("role").$type<OrgRole>().notNull(),
+    invitedBy: text("invited_by").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_org_invitations_invitee").on(table.inviteeUserId, table.acceptedAt)],
+);
+
+export const icApprovalsTable = pgTable(
+  "ic_approvals",
+  {
+    id: text("id").primaryKey(),
+    thesisId: text("thesis_id").notNull(),
+    orgId: text("org_id"),
+    state: text("state").$type<IcApprovalState>().notNull().default("draft"),
+    submittedBy: text("submitted_by").notNull(),
+    decidedBy: text("decided_by"),
+    decisionNote: text("decision_note").notNull().default(""),
+    snapshotHash: text("snapshot_hash").notNull(),
+    selfAttested: boolean("self_attested").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_ic_approvals_one_in_review")
+      .on(table.thesisId)
+      .where(sql`${table.state} = 'in_review'`),
+  ],
+);
 
 export const thesisCommentsTable = pgTable("thesis_comments", {
   id: text("id").primaryKey(),

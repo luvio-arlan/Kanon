@@ -17,8 +17,6 @@ import { useCallback, useRef, useState } from "react";
 import {
   apiCreateQuarterlyReview,
   apiDeleteThesis,
-  apiGetThesis,
-  apiPatchStep,
   apiPostDiscipline,
   apiRunCopilot,
   apiSyncSec,
@@ -26,7 +24,16 @@ import {
   type CopilotResult,
   type ThesisMutationResult,
 } from "./canvas-api";
+import { createSerializedPatchStep } from "./canvas-patch-step";
 import { broadcastThesisSync, useThesisBroadcastSync } from "./use-thesis-broadcast";
+
+export interface RestatementRef {
+  concept: string;
+  periodEnd: string;
+  originalValue: number;
+  restatedValue: number;
+  restatedAccession: string;
+}
 
 export interface InitialCopilotState {
   redTeam: RedTeamReport | null;
@@ -67,19 +74,23 @@ function useCopilotRunner(thesisId: string, initialCopilot: InitialCopilotState)
 
 function useSecondaryMutations(
   thesis: ThesisDetail,
+  canWrite: boolean,
   applyMutation: (res: ThesisMutationResult | null) => void,
   setReviews: React.Dispatch<React.SetStateAction<QuarterlyReview[]>>,
   setSecSnapshot: React.Dispatch<React.SetStateAction<SecSnapshot | null>>,
+  setRestatements: React.Dispatch<React.SetStateAction<RestatementRef[]>>,
   withFlag: ReturnType<typeof useBusyState>["withFlag"],
 ) {
   return {
     submitDiscipline: async (entry: CreateDisciplineEntryInput): Promise<boolean> => {
+      if (!canWrite) return false;
       const res = await withFlag("saving", () => apiPostDiscipline(thesis.id, entry));
       if (!res) return false;
       applyMutation(res);
       return true;
     },
     submitQuarterlyReview: async (input: CreateQuarterlyReviewInput): Promise<boolean> => {
+      if (!canWrite) return false;
       const res = await withFlag("saving", () => apiCreateQuarterlyReview(thesis.id, input));
       if (!res) return false;
       applyMutation({ thesis: res.thesis, revisions: res.revisions });
@@ -87,75 +98,32 @@ function useSecondaryMutations(
       return true;
     },
     syncSec: async () => {
-      const snap = await withFlag("secSyncing", () => apiSyncSec(thesis.ticker));
-      if (snap) setSecSnapshot(snap);
+      const synced = await withFlag("secSyncing", () => apiSyncSec(thesis.ticker));
+      if (synced?.snapshot) setSecSnapshot(synced.snapshot);
+      if (synced?.restatements) setRestatements([...synced.restatements]);
     },
     deleteCurrentThesis: () => withFlag("deleting", () => apiDeleteThesis(thesis.id)),
   };
 }
 
-async function syncLatestOnConflict(deps: {
-  thesisId: string;
-  latestUpdatedAtRef: React.MutableRefObject<string>;
+interface MutationSetters {
   setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>;
   setRevisions: React.Dispatch<React.SetStateAction<ThesisRevision[]>>;
-}) {
-  const fresh = await apiGetThesis(deps.thesisId);
-  if (!fresh) return;
-  deps.latestUpdatedAtRef.current = fresh.thesis.updatedAt;
-  deps.setThesis(fresh.thesis);
-  if (fresh.revisions) deps.setRevisions(fresh.revisions);
-}
-
-function createSerializedPatchStep(deps: {
-  thesisId: string;
-  latestUpdatedAtRef: React.MutableRefObject<string>;
-  patchChainRef: React.MutableRefObject<Promise<void>>;
-  withFlag: ReturnType<typeof useBusyState>["withFlag"];
-  applyMutation: (res: ThesisMutationResult | null) => void;
-  setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>;
-  setRevisions: React.Dispatch<React.SetStateAction<ThesisRevision[]>>;
-}) {
-  const execute = async (
-    payload: UpdateThesisStepInput,
-    okMessage?: string,
-    options?: { silent?: boolean },
-  ): Promise<boolean> => {
-    const run = () =>
-      apiPatchStep(deps.thesisId, payload, okMessage, {
-        ...options,
-        expectedUpdatedAt: deps.latestUpdatedAtRef.current,
-      });
-    const out = options?.silent ? await run() : await deps.withFlag("saving", run);
-    if (out.kind === "conflict") {
-      await syncLatestOnConflict(deps);
-      return false;
-    }
-    if (out.kind !== "ok") return false;
-    deps.applyMutation({ thesis: out.thesis, revisions: out.revisions });
-    return true;
-  };
-  return (payload: UpdateThesisStepInput, okMessage?: string, options?: { silent?: boolean }) => {
-    const task = deps.patchChainRef.current.then(() => execute(payload, okMessage, options));
-    deps.patchChainRef.current = task.then(
-      () => undefined,
-      () => undefined,
-    );
-    return task;
-  };
+  setReviews: React.Dispatch<React.SetStateAction<QuarterlyReview[]>>;
+  setSecSnapshot: React.Dispatch<React.SetStateAction<SecSnapshot | null>>;
+  setRestatements: React.Dispatch<React.SetStateAction<RestatementRef[]>>;
 }
 
 function useThesisMutations(
   thesis: ThesisDetail,
-  setThesis: React.Dispatch<React.SetStateAction<ThesisDetail>>,
-  setRevisions: React.Dispatch<React.SetStateAction<ThesisRevision[]>>,
-  setReviews: React.Dispatch<React.SetStateAction<QuarterlyReview[]>>,
-  setSecSnapshot: React.Dispatch<React.SetStateAction<SecSnapshot | null>>,
+  canWrite: boolean,
+  setters: MutationSetters,
   withFlag: ReturnType<typeof useBusyState>["withFlag"],
 ) {
   const latestUpdatedAtRef = useRef(thesis.updatedAt);
   latestUpdatedAtRef.current = thesis.updatedAt;
   const patchChainRef = useRef<Promise<void>>(Promise.resolve());
+  const { setThesis, setRevisions, setReviews, setSecSnapshot, setRestatements } = setters;
 
   const applyMutation = useCallback(
     (res: ThesisMutationResult | null) => {
@@ -167,7 +135,7 @@ function useThesisMutations(
     },
     [setRevisions, setThesis],
   );
-  const patchStep = createSerializedPatchStep({
+  const serializedPatch = createSerializedPatchStep({
     thesisId: thesis.id,
     latestUpdatedAtRef,
     patchChainRef,
@@ -176,11 +144,18 @@ function useThesisMutations(
     setThesis,
     setRevisions,
   });
+  const patchStep = (
+    payload: UpdateThesisStepInput,
+    okMessage?: string,
+    options?: { silent?: boolean },
+  ) => (canWrite ? serializedPatch(payload, okMessage, options) : Promise.resolve(false));
   const secondary = useSecondaryMutations(
     thesis,
+    canWrite,
     applyMutation,
     setReviews,
     setSecSnapshot,
+    setRestatements,
     withFlag,
   );
   return { applyMutation, patchStep, ...secondary };
@@ -193,32 +168,38 @@ export function useResearchCanvas(
   initialRevisions: readonly ThesisRevision[],
   initialReviews: readonly QuarterlyReview[],
   initialResearchNotes: readonly ResearchNote[] = [],
+  options?: { canWrite?: boolean; initialRestatements?: readonly RestatementRef[] },
 ) {
+  const canWrite = options?.canWrite ?? true;
   const [thesis, setThesis] = useState(initialThesis);
   const [revisions, setRevisions] = useState<ThesisRevision[]>([...initialRevisions]);
   const [reviews, setReviews] = useState<QuarterlyReview[]>([...initialReviews]);
   const [researchNotes, setResearchNotes] = useState<ResearchNote[]>([...initialResearchNotes]);
   const [secSnapshot, setSecSnapshot] = useState(initialSec);
+  const [restatements, setRestatements] = useState<RestatementRef[]>([
+    ...(options?.initialRestatements ?? []),
+  ]);
   const { busy, withFlag } = useBusyState();
-  const { copilot, runCopilot } = useCopilotRunner(thesis.id, initialCopilot);
+  const { copilot, runCopilot: rawRunCopilot } = useCopilotRunner(thesis.id, initialCopilot);
+  const runCopilot = (action: CopilotKind, sourceText?: string) =>
+    canWrite ? rawRunCopilot(action, sourceText) : Promise.resolve();
   const actions = useThesisMutations(
     thesis,
-    setThesis,
-    setRevisions,
-    setReviews,
-    setSecSnapshot,
+    canWrite,
+    { setThesis, setRevisions, setReviews, setSecSnapshot, setRestatements },
     withFlag,
   );
   useThesisBroadcastSync(thesis.id, thesis.updatedAt, setThesis, setRevisions);
-
   return {
     thesis,
+    canWrite,
     revisions,
     reviews,
     researchNotes,
     setResearchNotes,
     secSnapshot,
     setSecSnapshot,
+    restatements,
     ...busy,
     copilot,
     runCopilot,

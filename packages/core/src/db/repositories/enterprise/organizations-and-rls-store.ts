@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
 import {
@@ -9,6 +9,15 @@ import {
   thesesTable,
   usersTable,
 } from "../../schema";
+import { assertOrgRetainsOwner } from "./org-invitations-store";
+
+export {
+  acceptOrgInvitation,
+  createOrgInvitation,
+  listPendingOrgInvitations,
+  OrgPolicyError,
+  withTenantContext,
+} from "./org-invitations-store";
 
 export interface OrganizationSummary {
   id: string;
@@ -48,8 +57,7 @@ function slugifyOrgName(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 28);
-  const suffix = crypto.randomBytes(3).toString("hex");
-  return `${base || "team"}-${suffix}`;
+  return `${base || "team"}-${crypto.randomBytes(3).toString("hex")}`;
 }
 
 export async function createOrganization(
@@ -59,9 +67,12 @@ export async function createOrganization(
   const id = `org_${crypto.randomUUID()}`;
   const slug = slugifyOrgName(input.name);
   const name = input.name.trim() || "KANON Team";
+  const now = new Date();
   await runInTransaction(db, async (tx) => {
     await tx.insert(organizationsTable).values({ id, name, slug, createdBy: input.createdBy });
-    await tx.insert(membershipsTable).values({ orgId: id, userId: input.createdBy, role: "owner" });
+    await tx
+      .insert(membershipsTable)
+      .values({ orgId: id, userId: input.createdBy, role: "owner", acceptedAt: now });
   });
   return { id, name, slug, role: "owner" };
 }
@@ -70,13 +81,60 @@ export async function addOrgMember(
   db: KanonDb,
   input: { orgId: string; userId: string; role: OrgRole },
 ): Promise<void> {
-  await db
-    .insert(membershipsTable)
-    .values({ orgId: input.orgId, userId: input.userId, role: input.role })
-    .onConflictDoUpdate({
-      target: [membershipsTable.orgId, membershipsTable.userId],
-      set: { role: input.role },
-    });
+  await runInTransaction(db, async (tx) => {
+    const [existing] = await tx
+      .select({ role: membershipsTable.role })
+      .from(membershipsTable)
+      .where(
+        and(
+          eq(membershipsTable.orgId, input.orgId),
+          eq(membershipsTable.userId, input.userId),
+          isNotNull(membershipsTable.acceptedAt),
+        ),
+      )
+      .limit(1);
+    if (existing?.role === "owner" && input.role !== "owner") {
+      await assertOrgRetainsOwner(tx, input.orgId, input.userId);
+    }
+    const now = new Date();
+    await tx
+      .insert(membershipsTable)
+      .values({ orgId: input.orgId, userId: input.userId, role: input.role, acceptedAt: now })
+      .onConflictDoUpdate({
+        target: [membershipsTable.orgId, membershipsTable.userId],
+        set: { role: input.role, acceptedAt: now },
+      });
+  });
+}
+
+export async function removeOrgMember(
+  db: KanonDb,
+  input: { orgId: string; userId: string },
+): Promise<boolean> {
+  return runInTransaction(db, async (tx) => {
+    const [existing] = await tx
+      .select({ role: membershipsTable.role })
+      .from(membershipsTable)
+      .where(
+        and(
+          eq(membershipsTable.orgId, input.orgId),
+          eq(membershipsTable.userId, input.userId),
+          isNotNull(membershipsTable.acceptedAt),
+        ),
+      )
+      .limit(1);
+    if (!existing) return false;
+    if (existing.role === "owner") {
+      await assertOrgRetainsOwner(tx, input.orgId, input.userId);
+    }
+    const deleted = await tx
+      .delete(membershipsTable)
+      .where(
+        and(eq(membershipsTable.orgId, input.orgId), eq(membershipsTable.userId, input.userId)),
+      )
+      .returning();
+    return deleted.length > 0;
+  });
 }
 
 export async function getOrgMemberRole(
@@ -87,7 +145,13 @@ export async function getOrgMemberRole(
   const [row] = await db
     .select({ role: membershipsTable.role })
     .from(membershipsTable)
-    .where(and(eq(membershipsTable.orgId, orgId), eq(membershipsTable.userId, userId)))
+    .where(
+      and(
+        eq(membershipsTable.orgId, orgId),
+        eq(membershipsTable.userId, userId),
+        isNotNull(membershipsTable.acceptedAt),
+      ),
+    )
     .limit(1);
   return row?.role ?? null;
 }
@@ -110,7 +174,7 @@ export async function listUserOrganizations(
     })
     .from(membershipsTable)
     .innerJoin(organizationsTable, eq(organizationsTable.id, membershipsTable.orgId))
-    .where(eq(membershipsTable.userId, userId))
+    .where(and(eq(membershipsTable.userId, userId), isNotNull(membershipsTable.acceptedAt)))
     .orderBy(asc(organizationsTable.createdAt));
 }
 
@@ -123,7 +187,7 @@ export async function listOrgMembers(db: KanonDb, orgId: string) {
       createdAt: membershipsTable.createdAt,
     })
     .from(membershipsTable)
-    .where(eq(membershipsTable.orgId, orgId))
+    .where(and(eq(membershipsTable.orgId, orgId), isNotNull(membershipsTable.acceptedAt)))
     .orderBy(asc(membershipsTable.createdAt));
 }
 
@@ -152,18 +216,25 @@ export async function listUserOrgIds(db: KanonDb, userId: string): Promise<strin
   const rows = await db
     .select({ orgId: membershipsTable.orgId })
     .from(membershipsTable)
-    .where(eq(membershipsTable.userId, userId));
+    .where(and(eq(membershipsTable.userId, userId), isNotNull(membershipsTable.acceptedAt)));
   return rows.map((r) => r.orgId);
 }
 
-/** Runs a callback inside a transaction with Postgres RLS `kanon.current_user_id` bound locally. */
-export async function withTenantContext<T>(
+export async function listUserOrgIdsByRoles(
   db: KanonDb,
   userId: string,
-  fn: (tx: KanonDb) => Promise<T>,
-): Promise<T> {
-  return runInTransaction(db, async (tx) => {
-    await tx.execute(sql`SELECT set_config('kanon.current_user_id', ${userId}, true)`);
-    return fn(tx);
-  });
+  roles: readonly OrgRole[],
+): Promise<string[]> {
+  if (roles.length === 0) return [];
+  const rows = await db
+    .select({ orgId: membershipsTable.orgId })
+    .from(membershipsTable)
+    .where(
+      and(
+        eq(membershipsTable.userId, userId),
+        isNotNull(membershipsTable.acceptedAt),
+        inArray(membershipsTable.role, [...roles]),
+      ),
+    );
+  return rows.map((r) => r.orgId);
 }

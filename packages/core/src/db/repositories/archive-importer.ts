@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   type ThesisArchiveImportRequest,
   ThesisArchiveImportRequestSchema,
@@ -136,7 +136,10 @@ async function resolveTargetRow(
     updatedAt: now,
   };
   if (mode === "overwrite" && match) {
-    await tx.update(thesesTable).set(coreFields).where(eq(thesesTable.id, match.id));
+    await tx
+      .update(thesesTable)
+      .set(coreFields)
+      .where(and(eq(thesesTable.id, match.id), eq(thesesTable.userId, userId)));
     return { targetId: match.id, appliedMode: "overwrite" };
   }
   if (match) throw new ArchiveTickerConflictError(tickerUpper);

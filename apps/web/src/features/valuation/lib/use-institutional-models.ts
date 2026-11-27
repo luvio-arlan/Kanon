@@ -124,6 +124,7 @@ function resolveDefaultWacc(base: SecModelBase | null, currentPrice: number): nu
     beta: 1.05,
     preTaxCostOfDebtPct: 5.5,
     marginalTaxRatePct: 21,
+    // @kanon-marketcap-ok: WACC capital structure market-cap weighting
     marketCapB: Math.max(1, (base.sharesM * currentPrice) / 1000),
     totalDebtB: base.debtB,
   }).waccPct;

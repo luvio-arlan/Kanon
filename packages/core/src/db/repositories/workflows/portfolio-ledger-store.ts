@@ -24,6 +24,7 @@ export async function createPortfolioAccount(
   db: KanonDb,
   input: {
     userId: string;
+    orgId?: string | null;
     name: string;
     baseCurrency?: string;
     initialCash?: number;
@@ -39,12 +40,13 @@ export async function createPortfolioAccount(
   await db.insert(portfolioAccountsTable).values({
     id,
     userId: input.userId,
+    orgId: input.orgId ?? null,
     name: input.name.trim() || "主投研账户",
     baseCurrency: (input.baseCurrency ?? "USD").toUpperCase(),
     cashBalance,
     noLeverageAcknowledgedAt: input.noLeverageConfirmed === false ? null : new Date(),
   });
-  return { id, cashBalance };
+  return { id, cashBalance, orgId: input.orgId ?? null };
 }
 
 export async function listPortfolioAccounts(db: KanonDb, userId: string) {
@@ -57,13 +59,14 @@ export async function listPortfolioAccounts(db: KanonDb, userId: string) {
 
 async function lockAccountForUpdate(tx: KanonDb, accountId: string, userId: string) {
   const locked = await tx.execute(sql`
-    SELECT id, cash_balance, no_leverage_acknowledged_at
+    SELECT id, org_id, cash_balance, no_leverage_acknowledged_at
     FROM portfolio_accounts
     WHERE id = ${accountId} AND user_id = ${userId}
     FOR UPDATE
   `);
   const rows = (Array.isArray(locked) ? locked : locked.rows) as Array<{
     id?: string;
+    org_id?: string | null;
     cash_balance?: number;
     no_leverage_acknowledged_at?: unknown;
   }>;
@@ -73,7 +76,12 @@ async function lockAccountForUpdate(tx: KanonDb, accountId: string, userId: stri
   if (!Number.isFinite(cashBalance)) {
     throw new LedgerPolicyError("CORRUPTED_BALANCE", "账户现金余额异常，已阻断交易。");
   }
-  return { id: acct.id, cashBalance, acknowledged: Boolean(acct.no_leverage_acknowledged_at) };
+  return {
+    id: acct.id,
+    orgId: acct.org_id ?? null,
+    cashBalance,
+    acknowledged: Boolean(acct.no_leverage_acknowledged_at),
+  };
 }
 
 /** Records a portfolio ledger transaction atomically under row-level FOR UPDATE locking. */
@@ -88,6 +96,7 @@ export async function recordPortfolioTransaction(db: KanonDb, input: RecordTrans
     const { nextCash, realizedPnl } = await computeLedgerActionEffect(
       tx,
       acct.id,
+      acct.orgId,
       acct.cashBalance,
       { ...input, noLeverageConfirmed: effectiveNoLeverage },
       ticker,

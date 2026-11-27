@@ -104,13 +104,19 @@ export {
 } from "./repositories/security/totp-and-lockout-store";
 export {
   assertThesisAccess,
-  assertThesisOwnership,
   batchUpdatePriceAnchors,
+  buildThesisDeleteAccessWhere,
+  buildThesisReadAccessWhere,
+  buildThesisWriteAccessWhere,
+  getThesisAccess,
   getThesisByTicker,
   getThesisIdentity,
+  hasThesisCapability,
   listThesisSummaries,
   listThesisWatchersByTicker,
+  type ThesisAccess,
   type ThesisAccessMode,
+  type ThesisCapability,
 } from "./repositories/thesis/thesis-lookups";
 export { loadThesisCanvasBootstrap } from "./repositories/thesis-canvas-bootstrap";
 export {

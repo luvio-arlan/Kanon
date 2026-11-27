@@ -1,59 +1,73 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { roundTo } from "../../../math/valuation-scenarios";
-import type { SecAnnualFinancial } from "../../../schemas/research";
-import type { ValuationBand } from "../../../schemas/v7-research-os";
 import type { KanonDb } from "../../bootstrap";
-import { type CorporateActionKind, corporateActionsTable, priceBarsDailyTable } from "../../schema";
+import {
+  type CorporateActionKind,
+  corporateActionsTable,
+  priceBarsDailyTable,
+  thesesTable,
+} from "../../schema";
+import type { DailyPriceBar } from "./valuation-bands-store";
 
-export interface DailyPriceBar {
-  securityId: string;
-  barDate: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  adjClose: number;
-  volume: number | null;
-  source: string;
-}
+export type { DailyPriceBar };
 
 export type DailyPriceBarInput = Omit<DailyPriceBar, "volume"> & { volume?: number | null };
+
+const BAR_UPSERT_CHUNK_SIZE = 500;
 
 export async function upsertPriceBars(
   db: KanonDb,
   bars: readonly DailyPriceBarInput[],
 ): Promise<number> {
-  let count = 0;
+  const deduped = new Map<string, DailyPriceBarInput>();
   for (const bar of bars) {
     if (!Number.isFinite(bar.close) || bar.close <= 0) continue;
+    deduped.set(`${bar.securityId}:${bar.barDate}`, bar);
+  }
+  const rows = [...deduped.values()].map((bar) => ({
+    securityId: bar.securityId,
+    barDate: bar.barDate,
+    open: bar.open,
+    high: bar.high,
+    low: bar.low,
+    close: bar.close,
+    adjClose: bar.adjClose,
+    volume: bar.volume ?? null,
+    source: bar.source,
+  }));
+  for (let i = 0; i < rows.length; i += BAR_UPSERT_CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + BAR_UPSERT_CHUNK_SIZE);
     await db
       .insert(priceBarsDailyTable)
-      .values({
-        securityId: bar.securityId,
-        barDate: bar.barDate,
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close,
-        adjClose: bar.adjClose,
-        volume: bar.volume ?? null,
-        source: bar.source,
-      })
+      .values(chunk)
       .onConflictDoUpdate({
         target: [priceBarsDailyTable.securityId, priceBarsDailyTable.barDate],
         set: {
-          open: bar.open,
-          high: bar.high,
-          low: bar.low,
-          close: bar.close,
-          adjClose: bar.adjClose,
-          volume: bar.volume ?? null,
-          source: bar.source,
+          open: sql`excluded.open`,
+          high: sql`excluded.high`,
+          low: sql`excluded.low`,
+          close: sql`excluded.close`,
+          adjClose: sql`excluded.adj_close`,
+          volume: sql`excluded.volume`,
+          source: sql`excluded.source`,
         },
       });
-    count += 1;
   }
-  return count;
+  return rows.length;
+}
+
+export async function getPriceBarCoverage(
+  db: KanonDb,
+  securityId: string,
+): Promise<{ count: number; latestDate: string | null }> {
+  const [row] = await db
+    .select({
+      cnt: sql<number>`count(*)::int`,
+      latest: sql<string | null>`MAX(bar_date)`,
+    })
+    .from(priceBarsDailyTable)
+    .where(eq(priceBarsDailyTable.securityId, securityId));
+  return { count: Number(row?.cnt ?? 0), latestDate: row?.latest ?? null };
 }
 
 export async function listPriceBars(
@@ -114,127 +128,25 @@ export function computeTotalReturnPct(bars: readonly DailyPriceBar[]): number | 
   return roundTo(((last - first) / first) * 100, 2);
 }
 
-function quantile(sorted: readonly number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  const idx = (sorted.length - 1) * p;
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  const a = sorted[lo] ?? 0;
-  const b = sorted[hi] ?? a;
-  return a + (b - a) * (idx - lo);
+export async function updateThesisPriceByTicker(
+  db: KanonDb,
+  ticker: string,
+  currentPrice: number,
+): Promise<void> {
+  if (!Number.isFinite(currentPrice) || currentPrice <= 0) return;
+  // @kanon-tenant-checked: background market-data sync updates global quote anchor by ticker
+  await db
+    .update(thesesTable)
+    .set({ currentPrice, priceAsOf: new Date() })
+    .where(
+      and(eq(thesesTable.ticker, ticker.trim().toUpperCase()), eq(thesesTable.status, "active")),
+    );
 }
 
-export interface SplitEventRef {
-  exDate: string;
-  ratio: number;
-}
-
-export interface PitEpsObservation {
-  periodEnd: string;
-  filedAt: string;
-  duration: "annual" | "quarter" | "ytd" | "instant";
-  value: number;
-}
-
-function adjustEpsForSplits(
-  eps: number,
-  filedAt: string,
-  splits: readonly SplitEventRef[],
-): number {
-  let factor = 1;
-  for (const sp of splits) {
-    if (sp.ratio > 0 && sp.exDate > filedAt) factor *= sp.ratio;
-  }
-  return eps / factor;
-}
-
-function resolvePitEpsAtDate(
-  barDate: string,
-  pitFacts: readonly PitEpsObservation[],
-  splits: readonly SplitEventRef[],
-): number | null {
-  const visible = pitFacts.filter((f) => f.filedAt <= barDate);
-  if (visible.length === 0) return null;
-  const byPeriod = new Map<string, PitEpsObservation>();
-  for (const f of visible) {
-    if (f.duration !== "annual" && f.duration !== "quarter" && f.duration !== "ytd") continue;
-    const key = `${f.duration}:${f.periodEnd}`;
-    const prev = byPeriod.get(key);
-    if (!prev || f.filedAt >= prev.filedAt) byPeriod.set(key, f);
-  }
-  const latestAnnual = [...byPeriod.values()]
-    .filter((f) => f.duration === "annual" && f.value > 0)
-    .sort((a, b) => b.periodEnd.localeCompare(a.periodEnd))[0];
-  if (!latestAnnual) return null;
-  const adjusted = adjustEpsForSplits(latestAnnual.value, latestAnnual.filedAt, splits);
-  return adjusted > 0 ? adjusted : null;
-}
-
-function buildFallbackPitEpsFromAnnuals(
-  annuals: readonly SecAnnualFinancial[],
-): PitEpsObservation[] {
-  const out: PitEpsObservation[] = [];
-  for (const row of annuals) {
-    if (!row.dilutedEps || row.dilutedEps <= 0) continue;
-    const periodEnd = row.periodEndDate;
-    if (!periodEnd || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)) continue;
-    const filedMs = Date.parse(`${periodEnd}T00:00:00Z`) + 60 * 86_400_000;
-    const filedAt = new Date(filedMs).toISOString().slice(0, 10);
-    out.push({ periodEnd, filedAt, duration: "annual", value: row.dilutedEps });
-  }
-  return out;
-}
-
-function collectHistoricalPeObservations(
-  bars: readonly DailyPriceBar[],
-  pitEpsFacts: readonly PitEpsObservation[],
-  splits: readonly SplitEventRef[],
-): number[] {
-  const pes: number[] = [];
-  for (const bar of bars) {
-    const eps = resolvePitEpsAtDate(bar.barDate, pitEpsFacts, splits);
-    if (!eps || eps <= 0) continue;
-    const priceForPe = bar.close;
-    const pe = priceForPe / eps;
-    if (Number.isFinite(pe) && pe > 1 && pe < 200) pes.push(pe);
-  }
-  return pes;
-}
-
-/**
- * Computes real Point-in-Time historical P/E band (P10 / P50 / P90) from split-adjusted daily bars
- * paired strictly with EPS facts where `filedAt <= barDate` (zero look-ahead bias).
- */
-export function computeRealHistoricalValuationBand(params: {
-  bars: readonly DailyPriceBar[];
-  annuals: readonly SecAnnualFinancial[];
-  pitEpsFacts?: readonly PitEpsObservation[];
-  splits?: readonly SplitEventRef[];
-  currentPrice: number | null;
-}): ValuationBand | null {
-  if (params.bars.length < 20) return null;
-  const epsSource =
-    params.pitEpsFacts && params.pitEpsFacts.length > 0
-      ? params.pitEpsFacts
-      : buildFallbackPitEpsFromAnnuals(params.annuals);
-  if (epsSource.length === 0) return null;
-  const splits = params.splits ?? [];
-  const pes = collectHistoricalPeObservations(params.bars, epsSource, splits);
-  if (pes.length < 20) return null;
-  const sorted = [...pes].sort((a, b) => a - b);
-  const latestBarDate = params.bars[params.bars.length - 1]?.barDate ?? "9999-12-31";
-  const latestEps = resolvePitEpsAtDate(latestBarDate, epsSource, splits);
-  const current =
-    latestEps && latestEps > 0 && params.currentPrice !== null && params.currentPrice > 0
-      ? roundTo(params.currentPrice / latestEps, 1)
-      : roundTo(sorted[sorted.length - 1] ?? 0, 1);
-  const belowCount = sorted.filter((v) => v <= current).length;
-  return {
-    metricLabel: "P/E",
-    current,
-    p10: roundTo(quantile(sorted, 0.1), 1),
-    p50: roundTo(quantile(sorted, 0.5), 1),
-    p90: roundTo(quantile(sorted, 0.9), 1),
-    percentileRank: Math.round((belowCount / sorted.length) * 100),
-  };
-}
+export {
+  computeRealHistoricalValuationBand,
+  type EvaluatedValuationBand,
+  evaluateHistoricalValuationBand,
+  type PitEpsObservation,
+  type SplitEventRef,
+} from "./valuation-bands-store";

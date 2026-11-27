@@ -7,6 +7,7 @@ import {
   type ValuationScenarioSummary,
 } from "@kanon/core";
 import { Badge, Card, RollingNumber } from "@kanon/ui";
+import { AlertBellToggle } from "@/shared/components/alert-bell-toggle";
 
 const ZONE_META = {
   attractive: { label: "具吸引力", variant: "pass" as const },
@@ -97,7 +98,31 @@ function OddsRangeTrack({
   );
 }
 
-function ExpectationsRow({ exp }: { exp: ImpliedExpectations }) {
+function ImpliedEpsCell({ exp }: { exp: ImpliedExpectations }) {
+  return (
+    <div className="min-w-0">
+      <div className="font-sans text-xs text-ink-muted">
+        {exp.impliedEpsCagrPct !== null ? "市场隐含 EPS 增速" : "现价隐含远期 EPS"}
+      </div>
+      <div className="mt-1 truncate text-lg font-medium text-ink-primary">
+        {exp.impliedEpsCagrPct !== null ? (
+          <>
+            <RollingNumber value={exp.impliedEpsCagrPct} suffix="%" decimals={1} />
+            {exp.baseEpsCagrPct !== null ? (
+              <span className="ml-1.5 text-xs font-normal text-ink-muted">
+                vs {exp.baseEpsCagrPct.toFixed(1)}%
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <RollingNumber value={exp.impliedEpsAtBasePe} prefix="$" decimals={2} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExpectationsRow({ exp, thesisId }: { exp: ImpliedExpectations; thesisId?: string }) {
   return (
     <div className="mt-6 grid grid-cols-2 gap-4 border-t border-hairline pt-5 font-mono tabular-nums sm:grid-cols-4">
       <div className="min-w-0">
@@ -107,7 +132,20 @@ function ExpectationsRow({ exp }: { exp: ImpliedExpectations }) {
         </div>
       </div>
       <div className="min-w-0">
-        <div className="font-sans text-xs text-ink-muted">15% 年化安全买点</div>
+        <div className="flex items-center gap-1 font-sans text-xs text-ink-muted">
+          <span>15% 年化安全买点</span>
+          {thesisId && exp.hurdleEntry15 > 0 ? (
+            <AlertBellToggle
+              rule={{
+                kind: "price_hurdle",
+                thesisId,
+                targetPrice: Number(exp.hurdleEntry15.toFixed(2)),
+                direction: "below",
+              }}
+              title={`≤ $${exp.hurdleEntry15.toFixed(2)}`}
+            />
+          ) : null}
+        </div>
         <div
           className={`mt-1 truncate text-lg font-medium ${exp.isBelowHurdle15 ? "text-status-pass" : "text-ink-primary"}`}
         >
@@ -120,25 +158,7 @@ function ExpectationsRow({ exp }: { exp: ImpliedExpectations }) {
           <RollingNumber value={exp.hurdleEntry20} prefix="$" decimals={1} />
         </div>
       </div>
-      <div className="min-w-0">
-        <div className="font-sans text-xs text-ink-muted">
-          {exp.impliedEpsCagrPct !== null ? "市场隐含 EPS 增速" : "现价隐含远期 EPS"}
-        </div>
-        <div className="mt-1 truncate text-lg font-medium text-ink-primary">
-          {exp.impliedEpsCagrPct !== null ? (
-            <>
-              <RollingNumber value={exp.impliedEpsCagrPct} suffix="%" decimals={1} />
-              {exp.baseEpsCagrPct !== null ? (
-                <span className="ml-1.5 text-xs font-normal text-ink-muted">
-                  vs {exp.baseEpsCagrPct.toFixed(1)}%
-                </span>
-              ) : null}
-            </>
-          ) : (
-            <RollingNumber value={exp.impliedEpsAtBasePe} prefix="$" decimals={2} />
-          )}
-        </div>
-      </div>
+      <ImpliedEpsCell exp={exp} />
     </div>
   );
 }
@@ -189,9 +209,11 @@ function BannerHeadline({ summary }: { summary: ValuationScenarioSummary }) {
 }
 
 export function LiveOddsBanner({
+  thesisId,
   summary,
   trailingEps,
 }: {
+  thesisId?: string;
   summary: ValuationScenarioSummary;
   trailingEps?: number | null;
 }) {
@@ -204,7 +226,7 @@ export function LiveOddsBanner({
         hurdle15={expectations.hurdleEntry15}
         belowHurdle={expectations.isBelowHurdle15}
       />
-      <ExpectationsRow exp={expectations} />
+      <ExpectationsRow exp={expectations} thesisId={thesisId} />
     </Card>
   );
 }

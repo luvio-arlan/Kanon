@@ -7,7 +7,6 @@ import {
 } from "@kanon/ai";
 import { AgentRunsListResponseSchema } from "@kanon/core";
 import {
-  assertThesisAccess,
   getKanonDb,
   getSecSnapshot,
   getSecSnapshotForUser,
@@ -24,6 +23,7 @@ import { resolveEffectiveByok } from "../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { parseMarketHeaders } from "../../_lib/market-headers";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
+import { requireThesisAccess } from "../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,7 @@ async function loadAgentEvidence(
       listQuarterlyReviews(db, thesis.id),
       listThesisRevisions(db, thesis.id),
       listCachedSecFilingDocsByTicker(db, thesis.ticker, 3),
-      listResearchNotes(db, thesis.id, userId, 12),
+      listResearchNotes(db, thesis.id, 12),
       fetchMarketQuote(thesis.ticker, { creds: marketCreds }),
     ]);
   const marketQuote = quoteRes.ok ? quoteRes.quote : null;
@@ -168,9 +168,8 @@ export async function GET(request: Request) {
     return jsonError("请提供研究标的 ID。", 400, startedAt, "INVALID");
   }
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, thesisId, auth.user.id, "write"))) {
-    return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, thesisId, auth.user.id, "read", startedAt);
+  if (!guard.ok) return guard.response;
   const runs = await listAgentRuns(db, thesisId, 5);
   return jsonOk(AgentRunsListResponseSchema.parse({ runs }), startedAt);
 }
@@ -192,6 +191,14 @@ export async function POST(request: Request) {
   }
 
   const db = await getKanonDb();
+  const guard = await requireThesisAccess(
+    db,
+    parsed.data.thesisId,
+    auth.user.id,
+    "write",
+    startedAt,
+  );
+  if (!guard.ok) return guard.response;
   const thesis = await getThesisById(db, parsed.data.thesisId, auth.user.id);
   if (!thesis) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
 

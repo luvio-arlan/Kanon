@@ -117,9 +117,11 @@ function useMarketBenchmarks(ticker: string, currentPrice: number) {
 }
 
 export function MarketBenchmarksCard({
+  thesisId,
   ticker,
   currentPrice,
 }: {
+  thesisId?: string;
   ticker: string;
   currentPrice: number;
 }) {
@@ -142,7 +144,11 @@ export function MarketBenchmarksCard({
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ConsensusCard c={data.consensus} extrapolation={data.historicalExtrapolation} />
-        <ValuationBandCard b={data.valuationBand} peerRange={data.peerMultipleRange} />
+        <ValuationBandCard
+          thesisId={thesisId}
+          b={data.valuationBand}
+          peerRange={data.peerMultipleRange}
+        />
       </div>
       <PeerBenchmarksTable
         ticker={data.ticker}

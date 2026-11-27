@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { fetchDailyPriceBars, fetchPolygonSplits, fetchSecEdgarWithPitFacts } from "@kanon/ai";
 import {
   claimDueJobs,
   completeJob,
@@ -8,23 +7,21 @@ import {
   failJobWithBackoff,
   getJobQueueHealth,
   getKanonDb,
-  getSecurityByTicker,
   type KanonDb,
   listChunksPendingEmbedding,
   type QueuedJobRow,
-  recordCorporateAction,
+  recordTickHeartbeat,
   saveChunkEmbedding,
-  upsertPriceBars,
-  upsertSecSnapshot,
-  upsertSecurity,
 } from "@kanon/core/db";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { generateRequestId, logStructuredApiEvent } from "../../../_lib/logger";
-import { syncSecSnapshotToWarehouse } from "../../../_lib/sec-warehouse-sync";
+import { runSyncDailyBarsForTicker, runSyncSecForTicker } from "../../../_lib/on-demand-sync";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-const TICK_BUDGET_MS = 45_000;
+const TICK_BUDGET_MS = maxDuration * 1000 - 20_000;
+const ALERT_EVAL_BUDGET_MS = 15_000;
 
 function verifyCronSecret(request: Request, startedAt: number): Response | null {
   const expected = process.env.CRON_SECRET?.trim();
@@ -42,42 +39,11 @@ function verifyCronSecret(request: Request, startedAt: number): Response | null 
 }
 
 async function runSyncDailyBarsJob(db: KanonDb, payload: Record<string, unknown>) {
-  const ticker = String(payload.ticker ?? "")
-    .trim()
-    .toUpperCase();
-  if (!ticker) throw new Error("Missing ticker in sync_daily_bars payload");
-  const existing = await getSecurityByTicker(db, ticker);
-  const security = existing ?? (await upsertSecurity(db, { ticker, name: ticker }));
-  const [bars, splits] = await Promise.all([
-    fetchDailyPriceBars({ ticker, range: "5y" }),
-    fetchPolygonSplits({ ticker }),
-  ]);
-  if (bars.length > 0) {
-    await upsertPriceBars(
-      db,
-      bars.map((b) => ({ ...b, securityId: security.id })),
-    );
-  }
-  for (const sp of splits) {
-    await recordCorporateAction(db, {
-      id: `split:${security.id}:${sp.exDate}`,
-      securityId: security.id,
-      exDate: sp.exDate,
-      kind: "split",
-      ratio: sp.ratio,
-    });
-  }
+  await runSyncDailyBarsForTicker(db, String(payload.ticker ?? ""));
 }
 
 async function runSyncSecJob(db: KanonDb, payload: Record<string, unknown>) {
-  const ticker = String(payload.ticker ?? "")
-    .trim()
-    .toUpperCase();
-  if (!ticker) throw new Error("Missing ticker in sync_sec payload");
-  const fetched = await fetchSecEdgarWithPitFacts(ticker);
-  if (!fetched.ok) throw new Error(fetched.error);
-  const saved = await upsertSecSnapshot(db, fetched.data);
-  await syncSecSnapshotToWarehouse(db, saved, undefined, fetched.pitFacts);
+  await runSyncSecForTicker(db, String(payload.ticker ?? ""));
 }
 
 function extractEmbeddingVectors(raw: unknown): Array<number[] | null> {
@@ -155,18 +121,29 @@ async function drainJobQueue(db: KanonDb, workerId: string, startedAt: number) {
   let claimed = 0;
   let completed = 0;
   let failed = 0;
+  let alertsEvaluated = false;
   while (performance.now() - startedAt < TICK_BUDGET_MS) {
-    const jobs = await claimDueJobs(db, { workerId, limit: 25, leaseSeconds: 120 });
-    if (jobs.length === 0) break;
-    claimed += jobs.length;
-    for (const job of jobs) {
-      if (performance.now() - startedAt >= TICK_BUDGET_MS) break;
-      const ok = await runSingleJob(db, job, workerId, startedAt);
-      if (ok) completed += 1;
-      else failed += 1;
+    const [job] = await claimDueJobs(db, { workerId, limit: 1, leaseSeconds: 120 });
+    if (!job) break;
+    claimed += 1;
+    const ok = await runSingleJob(db, job, workerId, startedAt);
+    if (ok) {
+      completed += 1;
+      if (job.kind === "evaluate_alerts") alertsEvaluated = true;
+    } else {
+      failed += 1;
     }
   }
-  return { claimed, completed, failed };
+  return { claimed, completed, failed, alertsEvaluated };
+}
+
+async function runGuaranteedAlertPhase(db: KanonDb, day: string): Promise<number> {
+  const result = await Promise.race([
+    evaluateAlertRules(db).then((s) => s.triggeredCount),
+    new Promise<number>((resolve) => setTimeout(() => resolve(0), ALERT_EVAL_BUDGET_MS)),
+  ]).catch(() => 0);
+  await completeJob(db, `evaluate_alerts:${day}`).catch(() => undefined);
+  return result;
 }
 
 export async function POST(request: Request) {
@@ -176,8 +153,18 @@ export async function POST(request: Request) {
 
   const db = await getKanonDb();
   const workerId = `tick_${crypto.randomUUID().slice(0, 8)}`;
-  const enqueued = await enqueueWatchlistJobs(db);
-  const { claimed, completed, failed } = await drainJobQueue(db, workerId, startedAt);
+  const day = new Date().toISOString().slice(0, 10);
+  const enqueued = await enqueueWatchlistJobs(db, day);
+  const { claimed, completed, failed, alertsEvaluated } = await drainJobQueue(
+    db,
+    workerId,
+    startedAt,
+  );
+  const alertsTriggered = alertsEvaluated ? 0 : await runGuaranteedAlertPhase(db, day);
+  await recordTickHeartbeat(db, { claimed, completed, failed }).catch(() => undefined);
   const queueHealth = await getJobQueueHealth(db);
-  return jsonOk({ workerId, enqueued, claimed, completed, failed, queueHealth }, startedAt);
+  return jsonOk(
+    { workerId, enqueued, claimed, completed, failed, alertsTriggered, queueHealth },
+    startedAt,
+  );
 }

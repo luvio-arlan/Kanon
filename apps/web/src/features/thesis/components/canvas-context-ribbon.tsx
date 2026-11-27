@@ -2,26 +2,21 @@
 
 import {
   calculateImpliedExpectations,
-  calculateResearchReadiness,
   type MarketQuoteSnapshot,
-  RESEARCH_STEP_META,
   type ThesisDetail,
 } from "@kanon/core";
 import {
   Badge,
   Button,
-  cn,
-  KANON_TAB_TRANSITION,
   KANON_TRANSITION_FAST,
   MarketSessionBadge,
   RollingNumber,
   Spinner,
 } from "@kanon/ui";
-import { IconArrowRight, IconCheck, IconSparkles } from "@tabler/icons-react";
+import { IconCheck } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo } from "react";
 import type { AutoSaveStatus } from "@/shared/hooks/use-thesis-step-draft";
-import type { StepId } from "./step-rail";
 
 function RibbonPriceTelemetry({
   thesis,
@@ -58,68 +53,6 @@ function RibbonPriceTelemetry({
       <Badge variant={below15 ? "pass" : "titanium"}>
         {below15 ? "买点内" : `赔率 ${ratioText}`}
       </Badge>
-    </div>
-  );
-}
-
-function StepPillButton(p: {
-  step: StepId;
-  label: string;
-  done: boolean;
-  active: boolean;
-  onSelect: (step: StepId) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={p.active}
-      onClick={() => p.onSelect(p.step)}
-      className={cn(
-        "relative inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-control px-2.5 text-xs font-medium transition-colors duration-150 ease-[var(--ease-kanon)]",
-        p.active
-          ? "text-ink-primary"
-          : "text-ink-secondary hover:bg-muted/70 hover:text-ink-primary",
-      )}
-    >
-      {p.active ? (
-        <motion.span
-          layoutId="canvas-ribbon-step-pill"
-          transition={KANON_TAB_TRANSITION}
-          className="pointer-events-none absolute inset-0 rounded-control border border-strong bg-surface shadow-pill-active"
-        />
-      ) : null}
-      <span className="relative z-10 inline-flex items-center gap-1">
-        <span className="inline-flex w-4 shrink-0 items-center justify-center">
-          {p.done ? (
-            <IconCheck size={12} stroke={1.5} className="text-status-pass" />
-          ) : (
-            <span className="font-mono text-ink-muted tabular-nums">0{p.step}</span>
-          )}
-        </span>
-        <span>{p.label}</span>
-      </span>
-    </button>
-  );
-}
-
-function HorizontalStepPills(p: {
-  completedSteps: ReadonlyArray<boolean>;
-  activeStep: StepId;
-  onSelectStep: (step: StepId) => void;
-}) {
-  return (
-    <div className="hidden items-center gap-0.5 2xl:flex" role="tablist" aria-label="五步研究流程">
-      {RESEARCH_STEP_META.map((item, idx) => (
-        <StepPillButton
-          key={item.step}
-          step={item.step}
-          label={item.short}
-          done={p.completedSteps[idx] ?? false}
-          active={item.step === p.activeStep}
-          onSelect={p.onSelectStep}
-        />
-      ))}
     </div>
   );
 }
@@ -163,74 +96,35 @@ function QuietSyncIndicator({ status, onRetry }: { status: AutoSaveStatus; onRet
   );
 }
 
-function RibbonActions(p: {
-  nextStep: StepId | null;
-  syncStatus: AutoSaveStatus;
-  onRetrySave: () => void;
-  onSelectStep: (step: StepId) => void;
-  onOpenAgent: () => void;
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-1.5">
-      <QuietSyncIndicator status={p.syncStatus} onRetry={p.onRetrySave} />
-      <Button variant="titanium" size="xs" onClick={p.onOpenAgent}>
-        <IconSparkles size={13} stroke={1.5} className="text-accent-coral" />
-        <span>IC Agent</span>
-      </Button>
-      {p.nextStep ? (
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => p.nextStep && p.onSelectStep(p.nextStep)}
-          className="group/next"
-        >
-          <span>下一步</span>
-          <IconArrowRight
-            size={13}
-            stroke={1.5}
-            className="transition-transform duration-150 group-hover/next:translate-x-0.5"
-          />
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
 export function CanvasContextRibbon({
   thesis,
-  activeStep,
   liveQuote,
   syncStatus = "idle",
+  readOnly = false,
   onRetrySave,
-  onSelectStep,
   onOpenAgent,
 }: {
   thesis: ThesisDetail;
-  activeStep: StepId;
   liveQuote: MarketQuoteSnapshot | null;
   syncStatus?: AutoSaveStatus;
+  readOnly?: boolean;
   onRetrySave?: () => void;
-  onSelectStep: (step: StepId) => void;
   onOpenAgent: () => void;
 }) {
-  const readiness = useMemo(() => calculateResearchReadiness(thesis), [thesis]);
-  const nextStep = activeStep < 5 ? ((activeStep + 1) as StepId) : null;
   return (
     <div className="no-print kanon-glass-ribbon sticky top-3 z-20 mb-6 rounded-card border border-hairline">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5">
         <RibbonPriceTelemetry thesis={thesis} quote={liveQuote} />
-        <HorizontalStepPills
-          completedSteps={readiness.steps.map((s) => s.complete)}
-          activeStep={activeStep}
-          onSelectStep={onSelectStep}
-        />
-        <RibbonActions
-          nextStep={nextStep}
-          syncStatus={syncStatus}
-          onRetrySave={onRetrySave ?? (() => undefined)}
-          onSelectStep={onSelectStep}
-          onOpenAgent={onOpenAgent}
-        />
+        <div className="flex shrink-0 items-center gap-2">
+          {readOnly ? (
+            <Badge variant="titanium">只读</Badge>
+          ) : (
+            <QuietSyncIndicator status={syncStatus} onRetry={onRetrySave ?? (() => undefined)} />
+          )}
+          <Button variant="outline" size="xs" onClick={onOpenAgent}>
+            <span>IC Agent</span>
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -1,10 +1,19 @@
 import crypto from "node:crypto";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
-import { auditLogTable, membershipsTable, restrictedListTable } from "../../schema";
+import {
+  auditLogTable,
+  membershipsTable,
+  restrictedListTable,
+  securitiesTable,
+} from "../../schema";
 
 const AUDIT_CHAIN_LOCK_KEY = 72839104;
+
+export function normalizeCanonicalTicker(raw: string): string {
+  return raw.trim().toUpperCase().replace(/\./g, "-");
+}
 
 async function writeChainedAuditRow(
   tx: KanonDb,
@@ -70,10 +79,25 @@ export async function appendAuditLog(
 }
 
 export async function listAuditLogs(db: KanonDb, actorUserId: string, limit = 50) {
+  const auditOrgs = await db
+    .select({ orgId: membershipsTable.orgId })
+    .from(membershipsTable)
+    .where(
+      and(
+        eq(membershipsTable.userId, actorUserId),
+        isNotNull(membershipsTable.acceptedAt),
+        inArray(membershipsTable.role, ["owner", "pm", "compliance"]),
+      ),
+    );
+  const orgIds = auditOrgs.map((r) => r.orgId);
+  const where =
+    orgIds.length > 0
+      ? or(eq(auditLogTable.actorUserId, actorUserId), inArray(auditLogTable.orgId, orgIds))
+      : eq(auditLogTable.actorUserId, actorUserId);
   return db
     .select()
     .from(auditLogTable)
-    .where(eq(auditLogTable.actorUserId, actorUserId))
+    .where(where)
     .orderBy(desc(auditLogTable.createdAt))
     .limit(limit);
 }
@@ -88,7 +112,7 @@ export async function addRestrictedTicker(
     expiresAt?: Date | null;
   },
 ) {
-  const ticker = input.ticker.trim().toUpperCase();
+  const ticker = normalizeCanonicalTicker(input.ticker);
   const id = `rst_${crypto.randomUUID()}`;
   await runInTransaction(db, async (tx) => {
     await tx
@@ -117,49 +141,40 @@ export async function addRestrictedTicker(
   return { id, ticker };
 }
 
+async function resolveEquivalentTickers(db: KanonDb, rawTicker: string): Promise<string[]> {
+  const upper = rawTicker.trim().toUpperCase();
+  const canonical = normalizeCanonicalTicker(upper);
+  const dotted = canonical.replace(/-/g, ".");
+  const candidates = new Set([upper, canonical, dotted]);
+  const secRows = await db
+    .select({ cik: securitiesTable.cik })
+    .from(securitiesTable)
+    .where(inArray(securitiesTable.ticker, [...candidates]));
+  const ciks = [...new Set(secRows.map((r) => r.cik).filter((c): c is string => Boolean(c)))];
+  if (ciks.length > 0) {
+    const siblings = await db
+      .select({ ticker: securitiesTable.ticker })
+      .from(securitiesTable)
+      .where(inArray(securitiesTable.cik, ciks));
+    for (const s of siblings) {
+      candidates.add(s.ticker.toUpperCase());
+      candidates.add(normalizeCanonicalTicker(s.ticker));
+    }
+  }
+  return [...candidates];
+}
+
 export async function isTickerRestricted(
   db: KanonDb,
   orgId: string,
   ticker: string,
   now = new Date(),
 ): Promise<boolean> {
-  const [row] = await db
-    .select()
-    .from(restrictedListTable)
-    .where(
-      and(
-        eq(restrictedListTable.orgId, orgId),
-        eq(restrictedListTable.ticker, ticker.trim().toUpperCase()),
-      ),
-    )
-    .limit(1);
-  if (!row) return false;
-  return !row.expiresAt || row.expiresAt.getTime() >= now.getTime();
-}
-
-export async function isTickerRestrictedForUser(
-  db: KanonDb,
-  userId: string,
-  ticker: string,
-  now = new Date(),
-): Promise<boolean> {
-  const orgRows = await db
-    .select({ orgId: membershipsTable.orgId })
-    .from(membershipsTable)
-    .where(eq(membershipsTable.userId, userId));
-  if (orgRows.length === 0) return false;
+  const tickers = await resolveEquivalentTickers(db, ticker);
   const rows = await db
     .select({ expiresAt: restrictedListTable.expiresAt })
     .from(restrictedListTable)
-    .where(
-      and(
-        inArray(
-          restrictedListTable.orgId,
-          orgRows.map((o) => o.orgId),
-        ),
-        eq(restrictedListTable.ticker, ticker.trim().toUpperCase()),
-      ),
-    );
+    .where(and(eq(restrictedListTable.orgId, orgId), inArray(restrictedListTable.ticker, tickers)));
   return rows.some((r) => !r.expiresAt || r.expiresAt.getTime() >= now.getTime());
 }
 

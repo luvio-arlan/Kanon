@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
@@ -6,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export type AlertRuleKind =
@@ -20,16 +22,27 @@ export type InboxSeverity = "critical" | "warn" | "info";
 export type ForecastKind = "binary" | "scenario_3" | "quantile";
 export type LedgerAction = "deposit" | "withdraw" | "buy" | "sell" | "dividend";
 
-export const alertRulesTable = pgTable("alert_rules", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  thesisId: text("thesis_id"),
-  kind: text("kind").$type<AlertRuleKind>().notNull(),
-  configJson: jsonb("config_json").$type<Record<string, unknown>>().notNull().default({}),
-  enabled: boolean("enabled").notNull().default(true),
-  lastTriggeredAt: timestamp("last_triggered_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const alertRulesTable = pgTable(
+  "alert_rules",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    thesisId: text("thesis_id"),
+    kind: text("kind").$type<AlertRuleKind>().notNull(),
+    configJson: jsonb("config_json").$type<Record<string, unknown>>().notNull().default({}),
+    enabled: boolean("enabled").notNull().default(true),
+    lastState: text("last_state"),
+    lastTriggeredAt: timestamp("last_triggered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_alert_rules_user_thesis_kind").on(
+      table.userId,
+      sql`COALESCE(${table.thesisId}, '')`,
+      table.kind,
+    ),
+  ],
+);
 
 export const inboxItemsTable = pgTable(
   "inbox_items",
@@ -46,7 +59,12 @@ export const inboxItemsTable = pgTable(
     snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("idx_inbox_items_user_created").on(table.userId, table.createdAt)],
+  (table) => [
+    index("idx_inbox_items_user_created").on(table.userId, table.createdAt),
+    uniqueIndex("idx_inbox_items_dedupe")
+      .on(table.userId, table.kind, table.sourceUrl)
+      .where(sql`${table.sourceUrl} IS NOT NULL`),
+  ],
 );
 
 export const forecastsTable = pgTable(
@@ -68,16 +86,26 @@ export const forecastsTable = pgTable(
   (table) => [index("idx_forecasts_user_thesis").on(table.userId, table.thesisId, table.resolveBy)],
 );
 
-export const calendarTokensTable = pgTable("calendar_tokens", {
-  token: text("token").primaryKey(),
-  userId: text("user_id").notNull(),
-  tokenHash: text("token_hash"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const calendarTokensTable = pgTable(
+  "calendar_tokens",
+  {
+    token: text("token").primaryKey(),
+    userId: text("user_id").notNull(),
+    tokenHash: text("token_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_calendar_tokens_user_id").on(table.userId),
+    uniqueIndex("idx_calendar_tokens_hash")
+      .on(table.tokenHash)
+      .where(sql`${table.tokenHash} IS NOT NULL`),
+  ],
+);
 
 export const portfolioAccountsTable = pgTable("portfolio_accounts", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
+  orgId: text("org_id"),
   name: text("name").notNull(),
   baseCurrency: text("base_currency").notNull().default("USD"),
   cashBalance: doublePrecision("cash_balance").notNull().default(0),
@@ -104,7 +132,12 @@ export const transactionsTable = pgTable(
     note: text("note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("idx_transactions_account_date").on(table.accountId, table.tradeDate)],
+  (table) => [
+    index("idx_transactions_account_date").on(table.accountId, table.tradeDate),
+    uniqueIndex("idx_transactions_account_external_ref")
+      .on(table.accountId, table.externalRef)
+      .where(sql`${table.externalRef} IS NOT NULL`),
+  ],
 );
 
 export const lotsTable = pgTable(

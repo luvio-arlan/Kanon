@@ -4,6 +4,7 @@ import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { meterAiRouteUsage, resolveEffectiveByok } from "../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
+import { requireThesisAccess } from "../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,14 @@ export async function POST(request: Request) {
     );
   }
   const db = await getKanonDb();
+  const guard = await requireThesisAccess(
+    db,
+    parsed.data.thesisId,
+    auth.user.id,
+    "write",
+    startedAt,
+  );
+  if (!guard.ok) return guard.response;
   const result = await runAndPersistCopilot(db, auth.user.id, request, parsed.data);
   if (!result) return jsonError("未找到对应标的档案。", 404, startedAt, "NOT_FOUND");
   return jsonOk(result, startedAt);

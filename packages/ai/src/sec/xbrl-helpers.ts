@@ -10,6 +10,7 @@ export type XbrlFactsNamespace = Record<
 export interface SecFactsPayload {
   "us-gaap"?: XbrlFactsNamespace;
   "ifrs-full"?: XbrlFactsNamespace;
+  dei?: XbrlFactsNamespace;
 }
 
 export type UnitKind = "monetary" | "perShare" | "shares";
@@ -201,7 +202,9 @@ export function collectAnnualEntryMap(
 ): Map<number, { val: number; end: string }> {
   const usMap = collectEntriesFromNs(facts?.["us-gaap"], usTags, unitKind, kind, norm);
   if (usMap.size > 0) return usMap;
-  return collectEntriesFromNs(facts?.["ifrs-full"], ifrsTags, unitKind, kind, norm);
+  const ifrsMap = collectEntriesFromNs(facts?.["ifrs-full"], ifrsTags, unitKind, kind, norm);
+  if (ifrsMap.size > 0) return ifrsMap;
+  return collectEntriesFromNs(facts?.dei, usTags, unitKind, kind, norm);
 }
 
 export function collectAnnualMap(

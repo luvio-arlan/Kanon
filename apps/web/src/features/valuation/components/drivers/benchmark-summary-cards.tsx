@@ -8,6 +8,7 @@ import type {
 } from "@kanon/core";
 import { Badge, Card } from "@kanon/ui";
 import { IconChartBar, IconWorld } from "@tabler/icons-react";
+import { AlertBellToggle } from "@/shared/components/alert-bell-toggle";
 
 function LiveConsensusGrid({ c }: { c: StreetConsensus }) {
   const cells = [
@@ -104,7 +105,7 @@ export function ConsensusCard({
   );
 }
 
-function HistoricalBandCard({ b }: { b: ValuationBand }) {
+function HistoricalBandCard({ b, thesisId }: { b: ValuationBand; thesisId?: string }) {
   const posPct = Math.max(4, Math.min(96, b.percentileRank ?? 50));
   const rankLabel = b.percentileRank !== null ? `${b.percentileRank}% 分位` : "待同步";
   return (
@@ -114,9 +115,17 @@ function HistoricalBandCard({ b }: { b: ValuationBand }) {
           <IconChartBar size={15} stroke={1.5} className="text-ink-muted" />
           <h3 className="text-sm font-semibold text-ink-primary">历史估值分位带</h3>
         </div>
-        <span className="font-mono text-xs text-ink-muted tabular-nums">
-          当前 {b.current ? `${b.current}×` : "—"} · {rankLabel}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs text-ink-muted tabular-nums">
+            当前 {b.current ? `${b.current}×` : "—"} · {rankLabel}
+          </span>
+          {thesisId ? (
+            <AlertBellToggle
+              rule={{ kind: "pe_band_breach", thesisId }}
+              title="P10 / P90 分位越界提醒"
+            />
+          ) : null}
+        </div>
       </div>
       <div className="space-y-2 border-t border-hairline pt-3">
         <div className="relative h-2 w-full rounded-pill bg-muted">
@@ -152,17 +161,20 @@ function PeerMultipleRangeBody({ peerRange }: { peerRange: PeerMultipleRange }) 
 }
 
 export function ValuationBandCard({
+  thesisId,
   b,
   peerRange,
 }: {
+  thesisId?: string;
   b: ValuationBand | null;
   peerRange?: PeerMultipleRange | null;
 }) {
-  if (b) return <HistoricalBandCard b={b} />;
+  if (b) return <HistoricalBandCard b={b} thesisId={thesisId} />;
   if (!peerRange) {
     return (
-      <div className="rounded-control border border-hairline bg-canvas/35 px-4 py-2.5 text-xs text-ink-muted">
-        历史估值分位待接入日频行情
+      <div className="flex items-center justify-between gap-2 rounded-control border border-hairline bg-canvas/35 px-4 py-2.5 text-xs text-ink-muted">
+        <span>拆股或日频行情未就绪，分位带暂不可用</span>
+        {thesisId ? <AlertBellToggle rule={{ kind: "pe_band_breach", thesisId }} disabled /> : null}
       </div>
     );
   }
@@ -173,6 +185,7 @@ export function ValuationBandCard({
           <IconChartBar size={15} stroke={1.5} className="text-ink-muted" />
           <h3 className="text-sm font-semibold text-ink-primary">同业当前倍数区间</h3>
         </div>
+        {thesisId ? <AlertBellToggle rule={{ kind: "pe_band_breach", thesisId }} disabled /> : null}
       </div>
       <PeerMultipleRangeBody peerRange={peerRange} />
     </Card>

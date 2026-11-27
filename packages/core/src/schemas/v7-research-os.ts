@@ -179,6 +179,8 @@ export const ValuationBandSchema = z.object({
   p50: z.number().nullable(),
   p90: z.number().nullable(),
   percentileRank: z.number().nullable(),
+  epsBasis: z.enum(["ttm", "fy"]).optional(),
+  reason: z.string().optional(),
 });
 export type ValuationBand = z.infer<typeof ValuationBandSchema>;
 

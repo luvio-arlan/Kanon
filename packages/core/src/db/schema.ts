@@ -64,6 +64,7 @@ export const thesesTable = pgTable(
     lastReviewedLabel: text("last_reviewed_label").notNull(),
     securityId: text("security_id"),
     orgId: text("org_id"),
+    priceAsOf: timestamp("price_as_of", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

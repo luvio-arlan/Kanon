@@ -56,25 +56,64 @@ function InboxItemList({
   );
 }
 
+function formatRuleLabel(rule: AlertRuleRow): string {
+  if (rule.kind === "price_hurdle") {
+    const p = Number(rule.configJson?.targetPrice);
+    const dir = rule.configJson?.direction === "above" ? "≥" : "≤";
+    return Number.isFinite(p) && p > 0 ? `价格 ${dir} $${p.toFixed(2)}` : "价格阈值";
+  }
+  if (rule.kind === "pe_band_breach") return "P/E 分位越界";
+  if (rule.kind === "form8k_redflag") return "8-K 重大公告";
+  return "预测到期结算";
+}
+
 function AlertRulesStrip({
   rules,
-  onToggleForecastDue,
+  onToggleRule,
 }: {
   rules: readonly AlertRuleRow[];
-  onToggleForecastDue: (existing?: AlertRuleRow) => void;
+  onToggleRule: (rule: AlertRuleRow) => void;
 }) {
   const forecastRule = rules.find((r) => r.kind === "forecast_due");
   const activeCount = rules.filter((r) => r.enabled).length;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-hairline bg-canvas/40 px-3.5 py-2.5 text-xs">
-      <div className="flex items-center gap-2 text-ink-secondary">
-        <IconBell size={14} stroke={1.5} className="text-ink-muted" />
-        <span>自动监控规则</span>
-        <Badge variant="mono">{activeCount} 条生效</Badge>
+    <div className="space-y-2 rounded-control border border-hairline bg-canvas/40 px-3.5 py-2.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-ink-secondary">
+          <IconBell size={14} stroke={1.5} className="text-ink-muted" />
+          <span>监控规则</span>
+          <Badge variant="mono">{activeCount} 条生效</Badge>
+        </div>
+        {!forecastRule ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              onToggleRule({ id: "", kind: "forecast_due", enabled: false, configJson: {} })
+            }
+          >
+            <span>开启预测到期</span>
+          </Button>
+        ) : null}
       </div>
-      <Button variant="ghost" size="sm" onClick={() => onToggleForecastDue(forecastRule)}>
-        <span>{forecastRule?.enabled ? "关闭预测到期提醒" : "开启预测到期提醒"}</span>
-      </Button>
+      {rules.length > 0 ? (
+        <div className="divide-y divide-hairline border-t border-hairline pt-1.5">
+          {rules.map((r) => (
+            <div key={r.id} className="flex items-center justify-between gap-2 py-1.5">
+              <span className="truncate font-mono text-ink-secondary tabular-nums">
+                {formatRuleLabel(r)}
+              </span>
+              <button
+                type="button"
+                onClick={() => onToggleRule(r)}
+                className="cursor-pointer font-mono text-xs text-ink-muted hover:text-ink-primary"
+              >
+                {r.enabled ? "●" : "○"}
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -146,16 +185,15 @@ export function ResearchInboxSheet({ open, onClose }: { open: boolean; onClose: 
     toast.success("已签发并复制新的 .ics 订阅地址");
   }
 
-  async function toggleForecastRule(existing?: AlertRuleRow) {
-    const nextEnabled = !existing?.enabled;
+  async function toggleRule(existing: AlertRuleRow) {
+    const nextEnabled = !existing.enabled;
     const ok = await apiUpsertAlertRule({
-      id: existing?.id,
-      kind: "forecast_due",
+      thesisId: existing.thesisId ?? undefined,
+      kind: existing.kind,
       enabled: nextEnabled,
-      configJson: {},
+      configJson: existing.configJson ?? {},
     });
     if (!ok) return void toast.error("更新规则失败");
-    toast.success(nextEnabled ? "已开启预测到期自动提醒" : "已关闭预测到期提醒");
     reload();
   }
 
@@ -169,8 +207,8 @@ export function ResearchInboxSheet({ open, onClose }: { open: boolean; onClose: 
           onMarkAll={() => void apiMarkAllInboxRead().then(reload)}
           onRotateCal={() => void copyRotatedCalendarUrl()}
         />
-        <AlertRulesStrip rules={rules} onToggleForecastDue={(r) => void toggleForecastRule(r)} />
         <InboxItemList items={items} onMarkRead={(id) => void apiMarkInboxRead(id).then(reload)} />
+        <AlertRulesStrip rules={rules} onToggleRule={(r) => void toggleRule(r)} />
       </div>
     </Sheet>
   );

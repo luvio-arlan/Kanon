@@ -26,7 +26,11 @@ export interface CockpitShellProps {
   initialView?: CockpitViewState;
 }
 
-function buildHeaderProps({ ui, ext, market, analytics, onOpenMarketSettings }: CockpitStageProps) {
+function buildHeaderProps(
+  { ui, ext, analytics }: CockpitStageProps,
+  ledgerOpen: boolean,
+  onCloseLedger: () => void,
+) {
   return {
     analytics,
     theses: ui.theses,
@@ -35,6 +39,8 @@ function buildHeaderProps({ ui, ext, market, analytics, onOpenMarketSettings }: 
     sortBy: ui.sortBy,
     query: ui.query,
     searchInputRef: ui.searchInputRef,
+    ledgerOpen,
+    onCloseLedger,
     onSortChange: ui.setSortBy,
     onQueryChange: ui.setQuery,
     onNewThesis: () => ui.setModal("create", true),
@@ -48,14 +54,6 @@ function buildHeaderProps({ ui, ext, market, analytics, onOpenMarketSettings }: 
       ui.setFilter("attention");
     },
     onOpenStressTest: () => ext.setStressOpen(true),
-    liveQuotes: market.quotes,
-    activeMarketSource: market.activeSource,
-    loadingQuotes: market.loading,
-    calibratingPrices: ext.refreshingPrices,
-    onRefreshQuotes: () => void market.refresh(true),
-    onCalibratePrices: () => void ext.refreshPrices(),
-    onOpenMarketSettings,
-    onSelectThesis: ui.setPreviewThesis,
   };
 }
 
@@ -66,6 +64,7 @@ function useCockpitRuntime(
 ) {
   const ui = useCockpitState(initialTheses, glossary, initialView);
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>("general");
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   const openSettings = (tab: SettingsTabId = "general") => {
     setSettingsTab(tab);
     ui.setModal("ai", true);
@@ -77,9 +76,9 @@ function useCockpitRuntime(
   const market = useLiveMarketQuotes(activeTickers);
   const ext = usePortfolioOverlayState(ui, market.mergeQuotes);
   ui.externalOverlayOpenRef.current =
-    ext.compareOpen || ext.importOpen || ext.stressOpen || ext.calibrationOpen;
+    ext.compareOpen || ext.importOpen || ext.stressOpen || ext.calibrationOpen || ledgerOpen;
   const analytics = useMemo(() => calculatePortfolioAnalytics(ui.theses), [ui.theses]);
-  return { ui, settingsTab, openSettings, market, ext, analytics };
+  return { ui, settingsTab, ledgerOpen, setLedgerOpen, openSettings, market, ext, analytics };
 }
 
 function buildSidebarProps(
@@ -109,6 +108,7 @@ function buildSidebarProps(
     onRefreshPrices: () => void r.ext.refreshPrices(),
     onOpenStressTest: () => r.ext.setStressOpen(true),
     onOpenCalibration: () => r.ext.setCalibrationOpen(true),
+    onOpenLedger: () => r.setLedgerOpen(true),
     onOpenSettings: () => r.openSettings("general"),
     onOpenAccountSettings: () => r.openSettings("account"),
   };
@@ -136,7 +136,11 @@ export function CockpitShell({
       >
         <div className="w-full space-y-5 px-5 pb-10 pt-5 sm:px-8 lg:px-9 lg:pt-5">
           <CockpitHeader
-            {...buildHeaderProps({ ...r, onOpenMarketSettings: openMarketSettings })}
+            {...buildHeaderProps(
+              { ...r, onOpenMarketSettings: openMarketSettings },
+              r.ledgerOpen,
+              () => r.setLedgerOpen(false),
+            )}
           />
           <ThesisCollectionView {...r} onOpenMarketSettings={openMarketSettings} />
         </div>

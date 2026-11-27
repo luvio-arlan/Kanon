@@ -1,6 +1,5 @@
 import { TickerSymbolSchema } from "@kanon/core";
 import {
-  assertThesisAccess,
   getKanonDb,
   listThesisPeers,
   removeThesisPeer,
@@ -10,6 +9,7 @@ import {
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +33,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
+  if (!guard.ok) return guard.response;
   const peers = await listThesisPeers(db, id);
   return jsonOk({ peers }, startedAt);
 }
@@ -48,9 +47,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
+  if (!guard.ok) return guard.response;
   const raw = await request.json().catch(() => null);
   const parsed = parseAddPeerBody(raw);
   if (!parsed) {
@@ -74,9 +72,8 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
+  if (!guard.ok) return guard.response;
   const ticker = new URL(request.url).searchParams.get("ticker") ?? "";
   const parsedTicker = TickerSymbolSchema.safeParse(ticker);
   if (!parsedTicker.success) {

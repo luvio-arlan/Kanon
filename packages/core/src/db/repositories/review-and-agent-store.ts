@@ -18,6 +18,7 @@ import {
   thesesTable,
 } from "../schema";
 import { recordThesisRevision } from "./revision-queries";
+import { assertThesisAccess } from "./thesis/thesis-access";
 import { getThesisById } from "./thesis-queries";
 
 export async function saveAgentRun(
@@ -32,24 +33,24 @@ export async function saveAgentRun(
   const now = new Date();
   const id = `run-${crypto.randomUUID().slice(0, 10)}`;
   const briefing = AgentBriefingSchema.parse(input.briefing);
-  await db.insert(agentRunsTable).values({
-    id,
-    thesisId: input.thesisId,
-    engine: input.engine,
-    fallbackReason: input.fallbackReason ?? null,
-    briefingJson: briefing,
-    appliedProposalIds: [],
-    createdAt: now,
-  });
-  return {
+  const record = {
     id,
     thesisId: input.thesisId,
     engine: input.engine,
     fallbackReason: input.fallbackReason ?? null,
     briefing,
-    appliedProposalIds: [],
-    createdAt: now.toISOString(),
+    appliedProposalIds: [] as string[],
   };
+  await db.insert(agentRunsTable).values({
+    id,
+    thesisId: input.thesisId,
+    engine: input.engine,
+    fallbackReason: record.fallbackReason,
+    briefingJson: briefing,
+    appliedProposalIds: [],
+    createdAt: now,
+  });
+  return { ...record, createdAt: now.toISOString() };
 }
 
 export async function getLatestAgentRun(
@@ -85,20 +86,19 @@ export async function markAgentProposalApplied(
   const [row] = await db
     .select({
       id: agentRunsTable.id,
+      thesisId: agentRunsTable.thesisId,
       appliedProposalIds: agentRunsTable.appliedProposalIds,
-      ownerId: thesesTable.userId,
     })
     .from(agentRunsTable)
-    .innerJoin(thesesTable, eq(agentRunsTable.thesisId, thesesTable.id))
     .where(eq(agentRunsTable.id, runId));
   if (!row) return null;
-  if (userId && row.ownerId !== userId) return null;
+  if (userId && !(await assertThesisAccess(db, row.thesisId, userId, "write"))) return null;
   const existing = row.appliedProposalIds ?? [];
   const next = existing.includes(proposalId) ? existing : [...existing, proposalId];
   await db
     .update(agentRunsTable)
     .set({ appliedProposalIds: next })
-    .where(eq(agentRunsTable.id, runId));
+    .where(and(eq(agentRunsTable.id, runId), eq(agentRunsTable.thesisId, row.thesisId)));
   return next;
 }
 
@@ -170,7 +170,7 @@ async function insertQuarterlyReviewRow(
 ): Promise<QuarterlyReview> {
   const now = new Date();
   const id = `qrev-${crypto.randomUUID().slice(0, 10)}`;
-  await tx.insert(quarterlyReviewsTable).values({
+  const reviewFields = {
     id,
     thesisId: thesis.id,
     quarterLabel: parsed.quarterLabel,
@@ -178,22 +178,14 @@ async function insertQuarterlyReviewRow(
     hypothesisVerdicts: parsed.hypothesisVerdicts,
     priceAtReview: thesis.currentPrice,
     baseTargetAtReview: thesis.valuation.base.targetPrice,
-    createdAt: now,
-  });
+  };
+  await tx.insert(quarterlyReviewsTable).values({ ...reviewFields, createdAt: now });
+  // @kanon-tenant-checked: createQuarterlyReview verified assertThesisAccess(..., "write") in tx
   await tx
     .update(thesesTable)
     .set({ lastReviewedLabel: `${parsed.quarterLabel} · 季度复盘`, updatedAt: now })
     .where(eq(thesesTable.id, thesis.id));
-  return {
-    id,
-    thesisId: thesis.id,
-    quarterLabel: parsed.quarterLabel,
-    summary: parsed.summary,
-    hypothesisVerdicts: parsed.hypothesisVerdicts,
-    priceAtReview: thesis.currentPrice,
-    baseTargetAtReview: thesis.valuation.base.targetPrice,
-    createdAt: now.toISOString(),
-  };
+  return { ...reviewFields, createdAt: now.toISOString() };
 }
 
 export async function createQuarterlyReview(
@@ -204,13 +196,16 @@ export async function createQuarterlyReview(
 ): Promise<{ thesis: ThesisDetail; review: QuarterlyReview } | null> {
   const parsed = CreateQuarterlyReviewSchema.parse(rawInput);
   return runInTransaction(db, async (tx) => {
-    const existing = await getThesisById(tx, thesisId, userId);
+    if (userId && !(await assertThesisAccess(tx, thesisId, userId, "write"))) {
+      return null;
+    }
+    const existing = await getThesisById(tx, thesisId);
     if (!existing) return null;
     if (parsed.applyStatusUpdates) {
       await applyVerdictStatuses(tx, existing, parsed.hypothesisVerdicts);
     }
     const review = await insertQuarterlyReviewRow(tx, existing, parsed);
-    const updated = await getThesisById(tx, thesisId, userId);
+    const updated = await getThesisById(tx, thesisId);
     if (!updated) return null;
     await recordThesisRevision(
       tx,

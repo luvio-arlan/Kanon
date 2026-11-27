@@ -1,5 +1,11 @@
 import type { ApiTokenScope, PublicUser } from "@kanon/core";
-import { authenticateApiToken, getKanonDb, getSessionUser } from "@kanon/core/db";
+import {
+  authenticateApiToken,
+  getKanonDb,
+  getSessionUser,
+  type KanonDb,
+  withTenantContext,
+} from "@kanon/core/db";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 import { cache } from "react";
@@ -57,9 +63,14 @@ export const getServerAuthContext = cache(
   },
 );
 
-export async function requireWorkspaceContext(
-  startedAt: number,
-): Promise<{ ok: true; user: PublicUser } | { ok: false; response: NextResponse }> {
+export async function requireWorkspaceContext(startedAt: number): Promise<
+  | {
+      ok: true;
+      user: PublicUser;
+      withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
+    }
+  | { ok: false; response: NextResponse }
+> {
   const ctx = await getServerAuthContext();
   if (!ctx.user) {
     return {
@@ -67,7 +78,15 @@ export async function requireWorkspaceContext(
       response: jsonError("请先登录账号。", 401, startedAt, "UNAUTHORIZED"),
     };
   }
-  return { ok: true, user: ctx.user };
+  const user = ctx.user;
+  return {
+    ok: true,
+    user,
+    withDb: async <T>(fn: (tx: KanonDb) => Promise<T>) => {
+      const db = await getKanonDb();
+      return withTenantContext(db, user.id, fn);
+    },
+  };
 }
 
 export async function requireMcpAuthContext(

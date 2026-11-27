@@ -12,6 +12,7 @@ import {
   thesisCatalystsTable,
 } from "../../schema";
 import { listThesisRevisions, recordThesisRevision } from "../revision-queries";
+import { assertThesisAccess } from "../thesis/thesis-access";
 import { getThesisById } from "../thesis-queries";
 
 export async function listAgentRuns(
@@ -160,14 +161,16 @@ async function loadAuthorizedRunContext(
   thesis: ThesisDetail;
 } | null> {
   const [row] = await tx
-    .select({ run: agentRunsTable, ownerId: thesesTable.userId })
+    .select({ run: agentRunsTable })
     .from(agentRunsTable)
-    .innerJoin(thesesTable, eq(agentRunsTable.thesisId, thesesTable.id))
     .where(eq(agentRunsTable.id, runId))
     .for("update");
-  if (!row || (userId && row.ownerId !== userId)) return null;
+  if (!row) return null;
+  if (userId && !(await assertThesisAccess(tx, row.run.thesisId, userId, "write"))) {
+    return null;
+  }
   const parsed = AgentBriefingSchema.safeParse(row.run.briefingJson);
-  const thesis = await getThesisById(tx, row.run.thesisId, userId);
+  const thesis = await getThesisById(tx, row.run.thesisId);
   if (!thesis) return null;
   return {
     proposals: parsed.success ? parsed.data.proposals : [],
@@ -195,7 +198,7 @@ export async function applyAgentProposalsAtomic(
     await tx
       .update(agentRunsTable)
       .set({ appliedProposalIds: nextApplied })
-      .where(eq(agentRunsTable.id, params.runId));
+      .where(and(eq(agentRunsTable.id, params.runId), eq(agentRunsTable.thesisId, ctx.thesis.id)));
 
     const updated = await getThesisById(tx, ctx.thesis.id, params.userId);
     if (!updated) return null;

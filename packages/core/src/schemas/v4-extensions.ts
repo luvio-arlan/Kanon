@@ -60,6 +60,15 @@ export const SecAnnualFinancialSchema = z.object({
   incomeTaxExpense: z.number().nullable().optional(),
   operatingLeaseLiability: z.number().nullable().optional(),
   goodwill: z.number().nullable().optional(),
+  totalAssets: z.number().nullable().optional(),
+  currentAssets: z.number().nullable().optional(),
+  currentLiabilities: z.number().nullable().optional(),
+  totalLiabilities: z.number().nullable().optional(),
+  retainedEarnings: z.number().nullable().optional(),
+  ppeNet: z.number().nullable().optional(),
+  depreciation: z.number().nullable().optional(),
+  sgaExpense: z.number().nullable().optional(),
+  sharesOutstanding: z.number().nullable().optional(),
 });
 export type SecAnnualFinancial = z.infer<typeof SecAnnualFinancialSchema>;
 
@@ -180,6 +189,7 @@ export const SecSnapshotSchema = z.object({
   reportingCurrency: z.string().min(2).max(8).optional(),
   fxToUsd: z.number().finite().positive().optional(),
   adrRatio: z.number().finite().positive().optional(),
+  sicCode: z.string().max(12).optional(),
   fetchedAt: z.string().min(1),
   filings: z.array(SecFilingItemSchema),
   facts: z.array(SecFinancialFactSchema),

@@ -20,6 +20,9 @@ import { KANON_PORTFOLIO_LEDGER_SQL } from "./v2/0019-portfolio-ledger";
 import { KANON_TEAMS_IC_AUDIT_SQL } from "./v2/0020-teams-ic-audit";
 import { KANON_WAVE_I_SECURITY_SQL } from "./v2/0021-wave-i-security";
 import { KANON_WAVE_L_M_VECTORS_RLS_SQL } from "./v2/0022-wave-l-m-vectors-rls";
+import { KANON_WAVE_O_INVITATIONS_QUEUE_ALERTS_SQL } from "./v2/0023-wave-o-invitations-queue-alerts";
+import { KANON_RLS_FORCE_SQL } from "./v3/0024-rls-force";
+import { KANON_RLS_SPLIT_POLICIES_SQL } from "./v3/0025-rls-split-policies";
 
 export interface KanonMigration {
   id: string;
@@ -162,6 +165,23 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only filing_chunks incremental content_hash + embedding_json and tenant-scoped Postgres RLS policies",
     sql: KANON_WAVE_L_M_VECTORS_RLS_SQL,
+  },
+  {
+    id: "0023_wave_o_invitations_queue_alerts",
+    description:
+      "Expand-only org invitations, accepted_at membership gating, org-scoped accounts, job priority/quota, single in-review IC & edge-triggered alert state",
+    sql: KANON_WAVE_O_INVITATIONS_QUEUE_ALERTS_SQL,
+  },
+  {
+    id: "0024_rls_force",
+    description:
+      "Expand-only FORCE ROW LEVEL SECURITY on primary tenant tables & calendar token hash backfill",
+    sql: KANON_RLS_FORCE_SQL,
+  },
+  {
+    id: "0025_rls_split_policies",
+    description: "Expand-only read/write split RLS policies on theses & child tenant tables",
+    sql: KANON_RLS_SPLIT_POLICIES_SQL,
   },
 ];
 

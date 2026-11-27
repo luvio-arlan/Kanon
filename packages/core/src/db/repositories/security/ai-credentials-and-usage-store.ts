@@ -1,10 +1,6 @@
 import crypto from "node:crypto";
 import { and, asc, eq, gte } from "drizzle-orm";
-import {
-  decryptSecretEnvelope,
-  encryptSecretEnvelope,
-  needsEnvelopeReencryption,
-} from "../../../security/totp";
+import { decryptSecretEnvelopeWithMeta, encryptSecretEnvelope } from "../../../security/totp";
 import type { KanonDb } from "../../bootstrap";
 import { aiUsageTable, userAiCredentialsTable } from "../../schema";
 
@@ -131,16 +127,22 @@ export async function resolveUserAiCredential(
   if (!row) return null;
   const normalizedProvider = provider.trim().toLowerCase();
   const ctx = { purpose: "byok" as const, userId, provider: normalizedProvider };
-  const apiKey = decryptSecretEnvelope(row.encryptedApiKey, ctx);
-  if (!apiKey) return null;
-  if (needsEnvelopeReencryption(row.encryptedApiKey)) {
-    const upgraded = encryptSecretEnvelope(apiKey, ctx);
+  const dec = decryptSecretEnvelopeWithMeta(row.encryptedApiKey, ctx);
+  if (!dec) return null;
+  if (dec.usedKey !== "primary") {
+    const upgraded = encryptSecretEnvelope(dec.plain, ctx);
     await db
       .update(userAiCredentialsTable)
       .set({ encryptedApiKey: upgraded, updatedAt: new Date() })
-      .where(and(eq(userAiCredentialsTable.id, row.id), eq(userAiCredentialsTable.userId, userId)));
+      .where(
+        and(
+          eq(userAiCredentialsTable.id, row.id),
+          eq(userAiCredentialsTable.userId, userId),
+          eq(userAiCredentialsTable.encryptedApiKey, row.encryptedApiKey),
+        ),
+      );
   }
-  return { apiKey, baseUrl: row.baseUrl, defaultModel: row.defaultModel };
+  return { apiKey: dec.plain, baseUrl: row.baseUrl, defaultModel: row.defaultModel };
 }
 
 export async function deleteUserAiCredential(

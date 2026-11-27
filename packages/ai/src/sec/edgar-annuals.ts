@@ -1,131 +1,13 @@
 import { roundTo, type SecAnnualFinancial, type SecFinancialFact } from "@kanon/core";
-import { extractOperatingLeaseMap, extractTotalDebtMap } from "./xbrl-balance-helpers";
+import { extractBalanceSheetMaps, extractIncomeCashMaps } from "./annuals/extract-maps";
 import {
   type CurrencyNormalization,
-  collectAnnualEntryMap,
-  collectAnnualMap,
   formatUsdCompact,
   resolveCurrencyNormalization,
   type SecFactsPayload,
 } from "./xbrl-helpers";
 
 export { formatUsdCompact, resolveCurrencyNormalization, type SecFactsPayload };
-
-function extractBalanceSheetMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
-  const inst = (us: readonly string[], ifrs: readonly string[]) =>
-    collectAnnualMap(facts, us, ifrs, "monetary", "instant", norm);
-  return {
-    cash: inst(
-      ["CashCashEquivalentsAndShortTermInvestments", "CashAndCashEquivalentsAtCarryingValue"],
-      ["CashAndCashEquivalents"],
-    ),
-    debt: extractTotalDebtMap(facts, norm),
-    leases: extractOperatingLeaseMap(facts, norm),
-    goodwill: inst(["Goodwill"], ["Goodwill"]),
-    equity: inst(
-      [
-        "StockholdersEquity",
-        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
-      ],
-      ["Equity"],
-    ),
-    inventory: inst(["InventoryNet", "InventoryFinishedGoods"], ["Inventories"]),
-    receivables: inst(
-      ["AccountsReceivableNetCurrent", "ReceivablesNetCurrent"],
-      ["TradeAndOtherCurrentReceivables"],
-    ),
-    payables: inst(
-      ["AccountsPayableCurrent", "AccountsPayableAndAccruedLiabilitiesCurrent"],
-      ["TradeAndOtherCurrentPayables"],
-    ),
-    shares: collectAnnualMap(
-      facts,
-      ["WeightedAverageNumberOfDilutedSharesOutstanding", "CommonStockSharesOutstanding"],
-      ["AdjustedWeightedAverageShares", "WeightedAverageShares"],
-      "shares",
-      "flow",
-      norm,
-    ),
-  };
-}
-
-function extractCashFlowMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
-  const flow = (us: readonly string[], ifrs: readonly string[]) =>
-    collectAnnualMap(facts, us, ifrs, "monetary", "flow", norm);
-  return {
-    ocf: flow(
-      ["NetCashProvidedByUsedInOperatingActivities"],
-      ["CashFlowsFromUsedInOperatingActivities"],
-    ),
-    capex: flow(
-      ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"],
-      ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
-    ),
-    buybacks: flow(["PaymentsForRepurchaseOfCommonStock"], ["PurchaseOfTreasuryShares"]),
-    dividends: flow(["PaymentsOfDividends", "PaymentsOfDividendsCommonStock"], ["DividendsPaid"]),
-    sbc: flow(
-      ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
-      ["ExpenseFromSharebasedPaymentTransactionsWithEmployees"],
-    ),
-  };
-}
-
-const PRETAX_US_TAGS = [
-  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
-  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
-  "IncomeLossBeforeIncomeTaxes",
-] as const;
-
-const REV_US_TAGS = [
-  "RevenueFromContractWithCustomerExcludingAssessedTax",
-  "Revenues",
-  "SalesRevenueNet",
-] as const;
-
-function extractIncomeCashMaps(facts: SecFactsPayload | undefined, norm: CurrencyNormalization) {
-  const flow = (us: readonly string[], ifrs: readonly string[]) =>
-    collectAnnualMap(facts, us, ifrs, "monetary", "flow", norm);
-  const revEntries = collectAnnualEntryMap(
-    facts,
-    REV_US_TAGS,
-    ["Revenue"],
-    "monetary",
-    "flow",
-    norm,
-  );
-  const niEntries = collectAnnualEntryMap(
-    facts,
-    ["NetIncomeLoss"],
-    ["ProfitLoss"],
-    "monetary",
-    "flow",
-    norm,
-  );
-  return {
-    revEntries,
-    niEntries,
-    rev: new Map([...revEntries.entries()].map(([k, v]) => [k, v.val])),
-    gp: flow(["GrossProfit"], ["GrossProfit"]),
-    cogs: flow(["CostOfRevenue", "CostOfGoodsAndServicesSold"], ["CostOfSales"]),
-    ebit: flow(["OperatingIncomeLoss"], ["ProfitLossFromOperatingActivities"]),
-    pretax: flow(PRETAX_US_TAGS, ["ProfitLossBeforeTax"]),
-    tax: flow(
-      ["IncomeTaxExpenseBenefit"],
-      ["IncomeTaxExpenseContinuingOperations", "IncomeTaxExpense"],
-    ),
-    rd: flow(["ResearchAndDevelopmentExpense"], ["ResearchAndDevelopmentExpense"]),
-    ni: new Map([...niEntries.entries()].map(([k, v]) => [k, v.val])),
-    ...extractCashFlowMaps(facts, norm),
-    eps: collectAnnualMap(
-      facts,
-      ["EarningsPerShareDiluted"],
-      ["DilutedEarningsLossPerShare"],
-      "perShare",
-      "flow",
-      norm,
-    ),
-  };
-}
 
 function readYearVal(map: Map<number, number>, fy: number): number | null {
   return map.get(fy) ?? null;
@@ -170,6 +52,15 @@ function buildAnnualRow(
     incomeTaxExpense: readYearVal(ic.tax, fy),
     operatingLeaseLiability: readYearVal(bs.leases, fy),
     goodwill: readYearVal(bs.goodwill, fy),
+    totalAssets: readYearVal(bs.totalAssets, fy),
+    currentAssets: readYearVal(bs.currentAssets, fy),
+    currentLiabilities: readYearVal(bs.currentLiabilities, fy),
+    totalLiabilities: readYearVal(bs.totalLiabilities, fy),
+    retainedEarnings: readYearVal(bs.retainedEarnings, fy),
+    ppeNet: readYearVal(bs.ppeNet, fy),
+    depreciation: readYearVal(ic.depreciation, fy),
+    sgaExpense: readYearVal(ic.sga, fy),
+    sharesOutstanding: readYearVal(bs.sharesOutstanding, fy),
   };
 }
 

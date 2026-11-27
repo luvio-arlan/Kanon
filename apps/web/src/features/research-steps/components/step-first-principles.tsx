@@ -137,6 +137,7 @@ function StepThreeEvidenceBody({
   return (
     <>
       <SecFactsPanel
+        thesisId={props.thesis.id}
         ticker={props.thesis.ticker}
         snapshot={props.secSnapshot}
         syncing={props.secSyncing}

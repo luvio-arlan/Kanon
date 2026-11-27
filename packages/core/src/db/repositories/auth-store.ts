@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { eq, lt } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import {
   type LoginRequest,
   LoginRequestSchema,
@@ -157,7 +157,9 @@ export async function getSessionUser(db: KanonDb, rawToken: string): Promise<Pub
   const match = rows[0];
   if (!match) return null;
   if (match.expiresAt.getTime() <= Date.now()) {
-    await db.delete(sessionsTable).where(eq(sessionsTable.id, match.sessionId));
+    await db
+      .delete(sessionsTable)
+      .where(and(eq(sessionsTable.id, match.sessionId), eq(sessionsTable.userId, match.user.id)));
     return null;
   }
   return toPublicUser(match.user);

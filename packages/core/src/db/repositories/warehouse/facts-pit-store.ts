@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lte } from "drizzle-orm";
+import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
 import type { FinancialFactDuration } from "../../../contracts/financial-concepts";
 import { roundTo } from "../../../math/valuation-scenarios";
 import type { KanonDb } from "../../bootstrap";
@@ -53,50 +53,27 @@ export async function listFilingsBySecurity(db: KanonDb, securityId: string, lim
     .limit(limit);
 }
 
-async function recomputeLatestFlagsForKeys(
-  db: KanonDb,
-  keys: readonly {
-    securityId: string;
-    concept: string;
-    periodEnd: string;
-    duration: FinancialFactDuration;
-  }[],
-) {
-  for (const key of keys) {
-    const rows = await db
-      .select({ id: financialFactsTable.id, filedAt: financialFactsTable.filedAt })
-      .from(financialFactsTable)
-      .where(
-        and(
-          eq(financialFactsTable.securityId, key.securityId),
-          eq(financialFactsTable.concept, key.concept),
-          eq(financialFactsTable.periodEnd, key.periodEnd),
-          eq(financialFactsTable.duration, key.duration),
-        ),
+const FACT_UPSERT_CHUNK_SIZE = 500;
+
+async function recomputeLatestFlagsForSecurities(db: KanonDb, securityIds: readonly string[]) {
+  for (const securityId of securityIds) {
+    await db.execute(sql`
+      WITH ranked AS (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY security_id, concept, period_end, duration
+                 ORDER BY filed_at DESC, id DESC
+               ) AS rn
+        FROM financial_facts
+        WHERE security_id = ${securityId}
       )
-      .orderBy(desc(financialFactsTable.filedAt), desc(financialFactsTable.id));
-    const latestId = rows[0]?.id;
-    if (!latestId) continue;
-    await db
-      .update(financialFactsTable)
-      .set({ isLatestForPeriod: false })
-      .where(
-        and(
-          eq(financialFactsTable.securityId, key.securityId),
-          eq(financialFactsTable.concept, key.concept),
-          eq(financialFactsTable.periodEnd, key.periodEnd),
-          eq(financialFactsTable.duration, key.duration),
-        ),
-      );
-    await db
-      .update(financialFactsTable)
-      .set({ isLatestForPeriod: true })
-      .where(
-        and(
-          eq(financialFactsTable.id, latestId),
-          eq(financialFactsTable.securityId, key.securityId),
-        ),
-      );
+      UPDATE financial_facts f
+      SET is_latest_for_period = (r.rn = 1)
+      FROM ranked r
+      WHERE f.id = r.id
+        AND f.security_id = ${securityId}
+        AND f.is_latest_for_period IS DISTINCT FROM (r.rn = 1)
+    `);
   }
 }
 
@@ -104,45 +81,48 @@ export async function upsertFinancialFacts(
   db: KanonDb,
   facts: readonly UpsertFinancialFactInput[],
 ): Promise<number> {
-  const touched = new Map<
-    string,
-    { securityId: string; concept: string; periodEnd: string; duration: FinancialFactDuration }
-  >();
+  if (facts.length === 0) return 0;
+  const deduped = new Map<string, UpsertFinancialFactInput>();
+  const touchedSecurities = new Set<string>();
   for (const f of facts) {
+    deduped.set(f.id, f);
+    touchedSecurities.add(f.securityId);
+  }
+  const rows = [...deduped.values()].map((f) => ({
+    id: f.id,
+    securityId: f.securityId,
+    accession: f.accession,
+    concept: f.concept,
+    xbrlTag: f.xbrlTag,
+    taxonomy: f.taxonomy ?? "us-gaap",
+    periodStart: f.periodStart ?? null,
+    periodEnd: f.periodEnd,
+    duration: f.duration,
+    fiscalYear: f.fiscalYear ?? null,
+    fiscalPeriod: f.fiscalPeriod ?? null,
+    value: f.value,
+    unit: f.unit ?? "USD",
+    currency: f.currency ?? "USD",
+    dimensions: f.dimensions ?? {},
+    filedAt: f.filedAt,
+    isLatestForPeriod: false,
+  }));
+  for (let i = 0; i < rows.length; i += FACT_UPSERT_CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + FACT_UPSERT_CHUNK_SIZE);
     await db
       .insert(financialFactsTable)
-      .values({
-        id: f.id,
-        securityId: f.securityId,
-        accession: f.accession,
-        concept: f.concept,
-        xbrlTag: f.xbrlTag,
-        taxonomy: f.taxonomy ?? "us-gaap",
-        periodStart: f.periodStart ?? null,
-        periodEnd: f.periodEnd,
-        duration: f.duration,
-        fiscalYear: f.fiscalYear ?? null,
-        fiscalPeriod: f.fiscalPeriod ?? null,
-        value: f.value,
-        unit: f.unit ?? "USD",
-        currency: f.currency ?? "USD",
-        dimensions: f.dimensions ?? {},
-        filedAt: f.filedAt,
-        isLatestForPeriod: false,
-      })
+      .values(chunk)
       .onConflictDoUpdate({
         target: financialFactsTable.id,
-        set: { value: f.value, filedAt: f.filedAt, xbrlTag: f.xbrlTag },
+        set: {
+          value: sql`excluded.value`,
+          filedAt: sql`excluded.filed_at`,
+          xbrlTag: sql`excluded.xbrl_tag`,
+        },
       });
-    touched.set(`${f.securityId}:${f.concept}:${f.periodEnd}:${f.duration}`, {
-      securityId: f.securityId,
-      concept: f.concept,
-      periodEnd: f.periodEnd,
-      duration: f.duration,
-    });
   }
-  await recomputeLatestFlagsForKeys(db, [...touched.values()]);
-  return facts.length;
+  await recomputeLatestFlagsForSecurities(db, [...touchedSecurities]);
+  return rows.length;
 }
 
 /**

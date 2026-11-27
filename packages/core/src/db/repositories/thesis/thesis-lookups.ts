@@ -1,18 +1,25 @@
 import crypto from "node:crypto";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../../contracts/auth-contracts";
 import { calculateValuationScenarios, roundTo } from "../../../math/valuation-scenarios";
 import type { ThesisDetail, ThesisSummary } from "../../../schemas/research";
 import { type KanonDb, runInTransaction } from "../../client";
-import { thesesTable, valuationScenariosTable } from "../../schema";
+import { membershipsTable, thesesTable, valuationScenariosTable } from "../../schema";
 import { recordThesisRevision } from "../revision-queries";
 import { buildValuationInput, hydrateWithChildren, loadThesisChildren } from "../thesis-queries";
+import { buildThesisReadAccessWhere } from "./thesis-access";
 
 export {
   assertThesisAccess,
-  assertThesisOwnership,
+  buildThesisDeleteAccessWhere,
+  buildThesisReadAccessWhere,
+  buildThesisWriteAccessWhere,
+  getThesisAccess,
   getThesisIdentity,
+  hasThesisCapability,
+  type ThesisAccess,
   type ThesisAccessMode,
+  type ThesisCapability,
 } from "./thesis-access";
 
 export function resolveSafeChildId(
@@ -55,10 +62,11 @@ export async function getThesisByTicker(
   userId: string,
 ): Promise<ThesisDetail | null> {
   const upper = ticker.trim().toUpperCase();
+  const accessWhere = await buildThesisReadAccessWhere(db, userId);
   const [row] = await db
     .select()
     .from(thesesTable)
-    .where(and(eq(thesesTable.userId, userId), eq(thesesTable.ticker, upper)))
+    .where(and(accessWhere, eq(thesesTable.ticker, upper)))
     .limit(1);
   if (!row) return null;
   const children = await loadThesisChildren(db, [row.id]);
@@ -208,8 +216,32 @@ export async function listThesisWatchersByTicker(
   ticker: string,
 ): Promise<Array<{ userId: string; thesisId: string }>> {
   const upper = ticker.trim().toUpperCase();
-  return db
-    .select({ userId: thesesTable.userId, thesisId: thesesTable.id })
+  const rows = await db
+    .select({ userId: thesesTable.userId, thesisId: thesesTable.id, orgId: thesesTable.orgId })
     .from(thesesTable)
     .where(eq(thesesTable.ticker, upper));
+  const out = new Map<string, { userId: string; thesisId: string }>();
+  const orgIds = [...new Set(rows.map((r) => r.orgId).filter((o): o is string => Boolean(o)))];
+  const memberRows =
+    orgIds.length > 0
+      ? await db
+          .select({ orgId: membershipsTable.orgId, userId: membershipsTable.userId })
+          .from(membershipsTable)
+          .where(
+            and(inArray(membershipsTable.orgId, orgIds), isNotNull(membershipsTable.acceptedAt)),
+          )
+      : [];
+  const membersByOrg = new Map<string, string[]>();
+  for (const m of memberRows) {
+    const list = membersByOrg.get(m.orgId) ?? [];
+    list.push(m.userId);
+    membersByOrg.set(m.orgId, list);
+  }
+  for (const r of rows) {
+    out.set(`${r.userId}:${r.thesisId}`, { userId: r.userId, thesisId: r.thesisId });
+    for (const memberId of r.orgId ? (membersByOrg.get(r.orgId) ?? []) : []) {
+      out.set(`${memberId}:${r.thesisId}`, { userId: memberId, thesisId: r.thesisId });
+    }
+  }
+  return [...out.values()];
 }

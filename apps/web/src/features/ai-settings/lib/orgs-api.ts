@@ -1,4 +1,5 @@
 import {
+  OrgAcceptInviteResponseSchema,
   OrgCreateResponseSchema,
   OrgMemberAddResponseSchema,
   OrgRestrictResponseSchema,
@@ -22,6 +23,13 @@ export interface OrgsWorkspaceSnapshot {
     targetId: string;
     entryHash?: string;
     createdAt: string;
+  }>;
+  pendingInvitations?: Array<{
+    id: string;
+    orgId: string;
+    orgName: string;
+    role: OrgRoleValue;
+    expiresAt: string;
   }>;
 }
 
@@ -48,8 +56,19 @@ export async function apiInviteOrgMember(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const res = await kanonFetch("/api/orgs", OrgMemberAddResponseSchema, {
     method: "POST",
-    body: { op: "add_member", ...input },
-    fallbackError: "邀请成员失败",
+    body: { op: "invite", ...input },
+    fallbackError: "发送邀请失败",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+export async function apiAcceptOrgInvite(
+  invitationId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await kanonFetch("/api/orgs", OrgAcceptInviteResponseSchema, {
+    method: "POST",
+    body: { op: "accept_invite", invitationId },
+    fallbackError: "接受邀请失败",
   });
   return res.ok ? { ok: true } : { ok: false, error: res.error };
 }

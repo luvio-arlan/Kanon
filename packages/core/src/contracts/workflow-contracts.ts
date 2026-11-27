@@ -22,6 +22,7 @@ export const LedgerActionSchema = z.enum(["deposit", "withdraw", "buy", "sell", 
 
 export const LedgerCreateAccountRequestSchema = z.object({
   op: z.literal("create_account"),
+  orgId: z.string().trim().min(1).nullable().optional(),
   name: z.string().trim().min(1, "账户名称不能为空。").max(60).default("主投研账户"),
   baseCurrency: z.string().trim().toUpperCase().min(3).max(6).default("USD"),
   initialCash: z.number().finite().min(0, "初始现金不能为负数。").max(1e12).default(0),
@@ -136,25 +137,44 @@ export const IcDecisionRequestSchema = z.object({
   decisionNote: z.string().trim().max(500).default(""),
 });
 
-export const InboxPostRequestSchema = z.union([
-  z.object({ op: z.literal("rotate_calendar") }),
-  z.object({ op: z.literal("mark_all_read") }),
+export const AlertRuleUpsertSchema = z.discriminatedUnion("kind", [
   z.object({
     op: z.literal("upsert_rule"),
-    id: z.string().trim().min(1).optional(),
-    thesisId: z.string().trim().min(1).nullable().optional(),
-    kind: z.enum([
-      "price_hurdle",
-      "new_filing",
-      "form8k_redflag",
-      "kpi_breach",
-      "catalyst_due",
-      "pe_band_breach",
-      "forecast_due",
-    ]),
+    thesisId: z.string().trim().min(1, "价格提醒必须绑定标的。"),
+    kind: z.literal("price_hurdle"),
+    configJson: z.object({
+      targetPrice: z.number().finite().positive("目标价格必须大于 0。"),
+      direction: z.enum(["below", "above"]).default("below"),
+    }),
+    enabled: z.boolean().default(true),
+  }),
+  z.object({
+    op: z.literal("upsert_rule"),
+    thesisId: z.string().trim().min(1, "分位带提醒必须绑定标的。"),
+    kind: z.literal("pe_band_breach"),
     configJson: z.record(z.string(), z.unknown()).default({}),
     enabled: z.boolean().default(true),
   }),
+  z.object({
+    op: z.literal("upsert_rule"),
+    thesisId: z.string().trim().min(1, "8-K 提醒必须绑定标的。"),
+    kind: z.literal("form8k_redflag"),
+    configJson: z.record(z.string(), z.unknown()).default({}),
+    enabled: z.boolean().default(true),
+  }),
+  z.object({
+    op: z.literal("upsert_rule"),
+    thesisId: z.string().trim().min(1).nullable().optional(),
+    kind: z.literal("forecast_due"),
+    configJson: z.record(z.string(), z.unknown()).default({}),
+    enabled: z.boolean().default(true),
+  }),
+]);
+
+export const InboxPostRequestSchema = z.union([
+  z.object({ op: z.literal("rotate_calendar") }),
+  z.object({ op: z.literal("mark_all_read") }),
+  AlertRuleUpsertSchema,
   z.object({
     op: z.literal("create_item").optional(),
     thesisId: z.string().trim().min(1).nullable().optional(),
@@ -181,10 +201,26 @@ export const OrgPostRequestSchema = z.union([
     reason: z.string().trim().min(1).max(200).default("合规限制期"),
   }),
   z.object({
-    op: z.literal("add_member"),
+    op: z.literal("invite"),
     orgId: z.string().trim().min(1),
     phone: z.string().trim().min(5).max(32),
     role: OrgRoleSchema,
+  }),
+  z.object({
+    op: z.literal("accept_invite"),
+    invitationId: z.string().trim().min(1).optional(),
+    token: z.string().trim().min(1).optional(),
+  }),
+  z.object({
+    op: z.literal("update_role"),
+    orgId: z.string().trim().min(1),
+    userId: z.string().trim().min(1),
+    role: OrgRoleSchema,
+  }),
+  z.object({
+    op: z.literal("remove_member"),
+    orgId: z.string().trim().min(1),
+    userId: z.string().trim().min(1),
   }),
   z.object({
     op: z.literal("assign_thesis"),

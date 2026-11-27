@@ -51,6 +51,7 @@ export async function readJsonBody(
       ),
     };
   }
+  // @kanon-validated: HTTP content-length header byte-limit guard
   const declaredLen = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLen) && declaredLen > maxBytes) {
     return {

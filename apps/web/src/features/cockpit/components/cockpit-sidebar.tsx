@@ -44,6 +44,7 @@ export interface CockpitSidebarProps {
   onRefreshPrices: () => void;
   onOpenStressTest: () => void;
   onOpenCalibration: () => void;
+  onOpenLedger?: () => void;
   onOpenSettings: () => void;
   onOpenAccountSettings?: () => void;
 }
@@ -229,6 +230,7 @@ export function CockpitSidebar(props: CockpitSidebarProps) {
             onRefreshPrices={props.onRefreshPrices}
             onOpenStressTest={props.onOpenStressTest}
             onOpenCalibration={props.onOpenCalibration}
+            onOpenLedger={props.onOpenLedger}
           />
         </nav>
       </div>

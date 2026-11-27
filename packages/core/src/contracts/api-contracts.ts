@@ -33,9 +33,19 @@ export const ThesisMutationResponseSchema = z.object({
   revisions: z.array(ThesisRevisionSchema).optional(),
 });
 
+export const RestatementMarkerSchema = z.object({
+  concept: z.string(),
+  periodEnd: z.string(),
+  originalValue: z.number(),
+  restatedValue: z.number(),
+  restatedAccession: z.string(),
+});
+
 export const SecSyncResponseSchema = z.object({
   snapshot: SecSnapshotSchema.nullable(),
   notice: z.string().optional(),
+  restatements: z.array(RestatementMarkerSchema).optional(),
+  warehouseSynced: z.boolean().optional(),
 });
 
 export const ResearchNoteCreateResponseSchema = z.object({

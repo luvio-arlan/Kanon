@@ -4,7 +4,7 @@ import { DEFAULT_WORKSPACE_USER_ID } from "../../../contracts/auth-contracts";
 import { formatLocaleCurrency, translateKanon } from "../../../contracts/i18n";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
 import { auditLogTable, thesesTable } from "../../schema";
-import { assertThesisAccess, assertThesisOwnership } from "../thesis/thesis-lookups";
+import { assertThesisAccess } from "../thesis/thesis-lookups";
 import { getThesisById, listTheses } from "../thesis-queries";
 import {
   addRestrictedTicker,
@@ -173,10 +173,10 @@ describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Appe
       orgId: team.id,
     });
 
-    expect(await assertThesisOwnership(db, seed.id, "user-member")).toBe(true);
+    expect(await assertThesisAccess(db, seed.id, "user-member", "read")).toBe(true);
     expect(await assertThesisAccess(db, seed.id, "user-member", "write")).toBe(true);
     expect(await assertThesisAccess(db, seed.id, "user-member", "delete")).toBe(false);
-    expect(await assertThesisOwnership(db, seed.id, "user-outsider")).toBe(false);
+    expect(await assertThesisAccess(db, seed.id, "user-outsider", "read")).toBe(false);
 
     await addOrgMember(db, { orgId: team.id, userId: "user-viewer", role: "viewer" });
     await addOrgMember(db, { orgId: team.id, userId: "user-comp", role: "compliance" });

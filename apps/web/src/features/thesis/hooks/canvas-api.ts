@@ -92,7 +92,17 @@ export async function apiPostDiscipline(
   return { thesis: res.data.thesis, revisions: res.data.revisions };
 }
 
-export async function apiSyncSec(ticker: string): Promise<SecSnapshot | null> {
+export async function apiSyncSec(ticker: string): Promise<{
+  snapshot: SecSnapshot | null;
+  restatements?: ReadonlyArray<{
+    concept: string;
+    periodEnd: string;
+    originalValue: number;
+    restatedValue: number;
+    restatedAccession: string;
+  }>;
+  warehouseSynced?: boolean;
+} | null> {
   const res = await kanonFetch(`/api/sec/${ticker}`, SecSyncResponseSchema, {
     method: "POST",
     fallbackError: "SEC 同步失败，保留本地缓存",
@@ -101,8 +111,16 @@ export async function apiSyncSec(ticker: string): Promise<SecSnapshot | null> {
     toast.error(res.error);
     return null;
   }
-  toast(res.data.notice ?? "SEC 同步完成");
-  return res.data.snapshot;
+  if (res.data.warehouseSynced === false) {
+    toast.warning("SEC 快照已更新，历史口径校验未完成");
+  } else {
+    toast(res.data.notice ?? "SEC 同步完成");
+  }
+  return {
+    snapshot: res.data.snapshot,
+    restatements: res.data.restatements,
+    warehouseSynced: res.data.warehouseSynced,
+  };
 }
 
 export async function apiRunCopilot(

@@ -5,6 +5,7 @@ import { IconUsersGroup } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  apiAcceptOrgInvite,
   apiAddRestrictedTicker,
   apiCreateOrg,
   apiInviteOrgMember,
@@ -49,7 +50,9 @@ function useTeamGovernanceState() {
     createOrg: () =>
       run(() => apiCreateOrg(orgName.trim()), "已创建团队空间").then((ok) => ok && setOrgName("")),
     invite: (orgId: string, phone: string, role: OrgRoleValue) =>
-      run(() => apiInviteOrgMember({ orgId, phone, role }), "已邀请团队成员"),
+      run(() => apiInviteOrgMember({ orgId, phone, role }), "邀请已发送"),
+    acceptInvite: (invitationId: string) =>
+      run(() => apiAcceptOrgInvite(invitationId), "已加入团队空间"),
     restrict: (orgId: string, ticker: string, reason: string) =>
       run(
         () => apiAddRestrictedTicker({ orgId, ticker, reason: reason || "合规限制" }),
@@ -124,6 +127,32 @@ function CreateOrgForm({
   );
 }
 
+function PendingInvitationsStrip({
+  invitations,
+  busy,
+  onAccept,
+}: {
+  invitations: ReadonlyArray<{ id: string; orgName: string; role: string }>;
+  busy: boolean;
+  onAccept: (id: string) => void;
+}) {
+  if (invitations.length === 0) return null;
+  return (
+    <div className="space-y-2 border-t border-hairline pt-3">
+      {invitations.map((inv) => (
+        <div key={inv.id} className="flex items-center justify-between gap-2 text-xs">
+          <span className="text-ink-secondary">
+            受邀加入「{inv.orgName}」· {inv.role}
+          </span>
+          <Button variant="outline" size="xs" loading={busy} onClick={() => onAccept(inv.id)}>
+            <span>接受邀请</span>
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function TeamGovernanceCard() {
   const s = useTeamGovernanceState();
   const activeOrg = s.data?.organizations[0];
@@ -160,6 +189,11 @@ export function TeamGovernanceCard() {
             onCreate={() => void s.createOrg()}
           />
         )}
+        <PendingInvitationsStrip
+          invitations={s.data?.pendingInvitations ?? []}
+          busy={s.busy}
+          onAccept={(id) => void s.acceptInvite(id)}
+        />
         <AuditLogStrip logs={s.data?.recentAuditLogs ?? []} />
       </div>
     </div>

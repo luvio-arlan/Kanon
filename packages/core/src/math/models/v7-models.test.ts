@@ -302,7 +302,8 @@ describe("KANON v7 Institutional Financial Models", () => {
       bullEvMultiple: 20,
       horizonYears: 3,
     });
-    expect(netCashRich.currentEvB).toBeLessThan(0);
+    expect(netCashRich).not.toBeNull();
+    expect(netCashRich?.currentEvB).toBeLessThan(0);
   });
 
   it("supports explicit D&A, maintenance/growth CapEx, ΔNWC, independent multiples, and optional cash-SBC drag while staying backward-compatible with legacy drafts", () => {

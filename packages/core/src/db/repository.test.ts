@@ -89,22 +89,56 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     await close();
   });
 
+  async function assertSingleTableParity(table: PgTable) {
+    const cfg = getTableConfig(table);
+    const expectedCols = cfg.columns.map((c) => c.name).sort();
+    const result = await db.execute(
+      sql`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${cfg.name}`,
+    );
+    const rawRows = Array.isArray(result) ? result : result.rows;
+    const actualCols = rawRows
+      .map((row: Record<string, unknown>) => String(row.column_name))
+      .sort();
+    expect(actualCols, `Table "${cfg.name}" DDL drifted from schema.ts`).toEqual(expectedCols);
+    const declaredIdxNames = cfg.indexes
+      .map((idx) => idx.config.name)
+      .filter((n): n is string => Boolean(n));
+    if (declaredIdxNames.length === 0) return;
+    const idxRes = await db.execute(
+      sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${cfg.name}`,
+    );
+    const idxRows = Array.isArray(idxRes) ? idxRes : idxRes.rows;
+    const actualIdxNames = new Set(
+      idxRows.map((r: Record<string, unknown>) => String(r.indexname)),
+    );
+    for (const expectedIdx of declaredIdxNames) {
+      expect(
+        actualIdxNames.has(expectedIdx),
+        `Index "${expectedIdx}" on "${cfg.name}" missing from migrations`,
+      ).toBe(true);
+    }
+  }
+
   it("dynamically discovers every Drizzle pgTable and enforces 1:1 DDL column parity + migrations", async () => {
     const entries: readonly unknown[] = Object.values(schema);
     const tables = entries.filter((entry): entry is PgTable => is(entry, PgTable));
     expect(tables.length).toBeGreaterThanOrEqual(9);
-
     for (const table of tables) {
-      const cfg = getTableConfig(table);
-      const expectedCols = cfg.columns.map((c) => c.name).sort();
-      const result = await db.execute(
-        sql`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${cfg.name}`,
-      );
-      const rawRows = Array.isArray(result) ? result : result.rows;
-      const actualCols = rawRows
-        .map((row: Record<string, unknown>) => String(row.column_name))
-        .sort();
-      expect(actualCols, `Table "${cfg.name}" DDL drifted from schema.ts`).toEqual(expectedCols);
+      await assertSingleTableParity(table);
+    }
+
+    const rlsRes = await db.execute(sql`
+      SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+      FROM pg_class c
+      WHERE c.relname IN ('theses','portfolio_accounts','forecasts','inbox_items','user_ai_credentials')
+    `);
+    const rlsRows = (Array.isArray(rlsRes) ? rlsRes : rlsRes.rows) as Array<
+      Record<string, unknown>
+    >;
+    expect(rlsRows).toHaveLength(5);
+    for (const r of rlsRows) {
+      expect(r.relrowsecurity, `RLS disabled on ${String(r.relname)}`).toBe(true);
+      expect(r.relforcerowsecurity, `FORCE RLS disabled on ${String(r.relname)}`).toBe(true);
     }
 
     const migRes = await db.execute(sql`SELECT id FROM schema_migrations ORDER BY id ASC`);
@@ -765,7 +799,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
       userA.id,
     );
     if (!createdReview) throw new Error("Expected quarterly review to be created");
-    const notesBeforeExport = await listResearchNotes(db, thesis.id, userA.id);
+    const notesBeforeExport = await listResearchNotes(db, thesis.id);
     const copy = await importThesisArchive(
       db,
       {
@@ -779,7 +813,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
       },
       userA.id,
     );
-    const restoredNotes = await listResearchNotes(db, copy.thesis.id, userA.id);
+    const restoredNotes = await listResearchNotes(db, copy.thesis.id);
     expect(restoredNotes).toHaveLength(1);
     expect(restoredNotes[0]?.title).toBe("Updated Title");
     const restoredReviews = await listQuarterlyReviews(db, copy.thesis.id);

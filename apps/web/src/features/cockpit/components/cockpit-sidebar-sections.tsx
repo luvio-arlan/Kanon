@@ -2,7 +2,7 @@
 
 import type { ThesisDetail } from "@kanon/core";
 import { SidebarNavItem, SidebarSection } from "@kanon/ui";
-import { IconActivityHeartbeat, IconRefresh, IconScale } from "@tabler/icons-react";
+import { IconActivityHeartbeat, IconRefresh, IconScale, IconWallet } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 
 export function QuickThesesNav(p: {
@@ -41,10 +41,22 @@ export function CockpitToolsNav(p: {
   onRefreshPrices: () => void;
   onOpenStressTest: () => void;
   onOpenCalibration: () => void;
+  onOpenLedger?: () => void;
 }) {
   const spin = p.refreshingPrices ? "animate-spin text-accent-coral" : undefined;
   return (
     <SidebarSection title="组合风控" collapsed={p.collapsed}>
+      {p.onOpenLedger ? (
+        <SidebarNavItem
+          label="实盘零杠杆账本"
+          icon={<IconWallet size={17} stroke={1.5} />}
+          collapsed={p.collapsed}
+          onClick={() => {
+            p.onCloseMobile();
+            p.onOpenLedger?.();
+          }}
+        />
+      ) : null}
       <SidebarNavItem
         label="组合压力测试"
         icon={<IconActivityHeartbeat size={17} stroke={1.5} />}

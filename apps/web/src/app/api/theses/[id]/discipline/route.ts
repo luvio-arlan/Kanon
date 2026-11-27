@@ -6,11 +6,11 @@ import {
   getThesisIdentity,
   isTickerRestricted,
   listThesisRevisions,
-  listUserOrganizations,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -18,20 +18,18 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-async function checkComplianceRestricted(
+async function checkOrgComplianceRestricted(
   db: Awaited<ReturnType<typeof getKanonDb>>,
   userId: string,
   thesisId: string,
+  orgId: string | null,
   action: string,
 ): Promise<string | null> {
-  if (action !== "buy" && action !== "add") return null;
+  if (!orgId || (action !== "buy" && action !== "add")) return null;
   const identity = await getThesisIdentity(db, thesisId, userId);
   if (!identity) return null;
-  const orgs = await listUserOrganizations(db, userId);
-  for (const org of orgs) {
-    if (await isTickerRestricted(db, org.id, identity.ticker)) {
-      return `合规限制拦截：${identity.ticker} 处于「${org.name}」限制交易名单内，禁止买入或加仓。`;
-    }
+  if (await isTickerRestricted(db, orgId, identity.ticker)) {
+    return `合规限制拦截：${identity.ticker} 处于所属组织限制交易名单内，禁止买入或加仓。`;
   }
   return null;
 }
@@ -58,7 +56,15 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const db = await getKanonDb();
-  const restrictedMsg = await checkComplianceRestricted(db, auth.user.id, id, parsed.data.action);
+  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
+  if (!guard.ok) return guard.response;
+  const restrictedMsg = await checkOrgComplianceRestricted(
+    db,
+    auth.user.id,
+    id,
+    guard.access.orgId,
+    parsed.data.action,
+  );
   if (restrictedMsg) {
     return jsonError(restrictedMsg, 403, startedAt, "COMPLIANCE_RESTRICTED");
   }
@@ -68,6 +74,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
   await appendAuditLog(db, {
     actorUserId: auth.user.id,
+    orgId: guard.access.orgId,
     action: `discipline.${parsed.data.action}`,
     targetType: "thesis",
     targetId: id,

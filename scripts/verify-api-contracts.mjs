@@ -957,6 +957,37 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
   assert.equal(orgGet.status, 200);
   assert.equal(orgGet.data.organizations.length, 1);
 
+  const inviteUnknown = await fetchJson(
+    "/api/orgs",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        op: "invite",
+        orgId: orgPost.data.organization.id,
+        phone: "13900009999",
+        role: "viewer",
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(inviteUnknown.status, 202);
+  assert.equal(inviteUnknown.data.accepted, true);
+
+  const badAlertRule = await fetchJson(
+    "/api/inbox",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        op: "upsert_rule",
+        kind: "kpi_breach",
+        thesisId: nvdaId,
+        configJson: {},
+      }),
+    },
+    cookieA,
+  );
+  assert.equal(badAlertRule.status, 400);
+
   const icSubmit = await fetchJson(
     `/api/theses/${nvdaId}/ic`,
     { method: "POST", body: JSON.stringify({ op: "submit" }) },

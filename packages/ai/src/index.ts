@@ -32,8 +32,12 @@ export {
 export { buildMarketBenchmarks } from "./market/consensus-and-peers";
 export {
   type DailyBarPoint,
+  type DailyPriceBarsBundle,
+  type DividendEvent,
   fetchDailyPriceBars,
+  fetchDailyPriceBarsWithEvents,
   fetchPolygonSplits,
+  mergeSplitsByExDate,
   type PolygonSplitEvent,
 } from "./market/daily-bars";
 export {

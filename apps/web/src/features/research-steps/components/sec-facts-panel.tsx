@@ -2,23 +2,19 @@
 
 import type {
   EarningsDigest,
-  InboundCrossCheck,
   SecFilingItem,
   SecFinancialFact,
   SecInsiderSummary,
   SecSnapshot,
 } from "@kanon/core";
 import { Badge, Button, Card } from "@kanon/ui";
-import {
-  IconArrowUpRight,
-  IconEdit,
-  IconExternalLink,
-  IconLink,
-  IconRefresh,
-} from "@tabler/icons-react";
-import Link from "next/link";
+import { IconEdit, IconExternalLink, IconRefresh } from "@tabler/icons-react";
+import { AlertBellToggle } from "@/shared/components/alert-bell-toggle";
+
+export { InboundCrossChecksPanel } from "./sec/inbound-cross-checks-panel";
 
 export interface SecFactsPanelProps {
+  thesisId?: string;
   ticker: string;
   snapshot: SecSnapshot | null;
   syncing: boolean;
@@ -110,6 +106,7 @@ function formatCurrencyBadge(snapshot: SecSnapshot | null): string | null {
 }
 
 export function SecFactsPanel({
+  thesisId,
   ticker,
   snapshot,
   syncing,
@@ -132,6 +129,13 @@ export function SecFactsPanel({
           {curTag ? <Badge variant="titanium">{curTag}</Badge> : null}
         </div>
         <div className="flex items-center gap-2">
+          {thesisId ? (
+            <AlertBellToggle
+              rule={{ kind: "form8k_redflag", thesisId }}
+              initialEnabled
+              title="8-K 重大公告提醒"
+            />
+          ) : null}
           {onOpenManual ? (
             <Button variant="outline" size="xs" onClick={onOpenManual}>
               <IconEdit size={13} stroke={1.5} />
@@ -197,51 +201,6 @@ export function EarningsDigestPanel({ digest }: { digest: EarningsDigest }) {
             ))}
           </div>
         ) : null}
-      </div>
-    </Card>
-  );
-}
-
-export function InboundCrossChecksPanel({ items }: { items: readonly InboundCrossCheck[] }) {
-  if (items.length === 0) return null;
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center justify-between gap-2 border-b border-hairline px-6 py-3.5 text-xs text-ink-muted">
-        <span className="inline-flex items-center gap-1.5 font-medium text-ink-secondary">
-          <IconLink size={14} stroke={1.5} />
-          <span>关联标的互证</span>
-        </span>
-        <span className="font-mono tabular-nums">{items.length} 条</span>
-      </div>
-      <div className="divide-y divide-hairline">
-        {items.map((item) => {
-          const tone =
-            item.alignment === "aligned"
-              ? "pass"
-              : item.alignment === "divergent"
-                ? "fail"
-                : "warn";
-          return (
-            <div key={item.id} className="space-y-1.5 px-6 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <Link
-                  href={`/thesis/${item.sourceThesisId}`}
-                  className="inline-flex items-center gap-1 font-semibold text-ink-primary hover:text-accent-coral"
-                >
-                  <span>
-                    {item.sourceCompanyName} ({item.sourceTicker})
-                  </span>
-                  <IconArrowUpRight size={13} stroke={1.5} />
-                </Link>
-                <Badge variant={tone}>{item.topic}</Badge>
-              </div>
-              <p className="text-sm leading-relaxed text-ink-secondary">{item.statement}</p>
-              <div className="text-xs text-ink-muted">
-                {item.sourceAnchor} · {item.takeaway}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </Card>
   );

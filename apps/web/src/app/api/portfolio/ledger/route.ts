@@ -2,6 +2,7 @@ import { LedgerPostRequestSchema, todayIsoUtc } from "@kanon/core";
 import {
   createPortfolioAccount,
   getKanonDb,
+  getOrgMemberRole,
   LedgerPolicyError,
   listPortfolioAccounts,
   listPortfolioPositions,
@@ -30,22 +31,34 @@ export async function GET() {
   return jsonOk({ accounts: detailed }, startedAt);
 }
 
+async function handleCreateAccount(
+  db: Awaited<ReturnType<typeof getKanonDb>>,
+  userId: string,
+  data: Extract<ReturnType<typeof LedgerPostRequestSchema.parse>, { op: "create_account" }>,
+  startedAt: number,
+) {
+  if (data.orgId) {
+    const role = await getOrgMemberRole(db, data.orgId, userId);
+    if (!role) return jsonError("权限不足：非该组织成员。", 403, startedAt, "FORBIDDEN");
+  }
+  const account = await createPortfolioAccount(db, {
+    userId,
+    orgId: data.orgId ?? null,
+    name: data.name,
+    baseCurrency: data.baseCurrency,
+    initialCash: data.initialCash,
+    noLeverageConfirmed: data.noLeverageConfirmed,
+  });
+  return jsonOk({ account }, startedAt, 201);
+}
+
 async function handleLedgerPost(
   db: Awaited<ReturnType<typeof getKanonDb>>,
   userId: string,
   data: ReturnType<typeof LedgerPostRequestSchema.parse>,
   startedAt: number,
 ) {
-  if (data.op === "create_account") {
-    const account = await createPortfolioAccount(db, {
-      userId,
-      name: data.name,
-      baseCurrency: data.baseCurrency,
-      initialCash: data.initialCash,
-      noLeverageConfirmed: data.noLeverageConfirmed,
-    });
-    return jsonOk({ account }, startedAt, 201);
-  }
+  if (data.op === "create_account") return handleCreateAccount(db, userId, data, startedAt);
   try {
     const result = await recordPortfolioTransaction(db, {
       userId,

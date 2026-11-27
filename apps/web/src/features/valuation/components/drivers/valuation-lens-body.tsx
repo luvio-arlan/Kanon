@@ -25,6 +25,7 @@ export interface ValuationLensBodyProps {
   d: ReturnType<typeof useValuationDraft>;
   onExpandCeiling: (eps: number) => void;
   onSwitchToScenarios: () => void;
+  onGoToSec?: () => void;
 }
 
 function ScenariosCoreSection({
@@ -73,6 +74,17 @@ function applyEvAnchor(
   onExpandCeiling: (eps: number) => void,
   onSwitchToScenarios: () => void,
 ) {
+  if (
+    !Number.isFinite(targets.bear) ||
+    !Number.isFinite(targets.base) ||
+    !Number.isFinite(targets.bull) ||
+    targets.bear <= 0 ||
+    targets.base <= 0 ||
+    targets.bull <= 0
+  ) {
+    toast.error("目标价必须为正数，无法锚定三情景。");
+    return;
+  }
   const maxImplied = Math.max(
     targets.bear / Math.max(1, d.cases.bear.peMultiple),
     targets.base / Math.max(1, d.cases.base.peMultiple),
@@ -87,7 +99,9 @@ function applyEvAnchor(
 function renderLensPanel(p: ValuationLensBodyProps) {
   const { thesisId, ticker, lens, epsRange, secAnnuals, latestSecEps, d } = p;
   if (lens === "benchmarks")
-    return <MarketBenchmarksCard ticker={ticker} currentPrice={d.currentPrice} />;
+    return (
+      <MarketBenchmarksCard thesisId={thesisId} ticker={ticker} currentPrice={d.currentPrice} />
+    );
   if (lens === "models")
     return (
       <InstitutionalModelsPanel
@@ -112,16 +126,12 @@ function renderLensPanel(p: ValuationLensBodyProps) {
     <ValuationDriversPanel
       currentPrice={d.currentPrice}
       horizonYears={d.horizonYears}
-      latestAnnual={secAnnuals[secAnnuals.length - 1] ?? null}
+      modelMode={d.modelMode}
+      secAnnuals={secAnnuals}
       driverInputs={d.driverInputs}
       onPatchDrivers={d.patchDrivers}
-      onApplyBaseEps={(eps) => {
-        p.onExpandCeiling(eps);
-        d.patchCase("base", { eps });
-        p.onSwitchToScenarios();
-        toast.success(`已回填中性 EPS $${eps.toFixed(2)}`);
-      }}
       onApplyEvTargets={(t) => applyEvAnchor(d, t, p.onExpandCeiling, p.onSwitchToScenarios)}
+      onGoToSec={p.onGoToSec}
     />
   );
 }

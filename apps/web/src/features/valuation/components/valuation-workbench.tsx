@@ -21,6 +21,7 @@ export interface ValuationWorkbenchProps {
   latestSecEps?: number | null;
   onSyncChange?: (status: AutoSaveStatus, flush: (() => Promise<void>) | null) => void;
   onSave: (payload: ValuationSavePayload) => Promise<boolean>;
+  onGoToSec?: () => void;
 }
 
 function ValuationHeaderBar({
@@ -40,11 +41,11 @@ function ValuationHeaderBar({
         value={lens}
         onChange={onLens}
         items={[
-          { id: "scenarios", label: "三情景" },
-          { id: "drivers", label: "驱动 / SOTP" },
-          { id: "reverse", label: "Reverse DCF" },
-          { id: "models", label: "DCF / 蒙特卡洛" },
-          { id: "benchmarks", label: "同业与预期" },
+          { id: "scenarios", label: "情景" },
+          { id: "drivers", label: "驱动" },
+          { id: "reverse", label: "反向 DCF" },
+          { id: "models", label: "模型" },
+          { id: "benchmarks", label: "同业" },
         ]}
       />
     </header>
@@ -103,7 +104,7 @@ export function ValuationWorkbench(props: ValuationWorkbenchProps) {
     <div className="space-y-6">
       <ValuationHeaderBar lens={lens} onLens={setLens} />
       <ValuationIssuesNotice issues={issues} />
-      <LiveOddsBanner summary={d.summary} trailingEps={latestSecEps} />
+      <LiveOddsBanner thesisId={thesis.id} summary={d.summary} trailingEps={latestSecEps} />
       <ValuationControlsBar
         currentPrice={d.currentPrice}
         horizonYears={d.horizonYears}
@@ -129,6 +130,7 @@ export function ValuationWorkbench(props: ValuationWorkbenchProps) {
         d={d}
         onExpandCeiling={expandCeiling}
         onSwitchToScenarios={() => setLens("scenarios")}
+        onGoToSec={props.onGoToSec}
       />
     </div>
   );

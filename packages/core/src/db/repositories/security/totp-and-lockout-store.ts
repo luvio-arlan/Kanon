@@ -2,12 +2,11 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { TotpStatusResponse } from "../../../contracts/auth-contracts";
 import {
   buildTotpUri,
-  decryptSecretEnvelope,
+  decryptSecretEnvelopeWithMeta,
   encryptSecretEnvelope,
   generateRecoveryCodes,
   generateTotpSecret,
   hashRecoveryCode,
-  needsEnvelopeReencryption,
   verifyTotpCode,
 } from "../../../security/totp";
 import { type KanonDb, runInTransaction } from "../../client";
@@ -36,16 +35,21 @@ async function decryptAndUpgradeTotpSecret(
   stored: string,
 ): Promise<string | null> {
   const ctx = totpEnvelopeCtx(userId);
-  const plain = decryptSecretEnvelope(stored, ctx);
-  if (!plain) return null;
-  if (needsEnvelopeReencryption(stored)) {
-    const upgraded = encryptSecretEnvelope(plain, ctx);
+  const res = decryptSecretEnvelopeWithMeta(stored, ctx);
+  if (!res) return null;
+  if (res.usedKey !== "primary") {
+    const upgraded = encryptSecretEnvelope(res.plain, ctx);
     await db
       .update(userTotpFactorsTable)
       .set({ secretEncrypted: upgraded, updatedAt: new Date() })
-      .where(eq(userTotpFactorsTable.userId, userId));
+      .where(
+        and(
+          eq(userTotpFactorsTable.userId, userId),
+          eq(userTotpFactorsTable.secretEncrypted, stored),
+        ),
+      );
   }
-  return plain;
+  return res.plain;
 }
 
 export async function getUserTotpStatus(db: KanonDb, userId: string): Promise<TotpStatusResponse> {

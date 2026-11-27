@@ -1,12 +1,8 @@
-import {
-  assertThesisAccess,
-  getKanonDb,
-  listModelVersions,
-  saveModelVersion,
-} from "@kanon/core/db";
+import { getKanonDb, listModelVersions, saveModelVersion } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +32,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
+  if (!guard.ok) return guard.response;
   const versions = await listModelVersions(db, id);
   return jsonOk({ versions }, startedAt);
 }
@@ -51,9 +46,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
+  if (!guard.ok) return guard.response;
   const parsed = parseSaveVersionBody(await request.json().catch(() => null));
   if (!parsed) {
     return jsonError("请提供有效的模型输入与输出快照。", 400, startedAt, "INVALID_MODEL_VERSION");

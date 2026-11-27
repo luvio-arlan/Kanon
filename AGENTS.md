@@ -38,7 +38,7 @@ pnpm test         # Vitest: financial math goldens, dynamic DDL parity, zero-lev
 pnpm build        # Full Turborepo production build
 pnpm test:api     # Isolated 32-route API + SSR + Auth/MCP/CSRF contract verification
 pnpm dev          # Local Next.js dev server (persistent PGlite when DATABASE_URL unset)
-pnpm db:push      # Push Drizzle schema to external PostgreSQL (DATABASE_URL)
+pnpm db:push      # Push Drizzle schema to an empty external PostgreSQL only (production uses expand-only KANON_MIGRATIONS)
 ```
 
 **Mandatory Post-Task Delivery Loop** (execute automatically upon finishing every task without waiting for a separate prompt):

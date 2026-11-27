@@ -5,7 +5,6 @@ import {
   ForecastResolveRequestSchema,
 } from "@kanon/core";
 import {
-  assertThesisAccess,
   createImmutableForecast,
   getKanonDb,
   listForecasts,
@@ -14,6 +13,7 @@ import {
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +23,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "read"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
+  if (!guard.ok) return guard.response;
   const forecasts = await listForecasts(db, auth.user.id, id);
   const resolved = forecasts
     .filter((f) => f.outcomeJson !== null)
@@ -52,9 +51,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
+  if (!guard.ok) return guard.response;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = ForecastCreateRequestSchema.safeParse(body.data);
@@ -91,9 +89,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   if (!auth.ok) return auth.response;
   const { id } = await ctx.params;
   const db = await getKanonDb();
-  if (!(await assertThesisAccess(db, id, auth.user.id, "write"))) {
-    return jsonError("标的研究不存在或无访问权限。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
+  if (!guard.ok) return guard.response;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = ForecastResolveRequestSchema.safeParse(body.data);

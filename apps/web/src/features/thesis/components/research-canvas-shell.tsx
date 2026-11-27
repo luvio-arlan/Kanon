@@ -26,9 +26,17 @@ import { CanvasContextRibbon } from "./canvas-context-ribbon";
 import { StepFooterNav, useCanvasShellActions } from "./canvas-footer-controls";
 import { CanvasStepRenderer } from "./canvas-step-renderer";
 
+export interface ResearchCanvasAccess {
+  canWrite: boolean;
+  canDelete: boolean;
+  canDecide: boolean;
+  canComment: boolean;
+}
+
 export interface ResearchCanvasShellProps {
   currentUser?: PublicUser;
   initialThesis: ThesisDetail;
+  access?: ResearchCanvasAccess;
   initialStep?: StepId;
   allTheses: readonly ThesisSummary[];
   glossary: readonly GlossaryTerm[];
@@ -49,6 +57,7 @@ export interface ResearchCanvasShellProps {
 }
 
 function useCanvasBindings(props: ResearchCanvasShellProps) {
+  const canWrite = props.access?.canWrite ?? true;
   const [promotedRule, setPromotedRule] = useState<string | null>(null);
   const ui = useCanvasChromeState(props.initialThesis.id, props.allTheses, props.initialStep ?? 1);
   const ctrl = useResearchCanvas(
@@ -58,6 +67,7 @@ function useCanvasBindings(props: ResearchCanvasShellProps) {
     props.initialRevisions,
     props.initialReviews,
     props.initialResearchNotes ?? [],
+    { canWrite, initialRestatements: props.initialRestatements },
   );
   const agent = useResearchAgent(ctrl.thesis.id, props.initialAgentRun);
   const live = useThesisLiveQuote(ctrl.thesis.ticker);
@@ -95,11 +105,10 @@ function StageTopBanner({ b }: { b: ReturnType<typeof useCanvasBindings> }) {
   return (
     <CanvasContextRibbon
       thesis={ctrl.thesis}
-      activeStep={ui.nav.step}
       liveQuote={live.quote}
-      syncStatus={ui.syncStatus}
+      syncStatus={ctrl.canWrite ? ui.syncStatus : "idle"}
+      readOnly={!ctrl.canWrite}
       onRetrySave={() => void ui.flushPending()}
-      onSelectStep={ui.jumpToStep}
       onOpenAgent={() => ui.setModal("agent", true)}
     />
   );
@@ -133,9 +142,9 @@ function CanvasStageSection(p: {
             allTheses={p.props.allTheses}
             inboundCrossChecks={p.props.inboundCrossChecks}
             glossary={p.props.glossary}
-            restatements={p.props.initialRestatements}
+            restatements={ctrl.restatements}
             promotedRule={promotedRule}
-            onSyncChange={ui.setSyncState}
+            onSyncChange={ctrl.canWrite ? ui.setSyncState : () => undefined}
             onClearPromoted={() => setPromotedRule(null)}
             onPromoteRule={promoteRule}
             onSelectStep={ui.jumpToStep}

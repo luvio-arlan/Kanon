@@ -1,6 +1,5 @@
 import { CreateQuarterlyReviewSchema, QuarterlyReviewCreateResponseSchema } from "@kanon/core";
 import {
-  assertThesisOwnership,
   createQuarterlyReview,
   getKanonDb,
   listQuarterlyReviews,
@@ -9,6 +8,7 @@ import {
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { verifySameOrigin } from "../../../_lib/request-guards";
+import { requireThesisAccess } from "../../../_lib/thesis-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +23,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { id } = await context.params;
   const db = await getKanonDb();
-  if (!(await assertThesisOwnership(db, id, auth.user.id))) {
-    return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");
-  }
+  const guard = await requireThesisAccess(db, id, auth.user.id, "read", startedAt);
+  if (!guard.ok) return guard.response;
   const reviews = await listQuarterlyReviews(db, id);
   return jsonOk({ reviews }, startedAt);
 }
@@ -52,6 +51,8 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const db = await getKanonDb();
+  const guard = await requireThesisAccess(db, id, auth.user.id, "write", startedAt);
+  if (!guard.ok) return guard.response;
   const created = await createQuarterlyReview(db, id, parsed.data, auth.user.id);
   if (!created) {
     return jsonError("未找到对应研究标的。", 404, startedAt, "NOT_FOUND");

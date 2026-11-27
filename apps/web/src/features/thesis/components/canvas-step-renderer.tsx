@@ -163,6 +163,7 @@ interface LateStepsProps {
   promotedRule: string | null;
   onSyncChange: SyncCallback;
   onClearPromoted: () => void;
+  onSelectStep: (step: StepId) => void;
 }
 
 function LateSteps(p: LateStepsProps) {
@@ -175,6 +176,7 @@ function LateSteps(p: LateStepsProps) {
         secAnnuals={ctrl.secSnapshot?.annuals}
         latestSecEps={findLatestSecEps(ctrl.secSnapshot?.annuals)}
         onSyncChange={onSyncChange}
+        onGoToSec={() => p.onSelectStep(3)}
         onSave={({ modelMode, driverInputs, ...valuationInput }) =>
           ctrl.patchStep(
             { step: "valuation", valuationInput, modelMode, driverInputs },
@@ -220,28 +222,7 @@ export function CanvasStepRenderer(props: {
   onSelectStep: (step: StepId) => void;
 }) {
   if (props.step <= 3) {
-    return (
-      <EarlySteps
-        step={props.step as 1 | 2 | 3}
-        ctrl={props.ctrl}
-        allTheses={props.allTheses}
-        inboundCrossChecks={props.inboundCrossChecks}
-        glossary={props.glossary}
-        restatements={props.restatements}
-        onSyncChange={props.onSyncChange}
-        onPromoteRule={props.onPromoteRule}
-        onSelectStep={props.onSelectStep}
-      />
-    );
+    return <EarlySteps {...props} step={props.step as 1 | 2 | 3} />;
   }
-  return (
-    <LateSteps
-      step={props.step as 4 | 5}
-      ctrl={props.ctrl}
-      livePrice={props.livePrice}
-      promotedRule={props.promotedRule}
-      onSyncChange={props.onSyncChange}
-      onClearPromoted={props.onClearPromoted}
-    />
-  );
+  return <LateSteps {...props} step={props.step as 4 | 5} />;
 }

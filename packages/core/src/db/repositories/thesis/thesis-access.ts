@@ -1,15 +1,30 @@
 import { and, eq, inArray, or } from "drizzle-orm";
 import type { KanonDb } from "../../client";
-import { thesesTable } from "../../schema";
+import { type OrgRole, thesesTable } from "../../schema";
 import {
   getOrgMemberRole,
   hasOrgCapability,
   listUserOrgIds,
+  listUserOrgIdsByRoles,
 } from "../enterprise/organizations-and-rls-store";
 import { detectFactRestatements } from "../warehouse/facts-pit-store";
 import { getSecurityByTicker } from "../warehouse/securities-and-fx-store";
 
-export type ThesisAccessMode = "read" | "write" | "delete";
+export type ThesisCapability = "read" | "write" | "delete" | "decide" | "comment";
+export type ThesisAccessMode = ThesisCapability;
+
+export interface ThesisAccess {
+  thesisId: string;
+  userId: string;
+  ownerUserId: string;
+  orgId: string | null;
+  role: "owner" | OrgRole;
+  canRead: boolean;
+  canWrite: boolean;
+  canDelete: boolean;
+  canDecide: boolean;
+  canComment: boolean;
+}
 
 export interface BootstrapRestatementMarker {
   concept: string;
@@ -28,37 +43,86 @@ export async function buildThesisReadAccessWhere(db: KanonDb, userId: string) {
     : eq(thesesTable.userId, userId);
 }
 
+export async function buildThesisWriteAccessWhere(db: KanonDb, userId: string) {
+  const orgIds = await listUserOrgIdsByRoles(db, userId, ["owner", "pm", "analyst"]);
+  return orgIds.length > 0
+    ? or(eq(thesesTable.userId, userId), inArray(thesesTable.orgId, orgIds))
+    : eq(thesesTable.userId, userId);
+}
+
+export async function buildThesisDeleteAccessWhere(db: KanonDb, userId: string) {
+  const orgIds = await listUserOrgIdsByRoles(db, userId, ["owner"]);
+  return orgIds.length > 0
+    ? or(eq(thesesTable.userId, userId), inArray(thesesTable.orgId, orgIds))
+    : eq(thesesTable.userId, userId);
+}
+
+export function hasThesisCapability(access: ThesisAccess, need: ThesisCapability): boolean {
+  if (need === "read") return access.canRead;
+  if (need === "write") return access.canWrite;
+  if (need === "delete") return access.canDelete;
+  if (need === "decide") return access.canDecide;
+  return access.canComment;
+}
+
 /**
- * Capability-aware thesis access check:
- * - Owner always has read/write/delete.
- * - Org members get read (`org.read`), write (`thesis.edit`), or delete (`owner` only).
+ * Resolves full capability-aware access for a user on a thesis.
+ * - Personal thesis owner has all capabilities (including self-attested decide).
+ * - Org-shared thesis grants read/comment to all accepted members, write to owner/pm/analyst,
+ *   decide to owner/pm, and delete to thesis owner or org owner.
  */
+export async function getThesisAccess(
+  db: KanonDb,
+  id: string,
+  userId: string,
+): Promise<ThesisAccess | null> {
+  const [row] = await db
+    .select({ id: thesesTable.id, userId: thesesTable.userId, orgId: thesesTable.orgId })
+    .from(thesesTable)
+    .where(eq(thesesTable.id, id))
+    .limit(1);
+  if (!row) return null;
+  const orgId = row.orgId ?? null;
+  if (row.userId === userId) {
+    const orgRole = orgId ? await getOrgMemberRole(db, orgId, userId) : null;
+    return {
+      thesisId: row.id,
+      userId,
+      ownerUserId: row.userId,
+      orgId,
+      role: orgRole ?? "owner",
+      canRead: true,
+      canWrite: true,
+      canDelete: true,
+      canDecide: orgId ? hasOrgCapability(orgRole, "ic.decide") : true,
+      canComment: true,
+    };
+  }
+  if (!orgId) return null;
+  const role = await getOrgMemberRole(db, orgId, userId);
+  if (!role || !hasOrgCapability(role, "org.read")) return null;
+  return {
+    thesisId: row.id,
+    userId,
+    ownerUserId: row.userId,
+    orgId,
+    role,
+    canRead: true,
+    canWrite: hasOrgCapability(role, "thesis.edit"),
+    canDelete: role === "owner",
+    canDecide: hasOrgCapability(role, "ic.decide"),
+    canComment: true,
+  };
+}
+
 export async function assertThesisAccess(
   db: KanonDb,
   id: string,
   userId: string,
-  mode: ThesisAccessMode = "read",
+  mode: ThesisCapability = "read",
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ userId: thesesTable.userId, orgId: thesesTable.orgId })
-    .from(thesesTable)
-    .where(eq(thesesTable.id, id))
-    .limit(1);
-  if (!row) return false;
-  if (row.userId === userId) return true;
-  if (!row.orgId) return false;
-  const role = await getOrgMemberRole(db, row.orgId, userId);
-  if (mode === "read") return hasOrgCapability(role, "org.read");
-  if (mode === "write") return hasOrgCapability(role, "thesis.edit");
-  return role === "owner";
-}
-
-export async function assertThesisOwnership(
-  db: KanonDb,
-  id: string,
-  userId: string,
-): Promise<boolean> {
-  return assertThesisAccess(db, id, userId, "read");
+  const access = await getThesisAccess(db, id, userId);
+  return access ? hasThesisCapability(access, mode) : false;
 }
 
 /** Lightweight tenant/org-scoped identity lookup for page metadata (no child hydration). */

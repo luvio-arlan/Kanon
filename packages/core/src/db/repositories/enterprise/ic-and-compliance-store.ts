@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
-import { type IcApprovalState, icApprovalsTable, thesisCommentsTable } from "../../schema";
+import { type IcApprovalState, icApprovalsTable, thesesTable } from "../../schema";
 import { appendAuditLog } from "./audit-and-restricted-store";
 import { buildServerThesisSnapshot } from "./ic-snapshot-hash";
 import { getOrgMemberRole, hasOrgCapability } from "./organizations-and-rls-store";
@@ -11,20 +11,28 @@ export {
   addRestrictedTicker,
   appendAuditLog,
   isTickerRestricted,
-  isTickerRestrictedForUser,
   listAuditLogs,
   listRestrictedTickers,
+  normalizeCanonicalTicker,
 } from "./audit-and-restricted-store";
 
 export class IcApprovalError extends Error {
-  readonly code: "NOT_FOUND" | "FORBIDDEN" | "INVALID_STATE";
+  readonly code: "NOT_FOUND" | "FORBIDDEN" | "INVALID_STATE" | "STALE_SNAPSHOT";
   readonly status: number;
 
-  constructor(code: "NOT_FOUND" | "FORBIDDEN" | "INVALID_STATE", message: string) {
+  constructor(
+    code: "NOT_FOUND" | "FORBIDDEN" | "INVALID_STATE" | "STALE_SNAPSHOT",
+    message: string,
+  ) {
     super(message);
     this.name = "IcApprovalError";
     this.code = code;
-    this.status = code === "NOT_FOUND" ? 404 : code === "INVALID_STATE" ? 409 : 403;
+    this.status =
+      code === "NOT_FOUND"
+        ? 404
+        : code === "INVALID_STATE" || code === "STALE_SNAPSHOT"
+          ? 409
+          : 403;
   }
 }
 
@@ -40,6 +48,16 @@ export async function submitIcApproval(
   if (!snapshot) throw new IcApprovalError("NOT_FOUND", "标的研究不存在。");
   const id = `ica_${crypto.randomUUID()}`;
   await runInTransaction(db, async (tx) => {
+    const [existingPending] = await tx
+      .select({ id: icApprovalsTable.id })
+      .from(icApprovalsTable)
+      .where(
+        and(eq(icApprovalsTable.thesisId, input.thesisId), eq(icApprovalsTable.state, "in_review")),
+      )
+      .limit(1);
+    if (existingPending) {
+      throw new IcApprovalError("INVALID_STATE", "该标的已有待审投委会记录，请先表决或归档。");
+    }
     await tx.insert(icApprovalsTable).values({
       id,
       thesisId: input.thesisId,
@@ -48,6 +66,7 @@ export async function submitIcApproval(
       submittedBy: input.submittedBy,
       decisionNote: input.note?.trim() ?? "",
       snapshotHash: snapshot.snapshotHash,
+      selfAttested: false,
     });
     await appendAuditLog(tx, {
       actorUserId: input.submittedBy,
@@ -89,9 +108,24 @@ async function assertOrgDecisionPolicy(
   row: typeof icApprovalsTable.$inferSelect,
   decidedBy: string,
   decision: "approved" | "rejected" | "archived",
-) {
-  if (!row.orgId) return;
-  const role = await getOrgMemberRole(tx, row.orgId, decidedBy);
+): Promise<{ selfAttested: boolean; orgId: string | null }> {
+  const [thesis] = await tx
+    .select({ userId: thesesTable.userId, orgId: thesesTable.orgId })
+    .from(thesesTable)
+    .where(eq(thesesTable.id, row.thesisId))
+    .limit(1);
+  if (!thesis) throw new IcApprovalError("NOT_FOUND", "标的研究不存在。");
+  const liveOrgId = thesis.orgId ?? null;
+  if ((row.orgId ?? null) !== liveOrgId) {
+    throw new IcApprovalError("INVALID_STATE", "归属已变更，原审批快照已失效，请重新提交。");
+  }
+  if (!liveOrgId) {
+    if (thesis.userId !== decidedBy) {
+      throw new IcApprovalError("FORBIDDEN", "个人标的仅所有者本人可自审或归档。");
+    }
+    return { selfAttested: true, orgId: null };
+  }
+  const role = await getOrgMemberRole(tx, liveOrgId, decidedBy);
   if (!hasOrgCapability(role, "ic.decide")) {
     throw new IcApprovalError(
       "FORBIDDEN",
@@ -101,10 +135,11 @@ async function assertOrgDecisionPolicy(
   if (row.submittedBy === decidedBy && decision !== "archived") {
     throw new IcApprovalError("FORBIDDEN", "组织审批须遵循制衡原则，提交人不可自批。");
   }
+  return { selfAttested: false, orgId: liveOrgId };
 }
 
 /**
- * Transitions an IC approval with thesis binding, state-machine validation,
+ * Transitions an IC approval with thesis binding, live org consistency, snapshot freshness check,
  * org capability RBAC (`ic.decide`), maker-checker enforcement, and atomic audit logging.
  */
 async function persistIcDecisionInTx(
@@ -116,6 +151,8 @@ async function persistIcDecisionInTx(
     decidedBy: string;
     decision: "approved" | "rejected" | "archived";
     decisionNote?: string;
+    selfAttested: boolean;
+    orgId: string | null;
   },
 ) {
   const updated = await tx
@@ -124,6 +161,7 @@ async function persistIcDecisionInTx(
       state: input.decision,
       decidedBy: input.decidedBy,
       decisionNote: input.decisionNote?.trim() ?? "",
+      selfAttested: input.selfAttested,
       updatedAt: new Date(),
     })
     .where(
@@ -139,13 +177,14 @@ async function persistIcDecisionInTx(
   }
   await appendAuditLog(tx, {
     actorUserId: input.decidedBy,
-    orgId: row.orgId,
+    orgId: input.orgId,
     action: `ic.${input.decision}`,
     targetType: "ic_approval",
     targetId: input.approvalId,
     metadata: {
       thesisId: row.thesisId,
       snapshotHash: row.snapshotHash,
+      selfAttested: input.selfAttested,
       note: input.decisionNote ?? "",
     },
   });
@@ -174,9 +213,18 @@ export async function decideIcApproval(
       .limit(1);
     if (!row) throw new IcApprovalError("NOT_FOUND", "IC 审批记录不存在或不属于当前标的。");
     assertIcStateTransition(row.state, input.decision);
-    await assertOrgDecisionPolicy(tx, row, input.decidedBy, input.decision);
-    await persistIcDecisionInTx(tx, row, input);
-    return { id: input.approvalId, state: input.decision };
+    const policy = await assertOrgDecisionPolicy(tx, row, input.decidedBy, input.decision);
+    if (input.decision === "approved") {
+      const liveSnapshot = await buildServerThesisSnapshot(tx, input.thesisId);
+      if (!liveSnapshot || liveSnapshot.snapshotHash !== row.snapshotHash) {
+        throw new IcApprovalError(
+          "STALE_SNAPSHOT",
+          "标的判断内容在提交审批后已变更，请重新提交最新快照后再批准。",
+        );
+      }
+    }
+    await persistIcDecisionInTx(tx, row, { ...input, ...policy });
+    return { id: input.approvalId, state: input.decision, selfAttested: policy.selfAttested };
   });
 }
 
@@ -188,32 +236,4 @@ export async function listIcApprovals(db: KanonDb, thesisId: string) {
     .orderBy(desc(icApprovalsTable.createdAt));
 }
 
-export async function addThesisComment(
-  db: KanonDb,
-  input: {
-    thesisId: string;
-    userId: string;
-    anchorType?: string;
-    anchorId?: string | null;
-    body: string;
-  },
-) {
-  const id = `cmt_${crypto.randomUUID()}`;
-  await db.insert(thesisCommentsTable).values({
-    id,
-    thesisId: input.thesisId,
-    userId: input.userId,
-    anchorType: input.anchorType ?? "thesis",
-    anchorId: input.anchorId ?? null,
-    body: input.body.trim(),
-  });
-  return id;
-}
-
-export async function listThesisComments(db: KanonDb, thesisId: string) {
-  return db
-    .select()
-    .from(thesisCommentsTable)
-    .where(eq(thesisCommentsTable.thesisId, thesisId))
-    .orderBy(desc(thesisCommentsTable.createdAt));
-}
+export { addThesisComment, listThesisComments } from "./thesis-comments-store";

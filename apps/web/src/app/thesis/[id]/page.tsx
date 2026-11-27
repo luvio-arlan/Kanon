@@ -71,6 +71,7 @@ export default async function ThesisCanvasPage({ params, searchParams }: ThesisP
     <ResearchCanvasShell
       currentUser={auth.user}
       initialThesis={data.thesis}
+      access={data.access}
       initialStep={initialStep}
       allTheses={data.allTheses}
       glossary={data.glossary}

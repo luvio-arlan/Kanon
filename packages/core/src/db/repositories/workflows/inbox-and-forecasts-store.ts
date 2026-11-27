@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { todayIsoUtc } from "../../../contracts/workflow-contracts";
 import type { KanonDb } from "../../bootstrap";
 import {
@@ -20,7 +20,6 @@ export {
 export async function upsertAlertRule(
   db: KanonDb,
   input: {
-    id?: string;
     userId: string;
     thesisId?: string | null;
     kind: AlertRuleKind;
@@ -28,21 +27,43 @@ export async function upsertAlertRule(
     enabled?: boolean;
   },
 ) {
-  const id = input.id ?? `rule_${crypto.randomUUID()}`;
+  const thesisId = input.thesisId ?? null;
+  const enabled = input.enabled ?? true;
+  const existingCond = thesisId
+    ? and(
+        eq(alertRulesTable.userId, input.userId),
+        eq(alertRulesTable.thesisId, thesisId),
+        eq(alertRulesTable.kind, input.kind),
+      )
+    : and(
+        eq(alertRulesTable.userId, input.userId),
+        isNull(alertRulesTable.thesisId),
+        eq(alertRulesTable.kind, input.kind),
+      );
+  const [existing] = await db
+    .select({ id: alertRulesTable.id })
+    .from(alertRulesTable)
+    .where(existingCond)
+    .limit(1);
+  if (existing) {
+    await db
+      .update(alertRulesTable)
+      .set({ configJson: input.configJson, enabled })
+      .where(and(eq(alertRulesTable.id, existing.id), eq(alertRulesTable.userId, input.userId)));
+    return existing.id;
+  }
+  const id = `rule_${crypto.randomUUID()}`;
   await db
     .insert(alertRulesTable)
     .values({
       id,
       userId: input.userId,
-      thesisId: input.thesisId ?? null,
+      thesisId,
       kind: input.kind,
       configJson: input.configJson,
-      enabled: input.enabled ?? true,
+      enabled,
     })
-    .onConflictDoUpdate({
-      target: alertRulesTable.id,
-      set: { configJson: input.configJson, enabled: input.enabled ?? true },
-    });
+    .onConflictDoNothing();
   return id;
 }
 
@@ -194,7 +215,9 @@ export async function resolveForecast(
       resolvedAt: new Date(),
       outcomeJson: { outcomeIndex: input.outcomeIndex, note: input.note?.trim() },
     })
-    .where(and(baseCond, isNull(forecastsTable.resolvedAt)))
+    .where(
+      and(baseCond, eq(forecastsTable.userId, input.userId), isNull(forecastsTable.resolvedAt)),
+    )
     .returning();
   return updated.length > 0;
 }
@@ -204,4 +227,22 @@ export async function listForecasts(db: KanonDb, userId: string, thesisId?: stri
     ? and(eq(forecastsTable.userId, userId), eq(forecastsTable.thesisId, thesisId))
     : eq(forecastsTable.userId, userId);
   return db.select().from(forecastsTable).where(cond).orderBy(desc(forecastsTable.lockedAt));
+}
+
+export async function listEnabledForm8kAlertRecipients(
+  db: KanonDb,
+  thesisIds: readonly string[],
+): Promise<Array<{ userId: string; thesisId: string }>> {
+  if (thesisIds.length === 0) return [];
+  const rows = await db
+    .select({ userId: alertRulesTable.userId, thesisId: alertRulesTable.thesisId })
+    .from(alertRulesTable)
+    .where(
+      and(
+        eq(alertRulesTable.kind, "form8k_redflag"),
+        eq(alertRulesTable.enabled, true),
+        inArray(alertRulesTable.thesisId, [...thesisIds]),
+      ),
+    );
+  return rows.filter((r): r is { userId: string; thesisId: string } => Boolean(r.thesisId));
 }

@@ -31,16 +31,12 @@ function mapRow(row: NoteRow): ResearchNote {
 export async function listResearchNotes(
   db: KanonDb,
   thesisId: string,
-  userId?: string,
   limit = 24,
 ): Promise<ResearchNote[]> {
-  const where = userId
-    ? and(eq(researchNotesTable.thesisId, thesisId), eq(researchNotesTable.userId, userId))
-    : eq(researchNotesTable.thesisId, thesisId);
   const rows = await db
     .select()
     .from(researchNotesTable)
-    .where(where)
+    .where(eq(researchNotesTable.thesisId, thesisId))
     .orderBy(desc(researchNotesTable.updatedAt))
     .limit(limit);
   return rows.map(mapRow);

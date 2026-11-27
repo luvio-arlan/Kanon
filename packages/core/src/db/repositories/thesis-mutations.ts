@@ -13,6 +13,7 @@ import {
 import { type KanonDb, runInTransaction } from "../client";
 import { hypothesesTable, thesesTable, valuationScenariosTable } from "../schema";
 import { listThesisRevisions, recordThesisRevision } from "./revision-queries";
+import { buildThesisWriteAccessWhere } from "./thesis/thesis-access";
 import { getThesisById } from "./thesis-queries";
 import {
   writeBusinessFilterStep,
@@ -195,7 +196,7 @@ async function verifyStepRowAccess(
   expectedUpdatedAt?: string | null,
 ): Promise<{ ok: true } | { ok: false; result: CheckedStepUpdateResult }> {
   const whereClause = userId
-    ? and(eq(thesesTable.id, thesisId), eq(thesesTable.userId, userId))
+    ? and(eq(thesesTable.id, thesisId), await buildThesisWriteAccessWhere(tx, userId))
     : eq(thesesTable.id, thesisId);
   const [row] = await tx
     .select({ id: thesesTable.id, updatedAt: thesesTable.updatedAt })

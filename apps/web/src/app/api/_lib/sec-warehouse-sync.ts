@@ -1,9 +1,15 @@
-import { classifyForm8kItems, type ExtractedPitFact, scanFilingRedFlags } from "@kanon/ai";
+import {
+  classifyForm8kItems,
+  type ExtractedPitFact,
+  parseForm8kItemCodes,
+  scanFilingRedFlags,
+} from "@kanon/ai";
 import type { SecFilingReaderResponse, SecSnapshot } from "@kanon/core";
 import {
   createInboxItem,
   getSecurityByTicker,
   type KanonDb,
+  listEnabledForm8kAlertRecipients,
   listThesisWatchersByTicker,
   upsertFiling,
   upsertFilingChunks,
@@ -14,42 +20,39 @@ import { buildFallbackAnnualFacts, persistExtractedPitFacts } from "./sec-pit-sy
 
 async function emitAlertToRecipients(
   db: KanonDb,
-  recipients: ReadonlyMap<string, string | null>,
+  recipients: ReadonlyArray<{ userId: string; thesisId: string }>,
   ticker: string,
-  filingUrl: string,
+  accessionNumber: string,
   alert: { itemCode: string; titleZh: string; summaryZh: string },
 ) {
-  for (const [uid, thesisId] of recipients.entries()) {
+  for (const r of recipients) {
     await createInboxItem(db, {
-      userId: uid,
-      thesisId,
+      userId: r.userId,
+      thesisId: r.thesisId,
       kind: "form8k_redflag",
       severity: "critical",
       title: `${ticker} 8-K 警示：${alert.titleZh}`,
       body: alert.summaryZh,
-      sourceUrl: `${filingUrl}#${alert.itemCode}`,
+      sourceUrl: `8k:${accessionNumber}:${alert.itemCode}`,
     });
   }
 }
 
-async function fanOutForm8kAlerts(
-  db: KanonDb,
-  snapshot: SecSnapshot,
-  triggerUserId?: string,
-): Promise<void> {
+async function fanOutForm8kAlerts(db: KanonDb, snapshot: SecSnapshot): Promise<void> {
   const watchers = await listThesisWatchersByTicker(db, snapshot.ticker);
-  const recipients = new Map<string, string | null>();
-  for (const w of watchers) recipients.set(w.userId, w.thesisId);
-  if (triggerUserId && !recipients.has(triggerUserId)) recipients.set(triggerUserId, null);
-  if (recipients.size === 0) return;
+  if (watchers.length === 0) return;
+  const thesisIds = [...new Set(watchers.map((w) => w.thesisId))];
+  const recipients = await listEnabledForm8kAlertRecipients(db, thesisIds);
+  if (recipients.length === 0) return;
 
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
   for (const filing of snapshot.filings.slice(0, 10)) {
-    if (!filing.form.startsWith("8-K")) continue;
+    if (!filing.form.startsWith("8-K") || filing.filingDate < sevenDaysAgo) continue;
     const criticals = classifyForm8kItems(filing.description ?? "").filter(
       (a) => a.severity === "critical",
     );
     for (const alert of criticals) {
-      await emitAlertToRecipients(db, recipients, snapshot.ticker, filing.documentUrl, alert);
+      await emitAlertToRecipients(db, recipients, snapshot.ticker, filing.accessionNumber, alert);
     }
   }
 }
@@ -70,6 +73,9 @@ export async function syncSecSnapshotToWarehouse(
   });
 
   for (const filing of snapshot.filings.slice(0, 10)) {
+    const items = filing.form.startsWith("8-K")
+      ? parseForm8kItemCodes(filing.description ?? "")
+      : [];
     await upsertFiling(db, {
       accession: filing.accessionNumber,
       securityId: security.id,
@@ -77,11 +83,13 @@ export async function syncSecSnapshotToWarehouse(
       form: filing.form,
       filedAt: filing.filingDate,
       periodEnd: filing.reportDate ?? null,
+      items,
       primaryDocUrl: filing.documentUrl,
       parseStatus: "synced",
     });
   }
-  await fanOutForm8kAlerts(db, snapshot, userId);
+  void userId;
+  await fanOutForm8kAlerts(db, snapshot);
 
   if (pitFacts && pitFacts.length > 0) {
     await persistExtractedPitFacts(db, security.id, snapshot.cik, pitFacts);

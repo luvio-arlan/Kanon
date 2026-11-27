@@ -161,6 +161,17 @@ export const OrgsLoadResponseSchema = z.object({
       createdAt: z.string(),
     }),
   ),
+  pendingInvitations: z
+    .array(
+      z.object({
+        id: z.string(),
+        orgId: z.string(),
+        orgName: z.string(),
+        role: z.enum(["owner", "pm", "analyst", "viewer", "compliance"]),
+        expiresAt: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 export const OrgCreateResponseSchema = z.object({
@@ -168,7 +179,12 @@ export const OrgCreateResponseSchema = z.object({
 });
 
 export const OrgMemberAddResponseSchema = z.object({
-  member: z.object({ userId: z.string(), role: z.string() }),
+  accepted: z.boolean(),
+  message: z.string(),
+});
+
+export const OrgAcceptInviteResponseSchema = z.object({
+  membership: z.object({ orgId: z.string(), role: z.string() }),
 });
 
 export const OrgRestrictResponseSchema = z.object({
