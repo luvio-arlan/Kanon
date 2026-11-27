@@ -11,6 +11,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:api": "node scripts/verify-api-contracts.mjs",
+    "test:e2e": "pnpm --filter @kanon/web e2e",
     "lint": "biome check .",
     "format": "biome check --write .",
     "typecheck": "turbo run typecheck",

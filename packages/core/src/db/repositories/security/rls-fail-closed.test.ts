@@ -1,4 +1,3 @@
-import type { PGlite } from "@electric-sql/pglite";
 import { eq, getTableName, sql } from "drizzle-orm";
 import type postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -55,22 +54,14 @@ import {
 import { upsertUserAiCredential } from "./ai-credentials-and-usage-store";
 import { withSystemContext, withTenantContext } from "./tenant-context";
 
-describe("RLS Phase B & Fail-Closed Enforcement (PGlite NOBYPASSRLS)", () => {
+describe("RLS Phase D Fail-Closed Enforcement (PGlite NOBYPASSRLS)", () => {
   let db: KanonDb;
-  let pglite: PGlite;
   let close: () => Promise<void>;
 
   beforeAll(async () => {
     const mem = await createMemoryKanonDb({ enforceRls: true });
     db = mem.db;
-    pglite = mem.pglite;
     close = mem.close;
-    // Simulate Phase D atomic flip inside this isolated test DB so every fail-closed invariant is proven.
-    await pglite.exec(`
-      RESET ROLE;
-      CREATE OR REPLACE FUNCTION kanon_rls_open() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT false $$;
-      SET ROLE kanon_app_local;
-    `);
   });
 
   afterAll(async () => {

@@ -485,7 +485,60 @@ export function checkG12SystemContextAllowlistAst(rel, content, errors) {
   walk(sf, false);
 }
 
-/** Runs Wave R/S/T AST-level L2 mechanical guards (G6+, G9, G10, G12, G13, and subsequent wave guards). */
+function inspectG19PropCall(node, line, lines, rel, errors) {
+  const expr = node.expression;
+  const method = expr.name.text;
+  if (method === "waitForTimeout") {
+    errors.push(
+      `${rel}:${line} [G19-e2e-no-arbitrary-wait] waitForTimeout is banned in E2E specs; wait on observable UI/API state.`,
+    );
+    return;
+  }
+  const arg0 = node.arguments[0];
+  if (
+    method === "waitForLoadState" &&
+    arg0 &&
+    ts.isStringLiteral(arg0) &&
+    arg0.text === "networkidle"
+  ) {
+    errors.push(
+      `${rel}:${line} [G19-e2e-no-arbitrary-wait] waitForLoadState("networkidle") is banned in E2E specs.`,
+    );
+    return;
+  }
+  const isQuarantineSkip =
+    (method === "skip" || method === "fixme") &&
+    ts.isIdentifier(expr.expression) &&
+    expr.expression.text === "test";
+  if (isQuarantineSkip && !hasCommentTag(lines, line, "@kanon-quarantine:")) {
+    errors.push(
+      `${rel}:${line} [G19-e2e-no-arbitrary-wait] test.${method} requires // @kanon-quarantine: <issue-url> annotation.`,
+    );
+  }
+}
+
+/** G19: Bans waitForTimeout, setTimeout, waitForLoadState("networkidle"), and unquarantined test.skip/fixme in apps/web/e2e. */
+export function checkG19E2eNoArbitraryWaitAst(rel, content, errors) {
+  if (!rel.startsWith("apps/web/e2e/")) return;
+  const sf = parseTs(rel, content);
+  const lines = content.split("\n");
+  const visit = (node) => {
+    if (ts.isCallExpression(node)) {
+      const line = getLine(sf, node.getStart(sf));
+      if (ts.isIdentifier(node.expression) && node.expression.text === "setTimeout") {
+        errors.push(
+          `${rel}:${line} [G19-e2e-no-arbitrary-wait] setTimeout is banned in E2E specs; use expect.poll or explicit locator waits.`,
+        );
+      } else if (ts.isPropertyAccessExpression(node.expression)) {
+        inspectG19PropCall(node, line, lines, rel, errors);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
+/** Runs Wave R/S/T AST-level L2 mechanical guards (G6+, G9, G10, G12, G13, G19, and subsequent wave guards). */
 export function checkWaveGuardsRs(root, errors) {
   const dirs = ["apps/web/src", "packages/ai/src", "packages/core/src"];
   for (const d of dirs) {
@@ -500,5 +553,11 @@ export function checkWaveGuardsRs(root, errors) {
       checkG12SystemContextAllowlistAst(rel, content, errors);
       checkG13SecFetchGatewayAst(rel, content, errors);
     }
+  }
+  const e2eFiles = [];
+  walkTsFiles(path.join(root, "apps/web/e2e"), e2eFiles);
+  for (const full of e2eFiles) {
+    const rel = path.relative(root, full).split(path.sep).join("/");
+    checkG19E2eNoArbitraryWaitAst(rel, fs.readFileSync(full, "utf8"), errors);
   }
 }

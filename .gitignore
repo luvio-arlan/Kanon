@@ -31,3 +31,5 @@ promo-video/*.mp4
 promo-video/_tmp_*
 .vercel
 .env*
+apps/web/playwright-report/
+apps/web/test-results/

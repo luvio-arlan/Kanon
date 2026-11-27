@@ -10,6 +10,7 @@ import {
   checkG10NoNetworkInDbTxAst,
   checkG12SystemContextAllowlistAst,
   checkG13SecFetchGatewayAst,
+  checkG19E2eNoArbitraryWaitAst,
 } from "./wave-guards-rs.mjs";
 
 function expectCaught(fn, expectedRule, label) {
@@ -266,6 +267,57 @@ expectClean(
   "G12 allowlisted cron_tick system helper",
 );
 
+// G19 negative examples (4)
+expectCaught(
+  (e) =>
+    checkG19E2eNoArbitraryWaitAst(
+      "apps/web/e2e/golden/01-onboarding.spec.ts",
+      "await page.waitForTimeout(500);",
+      e,
+    ),
+  "G19-e2e-no-arbitrary-wait",
+  "G19 page.waitForTimeout banned",
+);
+expectCaught(
+  (e) =>
+    checkG19E2eNoArbitraryWaitAst(
+      "apps/web/e2e/golden/02-thesis.spec.ts",
+      "await new Promise((r) => setTimeout(r, 1000));",
+      e,
+    ),
+  "G19-e2e-no-arbitrary-wait",
+  "G19 setTimeout banned",
+);
+expectCaught(
+  (e) =>
+    checkG19E2eNoArbitraryWaitAst(
+      "apps/web/e2e/golden/03-sec.spec.ts",
+      'await page.waitForLoadState("networkidle");',
+      e,
+    ),
+  "G19-e2e-no-arbitrary-wait",
+  "G19 waitForLoadState(networkidle) banned",
+);
+expectCaught(
+  (e) =>
+    checkG19E2eNoArbitraryWaitAst(
+      "apps/web/e2e/golden/04-redline.spec.ts",
+      'test.skip("flaky", async () => {});',
+      e,
+    ),
+  "G19-e2e-no-arbitrary-wait",
+  "G19 unquarantined test.skip banned",
+);
+expectClean(
+  (e) =>
+    checkG19E2eNoArbitraryWaitAst(
+      "apps/web/e2e/golden/10-viewer-readonly.spec.ts",
+      'await page.waitForRequest((r) => r.method() === "PATCH", { timeout: 2000 }).catch(() => null);\n// @kanon-quarantine: https://github.com/org/repo/issues/1\ntest.skip("tracked", async () => {});',
+      e,
+    ),
+  "G19 clean waitForRequest and quarantined skip",
+);
+
 process.stdout.write(
-  "✓ wave-guards-rs.test.mjs: all G6+, G9, G10, G12 & G13 adversarial fixtures caught and clean examples passed.\n",
+  "✓ wave-guards-rs.test.mjs: all G6+, G9, G10, G12, G13 & G19 adversarial fixtures caught and clean examples passed.\n",
 );

@@ -25,6 +25,7 @@ import { KANON_RLS_FORCE_SQL } from "./v3/0024-rls-force";
 import { KANON_RLS_SPLIT_POLICIES_SQL } from "./v3/0025-rls-split-policies";
 import { KANON_Q5_INVITES_LEDGER_OPENING_SQL } from "./v3/0026-q5-invites-ledger-opening";
 import { KANON_RLS_FUNCTIONS_AND_SPLIT_SQL } from "./v3/0027-rls-functions-and-split";
+import { KANON_RLS_FAIL_CLOSED_SQL } from "./v3/0028-rls-fail-closed";
 
 export interface KanonMigration {
   id: string;
@@ -196,6 +197,11 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     description:
       "Expand-only RLS helper functions and command-split policies across 21 tenant tables (Phase B, fail-open switch)",
     sql: KANON_RLS_FUNCTIONS_AND_SPLIT_SQL,
+  },
+  {
+    id: "0028_rls_fail_closed",
+    description: "Atomic fail-closed RLS switch: flip kanon_rls_open() to constant false (Phase D)",
+    sql: KANON_RLS_FAIL_CLOSED_SQL,
   },
 ];
 

@@ -8,6 +8,9 @@
     },
     "packages/core": {
       "entry": ["scripts/*.mjs"]
+    },
+    "apps/web": {
+      "entry": ["e2e/**/*.{ts,mjs}"]
     }
   }
 }

@@ -10,6 +10,7 @@ export interface RollingNumberProps {
   suffix?: string;
   signDisplay?: "auto" | "always" | "exceptZero" | "never";
   className?: string;
+  testId?: string;
 }
 
 const FLOW_TIMING = { duration: 260, easing: "cubic-bezier(0.22, 1, 0.36, 1)" } as const;
@@ -22,6 +23,7 @@ export function RollingNumber({
   suffix,
   signDisplay = "auto",
   className,
+  testId,
 }: RollingNumberProps) {
   const safeValue = Number.isFinite(value) ? value : 0;
   const compact = Math.abs(safeValue) >= 1_000_000;
@@ -39,6 +41,8 @@ export function RollingNumber({
       spinTiming={FLOW_TIMING}
       opacityTiming={FLOW_OPACITY}
       format={format}
+      data-testid={testId}
+      data-value={String(safeValue)}
       className={cn("font-mono tabular-nums", className)}
     />
   );

@@ -25,3 +25,6 @@ docs/
 .github/
 .rules/
 .agents/
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/e2e/

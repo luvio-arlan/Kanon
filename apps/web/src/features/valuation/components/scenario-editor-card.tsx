@@ -11,6 +11,7 @@ export interface ScenarioEditorCardProps {
   epsRange: { min: number; max: number; step: number };
   peRange: { min: number; max: number; step: number };
   result: ValuationCaseResult;
+  targetTestId?: string;
   onChangeEps: (next: number) => void;
   onChangePe: (next: number) => void;
 }
@@ -19,7 +20,8 @@ function ScenarioMetricHeader({
   label,
   tone,
   result,
-}: Pick<ScenarioEditorCardProps, "label" | "tone" | "result">) {
+  targetTestId,
+}: Pick<ScenarioEditorCardProps, "label" | "tone" | "result" | "targetTestId">) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
@@ -38,6 +40,7 @@ function ScenarioMetricHeader({
           value={result.targetPrice}
           prefix="$"
           decimals={1}
+          testId={targetTestId}
           className="min-w-0 truncate text-4xl font-light tracking-[-0.04em] text-ink-primary"
         />
         <span className="shrink-0 font-mono text-sm text-ink-secondary tabular-nums">
@@ -51,7 +54,12 @@ function ScenarioMetricHeader({
 export function ScenarioEditorCard(props: ScenarioEditorCardProps) {
   return (
     <Card className="group flex min-w-0 flex-col justify-between overflow-hidden p-6 focus-within:border-strong focus-within:shadow-card-hover">
-      <ScenarioMetricHeader label={props.label} tone={props.tone} result={props.result} />
+      <ScenarioMetricHeader
+        label={props.label}
+        tone={props.tone}
+        result={props.result}
+        targetTestId={props.targetTestId}
+      />
       <div className="mt-4 space-y-4">
         <PrecisionSlider
           label="远期 EPS"

@@ -60,6 +60,7 @@ export function ScenarioCardsGrid({
           epsRange={epsRange}
           peRange={PE_RANGE}
           result={summary[meta.key]}
+          targetTestId={meta.key === "base" ? "kanon-scenario-base-target" : undefined}
           onChangeEps={(eps) => onPatch(meta.key, { eps })}
           onChangePe={(peMultiple) => onPatch(meta.key, { peMultiple })}
         />
