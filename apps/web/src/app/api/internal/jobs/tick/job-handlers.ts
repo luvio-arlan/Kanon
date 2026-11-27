@@ -1,9 +1,4 @@
-import {
-  pruneStaleFilingChunks,
-  type QueuedJobRow,
-  resolvePendingGuidanceCommitments,
-} from "@kanon/core/db";
-import { withSystemDb } from "../../../_lib/db-context";
+import type { QueuedJobRow } from "@kanon/core/db";
 import { runSyncDailyBarsForTicker, runSyncSecForTicker } from "../../../_lib/on-demand-sync";
 import { runBuildRedlineJob, runSyncSegmentsJob } from "../../../_lib/sec-intel-jobs";
 import { executeAlertFanoutJobInSystemDb } from "../../../_lib/sec-warehouse-sync";
@@ -56,14 +51,8 @@ const JOB_RUNNERS: Record<string, JobRunner> = {
     await runSyncSegmentsJob(job.payload, "cron_tick");
     return "done";
   },
-  resolve_guidance: async () => {
-    await withSystemDb("cron_tick", (tx) => resolvePendingGuidanceCommitments(tx));
-    return "done";
-  },
-  prune_chunks: async () => {
-    await withSystemDb("cron_tick", (tx) => pruneStaleFilingChunks(tx));
-    return "done";
-  },
+  resolve_guidance: async () => ({ skipped: "disabled_pending_u0" }),
+  prune_chunks: async () => ({ skipped: "disabled_pending_u0" }),
 };
 
 /** Dispatches a single non-alert background job in cron tick (R1/R2/R3/S1). */
