@@ -15,7 +15,11 @@ import {
   searchFilingChunksFts,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
-import { buildAiUsageEntry, resolveEffectiveByok } from "../../../_lib/byok-headers";
+import {
+  buildAiUsageEntry,
+  checkHostedAiQuota,
+  resolveEffectiveByok,
+} from "../../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../../_lib/request-guards";
 import { requireThesisAccess } from "../../../_lib/thesis-guard";
@@ -137,6 +141,8 @@ export async function POST(request: Request) {
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
+  const quotaErr = await checkHostedAiQuota(auth.withDb, auth.user.id, request, startedAt);
+  if (quotaErr) return quotaErr;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = AgentAskRequestSchema.safeParse(body.data);

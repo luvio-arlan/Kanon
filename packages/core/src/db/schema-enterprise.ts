@@ -10,6 +10,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import {
+  kanonAuditLogPolicies,
   kanonThesisChildPolicies,
   kanonThesisCommentsPolicies,
 } from "./repositories/security/rls-policies";
@@ -111,8 +112,11 @@ export const auditLogTable = pgTable(
     entryHash: text("entry_hash").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("idx_audit_log_actor_created").on(table.actorUserId, table.createdAt)],
-);
+  (table) => [
+    index("idx_audit_log_actor_created").on(table.actorUserId, table.createdAt),
+    ...kanonAuditLogPolicies(),
+  ],
+).enableRLS();
 
 export const restrictedListTable = pgTable(
   "restricted_list",

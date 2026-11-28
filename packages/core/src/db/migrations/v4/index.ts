@@ -4,6 +4,8 @@ import { KANON_WAVE_U3_OPS_AND_RLS_SQL } from "./0037-ops-errors-and-stage6a-rls
 import { KANON_WAVE_V0_APP_ROLE_GRANTS_SQL } from "./0038-app-role-grants";
 import { KANON_WAVE_V0_NUMERIC_EXCHANGE_REFLAG_SQL } from "./0039-numeric-exchange-currency-reflag";
 import { KANON_WAVE_V1_GUIDANCE_CANDIDATE_RETRACTION_SQL } from "./0040-guidance-candidate-retraction";
+import { KANON_WAVE_V2_STAGE6B_AUTH_AUDIT_RLS_SQL } from "./0041-stage6b-auth-audit-rls";
+import { KANON_WAVE_V2_AI_USAGE_KEY_SOURCE_SQL } from "./0042-ai-usage-key-source";
 
 export const KANON_V4_MIGRATIONS: ReadonlyArray<{
   id: string;
@@ -45,5 +47,17 @@ export const KANON_V4_MIGRATIONS: ReadonlyArray<{
     description:
       "Wave V1-1 expand-only guidance_candidates rule_version + retraction of basis-merged rule/1 rows",
     sql: KANON_WAVE_V1_GUIDANCE_CANDIDATE_RETRACTION_SQL,
+  },
+  {
+    id: "0041_stage6b_auth_audit_rls",
+    description:
+      "Wave V2-1 Stage 6b RLS on sessions, api_tokens, user_totp_factors, audit_log + definer helpers",
+    sql: KANON_WAVE_V2_STAGE6B_AUTH_AUDIT_RLS_SQL,
+  },
+  {
+    id: "0042_ai_usage_key_source",
+    description:
+      "Wave V2-2 expand-only ai_usage.key_source (byok | hosted) for hosted-AI daily quota",
+    sql: KANON_WAVE_V2_AI_USAGE_KEY_SOURCE_SQL,
   },
 ];

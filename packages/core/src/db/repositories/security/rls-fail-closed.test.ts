@@ -627,6 +627,7 @@ describe("RLS Phase D Fail-Closed Enforcement (PGlite NOBYPASSRLS)", () => {
           promptTokens: 100,
           completionTokens: 50,
           costUsd: 0.001,
+          keySource: "byok",
         });
         await tx.insert(userSecOverridesTable).values({
           userId: userA.id,

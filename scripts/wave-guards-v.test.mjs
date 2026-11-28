@@ -11,6 +11,8 @@ import {
   checkG32LiveHealthPostureWatch,
   checkG33LedgerReplayInputSingleSourceAst,
   checkG34NoFabricatedFallbackTernaryAst,
+  checkG39TelemetryIsolatedFromJobStateAst,
+  checkG41HostedAiQuotaGateAst,
 } from "./wave-guards-v.mjs";
 
 function expectCaught(fn, rule, label) {
@@ -132,6 +134,65 @@ expectClean(
   "G34 clean",
 );
 
+// G39 — 3 negatives + 1 positive
+const TICK = "apps/web/src/app/api/internal/jobs/tick/tick-runner.ts";
+for (const [label, src] of [
+  [
+    "fail + telemetry",
+    "await withSystemDb('cron_tick', async (tx) => { await failJobWithBackoff(tx, id, m); await recordAppErrorEvent(tx, e); });",
+  ],
+  [
+    "complete + telemetry",
+    "await withSystemDb('cron_tick', async (tx) => { await recordAppErrorEvent(tx, e); await completeJob(tx, id); });",
+  ],
+  [
+    "skip + telemetry fn",
+    "await withSystemDb('cron_tick', async function (tx) { await skipJob(tx, id, r); await recordAppErrorEvent(tx, e); });",
+  ],
+]) {
+  expectCaught(
+    (e) => checkG39TelemetryIsolatedFromJobStateAst(TICK, src, e),
+    "G39-telemetry-isolated-from-job-state",
+    `G39 ${label}`,
+  );
+}
+expectClean(
+  (e) =>
+    checkG39TelemetryIsolatedFromJobStateAst(
+      TICK,
+      "await withSystemDb('cron_tick', (tx) => failJobWithBackoff(tx, id, m)); await withSystemDb('cron_tick', (tx) => recordAppErrorEvent(tx, e)).catch(() => undefined);",
+      e,
+    ),
+  "G39 clean",
+);
+
+// G41 — 3 negatives + 1 positive
+for (const rel of [
+  "apps/web/src/app/api/ai/copilot/route.ts",
+  "apps/web/src/app/api/ai/agent/route.ts",
+  "apps/web/src/app/api/mcp/v2/route.ts",
+]) {
+  expectCaught(
+    (e) =>
+      checkG41HostedAiQuotaGateAst(
+        rel,
+        "const byok = await resolveEffectiveByok(tx, userId, request);",
+        e,
+      ),
+    "G41-hosted-ai-quota-gate",
+    `G41 ${rel}`,
+  );
+}
+expectClean(
+  (e) =>
+    checkG41HostedAiQuotaGateAst(
+      "apps/web/src/app/api/ai/copilot/route.ts",
+      "const q = await checkHostedAiQuota(withDb, id, request, t); const b = await resolveEffectiveByok(tx, id, request);",
+      e,
+    ),
+  "G41 clean",
+);
+
 process.stdout.write(
-  "✓ wave-guards-v.test.mjs: all G32, G33 & G34 adversarial fixtures caught and clean examples passed.\n",
+  "✓ wave-guards-v.test.mjs: all G32, G33, G34, G39 & G41 adversarial fixtures caught and clean examples passed.\n",
 );

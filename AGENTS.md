@@ -33,7 +33,7 @@ packages/
 ## 4. Verification Gates & Auto-Delivery Protocol (Single Source of Truth)
 
 ```bash
-pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards (G1–G31) + knip (zero-skip, zero-ratchet)
+pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards (G1–G41) + knip (zero-skip, zero-ratchet)
 pnpm test         # Vitest: financial math goldens, dynamic DDL/RLS parity, zero-leverage & AI/API contracts
 pnpm eval         # 28-case adversarial Golden Eval (bilingual FTS + strict claim grounding + refusal)
 pnpm build        # Full Turborepo production build

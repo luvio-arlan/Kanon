@@ -27,12 +27,12 @@ async function writeChainedAuditRow(
 ): Promise<string> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(${AUDIT_CHAIN_LOCK_KEY})`);
   const id = `aud_${crypto.randomUUID()}`;
-  const [prev] = await tx
-    .select({ entryHash: auditLogTable.entryHash })
-    .from(auditLogTable)
-    .orderBy(desc(auditLogTable.createdAt), desc(auditLogTable.id))
-    .limit(1);
-  const prevHash = prev?.entryHash ?? "";
+  // Global tail via definer: tenant RLS on audit_log must never fork the hash chain (Stage 6b).
+  const tailRes = await tx.execute(sql`SELECT kanon_audit_chain_tail() AS h`);
+  const tailRow = (Array.isArray(tailRes) ? tailRes : tailRes.rows)[0] as
+    | { h?: unknown }
+    | undefined;
+  const prevHash = typeof tailRow?.h === "string" ? tailRow.h : "";
   const metadata = input.metadata ?? {};
   const entryHash = crypto
     .createHash("sha256")

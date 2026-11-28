@@ -104,3 +104,21 @@ export function kanonThesisCommentsPolicies() {
     pgPolicy("kanon_rls_thesis_comments_delete", { for: "delete", using: USER_PRED }),
   ];
 }
+
+/**
+ * Append-only audit chain (V2-1 / Stage 6b): actors insert only as themselves; actors read their own rows
+ * and org owners read their org's rows. No UPDATE/DELETE policy exists (also REVOKEd from the app role).
+ * The global chain tail is read through the definer `kanon_audit_chain_tail()` so RLS never forks the chain.
+ */
+export function kanonAuditLogPolicies() {
+  return [
+    pgPolicy("kanon_rls_audit_log_select", {
+      for: "select",
+      using: sql`kanon_rls_is_system() OR kanon_rls_open() OR actor_user_id = kanon_rls_uid() OR (org_id IS NOT NULL AND kanon_org_role(org_id) = 'owner')`,
+    }),
+    pgPolicy("kanon_rls_audit_log_insert", {
+      for: "insert",
+      withCheck: sql`kanon_rls_is_system() OR kanon_rls_open() OR actor_user_id = kanon_rls_uid()`,
+    }),
+  ];
+}

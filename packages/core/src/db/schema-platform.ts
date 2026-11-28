@@ -27,6 +27,7 @@ export const aiUsageTable = pgTable(
     promptTokens: integer("prompt_tokens").notNull().default(0),
     completionTokens: integer("completion_tokens").notNull().default(0),
     costUsd: doublePrecision("cost_usd").notNull().default(0),
+    keySource: text("key_source").$type<"byok" | "hosted">(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

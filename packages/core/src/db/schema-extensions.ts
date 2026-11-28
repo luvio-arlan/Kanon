@@ -42,29 +42,37 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const sessionsTable = pgTable("sessions", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  tokenHash: text("token_hash").notNull().unique(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const sessionsTable = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => kanonUserOwnedPolicies("sessions"),
+).enableRLS();
 
-export const apiTokensTable = pgTable("api_tokens", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  tokenPrefix: text("token_prefix").notNull(),
-  tokenHash: text("token_hash").notNull().unique(),
-  scope: text("scope").$type<ApiTokenScope>().notNull().default("read"),
-  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const apiTokensTable = pgTable(
+  "api_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenPrefix: text("token_prefix").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    scope: text("scope").$type<ApiTokenScope>().notNull().default("read"),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => kanonUserOwnedPolicies("api_tokens"),
+).enableRLS();
 
 export const marketQuotesCacheTable = pgTable("market_quotes_cache", {
   cacheKey: text("cache_key").primaryKey(),
@@ -114,17 +122,21 @@ export const userSecOverridesTable = pgTable(
   ],
 ).enableRLS();
 
-export const userTotpFactorsTable = pgTable("user_totp_factors", {
-  userId: text("user_id")
-    .primaryKey()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  secretEncrypted: text("secret_encrypted").notNull(),
-  enabled: boolean("enabled").notNull().default(false),
-  recoveryHashes: jsonb("recovery_hashes").$type<string[]>().notNull().default([]),
-  lastUsedStep: integer("last_used_step"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const userTotpFactorsTable = pgTable(
+  "user_totp_factors",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    secretEncrypted: text("secret_encrypted").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    recoveryHashes: jsonb("recovery_hashes").$type<string[]>().notNull().default([]),
+    lastUsedStep: integer("last_used_step"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => kanonUserOwnedPolicies("user_totp_factors"),
+).enableRLS();
 
 export const loginLockoutsTable = pgTable("login_lockouts", {
   accountKey: text("account_key").primaryKey(),

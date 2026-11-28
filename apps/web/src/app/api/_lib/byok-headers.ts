@@ -1,5 +1,6 @@
 import { type ByokCredentials, ByokProviderSchema } from "@kanon/ai";
-import { type KanonDb, resolveUserAiCredential } from "@kanon/core/db";
+import { countHostedAiCallsToday, type KanonDb, resolveUserAiCredential } from "@kanon/core/db";
+import { jsonError } from "./http";
 
 const PROVIDER_FALLBACK_ORDER = ["gemini", "anthropic", "openai", "openai_compatible"] as const;
 
@@ -53,6 +54,7 @@ export interface AiUsageEntry {
   promptTokens: number;
   completionTokens: number;
   costUsd: number;
+  keySource: "byok" | "hosted";
 }
 
 /** Computes AI usage & token cost outside DB transactions so DB writes never import @kanon/ai. */
@@ -83,5 +85,40 @@ export async function buildAiUsageEntry(params: {
     promptTokens,
     completionTokens,
     costUsd,
+    keySource: params.byok ? "byok" : "hosted",
   };
+}
+
+const DEFAULT_HOSTED_DAILY_CALLS = 20;
+
+function hostedDailyLimit(): number {
+  const raw = Number(process.env.KANON_HOSTED_AI_DAILY_CALLS);
+  return Number.isInteger(raw) && raw >= 0 ? raw : DEFAULT_HOSTED_DAILY_CALLS;
+}
+
+/** True when KANON's own server keys can serve requests that bring no BYOK credential. */
+export function isHostedAiConfigured(): boolean {
+  return ["GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"].some((k) =>
+    Boolean(process.env[k]?.trim()),
+  );
+}
+
+/**
+ * Hosted-AI cost gate (V2-2 / G41): requests without BYOK that would spend KANON's server keys are capped
+ * at `KANON_HOSTED_AI_DAILY_CALLS` per user per UTC day (0 disables hosted). BYOK is never limited here.
+ */
+export async function checkHostedAiQuota(
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>,
+  userId: string,
+  request: Request,
+  startedAt: number,
+): Promise<Response | null> {
+  if (!isHostedAiConfigured()) return null;
+  const exceeded = await withDb(async (tx) => {
+    if (await resolveEffectiveByok(tx, userId, request)) return false;
+    return (await countHostedAiCallsToday(tx, userId)) >= hostedDailyLimit();
+  });
+  return exceeded
+    ? jsonError("今日托管 AI 额度已用完，可在设置中接入自有密钥。", 429, startedAt, "HOSTED_QUOTA")
+    : null;
 }

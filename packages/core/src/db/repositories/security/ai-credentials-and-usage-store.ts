@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, asc, eq, gte } from "drizzle-orm";
+import { and, asc, eq, gte, sql } from "drizzle-orm";
 import { decryptSecretEnvelopeWithMeta, encryptSecretEnvelope } from "../../../security/totp";
 import type { KanonDb } from "../../bootstrap";
 import { aiUsageTable, userAiCredentialsTable } from "../../schema";
@@ -173,9 +173,11 @@ export async function recordAiUsage(
     promptTokens: number;
     completionTokens: number;
     costUsd: number;
+    keySource: "byok" | "hosted";
   },
 ): Promise<void> {
   await db.insert(aiUsageTable).values({
+    keySource: input.keySource,
     id: `aiu_${crypto.randomUUID()}`,
     userId: input.userId,
     thesisId: input.thesisId ?? null,
@@ -212,4 +214,17 @@ export async function summarizeMonthlyAiUsage(
     completionTokens,
     costUsd: Math.round(costUsd * 10_000) / 10_000,
   };
+}
+
+/** Hosted (server-key) model calls for `userId` since 00:00 UTC; grounded-local runs cost nothing (V2-2). */
+export async function countHostedAiCallsToday(db: KanonDb, userId: string): Promise<number> {
+  const startOfDay = `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`;
+  const res = await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM ai_usage
+    WHERE user_id = ${userId} AND key_source = 'hosted'
+      AND provider <> 'grounded-local'
+      AND created_at >= ${startOfDay}::timestamptz
+  `);
+  const row = (Array.isArray(res) ? res : res.rows)[0] as { n?: unknown } | undefined;
+  return Number(row?.n ?? 0);
 }

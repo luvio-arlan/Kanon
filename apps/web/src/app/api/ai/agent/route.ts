@@ -1,92 +1,21 @@
-import {
-  AgentRequestSchema,
-  type ByokCredentials,
-  buildMarketBenchmarks,
-  fetchMarketQuote,
-  streamResearchAgent,
-} from "@kanon/ai";
-import {
-  AgentRunsListResponseSchema,
-  computeGuidanceCredibility,
-  type ThesisDetail,
-} from "@kanon/core";
-import {
-  getSecSnapshot,
-  getSecSnapshotForUser,
-  getThesisById,
-  type KanonDb,
-  listAgentRuns,
-  listCachedSecFilingDocsByTicker,
-  listGuidanceCommitments,
-  listQuarterlyReviews,
-  listResearchNotes,
-  listThesisRevisions,
-  saveAgentRun,
-} from "@kanon/core/db";
+import { AgentRequestSchema, streamResearchAgent } from "@kanon/ai";
+import { AgentRunsListResponseSchema } from "@kanon/core";
+import { getThesisById, listAgentRuns, recordAiUsage, saveAgentRun } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
-import { resolveEffectiveByok } from "../../_lib/byok-headers";
+import {
+  buildAiUsageEntry,
+  checkHostedAiQuota,
+  resolveEffectiveByok,
+} from "../../_lib/byok-headers";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
-import { parseMarketHeaders } from "../../_lib/market-headers";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../_lib/request-guards";
 import { requireThesisAccess } from "../../_lib/thesis-guard";
+import { type AgentStreamParams, loadAgentEvidence } from "./agent-evidence";
 
 export const dynamic = "force-dynamic";
 
 const AGENT_RATE_POLICY = { bucket: "ai_agent", maxRequests: 15, windowMs: 60 * 1000 };
 const AGENT_STREAM_TIMEOUT_MS = 55_000;
-
-type WithDbFn = <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>;
-
-interface AgentStreamParams {
-  withDb: WithDbFn;
-  thesis: ThesisDetail;
-  userId: string;
-  request: Request;
-  sourceText?: string;
-  byok: ByokCredentials | undefined;
-}
-
-async function loadAgentEvidence(params: AgentStreamParams) {
-  const marketCreds = parseMarketHeaders(params.request);
-  const [dbBundle, quoteRes] = await Promise.all([
-    params.withDb(async (tx) => {
-      const [secSnapshot, reviews, revisions, cachedFilings, researchNotes, guidanceItems] =
-        await Promise.all([
-          getSecSnapshotForUser(tx, params.thesis.ticker, params.userId),
-          listQuarterlyReviews(tx, params.thesis.id),
-          listThesisRevisions(tx, params.thesis.id),
-          listCachedSecFilingDocsByTicker(tx, params.thesis.ticker, 3),
-          listResearchNotes(tx, params.thesis.id, 12),
-          listGuidanceCommitments(tx, params.thesis.id),
-        ]);
-      return {
-        secSnapshot,
-        reviews,
-        revisions,
-        cachedFilings,
-        researchNotes,
-        guidanceCredibility: computeGuidanceCredibility(guidanceItems),
-      };
-    }),
-    fetchMarketQuote(params.thesis.ticker, { creds: marketCreds }),
-  ]);
-  const marketQuote = quoteRes.ok ? quoteRes.quote : null;
-  const benchmarks = await buildMarketBenchmarks({
-    ticker: params.thesis.ticker,
-    currentPrice: marketQuote?.effectivePrice ?? params.thesis.currentPrice,
-    secSnapshot: dbBundle.secSnapshot,
-    loadCachedPeers: async (peerTickers) => {
-      const snaps = await params.withDb((tx) =>
-        Promise.all(peerTickers.map((pt) => getSecSnapshot(tx, pt))),
-      );
-      const map = new Map<string, NonNullable<(typeof snaps)[number]>>();
-      for (const s of snaps) if (s) map.set(s.ticker.toUpperCase(), s);
-      return map;
-    },
-    creds: marketCreds,
-  }).catch(() => null);
-  return { ...dbBundle, marketQuote, benchmarks };
-}
 
 async function pumpAgentEvents(
   params: AgentStreamParams,
@@ -105,14 +34,22 @@ async function pumpAgentEvents(
   })) {
     if (signal.aborted) break;
     if (event.type === "briefing_ready") {
-      const saved = await params.withDb((tx) =>
-        saveAgentRun(tx, {
+      const usage = await buildAiUsageEntry({
+        userId: params.userId,
+        thesisId: params.thesis.id,
+        route: "/api/ai/agent",
+        engine: event.briefing.engine,
+        byok: params.byok,
+      });
+      const saved = await params.withDb(async (tx) => {
+        await recordAiUsage(tx, usage);
+        return saveAgentRun(tx, {
           thesisId: params.thesis.id,
           engine: event.briefing.engine,
           fallbackReason: event.briefing.fallbackReason ?? null,
           briefing: event.briefing,
-        }),
-      );
+        });
+      });
       enqueue(`data: ${JSON.stringify({ ...event, runId: saved.id })}\n\n`);
       continue;
     }
@@ -207,6 +144,8 @@ export async function POST(request: Request) {
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
+  const quotaErr = await checkHostedAiQuota(auth.withDb, auth.user.id, request, startedAt);
+  if (quotaErr) return quotaErr;
   const body = await readJsonBody(request, startedAt);
   if (!body.ok) return body.response;
   const parsed = AgentRequestSchema.safeParse(body.data);

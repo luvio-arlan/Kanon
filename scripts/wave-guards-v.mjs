@@ -107,6 +107,52 @@ export function checkG34NoFabricatedFallbackTernaryAst(rel, content, errors) {
   visit(sf);
 }
 
+const JOB_STATE_CALLS = new Set(["failJobWithBackoff", "completeJob", "skipJob"]);
+
+function calledNames(fnNode) {
+  const names = new Set();
+  const visit = (n) => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) names.add(n.expression.text);
+    ts.forEachChild(n, visit);
+  };
+  visit(fnNode);
+  return names;
+}
+
+/** G39: telemetry writes must never share a transaction with job state transitions (V2-3). */
+export function checkG39TelemetryIsolatedFromJobStateAst(rel, content, errors) {
+  if (!rel.startsWith("apps/web/src/app/api/")) return;
+  const sf = parseTs(rel, content);
+  const visit = (node) => {
+    const isSystemDbCall =
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "withSystemDb";
+    const cb = isSystemDbCall ? node.arguments[1] : undefined;
+    if (cb && (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb))) {
+      const names = calledNames(cb);
+      if (names.has("recordAppErrorEvent") && [...JOB_STATE_CALLS].some((n) => names.has(n))) {
+        errors.push(
+          `${rel}:${getLine(sf, node.getStart(sf))} [G39-telemetry-isolated-from-job-state] recordAppErrorEvent shares a transaction with a job state write; a telemetry failure would roll back the job record.`,
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
+/** G41: any route that resolves AI credentials must pass the hosted-AI cost gate first (V2-2). */
+export function checkG41HostedAiQuotaGateAst(rel, content, errors) {
+  if (!/^apps\/web\/src\/app\/api\/.+\/route\.ts$/.test(rel)) return;
+  if (!content.includes("resolveEffectiveByok(")) return;
+  if (!content.includes("checkHostedAiQuota(")) {
+    errors.push(
+      `${rel}:1 [G41-hosted-ai-quota-gate] Route resolves AI credentials without checkHostedAiQuota; hosted server-key spend would be unbounded.`,
+    );
+  }
+}
+
 export function checkWaveGuardsV(root, errors) {
   const files = [];
   for (const dir of ["apps", "packages"]) collectTsFiles(path.join(root, dir), files);
@@ -115,6 +161,8 @@ export function checkWaveGuardsV(root, errors) {
     const content = fs.readFileSync(filePath, "utf8");
     checkG33LedgerReplayInputSingleSourceAst(rel, content, errors);
     checkG34NoFabricatedFallbackTernaryAst(rel, content, errors);
+    checkG39TelemetryIsolatedFromJobStateAst(rel, content, errors);
+    checkG41HostedAiQuotaGateAst(rel, content, errors);
   }
   checkG32LiveHealthPostureWatch(root, errors);
 }
