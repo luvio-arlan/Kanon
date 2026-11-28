@@ -1,14 +1,17 @@
 import {
   AlertRuleUpsertResponseSchema,
   CalendarRotateResponseSchema,
+  type CurrencyCode,
   GenericOkResponseSchema,
   InboxLoadResponseSchema,
   LedgerAccountCreateResponseSchema,
   LedgerAccountListResponseSchema,
   LedgerTransactionCreateResponseSchema,
+  type LedgerTransactionRow,
   type PortfolioPerformanceResponse,
   PortfolioPerformanceResponseSchema,
 } from "@kanon/core";
+import { z } from "zod";
 import { kanonFetch } from "@/shared/lib/kanon-fetch";
 
 export interface InboxItemRow {
@@ -29,15 +32,11 @@ export interface AlertRuleRow {
   enabled: boolean;
 }
 
-export interface LedgerAccountRow {
-  id: string;
-  name: string;
-  baseCurrency?: string;
-  ledgerInconsistent?: boolean;
-  cashBalance: number;
-  noLeverageAcknowledgedAt?: string | null;
-  positions: Array<{ ticker: string; shares: number; avgCostBasis: number; totalCost: number }>;
-}
+export type LedgerAccountRow = z.infer<typeof LedgerAccountListResponseSchema>["accounts"][number];
+
+export type LedgerMutationResult = { ok: true } | { ok: false; error: string; code?: string };
+
+const LedgerMutationAckSchema = z.object({ result: z.unknown() });
 
 export async function apiLoadInbox() {
   const res = await kanonFetch("/api/inbox", InboxLoadResponseSchema);
@@ -95,11 +94,12 @@ export async function apiLoadPortfolioLedger(): Promise<LedgerAccountRow[]> {
 export async function apiCreateLedgerAccount(
   name: string,
   initialCash: number,
-  noLeverageConfirmed = true,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  noLeverageConfirmed: boolean,
+  baseCurrency: CurrencyCode,
+): Promise<LedgerMutationResult> {
   const res = await kanonFetch("/api/portfolio/ledger", LedgerAccountCreateResponseSchema, {
     method: "POST",
-    body: { op: "create_account", name, initialCash, noLeverageConfirmed },
+    body: { op: "create_account", name, initialCash, noLeverageConfirmed, baseCurrency },
     fallbackError: "创建账本失败",
   });
   return res.ok ? { ok: true } : { ok: false, error: res.error };
@@ -116,19 +116,48 @@ export async function apiLoadPortfolioPerformance(
   return res.ok ? res.data : null;
 }
 
-export async function apiRecordLedgerTx(input: {
+export interface LedgerTxInput {
   accountId: string;
   ticker: string;
-  action: "deposit" | "buy" | "sell";
+  action: LedgerTransactionRow["action"];
   quantity: number;
   price: number;
-  tradeDate?: string;
-  noLeverageConfirmed?: boolean;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+  fees: number;
+  tradeDate: string;
+  thesisId: string | null;
+  fxToBase?: number;
+  fxDeviationAck?: boolean;
+}
+
+export async function apiRecordLedgerTx(input: LedgerTxInput): Promise<LedgerMutationResult> {
   const res = await kanonFetch("/api/portfolio/ledger", LedgerTransactionCreateResponseSchema, {
     method: "POST",
     body: { op: "record_transaction", ...input },
     fallbackError: "记账被风控拦截",
   });
-  return res.ok ? { ok: true } : { ok: false, error: res.error };
+  return res.ok ? { ok: true } : { ok: false, error: res.error, code: res.code };
+}
+
+export async function apiReverseLedgerTx(
+  accountId: string,
+  transactionId: string,
+): Promise<LedgerMutationResult> {
+  const res = await kanonFetch("/api/portfolio/ledger", LedgerMutationAckSchema, {
+    method: "POST",
+    body: { op: "reverse_transaction", accountId, transactionId },
+    fallbackError: "冲销失败",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error, code: res.code };
+}
+
+export async function apiConfirmLegacyCurrency(
+  accountId: string,
+  mode: "as_base" | "infer_by_ticker",
+): Promise<LedgerMutationResult> {
+  const res = await kanonFetch("/api/portfolio/ledger", LedgerMutationAckSchema, {
+    method: "POST",
+    body: { op: "confirm_legacy_currency", accountId, mode },
+    fallbackError: "币种确认失败",
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error, code: res.code };
 }

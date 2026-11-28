@@ -1,6 +1,9 @@
+import { ECB_FX_CURRENCIES } from "@kanon/ai";
 import { LedgerPostRequestSchema, todayIsoUtc } from "@kanon/core";
 import {
+  confirmLegacyAccountCurrency,
   createPortfolioAccount,
+  findEarliestAccountTradeDate,
   getOrgMemberRole,
   type KanonDb,
   LedgerPolicyError,
@@ -13,8 +16,25 @@ import {
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
 import { verifySameOrigin } from "../../_lib/request-guards";
+import { ensureFxCoverage } from "../fx-coverage";
 
 export const dynamic = "force-dynamic";
+
+type LedgerPostRequest = ReturnType<typeof LedgerPostRequestSchema.parse>;
+
+/** Earliest date whose ECB rates this mutation may need, so coverage is ensured before the tenant tx. */
+async function fxCoverageFromDate(
+  data: LedgerPostRequest,
+  withDb: <T>(fn: (tx: KanonDb) => Promise<T>) => Promise<T>,
+  userId: string,
+): Promise<string | null> {
+  if (data.op === "create_account") return data.baseCurrency === "USD" ? null : todayIsoUtc();
+  if (data.op === "reverse_transaction") return null;
+  if (data.op === "confirm_legacy_currency") {
+    return withDb((tx) => findEarliestAccountTradeDate(tx, { accountId: data.accountId, userId }));
+  }
+  return data.tradeDate ?? todayIsoUtc();
+}
 
 export async function GET() {
   const startedAt = performance.now();
@@ -36,7 +56,7 @@ export async function GET() {
 async function handleCreateAccount(
   db: KanonDb,
   userId: string,
-  data: Extract<ReturnType<typeof LedgerPostRequestSchema.parse>, { op: "create_account" }>,
+  data: Extract<LedgerPostRequest, { op: "create_account" }>,
   startedAt: number,
 ) {
   if (data.orgId) {
@@ -54,40 +74,49 @@ async function handleCreateAccount(
   return jsonOk({ account }, startedAt, 201);
 }
 
+/** Executes one non-create ledger mutation; returns the response payload and HTTP status. */
+async function runLedgerMutation(
+  db: KanonDb,
+  userId: string,
+  data: Exclude<LedgerPostRequest, { op: "create_account" }>,
+): Promise<{ result: unknown; status: number }> {
+  if (data.op === "confirm_legacy_currency") {
+    const result = await confirmLegacyAccountCurrency(db, {
+      userId,
+      accountId: data.accountId,
+      mode: data.mode,
+    });
+    return { result, status: 200 };
+  }
+  if (data.op === "reverse_transaction") {
+    const result = await reversePortfolioTransaction(db, {
+      userId,
+      accountId: data.accountId,
+      transactionId: data.transactionId,
+      note: data.note,
+    });
+    return { result, status: 201 };
+  }
+  const { op: _op, tradeDate, thesisId, ...fields } = data;
+  const result = await recordPortfolioTransaction(db, {
+    ...fields,
+    userId,
+    thesisId: thesisId ?? null,
+    tradeDate: tradeDate ?? todayIsoUtc(),
+  });
+  return { result, status: 201 };
+}
+
 async function handleLedgerPost(
   db: KanonDb,
   userId: string,
-  data: ReturnType<typeof LedgerPostRequestSchema.parse>,
+  data: LedgerPostRequest,
   startedAt: number,
 ) {
   if (data.op === "create_account") return handleCreateAccount(db, userId, data, startedAt);
   try {
-    if (data.op === "reverse_transaction") {
-      const result = await reversePortfolioTransaction(db, {
-        userId,
-        accountId: data.accountId,
-        transactionId: data.transactionId,
-        note: data.note,
-      });
-      return jsonOk({ result }, startedAt, 201);
-    }
-    const result = await recordPortfolioTransaction(db, {
-      userId,
-      accountId: data.accountId,
-      thesisId: data.thesisId ?? null,
-      ticker: data.ticker,
-      action: data.action,
-      quantity: data.quantity,
-      price: data.price,
-      fees: data.fees,
-      tradeCurrency: data.tradeCurrency,
-      fxToBase: data.fxToBase,
-      tradeDate: data.tradeDate ?? todayIsoUtc(),
-      noLeverageConfirmed: data.noLeverageConfirmed,
-      note: data.note,
-      externalRef: data.externalRef,
-    });
-    return jsonOk({ result }, startedAt, 201);
+    const { result, status } = await runLedgerMutation(db, userId, data);
+    return jsonOk({ result }, startedAt, status);
   } catch (err) {
     if (err instanceof LedgerPolicyError) {
       return jsonError(err.message, err.status, startedAt, err.code);
@@ -118,5 +147,7 @@ export async function POST(request: Request) {
       "INVALID_LEDGER_OP",
     );
   }
+  const fxFrom = await fxCoverageFromDate(parsed.data, auth.withDb, auth.user.id);
+  if (fxFrom) await ensureFxCoverage(ECB_FX_CURRENCIES, fxFrom, "/api/portfolio/ledger");
   return auth.withDb((tx) => handleLedgerPost(tx, auth.user.id, parsed.data, startedAt));
 }

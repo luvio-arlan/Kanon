@@ -61,7 +61,8 @@ async function enqueueTickerDailyPair(
     id: secId,
     kind: "sync_sec",
     payload: { ticker: params.ticker },
-    priority: 60,
+    // Ahead of press-release extraction (55): new periodic filings beat derived guidance (V1-5).
+    priority: 52,
     maxAttempts: 4,
   });
   return 2;

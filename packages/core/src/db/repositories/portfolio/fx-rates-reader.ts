@@ -69,10 +69,11 @@ export async function lookupFxToBaseOnDate(
   return { rate: fromUsd / toUsd, source: "ecb_reference" };
 }
 
-/** Loads historical daily `usd_per_unit` series for the requested currencies sorted ascending by date. */
+/** Loads daily `usd_per_unit` series (ascending) for `currencies`, bounded below by `fromDate` minus the lookback. */
 export async function loadFxRatesHistory(
   db: KanonDb,
   currencies: readonly string[],
+  fromDate?: string,
 ): Promise<Map<string, DailyUsdPerUnitRate[]>> {
   const unique = [
     ...new Set(currencies.map((c) => c.trim().toUpperCase()).filter((c) => c && c !== "USD")),
@@ -86,7 +87,17 @@ export async function loadFxRatesHistory(
       usdPerUnit: fxRatesDailyTable.usdPerUnit,
     })
     .from(fxRatesDailyTable)
-    .where(inArray(fxRatesDailyTable.currency, unique))
+    .where(
+      and(
+        inArray(fxRatesDailyTable.currency, unique),
+        fromDate
+          ? gte(
+              fxRatesDailyTable.rateDate,
+              shiftCalendarDays(fromDate, -DEFAULT_LOOKBACK_CALENDAR_DAYS),
+            )
+          : undefined,
+      ),
+    )
     .orderBy(asc(fxRatesDailyTable.rateDate));
   for (const r of rows) {
     if (!Number.isFinite(r.usdPerUnit) || r.usdPerUnit <= 0) continue;
@@ -101,6 +112,7 @@ async function resolveTradeCurrency(
   tx: KanonDb,
   baseCurrency: CurrencyCode,
   ticker: string,
+  rawTicker: string,
   explicit?: CurrencyCode,
 ): Promise<CurrencyCode> {
   if (explicit) return explicit;
@@ -111,11 +123,31 @@ async function resolveTradeCurrency(
     .where(eq(securitiesTable.ticker, ticker))
     .limit(1);
   const parsedSec = CurrencyCodeSchema.safeParse(sec?.tradingCurrency ?? "");
-  const resolved = parsedSec.success ? parsedSec.data : inferCurrencyFromTicker(ticker);
+  // Infer from the user's raw symbol: canonical normalization turns `.HK` into `-HK` (V0-4 root cause).
+  const resolved = parsedSec.success ? parsedSec.data : inferCurrencyFromTicker(rawTicker);
   if (!resolved) {
     throw new LedgerPolicyError("CURRENCY_UNSUPPORTED", `暂不支持 ${ticker} 的交易币种。`, 400);
   }
   return resolved;
+}
+
+const MAX_BROKER_FX_DEVIATION = 0.03;
+
+/** A broker-entered rate deviating > 3% from the ECB reference needs explicit acknowledgement (V0-4). */
+function assertBrokerFxWithinBand(
+  brokerRate: number,
+  ecbRate: number | null,
+  acknowledged: boolean,
+) {
+  if (ecbRate === null || acknowledged) return;
+  const deviation = Math.abs(brokerRate / ecbRate - 1);
+  if (deviation > MAX_BROKER_FX_DEVIATION) {
+    throw new LedgerPolicyError(
+      "FX_DEVIATION",
+      `成交汇率 ${brokerRate} 偏离 ECB 参考汇率 ${ecbRate.toFixed(6)} 超过 3%，请核对后确认。`,
+      422,
+    );
+  }
 }
 
 /** Resolves trade currency + FX rate to account base currency, throwing 409 FX_UNAVAILABLE when absent (U1-1). */
@@ -124,30 +156,39 @@ export async function resolveTxCurrencyAndFx(
   params: {
     baseCurrency: CurrencyCode;
     ticker: string;
+    rawTicker: string;
     tradeDate: string;
     tradeCurrency?: CurrencyCode;
     fxToBase?: number;
-    fxSource?: FxSource;
+    fxDeviationAck?: boolean;
   },
 ): Promise<{ tradeCurrency: CurrencyCode; fxToBase: number; fxSource: FxSource }> {
   const tradeCurrency = await resolveTradeCurrency(
     tx,
     params.baseCurrency,
     params.ticker,
+    params.rawTicker,
     params.tradeCurrency,
   );
-  if (params.fxToBase !== undefined) {
-    return {
-      tradeCurrency,
-      fxToBase: params.fxToBase,
-      fxSource: params.fxSource ?? (tradeCurrency === params.baseCurrency ? "identity" : "broker"),
-    };
+  if (tradeCurrency === params.baseCurrency) {
+    if (params.fxToBase !== undefined && Math.abs(params.fxToBase - 1) > 1e-9) {
+      throw new LedgerPolicyError(
+        "FX_IDENTITY_MISMATCH",
+        "成交币种与账户币种相同，汇率必须为 1。",
+        422,
+      );
+    }
+    return { tradeCurrency, fxToBase: 1, fxSource: "identity" };
   }
   const looked = await lookupFxToBaseOnDate(tx, {
     fromCurrency: tradeCurrency,
     toCurrency: params.baseCurrency,
     asOfDate: params.tradeDate,
   });
+  if (params.fxToBase !== undefined) {
+    assertBrokerFxWithinBand(params.fxToBase, looked?.rate ?? null, params.fxDeviationAck === true);
+    return { tradeCurrency, fxToBase: params.fxToBase, fxSource: "broker" };
+  }
   if (!looked) {
     throw new LedgerPolicyError(
       "FX_UNAVAILABLE",

@@ -1,5 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { convertEcbCsvToUsdPerUnit } from "../../market/fx-ecb";
+import { findEx991InFilingIndex } from "./exhibit-locator";
 import { extractPressReleaseGuidanceCandidates } from "./press-guidance-rules";
 
 describe("U1-2 R3b 8-K Ex-99.1 Press Guidance Extractor & U1-1 ECB FX Parser", () => {
@@ -24,10 +27,52 @@ describe("U1-2 R3b 8-K Ex-99.1 Press Guidance Extractor & U1-1 ECB FX Parser", (
     expect(rev?.targetFiscalPeriod).toBe("Q4");
     expect(rev?.low).toBeCloseTo(36.75e9, -4);
     expect(rev?.high).toBeCloseTo(38.25e9, -4);
-    const gm = res.candidates.find((c) => c.metric === "gross_margin");
-    expect(gm?.unit).toBe("pct");
-    expect(gm?.low).toBeCloseTo(72.5, 2);
-    expect(gm?.high).toBeCloseTo(74.0, 2);
+    const gm = res.candidates.filter((c) => c.metric === "gross_margin");
+    expect(gm.map((c) => [c.basis, c.low, c.high])).toEqual([
+      ["gaap", 72.5, 73.5],
+      ["non_gaap", 73, 74],
+    ]);
+  });
+
+  it("G36: real NVDA EX-99.1 (0001045810-26-000088) yields the 5 outlook candidates, split by basis", () => {
+    const fixture = (name: string) =>
+      fs.readFileSync(
+        path.join(__dirname, "fixtures", `nvda-0001045810-26-000088-${name}`),
+        "utf8",
+      );
+    expect(findEx991InFilingIndex(fixture("index.html"))).toBe("q3fy27pr.htm");
+    const res = extractPressReleaseGuidanceCandidates({
+      accession: "0001045810-26-000088",
+      issuedOn: "2026-11-17",
+      html: fixture("ex99-1.htm"),
+    });
+    const rows = res.candidates.map((c) => [
+      c.metric,
+      c.basis,
+      `${c.targetFiscalPeriod} FY${c.targetFiscalYear}`,
+      Math.round(c.low * 100) / 100,
+      Math.round(c.high * 100) / 100,
+    ]);
+    expect(rows).toEqual([
+      ["revenue", "unspecified", "Q4 FY2027", 126.1e9, 133.9e9],
+      ["gross_margin", "gaap", "Q4 FY2027", 71, 72],
+      ["gross_margin", "non_gaap", "Q4 FY2027", 71, 72],
+      ["operating_expenses", "gaap", "Q4 FY2027", 11e9, 11e9],
+      ["operating_expenses", "non_gaap", "Q4 FY2027", 10.7e9, 10.7e9],
+    ]);
+    for (const c of res.candidates)
+      expect(res.chunks.some((k) => k.text.includes(c.quote))).toBe(true);
+  });
+
+  it("drops unpairable dual-basis sentences instead of merging GAAP and non-GAAP into one range", () => {
+    const html = `<p>Outlook for fiscal 2026</p>
+      <p>GAAP and non-GAAP operating expenses are expected to be $4.8 billion, $3.4 billion and $1.2 billion, respectively.</p>`;
+    const res = extractPressReleaseGuidanceCandidates({
+      accession: "x",
+      issuedOn: "2025-01-01",
+      html,
+    });
+    expect(res.candidates).toHaveLength(0);
   });
 
   it("rejects sentences without a resolvable target fiscal period", () => {

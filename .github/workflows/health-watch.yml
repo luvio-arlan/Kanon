@@ -1,0 +1,22 @@
+name: Production Health Watch (G32)
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Assert live health posture
+        run: |
+          body="$(curl -fsS --max-time 30 https://app.kanon.hk/api/health)"
+          echo "$body" | jq .
+          echo "$body" | jq -e '.status == "healthy"' > /dev/null || { echo "::error::health status is not healthy"; exit 1; }
+          echo "$body" | jq -e '.db.bypassRls == false' > /dev/null || { echo "::error::production DB role bypasses RLS"; exit 1; }
+          echo "$body" | jq -e '.db.rlsFailClosed == true' > /dev/null || { echo "::error::RLS is not fail-closed"; exit 1; }

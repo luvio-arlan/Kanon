@@ -2,32 +2,33 @@ import {
   buildAlignedDailyReturns,
   CORRELATED_CLUSTER_CAP_PCT,
   clusterCorrelations,
+  computeLedgerPortfolioWeights,
   decomposePortfolioRisk,
   estimateShrunkCovariance,
   PortfolioRiskResponseSchema,
   todayIsoUtc,
 } from "@kanon/core";
-import {
-  computeLedgerPortfolioWeights,
-  type KanonDb,
-  loadTenantAccountAndTransactions,
-  loadUnadjustedMarketDataForTickers,
-} from "@kanon/core/db";
+import type { LoadedMarketData } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonOk } from "../../_lib/http";
+import { loadAnalyticsContextWithFx } from "../fx-coverage";
 
 export const dynamic = "force-dynamic";
+
+const RISK_HISTORY_CALENDAR_DAYS = 400;
 
 function buildUnavailableRiskResponse(params: {
   accountId: string | null;
   cashWeightPct: number | null;
   holdings: ReadonlyArray<{ ticker: string; weightPct: number }>;
   missingTickers: string[];
+  fxMissingTickers?: string[];
+  status?: "currency_unconfirmed";
 }) {
   const isEmpty = params.holdings.length === 0;
   return PortfolioRiskResponseSchema.parse({
     accountId: params.accountId,
-    status: isEmpty ? "empty" : "insufficient_history",
+    status: params.status ?? (isEmpty ? "empty" : "insufficient_history"),
     basis: isEmpty ? "empty" : "insufficient_history",
     cashWeightPct: params.cashWeightPct,
     windowDays: 0,
@@ -48,6 +49,7 @@ function buildUnavailableRiskResponse(params: {
     })),
     clusters: [],
     missingTickers: params.missingTickers,
+    fxMissingTickers: params.fxMissingTickers ?? [],
   });
 }
 
@@ -55,7 +57,7 @@ function computeDailyCovRiskPayload(params: {
   accountId: string;
   cashWeightPct: number;
   holdings: ReadonlyArray<{ ticker: string; weightPct: number }>;
-  market: Awaited<ReturnType<typeof loadUnadjustedMarketDataForTickers>>;
+  market: LoadedMarketData;
 }) {
   const aligned = buildAlignedDailyReturns({
     tickers: params.holdings.map((h) => h.ticker),
@@ -101,12 +103,47 @@ function computeDailyCovRiskPayload(params: {
   });
 }
 
-async function loadRiskInputs(tx: KanonDb, userId: string, accountId: string | null) {
-  const { account, transactions } = await loadTenantAccountAndTransactions(tx, userId, accountId);
-  if (!account) return null;
-  const tickers = transactions.map((t) => t.ticker).filter((t) => t !== "CASH");
-  const market = await loadUnadjustedMarketDataForTickers(tx, tickers);
-  return { account, transactions, market };
+function riskHistoryFromDate(asOf: string): string {
+  return new Date(Date.parse(`${asOf}T00:00:00Z`) - RISK_HISTORY_CALENDAR_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+type RiskContext = Awaited<ReturnType<typeof loadAnalyticsContextWithFx>>;
+
+function buildRiskPayload(ctx: RiskContext, asOfDate: string) {
+  if (ctx.kind !== "ready" || ctx.transactions.length === 0) {
+    return buildUnavailableRiskResponse({
+      accountId: ctx.kind === "no_account" ? null : ctx.accountId,
+      cashWeightPct: ctx.kind === "no_account" ? null : 100,
+      holdings: [],
+      missingTickers: [],
+      ...(ctx.kind === "currency_unconfirmed" ? { status: "currency_unconfirmed" as const } : {}),
+    });
+  }
+  const weights = computeLedgerPortfolioWeights({
+    transactions: ctx.transactions,
+    splitsByTicker: ctx.market.splitsByTicker,
+    latestCloseByTicker: ctx.market.latestCloseByTicker,
+    baseCurrency: ctx.baseCurrency,
+    fxRatesByCurrency: ctx.fxRatesByCurrency,
+    asOfDate,
+  });
+  if (weights.fxMissingTickers.length > 0 || weights.holdings.length === 0) {
+    return buildUnavailableRiskResponse({
+      accountId: ctx.accountId,
+      cashWeightPct: weights.fxMissingTickers.length > 0 ? null : weights.cashWeightPct,
+      holdings: [],
+      missingTickers: [],
+      fxMissingTickers: weights.fxMissingTickers,
+    });
+  }
+  return computeDailyCovRiskPayload({
+    accountId: ctx.accountId,
+    cashWeightPct: weights.cashWeightPct,
+    holdings: weights.holdings,
+    market: ctx.market,
+  });
 }
 
 export async function GET(request: Request) {
@@ -114,47 +151,11 @@ export async function GET(request: Request) {
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
   const accountId = new URL(request.url).searchParams.get("accountId")?.trim() || null;
-  const loaded = await auth.withDb((tx) => loadRiskInputs(tx, auth.user.id, accountId));
-  if (!loaded || loaded.transactions.length === 0) {
-    return jsonOk(
-      buildUnavailableRiskResponse({
-        accountId: loaded?.account.id ?? null,
-        cashWeightPct: loaded ? 100 : null,
-        holdings: [],
-        missingTickers: [],
-      }),
-      startedAt,
-    );
-  }
-  const weights = computeLedgerPortfolioWeights({
-    transactions: loaded.transactions.map((t) => ({
-      id: t.id,
-      ticker: t.ticker,
-      action: t.action,
-      quantity: t.quantity,
-      price: t.price,
-      fees: t.fees,
-      tradeDate: t.tradeDate,
-      createdAtMs: t.createdAt.getTime(),
-      isOpeningBalance: t.externalRef === "opening_balance",
-    })),
-    splitsByTicker: loaded.market.splitsByTicker,
-    latestCloseByTicker: loaded.market.latestCloseByTicker,
-    asOfDate: todayIsoUtc(),
-  });
-  const payload =
-    weights.holdings.length === 0
-      ? buildUnavailableRiskResponse({
-          accountId: loaded.account.id,
-          cashWeightPct: weights.cashWeightPct,
-          holdings: [],
-          missingTickers: [],
-        })
-      : computeDailyCovRiskPayload({
-          accountId: loaded.account.id,
-          cashWeightPct: weights.cashWeightPct,
-          holdings: weights.holdings,
-          market: loaded.market,
-        });
-  return jsonOk(payload, startedAt);
+  const asOfDate = todayIsoUtc();
+  const ctx = await loadAnalyticsContextWithFx(
+    auth.withDb,
+    { userId: auth.user.id, accountId, minHistoryFromDate: riskHistoryFromDate(asOfDate) },
+    "/api/portfolio/risk",
+  );
+  return jsonOk(buildRiskPayload(ctx, asOfDate), startedAt);
 }

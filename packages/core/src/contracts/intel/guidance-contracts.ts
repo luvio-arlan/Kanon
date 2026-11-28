@@ -185,6 +185,7 @@ export const GuidanceCandidateSchema = z.object({
   high: z.number().finite().nullable(),
   quote: z.string(),
   extractor: z.enum(["rule/1", "llm/1"]),
+  ruleVersion: z.number().int().min(1),
   issuedOn: IsoDateSchema,
 });
 export type GuidanceCandidate = z.infer<typeof GuidanceCandidateSchema>;

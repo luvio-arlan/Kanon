@@ -19,6 +19,27 @@ export const HealthDbPostureSchema = z.object({
 });
 export type HealthDbPosture = z.infer<typeof HealthDbPostureSchema>;
 
+export const HealthFreshnessSchema = z.object({
+  staleTickers: z.number().int().nonnegative(),
+  superseded48h: z.number().int().nonnegative(),
+});
+export type HealthFreshness = z.infer<typeof HealthFreshnessSchema>;
+
+const ID_SEGMENT_RE = /^(?=.*\d)[A-Za-z0-9_-]{6,}$|^[A-Za-z0-9_-]{24,}$/;
+
+/**
+ * Collapses identifier-like path segments (`/thesis/th_8f3a…` → `/thesis/[id]`) so telemetry stores route
+ * templates, never per-record identifiers, and fingerprint cardinality stays bounded (V2-3).
+ */
+export function templateRoutePath(raw: string): string {
+  const path = raw.split(/[?#]/)[0] ?? "/";
+  const tpl = path
+    .split("/")
+    .map((seg) => (ID_SEGMENT_RE.test(seg) ? "[id]" : seg))
+    .join("/");
+  return tpl.slice(0, 120) || "/";
+}
+
 export const ClientErrorReportSchema = z.object({
   route: z.string().trim().min(1).max(120),
   digest: z.string().regex(/^[a-f0-9]{16,64}$/),
@@ -41,6 +62,7 @@ export const HealthResponseSchema = z.object({
   db: HealthDbPostureSchema,
   dbSizePct: z.number().nullable(),
   errors24h: z.number().int().nonnegative().default(0),
+  freshness: HealthFreshnessSchema.default({ staleTickers: 0, superseded48h: 0 }),
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 

@@ -212,6 +212,7 @@ const SYSTEM_DB_ALLOWLIST = new Map([
     new Set(["cron_tick", "user_triggered_sync"]),
   ],
   ["apps/web/src/app/api/internal/jobs/tick/tick-runner.ts", new Set(["cron_tick"])],
+  ["apps/web/src/app/api/portfolio/fx-coverage.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/sec/[ticker]/route.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/sec/[ticker]/filing/route.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/sec/[ticker]/redline/route.ts", new Set(["user_triggered_sync"])],

@@ -31,7 +31,7 @@ export interface RecordTransactionInput {
   fees?: number;
   tradeCurrency?: CurrencyCode;
   fxToBase?: number;
-  fxSource?: FxSource;
+  fxDeviationAck?: boolean;
   tradeDate: string;
   noLeverageConfirmed: boolean;
   note?: string;
@@ -84,9 +84,10 @@ export function buildNewReplayTx(
   };
 }
 
-export async function lockAccountForUpdate(tx: KanonDb, accountId: string, userId: string) {
+/** Row-locks a tenant account and reports its currency confirmation state (no USD fallback — V0-4). */
+export async function lockAccountRowForUpdate(tx: KanonDb, accountId: string, userId: string) {
   const locked = await tx.execute(sql`
-    SELECT id, org_id, base_currency, cash_balance, no_leverage_acknowledged_at
+    SELECT id, org_id, base_currency, cash_balance, no_leverage_acknowledged_at, ledger_inconsistent
     FROM portfolio_accounts
     WHERE id = ${accountId} AND user_id = ${userId}
     FOR UPDATE
@@ -97,6 +98,7 @@ export async function lockAccountForUpdate(tx: KanonDb, accountId: string, userI
     base_currency?: string;
     cash_balance?: number;
     no_leverage_acknowledged_at?: unknown;
+    ledger_inconsistent?: boolean;
   }>;
   const acct = rows[0];
   if (!acct?.id) throw new LedgerPolicyError("ACCOUNT_NOT_FOUND", "投资组合账户不存在。", 404);
@@ -104,12 +106,26 @@ export async function lockAccountForUpdate(tx: KanonDb, accountId: string, userI
   if (!Number.isFinite(cashBalance)) {
     throw new LedgerPolicyError("CORRUPTED_BALANCE", "账户现金余额异常，已阻断交易。");
   }
-  const parsedCur = CurrencyCodeSchema.safeParse((acct.base_currency ?? "USD").toUpperCase());
+  const parsedCur = CurrencyCodeSchema.safeParse((acct.base_currency ?? "").trim().toUpperCase());
   return {
     id: acct.id,
     orgId: acct.org_id ?? null,
-    baseCurrency: (parsedCur.success ? parsedCur.data : "USD") as CurrencyCode,
+    baseCurrency: parsedCur.success ? parsedCur.data : null,
+    unconfirmed: Boolean(acct.ledger_inconsistent) || !parsedCur.success,
     cashBalance,
     acknowledged: Boolean(acct.no_leverage_acknowledged_at),
   };
+}
+
+/**
+ * Row-locks a currency-confirmed tenant account. Accounts flagged `ledger_inconsistent` or carrying an
+ * unsupported base currency are rejected with 409 `CURRENCY_UNCONFIRMED` (V0-4).
+ */
+export async function lockAccountForUpdate(tx: KanonDb, accountId: string, userId: string) {
+  const acct = await lockAccountRowForUpdate(tx, accountId, userId);
+  const baseCurrency = acct.baseCurrency;
+  if (acct.unconfirmed || !baseCurrency) {
+    throw new LedgerPolicyError("CURRENCY_UNCONFIRMED", "账户币种待确认，请先完成币种确认。", 409);
+  }
+  return { ...acct, baseCurrency };
 }

@@ -36,6 +36,47 @@ function computeExcludedKindsForBudget(remainingMs: number): string[] {
   return excluded;
 }
 
+/**
+ * Persists a job failure, THEN best-effort telemetry in a separate transaction: an observability write can
+ * never roll back the job state machine or abort the tick (V2-3 / G39).
+ */
+async function recordJobFailure(params: {
+  jobId: string;
+  code: string;
+  lockOwner?: string;
+  startedAtPerf: number;
+  err: unknown;
+}) {
+  const msg = params.err instanceof Error ? params.err.message : String(params.err);
+  const requestId = generateRequestId();
+  await withSystemDb(
+    "cron_tick",
+    (tx) => failJobWithBackoff(tx, params.jobId, msg, params.lockOwner),
+    requestId,
+  );
+  await withSystemDb(
+    "cron_tick",
+    (tx) =>
+      recordAppErrorEvent(tx, {
+        source: "job",
+        route: "/api/internal/jobs/tick",
+        code: params.code,
+        message: msg,
+        requestId,
+      }),
+    requestId,
+  ).catch(() => undefined);
+  logStructuredApiEvent({
+    level: "warn",
+    requestId,
+    route: "/api/internal/jobs/tick",
+    status: 500,
+    durationMs: Math.round(performance.now() - params.startedAtPerf),
+    code: params.code,
+    message: msg,
+  });
+}
+
 async function runSingleJobWithDeadline(
   job: QueuedJobRow,
   workerId: string,
@@ -53,30 +94,12 @@ async function runSingleJobWithDeadline(
     }
     return true;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const requestId = generateRequestId();
-    await withSystemDb(
-      "cron_tick",
-      async (tx) => {
-        await failJobWithBackoff(tx, job.id, msg, workerId);
-        await recordAppErrorEvent(tx, {
-          source: "job",
-          route: "/api/internal/jobs/tick",
-          code: job.kind,
-          message: msg,
-          requestId,
-        });
-      },
-      requestId,
-    );
-    logStructuredApiEvent({
-      level: "warn",
-      requestId,
-      route: "/api/internal/jobs/tick",
-      status: 500,
-      durationMs: Math.round(performance.now() - startedAtPerf),
+    await recordJobFailure({
+      jobId: job.id,
       code: job.kind,
-      message: msg,
+      lockOwner: workerId,
+      startedAtPerf,
+      err,
     });
     return false;
   }
@@ -116,52 +139,13 @@ async function drainSyncQueue(params: {
   return { claimed, completed, failed };
 }
 
-async function recordTickJobFailure(params: {
-  jobId: string;
-  code: string;
-  lockOwner?: string;
-  startedAtPerf: number;
-  err: unknown;
-}) {
-  const msg = params.err instanceof Error ? params.err.message : String(params.err);
-  const requestId = generateRequestId();
-  await withSystemDb(
-    "cron_tick",
-    async (tx) => {
-      await failJobWithBackoff(tx, params.jobId, msg, params.lockOwner);
-      await recordAppErrorEvent(tx, {
-        source: "job",
-        route: "/api/internal/jobs/tick",
-        code: params.code,
-        message: msg,
-        requestId,
-      });
-    },
-    requestId,
-  );
-  logStructuredApiEvent({
-    level: "warn",
-    requestId,
-    route: "/api/internal/jobs/tick",
-    status: 500,
-    durationMs: Math.round(performance.now() - params.startedAtPerf),
-    code: params.code,
-    message: msg,
-  });
-}
-
 async function runFinalAlertPhase(
   workerId: string,
   day: string,
   startedAtPerf: number,
 ): Promise<{ triggeredCount: number; completed: boolean; failed: boolean }> {
   const [alertJob] = await withSystemDb("cron_tick", (tx) =>
-    claimDueJobs(tx, {
-      workerId,
-      limit: 1,
-      leaseSeconds: 60,
-      excludeKinds: [...NON_ALERT_JOB_KINDS],
-    }),
+    claimDueJobs(tx, { workerId, limit: 1, leaseSeconds: 60, onlyKinds: ["evaluate_alerts"] }),
   );
   const jobId = alertJob?.id ?? `evaluate_alerts:${day}`;
   const lockOwner = alertJob ? workerId : undefined;
@@ -182,7 +166,7 @@ async function runFinalAlertPhase(
       return { triggeredCount: summary.triggeredCount, completed: true, failed: false };
     });
   } catch (err) {
-    await recordTickJobFailure({ jobId, code: "evaluate_alerts", lockOwner, startedAtPerf, err });
+    await recordJobFailure({ jobId, code: "evaluate_alerts", lockOwner, startedAtPerf, err });
     return { triggeredCount: 0, completed: false, failed: true };
   }
 }

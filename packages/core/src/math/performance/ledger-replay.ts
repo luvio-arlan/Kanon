@@ -1,20 +1,14 @@
 import type { LedgerAction } from "../../db/schema";
 import { roundTo } from "../valuation-scenarios";
+import {
+  computeTxCashDelta,
+  type LedgerReplayFailure,
+  type ReplayTxInput,
+  resolveTxFxToBase,
+  validateFullCashPath,
+} from "./ledger-cash";
 
-export interface ReplayTxInput {
-  id: string;
-  ticker: string;
-  action: LedgerAction;
-  quantity: number;
-  price: number;
-  fees: number;
-  tradeDate: string;
-  createdAtMs: number;
-  isOpeningBalance?: boolean;
-  tradeCurrency?: string | null;
-  fxToBase?: number | null;
-  reversesTxId?: string | null;
-}
+export type { LedgerReplayFailure, ReplayTxInput } from "./ledger-cash";
 
 export interface SplitActionInput {
   exDate: string;
@@ -35,18 +29,8 @@ export interface LedgerReplaySuccess {
   realizedPnlByTxId: Map<string, number>;
 }
 
-export interface LedgerReplayFailure {
-  ok: false;
-  code: "INSUFFICIENT_CASH" | "CASH_PATH_NEGATIVE" | "SHORT_SELL_BLOCKED";
-  message: string;
-  failDate: string;
-  ticker?: string;
-  minCash?: number;
-}
-
 export type LedgerReplayResult = LedgerReplaySuccess | LedgerReplayFailure;
 
-const CASH_EPS = 0.005;
 const QTY_EPS = 1e-6;
 
 const SAME_DAY_ACTION_RANK: Record<LedgerAction, number> = {
@@ -81,41 +65,6 @@ export function sortReplayTxs(txs: readonly ReplayTxInput[]): ReplayTxInput[] {
       a.createdAtMs - b.createdAtMs ||
       a.id.localeCompare(b.id),
   );
-}
-
-/** Computes net cash delta in account base currency for a single transaction (U1-1). */
-export function computeTxCashDelta(tx: ReplayTxInput): number {
-  const fx = tx.fxToBase && tx.fxToBase > 0 ? tx.fxToBase : 1;
-  if (tx.action === "deposit" || tx.action === "dividend") {
-    return (tx.quantity * tx.price - tx.fees) * fx;
-  }
-  if (tx.action === "withdraw" || tx.action === "buy") {
-    return -(tx.quantity * tx.price + tx.fees) * fx;
-  }
-  return (tx.quantity * tx.price - tx.fees) * fx;
-}
-
-/** Validates chronological cash path C_k >= -0.005 across all transactions in O(n) (S0). */
-export function validateFullCashPath(sorted: readonly ReplayTxInput[]): LedgerReplayFailure | null {
-  let cash = 0;
-  for (let i = 0; i < sorted.length; i += 1) {
-    const tx = sorted[i];
-    if (!tx) continue;
-    cash = roundTo(cash + computeTxCashDelta(tx), 4);
-    if (cash < -CASH_EPS) {
-      const isTailOverdraft = i === sorted.length - 1;
-      return {
-        ok: false,
-        code: isTailOverdraft ? "INSUFFICIENT_CASH" : "CASH_PATH_NEGATIVE",
-        failDate: tx.tradeDate,
-        minCash: roundTo(cash, 2),
-        message: isTailOverdraft
-          ? `零杠杆现金拦截：可用现金不足，严禁产生负现金余额（将降至 $${cash.toFixed(2)}）。`
-          : `零杠杆资金路径拦截：${tx.tradeDate} 将产生负现金余额 $${cash.toFixed(2)}（严禁倒填交易造成历史透支）。`,
-      };
-    }
-  }
-  return null;
 }
 
 interface InternalLot {
@@ -193,7 +142,7 @@ function processSingleReplayTx(
   const lots = lotsByTicker.get(ticker) ?? [];
   lotsByTicker.set(ticker, lots);
   applySplitsThroughDate(lots, splitsByTicker.get(ticker) ?? [], tx.tradeDate);
-  const fx = tx.fxToBase && tx.fxToBase > 0 ? tx.fxToBase : 1;
+  const fx = resolveTxFxToBase(tx);
   if (tx.action === "buy") {
     const outlay = (tx.quantity * tx.price + tx.fees) * fx;
     lots.push({

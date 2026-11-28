@@ -26,10 +26,18 @@ export const UnrecordedDividendSchema = z.object({
 });
 export type UnrecordedDividend = z.infer<typeof UnrecordedDividendSchema>;
 
+/** Contiguous date span with no ECB reference rate for `currency` (V0-2): metrics stay `null`, never interpolated. */
+export const FxGapSchema = z.object({
+  currency: CurrencyCodeSchema,
+  from: IsoDateSchema,
+  to: IsoDateSchema,
+});
+export type FxGap = z.infer<typeof FxGapSchema>;
+
 export const PortfolioPerformanceResponseSchema = z.object({
   accountId: z.string().nullable(),
   baseCurrency: CurrencyCodeSchema.default("USD"),
-  status: z.enum(["ready", "empty", "insufficient_bars", "no_account"]),
+  status: z.enum(["ready", "empty", "insufficient_bars", "no_account", "currency_unconfirmed"]),
   totalNav: z.number().finite().nullable(),
   cashBalance: z.number().finite().nullable(),
   equityValue: z.number().finite().nullable(),
@@ -57,5 +65,6 @@ export const PortfolioPerformanceResponseSchema = z.object({
   ]),
   series: z.array(NavPointSchema),
   unrecordedDividends: z.array(UnrecordedDividendSchema),
+  fxGaps: z.array(FxGapSchema).default([]),
 });
 export type PortfolioPerformanceResponse = z.infer<typeof PortfolioPerformanceResponseSchema>;

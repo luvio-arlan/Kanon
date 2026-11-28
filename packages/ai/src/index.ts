@@ -36,7 +36,11 @@ export {
   fetchDailyPriceBarsWithEvents,
   type PolygonSplitEvent,
 } from "./market/daily-bars";
-export { type EcbFxRateRow, fetchEcbReferenceFxRates } from "./market/fx-ecb";
+export {
+  ECB_FX_CURRENCIES,
+  type EcbFxRateRow,
+  fetchEcbReferenceFxRates,
+} from "./market/fx-ecb";
 export {
   clearMarketQuoteCache,
   fetchMarketQuote,
@@ -111,6 +115,7 @@ export {
   registerSecGlobalSlotAcquirer,
 } from "./sec/sec-http";
 export * from "./sec/segments";
+export { formatCompactMoney } from "./sec/xbrl-helpers";
 export * from "./verification/citation-relevance";
 export {
   type ConceptFactValue,

@@ -21,7 +21,7 @@ export type CorrelationCluster = z.infer<typeof CorrelationClusterSchema>;
 
 export const PortfolioRiskResponseSchema = z.object({
   accountId: z.string().nullable().default(null),
-  status: z.enum(["ready", "insufficient_history", "empty"]),
+  status: z.enum(["ready", "insufficient_history", "empty", "currency_unconfirmed"]),
   basis: z.enum(["ledger_daily_cov", "insufficient_history", "empty"]),
   cashWeightPct: z.number().finite().nullable().default(null),
   windowDays: z.number().int().min(0),
@@ -35,5 +35,7 @@ export const PortfolioRiskResponseSchema = z.object({
   contributions: z.array(RiskContributionRowSchema),
   clusters: z.array(CorrelationClusterSchema),
   missingTickers: z.array(z.string()),
+  /** Holdings excluded because no ECB rate converts them into the account base currency (V0-3). */
+  fxMissingTickers: z.array(z.string()).default([]),
 });
 export type PortfolioRiskResponse = z.infer<typeof PortfolioRiskResponseSchema>;

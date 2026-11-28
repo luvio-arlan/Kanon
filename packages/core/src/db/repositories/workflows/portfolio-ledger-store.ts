@@ -160,10 +160,11 @@ export async function recordPortfolioTransaction(db: KanonDb, input: RecordTrans
     const resolvedFx = await resolveTxCurrencyAndFx(tx, {
       baseCurrency: acct.baseCurrency,
       ticker,
+      rawTicker: input.ticker,
       tradeDate: input.tradeDate,
       tradeCurrency: input.tradeCurrency,
       fxToBase: input.fxToBase,
-      fxSource: input.fxSource,
+      fxDeviationAck: input.fxDeviationAck,
     });
     const txId = `tx_${crypto.randomUUID()}`;
     const { cashBalance, realizedPnl } = await replayAndCommitAccountTransaction(tx, {

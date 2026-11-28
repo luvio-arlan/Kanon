@@ -46,7 +46,7 @@ export const DecisionEpisodeSchema = z.object({
 export type DecisionEpisode = z.infer<typeof DecisionEpisodeSchema>;
 
 export const PortfolioAttributionResponseSchema = z.object({
-  status: z.enum(["ready", "empty"]),
+  status: z.enum(["ready", "empty", "currency_unconfirmed"]),
   counts: z.object({
     skill: z.number().int().min(0),
     good_process_bad_luck: z.number().int().min(0),

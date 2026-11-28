@@ -1,5 +1,9 @@
+import { templateRoutePath } from "@kanon/core";
 import { z } from "zod";
 import { kanonFetch } from "./kanon-fetch";
+
+/** Short deploy SHA injected at build time (`next.config.ts`), so client errors map to a release. */
+const CLIENT_BUILD_ID = process.env.NEXT_PUBLIC_KANON_BUILD_ID || "local";
 
 const ClientErrorAckSchema = z.object({
   accepted: z.boolean(),
@@ -20,10 +24,10 @@ export function reportClientError(
   error: Error & { digest?: string },
   kind: "render" | "fetch" | "unhandled",
 ): void {
-  const route = typeof window === "undefined" ? "/" : window.location.pathname.slice(0, 120);
+  const route = typeof window === "undefined" ? "/" : templateRoutePath(window.location.pathname);
   const digest = toHexDigest(error.digest ?? error.name ?? kind);
   void kanonFetch("/api/telemetry/client-errors", ClientErrorAckSchema, {
     method: "POST",
-    body: JSON.stringify({ route, digest, kind, buildId: "web" }),
+    body: JSON.stringify({ route, digest, kind, buildId: CLIENT_BUILD_ID }),
   }).catch(() => undefined);
 }

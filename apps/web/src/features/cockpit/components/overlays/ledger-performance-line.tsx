@@ -133,6 +133,12 @@ export function LedgerPerformanceLine({
         <span className="text-ink-muted">
           最大回撤 {fmtSignedPct(perf?.maxDrawdownPct ?? null)}
         </span>
+        {perf?.fxContributionPct ? (
+          <span className="text-ink-secondary">
+            本地 {fmtSignedPct(perf.localContributionPct)} · 汇率{" "}
+            {fmtSignedPct(perf.fxContributionPct)}
+          </span>
+        ) : null}
         {basisLabel ? <Badge variant="titanium">{basisLabel}</Badge> : null}
       </div>
       <UnrecordedDividendAlert items={perf?.unrecordedDividends ?? []} currency={baseCurrency} />

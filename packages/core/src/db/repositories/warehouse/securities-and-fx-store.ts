@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { fxRatesDailyTable, type SecuritySecStatus, securitiesTable } from "../../schema";
 
@@ -161,30 +161,33 @@ export interface FxRateInput {
   sourceLicense?: string;
 }
 
+const FX_UPSERT_BATCH = 500;
+
+/** Batched idempotent FX upsert (500 rows/statement) so multi-year ECB backfills stay within one serverless budget. */
 export async function upsertFxRates(db: KanonDb, rates: readonly FxRateInput[]): Promise<number> {
-  if (rates.length === 0) return 0;
-  for (const rate of rates) {
-    if (!Number.isFinite(rate.usdPerUnit) || rate.usdPerUnit <= 0) continue;
-    const currency = rate.currency.trim().toUpperCase();
+  const rows = rates
+    .filter((r) => Number.isFinite(r.usdPerUnit) && r.usdPerUnit > 0)
+    .map((r) => ({
+      currency: r.currency.trim().toUpperCase(),
+      rateDate: r.rateDate,
+      usdPerUnit: r.usdPerUnit,
+      source: r.source ?? "ecb",
+      sourceLicense: r.sourceLicense ?? "ecb_reference",
+    }));
+  for (let i = 0; i < rows.length; i += FX_UPSERT_BATCH) {
     await db
       .insert(fxRatesDailyTable)
-      .values({
-        currency,
-        rateDate: rate.rateDate,
-        usdPerUnit: rate.usdPerUnit,
-        source: rate.source ?? "ecb",
-        sourceLicense: rate.sourceLicense ?? "ecb_reference",
-      })
+      .values(rows.slice(i, i + FX_UPSERT_BATCH))
       .onConflictDoUpdate({
         target: [fxRatesDailyTable.currency, fxRatesDailyTable.rateDate],
         set: {
-          usdPerUnit: rate.usdPerUnit,
-          source: rate.source ?? "ecb",
-          sourceLicense: rate.sourceLicense ?? "ecb_reference",
+          usdPerUnit: sql`excluded.usd_per_unit`,
+          source: sql`excluded.source`,
+          sourceLicense: sql`excluded.source_license`,
         },
       });
   }
-  return rates.length;
+  return rows.length;
 }
 
 /** Balance sheet items convert at period-end (latest rate on or before `asOfDate`). */

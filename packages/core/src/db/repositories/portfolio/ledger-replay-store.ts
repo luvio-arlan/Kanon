@@ -15,6 +15,7 @@ import {
 } from "../../schema";
 import { normalizeCanonicalTicker } from "../enterprise/ic-and-compliance-store";
 import { LedgerPolicyError } from "../workflows/ledger-fifo-helpers";
+import { toReplayTxInput } from "./analytics-context-store";
 
 /** Loads split corporate actions grouped by canonical ticker for ledger replay (S0). */
 export async function loadSplitsByTickers(
@@ -149,30 +150,14 @@ async function insertReplayedTransaction(
   });
 }
 
-function toReplayInput(r: typeof transactionsTable.$inferSelect): ReplayTxInput {
-  return {
-    id: r.id,
-    ticker: normalizeCanonicalTicker(r.ticker),
-    action: r.action,
-    quantity: r.quantity,
-    price: r.price,
-    fees: r.fees,
-    tradeCurrency: r.tradeCurrency,
-    fxToBase: r.fxToBase,
-    reversesTxId: r.reversesTxId,
-    tradeDate: r.tradeDate,
-    createdAtMs: r.createdAt.getTime(),
-    isOpeningBalance: r.externalRef === "opening_balance",
-  };
-}
-
 /**
  * Atomically validates full cash path + split-normalized FIFO across all account transactions,
- * inserts the new transaction, rebuilds open lots, updates realized_pnl, and updates cash balance (S0).
+ * inserts the new transaction (if any), rebuilds open lots, updates realized_pnl and cash balance (S0).
+ * Without `newTx` it re-replays the existing ledger in place (V0-4 currency confirmation).
  */
 export async function replayAndCommitAccountTransaction(
   tx: KanonDb,
-  params: { accountId: string; userId: string; newTx: NewReplayTx; asOfDate: string },
+  params: { accountId: string; userId: string; newTx?: NewReplayTx; asOfDate: string },
 ): Promise<{ cashBalance: number; realizedPnl: number | null }> {
   const existing = await tx
     .select()
@@ -184,7 +169,10 @@ export async function replayAndCommitAccountTransaction(
       ),
     )
     .orderBy(asc(transactionsTable.tradeDate), asc(transactionsTable.createdAt));
-  const replayInputs: ReplayTxInput[] = [...existing.map(toReplayInput), params.newTx];
+  const replayInputs: ReplayTxInput[] = [
+    ...existing.map(toReplayTxInput),
+    ...(params.newTx ? [params.newTx] : []),
+  ];
   const splitsByTicker = await loadSplitsByTickers(
     tx,
     replayInputs.map((t) => t.ticker),
@@ -195,14 +183,18 @@ export async function replayAndCommitAccountTransaction(
     asOfDate: params.asOfDate,
   });
   if (!replayed.ok) throw new LedgerPolicyError(replayed.code, replayed.message, 400);
-  const newRealizedPnl = replayed.realizedPnlByTxId.get(params.newTx.id) ?? null;
-  await insertReplayedTransaction(
-    tx,
-    params.accountId,
-    params.userId,
-    params.newTx,
-    newRealizedPnl,
-  );
+  const newRealizedPnl = params.newTx
+    ? (replayed.realizedPnlByTxId.get(params.newTx.id) ?? null)
+    : null;
+  if (params.newTx) {
+    await insertReplayedTransaction(
+      tx,
+      params.accountId,
+      params.userId,
+      params.newTx,
+      newRealizedPnl,
+    );
+  }
   await syncRecalculatedSellPnl(tx, existing, replayed.realizedPnlByTxId, params.userId);
   await rebuildAccountLotsAndCash(
     tx,

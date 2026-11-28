@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import type {
   GuidanceBasis,
   GuidanceCandidate,
@@ -9,6 +9,8 @@ import type {
 } from "../../../contracts/intel";
 import type { KanonDb } from "../../bootstrap";
 import { guidanceCandidatesTable, guidanceCommitmentsTable } from "../../schema";
+import { getThesisIdentity } from "../thesis/thesis-lookups";
+import { getSecurityByTicker } from "../warehouse/securities-and-fx-store";
 import { GuidancePolicyError } from "./guidance-store";
 
 export interface UpsertGuidanceCandidateInput {
@@ -25,10 +27,35 @@ export interface UpsertGuidanceCandidateInput {
   high: number | null;
   quote: string;
   extractor: "rule/1" | "llm/1";
+  ruleVersion: number;
   issuedOn: string;
 }
 
-/** Idempotently writes public security-level 8-K Ex-99.1 guidance candidates (U1-2). */
+function toCandidateRow(r: UpsertGuidanceCandidateInput) {
+  return {
+    id: `gcand_${crypto.randomUUID()}`,
+    securityId: r.securityId,
+    accession: r.accession,
+    chunkId: r.chunkId,
+    metric: r.metric,
+    basis: r.basis,
+    unit: r.unit,
+    currency: (r.currency ?? "USD").toUpperCase(),
+    targetFiscalYear: r.targetFiscalYear,
+    targetFiscalPeriod: r.targetFiscalPeriod,
+    low: r.low,
+    high: r.high,
+    quote: r.quote.trim().slice(0, 600),
+    extractor: r.extractor,
+    ruleVersion: r.ruleVersion,
+    issuedOn: r.issuedOn,
+  };
+}
+
+/**
+ * Idempotently writes public security-level 8-K Ex-99.1 guidance candidates (U1-2). A higher
+ * `ruleVersion` supersedes the stored values in place and clears any retraction (V1-1).
+ */
 export async function upsertGuidanceCandidates(
   db: KanonDb,
   rows: readonly UpsertGuidanceCandidateInput[],
@@ -38,26 +65,11 @@ export async function upsertGuidanceCandidates(
     if (r.low === null && r.high === null) continue;
     if (r.low !== null && r.high !== null && r.low > r.high) continue;
     if (r.quote.trim().length < 12) continue;
-    await db
+    const values = toCandidateRow(r);
+    const inserted = await db
       .insert(guidanceCandidatesTable)
-      .values({
-        id: `gcand_${crypto.randomUUID()}`,
-        securityId: r.securityId,
-        accession: r.accession,
-        chunkId: r.chunkId,
-        metric: r.metric,
-        basis: r.basis,
-        unit: r.unit,
-        currency: (r.currency ?? "USD").toUpperCase(),
-        targetFiscalYear: r.targetFiscalYear,
-        targetFiscalPeriod: r.targetFiscalPeriod,
-        low: r.low,
-        high: r.high,
-        quote: r.quote.trim().slice(0, 600),
-        extractor: r.extractor,
-        issuedOn: r.issuedOn,
-      })
-      .onConflictDoNothing({
+      .values(values)
+      .onConflictDoUpdate({
         target: [
           guidanceCandidatesTable.accession,
           guidanceCandidatesTable.metric,
@@ -65,8 +77,19 @@ export async function upsertGuidanceCandidates(
           guidanceCandidatesTable.targetFiscalPeriod,
           guidanceCandidatesTable.basis,
         ],
-      });
-    written += 1;
+        set: {
+          chunkId: values.chunkId,
+          low: values.low,
+          high: values.high,
+          quote: values.quote,
+          ruleVersion: values.ruleVersion,
+          retractedAt: null,
+          retractReason: null,
+        },
+        setWhere: lt(guidanceCandidatesTable.ruleVersion, r.ruleVersion),
+      })
+      .returning();
+    written += inserted.length;
   }
   return written;
 }
@@ -90,7 +113,12 @@ export async function listUnadoptedGuidanceCandidates(
     db
       .select()
       .from(guidanceCandidatesTable)
-      .where(eq(guidanceCandidatesTable.securityId, securityId))
+      .where(
+        and(
+          eq(guidanceCandidatesTable.securityId, securityId),
+          isNull(guidanceCandidatesTable.retractedAt),
+        ),
+      )
       .orderBy(desc(guidanceCandidatesTable.issuedOn))
       .limit(24),
   ]);
@@ -112,11 +140,16 @@ export async function listUnadoptedGuidanceCandidates(
       high: c.high,
       quote: c.quote,
       extractor: c.extractor,
+      ruleVersion: c.ruleVersion,
       issuedOn: c.issuedOn,
     }));
 }
 
-async function loadUnadoptedCandidateOrThrow(db: KanonDb, thesisId: string, candidateId: string) {
+async function loadUnadoptedCandidateOrThrow(
+  db: KanonDb,
+  params: { thesisId: string; userId: string; candidateId: string },
+) {
+  const { thesisId, candidateId } = params;
   const [cand] = await db
     .select()
     .from(guidanceCandidatesTable)
@@ -124,6 +157,18 @@ async function loadUnadoptedCandidateOrThrow(db: KanonDb, thesisId: string, cand
     .limit(1);
   if (!cand) {
     throw new GuidancePolicyError("CANDIDATE_NOT_FOUND", "未找到对应的 8-K 指引候选。", 404);
+  }
+  if (cand.retractedAt) {
+    throw new GuidancePolicyError("CANDIDATE_RETRACTED", "该 8-K 指引候选已撤回。", 409);
+  }
+  const identity = await getThesisIdentity(db, thesisId, params.userId);
+  const sec = identity ? await getSecurityByTicker(db, identity.ticker) : null;
+  if (!sec || sec.id !== cand.securityId) {
+    throw new GuidancePolicyError(
+      "CANDIDATE_SECURITY_MISMATCH",
+      "该 8-K 指引候选不属于本档案标的。",
+      409,
+    );
   }
   const [existing] = await db
     .select({ id: guidanceCommitmentsTable.id })
@@ -149,7 +194,7 @@ export async function adoptGuidanceCandidate(
   db: KanonDb,
   params: { thesisId: string; userId: string; candidateId: string },
 ): Promise<{ id: string }> {
-  const cand = await loadUnadoptedCandidateOrThrow(db, params.thesisId, params.candidateId);
+  const cand = await loadUnadoptedCandidateOrThrow(db, params);
   const id = `guid_${crypto.randomUUID()}`;
   await db.insert(guidanceCommitmentsTable).values({
     id,

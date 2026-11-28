@@ -4,16 +4,16 @@ import ts from "typescript";
 
 const IGNORED_DIRS = new Set(["node_modules", ".next", ".turbo", "dist", "coverage"]);
 
-function parseTs(rel, content) {
+export function parseTs(rel, content) {
   const kind = rel.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   return ts.createSourceFile(rel, content, ts.ScriptTarget.Latest, true, kind);
 }
 
-function getLine(sf, pos) {
+export function getLine(sf, pos) {
   return sf.getLineAndCharacterOfPosition(pos).line + 1;
 }
 
-function collectTsFiles(dir, out) {
+export function collectTsFiles(dir, out) {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (IGNORED_DIRS.has(entry.name)) continue;
@@ -26,7 +26,7 @@ function collectTsFiles(dir, out) {
   }
 }
 
-function extractNumericLiteralValue(node) {
+export function extractNumericLiteralValue(node) {
   if (ts.isNumericLiteral(node)) return Number(node.text);
   if (
     ts.isPrefixUnaryExpression(node) &&
@@ -39,7 +39,7 @@ function extractNumericLiteralValue(node) {
   return null;
 }
 
-const G21_PREFIXES = [
+export const G21_PREFIXES = [
   "packages/core/src/math/performance/",
   "packages/core/src/math/risk/",
   "packages/core/src/math/attribution/",

@@ -126,6 +126,8 @@ export async function claimDueJobs(
     limit?: number;
     leaseSeconds?: number;
     excludeKinds?: readonly string[];
+    /** Allowlist: when set, ONLY these kinds are claimable (never claim work you cannot run). */
+    onlyKinds?: readonly string[];
   },
 ): Promise<QueuedJobRow[]> {
   const limit = Math.max(1, Math.min(25, params.limit ?? 1));
@@ -140,10 +142,16 @@ export async function claimDueJobs(
       last_error = COALESCE(last_error, 'Exceeded max attempts after worker lease timeout')
     WHERE status = 'running' AND locked_until IS NOT NULL AND locked_until < NOW() AND attempts >= max_attempts
   `);
+  const onlySql = params.onlyKinds?.length
+    ? sql`AND kind IN (${sql.join(
+        params.onlyKinds.map((k) => sql`${k}`),
+        sql`, `,
+      )})`
+    : sql``;
   const res = await db.execute(sql`
     WITH due AS (
       SELECT id FROM jobs
-      WHERE kind NOT IN (${excludedSql}) AND attempts < max_attempts
+      WHERE kind NOT IN (${excludedSql}) ${onlySql} AND attempts < max_attempts
         AND ((status = 'pending' AND run_at <= NOW())
           OR (status = 'running' AND locked_until IS NOT NULL AND locked_until < NOW()))
       ORDER BY priority ASC, run_at ASC LIMIT ${limit} FOR UPDATE SKIP LOCKED

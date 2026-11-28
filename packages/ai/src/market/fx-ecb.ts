@@ -8,10 +8,23 @@ export interface EcbFxRateRow {
   sourceLicense: "ecb_reference";
 }
 
-const ECB_CSV_URL =
-  "https://data-api.ecb.europa.eu/service/data/EXR/D.USD+HKD+CNY+GBP+JPY.EUR.SP00.A?format=csvdata&lastNObservations=15";
+const ECB_SERIES_URL =
+  "https://data-api.ecb.europa.eu/service/data/EXR/D.USD+HKD+CNY+GBP+JPY.EUR.SP00.A?format=csvdata";
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Builds the ECB SDMX CSV URL: bounded `startPeriod`/`endPeriod` history backfill, else the latest 15 observations. */
+export function buildEcbFxUrl(range?: { startPeriod?: string; endPeriod?: string }): string {
+  const start = range?.startPeriod;
+  if (!start || !ISO_DATE_RE.test(start)) return `${ECB_SERIES_URL}&lastNObservations=15`;
+  const end =
+    range?.endPeriod && ISO_DATE_RE.test(range.endPeriod) ? `&endPeriod=${range.endPeriod}` : "";
+  return `${ECB_SERIES_URL}&startPeriod=${start}${end}`;
+}
 
 const SUPPORTED_ECB_CODES = new Set(["USD", "HKD", "CNY", "GBP", "JPY"]);
+
+/** Non-USD account/trade currencies resolvable from ECB reference rates (EUR is the ECB base). */
+export const ECB_FX_CURRENCIES = ["EUR", "HKD", "CNY", "GBP", "JPY"] as const;
 
 function parseSingleEcbLine(
   line: string,
@@ -84,16 +97,23 @@ export function convertEcbCsvToUsdPerUnit(csv: string): EcbFxRateRow[] {
   return out;
 }
 
-/** Fetches daily ECB reference FX rates with a bounded 10s timeout (independent of SEC gateway). */
+/**
+ * Fetches ECB reference FX rates (independent of the SEC gateway). With `startPeriod` it backfills the
+ * full bounded history (V0-2); without it, only the latest 15 observations for the daily cron.
+ */
 export async function fetchEcbReferenceFxRates(options?: {
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
   timeoutMs?: number;
+  startPeriod?: string;
+  endPeriod?: string;
 }): Promise<EcbFxRateRow[]> {
   const fetchImpl = options?.fetchImpl ?? fetch;
-  const timeout = AbortSignal.timeout(options?.timeoutMs ?? 10_000);
+  const timeout = AbortSignal.timeout(
+    options?.timeoutMs ?? (options?.startPeriod ? 15_000 : 10_000),
+  );
   const signal = options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
-  const res = await fetchImpl(ECB_CSV_URL, {
+  const res = await fetchImpl(buildEcbFxUrl(options), {
     headers: { Accept: "text/csv, text/plain" },
     signal,
   });

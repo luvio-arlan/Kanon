@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, gte, inArray } from "drizzle-orm";
 import type { CashDividendEvent, CloseBarPoint, SplitActionInput } from "../../../math/performance";
 import type { KanonDb } from "../../bootstrap";
 import {
@@ -64,10 +64,35 @@ function indexActionRows(
   return { splitsByTicker, dividendsByTicker };
 }
 
+function queryBarsAndActions(tx: KanonDb, secIds: readonly string[], barsFromDate?: string) {
+  return Promise.all([
+    tx
+      .select({
+        securityId: priceBarsDailyTable.securityId,
+        barDate: priceBarsDailyTable.barDate,
+        close: priceBarsDailyTable.close,
+      })
+      .from(priceBarsDailyTable)
+      .where(
+        and(
+          inArray(priceBarsDailyTable.securityId, [...secIds]),
+          barsFromDate ? gte(priceBarsDailyTable.barDate, barsFromDate) : undefined,
+        ),
+      )
+      .orderBy(asc(priceBarsDailyTable.barDate)),
+    tx
+      .select()
+      .from(corporateActionsTable)
+      .where(inArray(corporateActionsTable.securityId, [...secIds]))
+      .orderBy(asc(corporateActionsTable.exDate)),
+  ]);
+}
+
 /** Loads split-basis daily closes + corporate actions (splits/dividends) for tickers + SPY (NEVER adjClose — U0-5 / G16). */
 export async function loadUnadjustedMarketDataForTickers(
   tx: KanonDb,
   tickers: readonly string[],
+  barsFromDate?: string,
 ): Promise<LoadedMarketData> {
   const unique = [
     ...new Set(["SPY", ...tickers.map(normalizeCanonicalTicker).filter((t) => t && t !== "CASH")]),
@@ -87,23 +112,11 @@ export async function loadUnadjustedMarketDataForTickers(
     };
   }
   const tickerById = new Map(secs.map((s) => [s.id, normalizeCanonicalTicker(s.ticker)]));
-  const secIds = secs.map((s) => s.id);
-  const [barRows, actionRows] = await Promise.all([
-    tx
-      .select({
-        securityId: priceBarsDailyTable.securityId,
-        barDate: priceBarsDailyTable.barDate,
-        close: priceBarsDailyTable.close,
-      })
-      .from(priceBarsDailyTable)
-      .where(inArray(priceBarsDailyTable.securityId, secIds))
-      .orderBy(asc(priceBarsDailyTable.barDate)),
-    tx
-      .select()
-      .from(corporateActionsTable)
-      .where(inArray(corporateActionsTable.securityId, secIds))
-      .orderBy(asc(corporateActionsTable.exDate)),
-  ]);
+  const [barRows, actionRows] = await queryBarsAndActions(
+    tx,
+    secs.map((s) => s.id),
+    barsFromDate,
+  );
   const { barsByTicker, latestCloseByTicker } = indexBarRows(barRows, tickerById);
   const { splitsByTicker, dividendsByTicker } = indexActionRows(actionRows, tickerById);
   return {

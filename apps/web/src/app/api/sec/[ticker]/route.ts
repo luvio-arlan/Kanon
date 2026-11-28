@@ -186,7 +186,7 @@ export async function PUT(request: Request, context: RouteContext) {
   const sortedAnnuals = [...parsed.data.annuals].sort((a, b) =>
     a.fiscalYear.localeCompare(b.fiscalYear),
   );
-  const manualFacts = buildManualFacts(sortedAnnuals);
+  const manualFacts = buildManualFacts(sortedAnnuals, parsed.data.reportingCurrency);
   const saved = await auth.withDb((tx) =>
     saveManualSecOverride(
       tx,

@@ -1,4 +1,4 @@
-import { formatUsdCompact } from "@kanon/ai";
+import { formatCompactMoney } from "@kanon/ai";
 import {
   type SecFinancialFact,
   SecSnapshotSchema,
@@ -14,6 +14,7 @@ export function buildManualFacts(
     freeCashFlow: number | null;
     netIncome: number | null;
   }[],
+  reportingCurrency: string,
 ): SecFinancialFact[] {
   const latest = annuals[annuals.length - 1];
   if (!latest) return [];
@@ -29,7 +30,7 @@ export function buildManualFacts(
     .map(([val, metric, label, sourceTag]) => ({
       metric,
       label,
-      valueFormatted: formatUsdCompact(val),
+      valueFormatted: formatCompactMoney(val, reportingCurrency),
       period: latest.fiscalYear,
       sourceTag,
     }));

@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@kanon/ui", "@kanon/core", "@kanon/ai"],
   serverExternalPackages: ["@electric-sql/pglite", "postgres"],
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_KANON_BUILD_ID: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 8) || "local",
+  },
   compress: true,
   poweredByHeader: false,
   images: {

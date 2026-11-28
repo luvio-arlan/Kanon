@@ -36,13 +36,31 @@ export const GenericOkResponseSchema = z.object({
   ok: z.boolean(),
 });
 
+export const LedgerTransactionRowSchema = z.object({
+  id: z.string(),
+  thesisId: z.string().nullable(),
+  ticker: z.string(),
+  action: z.enum(["deposit", "withdraw", "buy", "sell", "dividend"]),
+  quantity: z.number(),
+  price: z.number(),
+  fees: z.number(),
+  tradeDate: z.string(),
+  tradeCurrency: z.string().nullable(),
+  fxToBase: z.number().nullable(),
+  reversesTxId: z.string().nullable(),
+});
+export type LedgerTransactionRow = z.infer<typeof LedgerTransactionRowSchema>;
+
 export const LedgerAccountListResponseSchema = z.object({
   accounts: z.array(
     z.object({
       id: z.string(),
       name: z.string(),
+      baseCurrency: z.string(),
+      ledgerInconsistent: z.boolean(),
       cashBalance: z.number(),
       noLeverageAcknowledgedAt: z.string().nullable().optional(),
+      transactions: z.array(LedgerTransactionRowSchema),
       positions: z.array(
         z.object({
           ticker: z.string(),

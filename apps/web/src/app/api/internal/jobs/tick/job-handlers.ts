@@ -1,5 +1,7 @@
-import { fetchEcbReferenceFxRates } from "@kanon/ai";
+import { ECB_FX_CURRENCIES, fetchEcbReferenceFxRates } from "@kanon/ai";
 import {
+  findEarliestForeignLedgerDate,
+  findFxBackfillStart,
   pruneOldAppErrorEvents,
   pruneStaleFilingChunks,
   type QueuedJobRow,
@@ -29,7 +31,7 @@ export const NON_ALERT_JOB_KINDS = [
 
 /** Estimated execution budget per job kind (ms) used to prevent mid-job Vercel 60s kills (U0-2). */
 export const JOB_COST_MS: Readonly<Record<string, number>> = {
-  sync_fx_rates: 5_000,
+  sync_fx_rates: 12_000,
   sync_daily_bars: 6_000,
   backfill_bars: 10_000,
   sync_sec: 25_000,
@@ -53,7 +55,16 @@ export type JobRunner = (job: QueuedJobRow, signal: AbortSignal) => Promise<JobO
 const JOB_RUNNERS: Record<string, JobRunner> = {
   noop: async () => "done",
   sync_fx_rates: async (_job, signal) => {
-    const rows = await fetchEcbReferenceFxRates({ signal });
+    const today = new Date().toISOString().slice(0, 10);
+    const startPeriod = await withSystemDb("cron_tick", async (tx) => {
+      const earliest = await findEarliestForeignLedgerDate(tx);
+      return findFxBackfillStart(tx, {
+        currencies: ECB_FX_CURRENCIES,
+        fromDate: earliest ?? today,
+        today,
+      });
+    });
+    const rows = await fetchEcbReferenceFxRates({ signal, startPeriod: startPeriod ?? undefined });
     if (rows.length > 0) {
       await withSystemDb("cron_tick", (tx) => upsertFxRates(tx, rows));
     }
@@ -93,10 +104,8 @@ const JOB_RUNNERS: Record<string, JobRunner> = {
     await runSyncSegmentsJob(job.payload, "cron_tick", signal);
     return "done";
   },
-  extract_press_guidance: async (job, signal) => {
-    await runExtractPressGuidanceJob(job.payload, "cron_tick", signal);
-    return "done";
-  },
+  extract_press_guidance: (job, signal) =>
+    runExtractPressGuidanceJob(job.payload, "cron_tick", signal),
   resolve_guidance: async () => {
     await withSystemDb("cron_tick", (tx) => resolvePendingGuidanceCommitments(tx));
     return "done";

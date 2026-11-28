@@ -5,10 +5,12 @@ import type { CashDividendEvent, CloseBarPoint } from "./benchmark-tr";
 import { detectUnrecordedDividends } from "./dividend-audit";
 import {
   accumulateDailyFxAttribution,
+  collectFxGaps,
   computeBenchmarkAndSeries,
   type DailyFxRatePoint,
   type DailyPositionMark,
 } from "./fx-attribution";
+import { linkFxContributionCarino } from "./fx-contribution";
 import { type ReplayTxInput, type SplitActionInput, sortReplayTxs } from "./ledger-replay";
 import {
   applyDayTxs,
@@ -68,10 +70,10 @@ function simulateDailyNav(
   const sharesAtDate = new Map<string, Map<string, number>>();
   const baseCurrency = input.baseCurrency ?? "USD";
   let cash = 0;
-  let localContribution = 0;
-  let fxContribution = 0;
+  const dailyFxBase: number[] = [];
   let prevMarks = new Map<string, DailyPositionMark>();
   const rawPoints: RawNavRow[] = [];
+  const fxMissingByDay = new Map<string, Set<string>>();
 
   for (const day of dates) {
     sharesAtDate.set(day, snapshotShares(holdings));
@@ -90,9 +92,9 @@ function simulateDailyNav(
       currByTicker: marked.marksByTicker,
       dayTradeFlowBaseByTicker: dayFlow.dayTradeFlowBaseByTicker,
     });
-    localContribution += attr.localDelta;
-    fxContribution += attr.fxDelta;
+    dailyFxBase.push(attr.fxDelta);
     prevMarks = marked.marksByTicker;
+    if (marked.fxMissingCurrencies.size > 0) fxMissingByDay.set(day, marked.fxMissingCurrencies);
     rawPoints.push({
       date: day,
       nav: roundTo(cash + marked.equityValue, 2),
@@ -102,7 +104,7 @@ function simulateDailyNav(
       basis: marked.basis,
     });
   }
-  return { rawPoints, sharesAtDate, localContribution, fxContribution };
+  return { rawPoints, sharesAtDate, dailyFxBase, fxMissingByDay };
 }
 
 function resolveOverallBasis(series: readonly NavPoint[]): NavBasis {
@@ -130,8 +132,7 @@ interface ReadyPerfArgs {
   dates: readonly string[];
   rawPoints: readonly RawNavRow[];
   sharesAtDate: ReadonlyMap<string, ReadonlyMap<string, number>>;
-  localContribution: number;
-  fxContribution: number;
+  dailyFxBase: readonly number[];
 }
 
 function buildReadyResponse(p: ReadyPerfArgs): PortfolioPerformanceResponse {
@@ -145,9 +146,9 @@ function buildReadyResponse(p: ReadyPerfArgs): PortfolioPerformanceResponse {
   });
   const last = series[series.length - 1];
   const spyTrPct = last?.spyTrCumPct ?? null;
-  const netCapital = p.rawPoints.reduce((acc, row) => acc + row.netFlow, 0);
-  const ratioPct = (amt: number) =>
-    netCapital > 1e-6 ? roundTo((amt / netCapital) * 100, 2) : null;
+  const fxAmount = p.dailyFxBase.reduce((acc, v) => acc + v, 0);
+  const totalPnl = (last?.nav ?? 0) - p.rawPoints.reduce((acc, row) => acc + row.netFlow, 0);
+  const linked = linkFxContributionCarino(p.rawPoints, p.dailyFxBase);
   return {
     accountId: p.input.accountId,
     baseCurrency: p.baseCurrency,
@@ -161,10 +162,10 @@ function buildReadyResponse(p: ReadyPerfArgs): PortfolioPerformanceResponse {
     spyTrPct,
     excessReturnPct:
       twr.twrPct !== null && spyTrPct !== null ? roundTo(twr.twrPct - spyTrPct, 2) : null,
-    localContribution: roundTo(p.localContribution, 2),
-    fxContribution: roundTo(p.fxContribution, 2),
-    localContributionPct: ratioPct(p.localContribution),
-    fxContributionPct: ratioPct(p.fxContribution),
+    localContribution: roundTo(totalPnl - fxAmount, 2),
+    fxContribution: roundTo(fxAmount, 2),
+    localContributionPct: linked?.localPct ?? null,
+    fxContributionPct: linked?.fxPct ?? null,
     maxDrawdownPct: dd.maxDrawdownPct,
     maxDrawdownPeakDate: dd.peakDate,
     maxDrawdownTroughDate: dd.troughDate,
@@ -172,6 +173,7 @@ function buildReadyResponse(p: ReadyPerfArgs): PortfolioPerformanceResponse {
     tradingDays: twr.tradingDays,
     basis: resolveOverallBasis(series),
     series,
+    fxGaps: [],
     unrecordedDividends: detectUnrecordedDividends({
       transactions: p.sortedTxs,
       dividendsByTicker: p.input.dividendsByTicker,
@@ -201,12 +203,13 @@ export function buildPortfolioPerformanceSeries(
       "rebase_pending",
     );
   }
-  if (sim.rawPoints.some((p) => p.basis === "fx_stale")) {
+  if (sim.fxMissingByDay.size > 0) {
     return buildUnavailablePerformanceResponse(
       input.accountId,
       baseCurrency,
       sim.rawPoints,
       "fx_stale",
+      collectFxGaps(dates, sim.fxMissingByDay),
     );
   }
   return buildReadyResponse({ input, baseCurrency, sortedTxs, dates, ...sim });

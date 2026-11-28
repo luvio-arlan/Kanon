@@ -161,30 +161,35 @@ async function persistPressGuidanceOutput(
       high: c.high,
       quote: c.quote,
       extractor: c.extractor,
+      ruleVersion: c.ruleVersion,
       issuedOn: c.issuedOn,
     })),
   );
 }
 
 /** Runs R3b 8-K Ex-99.1 press release guidance candidate extraction in 3 phases (U1-2 / G10). */
+/** Press-release guidance extraction; empty outcomes are reported as `skipped` reasons, never silent `done`. */
 export async function runExtractPressGuidanceJob(
   payload: Record<string, unknown>,
   reason: SystemSyncReason = "cron_tick",
   signal?: AbortSignal,
-): Promise<boolean> {
+): Promise<"done" | { skipped: string }> {
   const ticker = String(payload.ticker ?? "")
     .trim()
     .toUpperCase();
   const accession = String(payload.accession ?? "").trim();
-  const issuedOn = String(payload.issuedOn ?? "").trim() || new Date().toISOString().slice(0, 10);
-  if (!ticker || !accession) return false;
+  const issuedOn = String(payload.issuedOn ?? "").trim();
+  if (!ticker || !accession || !/^\d{4}-\d{2}-\d{2}$/.test(issuedOn)) {
+    return { skipped: "invalid_payload" };
+  }
   const sec = await runSystemSyncDb(reason, (tx) => getSecurityByTicker(tx, ticker));
   const cik = String(payload.cik ?? sec?.cik ?? "").trim();
-  if (!sec || !cik) return false;
+  if (!sec || !cik) return { skipped: "unknown_security" };
   const extracted = await fetchAndExtractPressGuidance({ cik, accession, issuedOn, signal });
-  if (extracted.chunks.length === 0) return false;
+  if (!extracted.exhibitUrl) return { skipped: "no_ex99_1" };
+  if (extracted.chunks.length === 0) return { skipped: "empty_exhibit" };
   await runSystemSyncDb(reason, (tx) =>
     persistPressGuidanceOutput(tx, { securityId: sec.id, ticker, accession, extracted }),
   );
-  return true;
+  return extracted.candidates.length > 0 ? "done" : { skipped: "no_candidates" };
 }

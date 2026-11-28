@@ -16,7 +16,8 @@
       "!**/pnpm-lock.yaml",
       "!**/.agents/skills",
       "!**/marketing",
-      "!**/promo-video"
+      "!**/promo-video",
+      "!**/sec/press/fixtures"
     ]
   },
   "formatter": {

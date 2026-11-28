@@ -9,6 +9,7 @@ import {
   getDbSecurityPosture,
   getDbSizePct,
   getJobQueueHealth,
+  getQueueFreshness,
   MigrationsPendingError,
   pingKanonDb,
 } from "@kanon/core/db";
@@ -26,6 +27,7 @@ function deriveHealthStatus(input: {
   dbSizePct: number | null;
   bypassRls: boolean;
   rlsFailClosed: boolean;
+  staleTickers: number;
 }): "healthy" | "degraded" {
   const pendingStale =
     input.oldestPendingAgeSec != null && input.oldestPendingAgeSec > MAX_QUEUE_AGE_SEC;
@@ -34,7 +36,10 @@ function deriveHealthStatus(input: {
   const storageDegraded = input.dbSizePct !== null && input.dbSizePct > 70;
   const isProd = process.env.VERCEL_ENV === "production";
   const rlsDegraded = isProd && (input.bypassRls || !input.rlsFailClosed);
-  return pendingStale || cronDegraded || storageDegraded || rlsDegraded ? "degraded" : "healthy";
+  const dataStale = isProd && input.staleTickers > 0;
+  return pendingStale || cronDegraded || storageDegraded || rlsDegraded || dataStale
+    ? "degraded"
+    : "healthy";
 }
 
 function handleHealthError(err: unknown, startedAt: number, requestId: string) {
@@ -63,14 +68,15 @@ export async function GET(request: Request) {
       "health",
       async (tx) => {
         await pingKanonDb(tx);
-        const [jobQueue, cron, db, dbSizePct, errors24h] = await Promise.all([
+        const [jobQueue, cron, db, dbSizePct, errors24h, freshness] = await Promise.all([
           getJobQueueHealth(tx),
           getCronHealth(tx, { graceHours }),
           getDbSecurityPosture(tx),
           getDbSizePct(tx),
           countAppErrorsLast24h(tx),
+          getQueueFreshness(tx),
         ]);
-        return { jobQueue, cron, db, dbSizePct, errors24h };
+        return { jobQueue, cron, db, dbSizePct, errors24h, freshness };
       },
       requestId,
     );
@@ -81,6 +87,7 @@ export async function GET(request: Request) {
       dbSizePct: snapshot.dbSizePct,
       bypassRls: snapshot.db.bypassRls,
       rlsFailClosed: snapshot.db.rlsFailClosed,
+      staleTickers: snapshot.freshness.staleTickers,
     });
     const body = HealthResponseSchema.parse({
       status,

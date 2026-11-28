@@ -48,6 +48,9 @@ export async function reversePortfolioTransaction(
   return runInTransaction(db, async (tx) => {
     const acct = await lockAccountForUpdate(tx, input.accountId, input.userId);
     const orig = await loadReversibleTx(tx, acct.id, input.userId, input.transactionId);
+    if (!orig.tradeCurrency || orig.fxToBase === null || !orig.fxSource) {
+      throw new LedgerPolicyError("CURRENCY_UNCONFIRMED", "原成交缺少币种或汇率，无法冲销。", 409);
+    }
     const revId = `tx_rev_${crypto.randomUUID()}`;
     const { cashBalance } = await replayAndCommitAccountTransaction(tx, {
       accountId: acct.id,
@@ -61,9 +64,9 @@ export async function reversePortfolioTransaction(
         quantity: orig.quantity,
         price: orig.price,
         fees: orig.fees,
-        tradeCurrency: orig.tradeCurrency ?? acct.baseCurrency,
-        fxToBase: orig.fxToBase ?? 1,
-        fxSource: orig.fxSource ?? "identity",
+        tradeCurrency: orig.tradeCurrency,
+        fxToBase: orig.fxToBase,
+        fxSource: orig.fxSource,
         reversesTxId: orig.id,
         tradeDate: orig.tradeDate,
         createdAtMs: Date.now(),

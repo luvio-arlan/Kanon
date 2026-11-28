@@ -37,7 +37,8 @@ function computeModifiedDietzPct(points: readonly DailyNavFlowPoint[]): number |
   return roundTo(((last.nav - v0 - sumFlows) / denom) * 100, 2);
 }
 
-function computeDayReturn(prev: DailyNavFlowPoint, curr: DailyNavFlowPoint): number | null {
+/** Daily TWR sub-period return with same-day inflows at start of day; shared by FX contribution linking. */
+export function computeDayReturn(prev: DailyNavFlowPoint, curr: DailyNavFlowPoint): number | null {
   const denom = prev.nav + Math.max(0, curr.netFlow);
   if (denom <= 0.01) return null;
   const dayRet = (curr.nav - prev.nav - curr.netFlow) / denom;

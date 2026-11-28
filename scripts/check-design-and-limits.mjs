@@ -14,6 +14,7 @@ import {
 import { checkWaveGuards } from "./wave-guards.mjs";
 import { checkWaveGuardsRs } from "./wave-guards-rs.mjs";
 import { checkWaveGuardsU } from "./wave-guards-u.mjs";
+import { checkWaveGuardsV } from "./wave-guards-v.mjs";
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ["apps", "packages"];
@@ -356,6 +357,7 @@ function main() {
   checkWaveGuards(ROOT, errors);
   checkWaveGuardsRs(ROOT, errors);
   checkWaveGuardsU(ROOT, errors);
+  checkWaveGuardsV(ROOT, errors);
   for (const filePath of files) {
     const relPath = path.relative(ROOT, filePath).split(path.sep).join("/");
     const content = fs.readFileSync(filePath, "utf8");

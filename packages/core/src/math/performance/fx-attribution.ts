@@ -1,5 +1,5 @@
-import type { NavBasis } from "../../contracts/analytics";
-import type { CurrencyCode } from "../../contracts/intel/primitives";
+import type { NavBasis, PortfolioPerformanceResponse } from "../../contracts/analytics";
+import { type CurrencyCode, CurrencyCodeSchema } from "../../contracts/intel/primitives";
 import { roundTo } from "../valuation-scenarios";
 import {
   buildTotalReturnIndex,
@@ -106,13 +106,10 @@ function decomposeSingleTickerMove(
   const currMv = curr ? curr.shares * curr.localPrice * curr.fxToBase : 0;
   const totalPnl = currMv - prevMv - flowBase;
   if (!prev || !curr) return { local: totalPnl, fx: 0 };
-  if (Math.abs(curr.shares - prev.shares) < 1e-9) {
-    return {
-      local: prev.shares * (curr.localPrice - prev.localPrice) * prev.fxToBase,
-      fx: prev.shares * curr.localPrice * (curr.fxToBase - prev.fxToBase),
-    };
-  }
-  const fx = curr.shares * curr.localPrice * (curr.fxToBase - prev.fxToBase);
+  // Only shares held across the whole day carry the X_{t-1} → X_t move; shares traded today were
+  // booked at the trade-day rate, so their FX effect is zero by construction (V1-3).
+  const heldShares = Math.min(prev.shares, curr.shares);
+  const fx = heldShares * curr.localPrice * (curr.fxToBase - prev.fxToBase);
   return { local: totalPnl - fx, fx };
 }
 
@@ -176,4 +173,45 @@ export function computeBenchmarkAndSeries(params: {
     drawdownPct: dd.perDayDrawdownPct[i] ?? null,
   }));
   return { twr, dd, series };
+}
+
+type FxGap = PortfolioPerformanceResponse["fxGaps"][number];
+
+function pushGap(gaps: FxGap[], currency: string, span: { from: string; to: string }) {
+  const parsed = CurrencyCodeSchema.safeParse(currency);
+  if (parsed.success) gaps.push({ currency: parsed.data, ...span });
+}
+
+type OpenGaps = Map<string, { from: string; to: string }>;
+
+function closeResolvedGaps(open: OpenGaps, missing: ReadonlySet<string>, gaps: FxGap[]) {
+  for (const [currency, span] of open) {
+    if (missing.has(currency)) continue;
+    pushGap(gaps, currency, span);
+    open.delete(currency);
+  }
+}
+
+function extendMissingGaps(open: OpenGaps, missing: ReadonlySet<string>, day: string) {
+  for (const currency of missing) {
+    const span = open.get(currency);
+    if (span) span.to = day;
+    else open.set(currency, { from: day, to: day });
+  }
+}
+
+/** Compresses per-day missing-FX currencies into contiguous `[from, to]` spans on the NAV date grid. */
+export function collectFxGaps(
+  dates: readonly string[],
+  fxMissingByDay: ReadonlyMap<string, ReadonlySet<string>>,
+): FxGap[] {
+  const gaps: FxGap[] = [];
+  const open: OpenGaps = new Map();
+  for (const day of dates) {
+    const missing = fxMissingByDay.get(day) ?? new Set<string>();
+    closeResolvedGaps(open, missing, gaps);
+    extendMissingGaps(open, missing, day);
+  }
+  for (const [currency, span] of open) pushGap(gaps, currency, span);
+  return gaps;
 }

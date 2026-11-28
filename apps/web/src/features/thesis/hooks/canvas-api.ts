@@ -111,11 +111,9 @@ export async function apiSyncSec(ticker: string): Promise<{
     toast.error(res.error);
     return null;
   }
-  if (res.data.warehouseSynced === false) {
-    toast.warning("SEC 快照已更新，历史口径校验未完成");
-  } else {
-    toast(res.data.notice ?? "SEC 同步完成");
-  }
+  // The server notice is the source of truth (e.g. "not an SEC registrant"); never claim an update happened.
+  if (res.data.warehouseSynced === false) toast.warning(res.data.notice ?? "SEC 同步未完成");
+  else toast(res.data.notice ?? "SEC 同步完成");
   return {
     snapshot: res.data.snapshot,
     restatements: res.data.restatements,

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { sql } from "drizzle-orm";
+import { templateRoutePath } from "../../../contracts/ops";
 import type { KanonDb } from "../../bootstrap";
 import { type AppErrorSource, appErrorEventsTable } from "../../schema";
 
@@ -24,7 +25,7 @@ function normalizeErrorTemplate(raw: string): string {
 }
 
 function sanitizeRoute(raw: string): string {
-  return raw.trim().slice(0, 120) || "/";
+  return templateRoutePath(raw.trim());
 }
 
 function computeFingerprint(input: {

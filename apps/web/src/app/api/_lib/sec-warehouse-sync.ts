@@ -29,9 +29,15 @@ import {
   persistExtractedPitFacts,
 } from "./sec-pit-sync";
 
+/** Only recent earnings releases carry live guidance; older ones would just starve the daily tick. */
+const PRESS_GUIDANCE_WINDOW_DAYS = 120;
+const isoDaysAgo = (days: number) =>
+  new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+
 export interface PreparedSecCommit {
   snapshot: SecSnapshot;
   filingItemsByAcc: ReadonlyMap<string, string[]>;
+  pressReleases: Array<{ accessionNumber: string; filingDate: string }>;
   fanout8kJobs: Array<{
     ticker: string;
     accessionNumber: string;
@@ -42,10 +48,13 @@ export interface PreparedSecCommit {
 export function prepareSecSnapshotCommit(snapshot: SecSnapshot): PreparedSecCommit {
   const filingItemsByAcc = new Map<string, string[]>();
   const fanout8kJobs: PreparedSecCommit["fanout8kJobs"] = [];
-  const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  const pressReleases: PreparedSecCommit["pressReleases"] = [];
+  const [cutoff, pressCutoff] = [isoDaysAgo(7), isoDaysAgo(PRESS_GUIDANCE_WINDOW_DAYS)];
   for (const f of snapshot.filings) {
     if (!f.form.startsWith("8-K")) continue;
-    filingItemsByAcc.set(f.accessionNumber, parseForm8kItemCodes(f.description ?? ""));
+    const items = parseForm8kItemCodes(f.description ?? "");
+    filingItemsByAcc.set(f.accessionNumber, items);
+    if (items.includes("2.02") && f.filingDate >= pressCutoff) pressReleases.push(f);
     if (f.filingDate < cutoff) continue;
     const alerts = classifyForm8kItems(f.description ?? "")
       .filter((a) => a.severity === "critical")
@@ -54,7 +63,7 @@ export function prepareSecSnapshotCommit(snapshot: SecSnapshot): PreparedSecComm
       fanout8kJobs.push({ ticker: snapshot.ticker, accessionNumber: f.accessionNumber, alerts });
     }
   }
-  return { snapshot, filingItemsByAcc, fanout8kJobs };
+  return { snapshot, filingItemsByAcc, pressReleases, fanout8kJobs };
 }
 
 /** Runs red-flag scan OUTSIDE DB transactions (G10 compliant). */
@@ -97,9 +106,7 @@ async function enqueuePostCommitJobs(tx: KanonDb, prepared: PreparedSecCommit) {
       });
     }
   }
-  for (const f of prepared.snapshot.filings) {
-    const items = prepared.filingItemsByAcc.get(f.accessionNumber) ?? [];
-    if (!f.form.startsWith("8-K") || !items.includes("2.02")) continue;
+  for (const f of prepared.pressReleases) {
     await enqueueJob(tx, {
       id: `extract_press_guidance:${f.accessionNumber}`,
       kind: "extract_press_guidance",
@@ -218,22 +225,14 @@ export async function executeAlertFanoutJobInSystemDb(
   });
 }
 
+const FANOUT_JOB_KINDS = ["fanout_8k", "fanout_filing_redflag"] as const;
+
+/** Best-effort inline fan-out drain; claims ONLY fan-out kinds so no other job is ever marked done unrun. */
 export async function drainAlertFanoutJobsBestEffort(maxJobs = 5): Promise<void> {
   const workerId = `fanout_${Date.now().toString(36)}`;
-  const excludeKinds = [
-    "sync_daily_bars",
-    "sync_sec",
-    "build_redline",
-    "sync_segments",
-    "resolve_guidance",
-    "prune_chunks",
-    "backfill_bars",
-    "evaluate_alerts",
-    "noop",
-  ];
   for (let i = 0; i < maxJobs; i += 1) {
     const [job] = await withSystemDb("alert_fanout", (tx) =>
-      claimDueJobs(tx, { workerId, limit: 1, leaseSeconds: 60, excludeKinds }),
+      claimDueJobs(tx, { workerId, limit: 1, leaseSeconds: 60, onlyKinds: FANOUT_JOB_KINDS }),
     );
     if (!job) break;
     try {

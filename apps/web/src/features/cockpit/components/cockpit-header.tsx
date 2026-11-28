@@ -4,8 +4,8 @@ import type { PortfolioAnalytics, ThesisDetail } from "@kanon/core";
 import { ActionMenu, Button, KANON_TITLE_SWAP, SearchField } from "@kanon/ui";
 import { IconChevronDown, IconInbox, IconPlus } from "@tabler/icons-react";
 import { motion } from "framer-motion";
-import { type RefObject, useCallback, useEffect, useState } from "react";
-import { apiLoadInbox } from "../lib/inbox-ledger-api";
+import { type RefObject, useState } from "react";
+import { useInboxUnread } from "../lib/use-inbox-unread";
 import { CockpitWorkflowSheets } from "./overlays/inbox-and-ledger-sheets";
 
 export type CockpitFilter = "all" | "attractive" | "attention" | "archived";
@@ -198,13 +198,7 @@ function resolveHeaderTitleKey(viewMode: CockpitViewMode, filter: CockpitFilter)
 
 export function CockpitHeader(props: CockpitHeaderProps) {
   const [inboxOpen, setInboxOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const refreshUnread = useCallback(() => {
-    void apiLoadInbox().then((d) => setUnreadCount(d.items.filter((i) => !i.readAt).length));
-  }, []);
-  useEffect(() => {
-    refreshUnread();
-  }, [refreshUnread]);
+  const { unreadCount, refreshUnread } = useInboxUnread();
 
   const titleKey = resolveHeaderTitleKey(props.viewMode, props.filter);
   const title = VIEW_TITLES[titleKey] ?? "研究总览";
@@ -237,6 +231,7 @@ export function CockpitHeader(props: CockpitHeaderProps) {
       <CockpitWorkflowSheets
         inboxOpen={inboxOpen}
         ledgerOpen={props.ledgerOpen}
+        theses={props.theses}
         onCloseInbox={() => {
           setInboxOpen(false);
           refreshUnread();

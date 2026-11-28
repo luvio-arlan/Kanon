@@ -61,12 +61,28 @@ const ADR_RATIO_BY_TICKER: Record<string, number> = {
 
 const SUPPORTED_CURRENCIES = Object.keys(FX_TO_USD);
 
-export function formatUsdCompact(value: number): string {
+const COMPACT_CURRENCY_PREFIX: Readonly<Record<string, string>> = {
+  USD: "$",
+  HKD: "HK$",
+  CNY: "¥",
+  JPY: "¥",
+  EUR: "€",
+  GBP: "£",
+};
+
+/** Compact money label in the reporting currency (`HK$12.3B`); unknown codes keep the ISO code. */
+export function formatCompactMoney(value: number, currency = "USD"): string {
+  const code = currency.trim().toUpperCase();
+  const prefix = COMPACT_CURRENCY_PREFIX[code] ?? `${code} `;
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
-  return `${sign}$${abs.toFixed(0)}`;
+  if (abs >= 1e9) return `${sign}${prefix}${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}${prefix}${(abs / 1e6).toFixed(1)}M`;
+  return `${sign}${prefix}${abs.toFixed(0)}`;
+}
+
+export function formatUsdCompact(value: number): string {
+  return formatCompactMoney(value, "USD");
 }
 
 const CURRENCY_PROBE_TAGS = [

@@ -6,7 +6,7 @@ import {
   type DailyPositionMark,
   resolveCrossFxRateOnDate,
 } from "./fx-attribution";
-import { computeTxCashDelta, type ReplayTxInput } from "./ledger-replay";
+import { computeTxCashDelta, type ReplayTxInput, resolveTxFxToBase } from "./ledger-cash";
 
 export interface HoldingState {
   shares: number;
@@ -31,7 +31,7 @@ function applySingleDayTx(
   baseCurrency: CurrencyCode,
 ) {
   const ticker = tx.ticker.trim().toUpperCase();
-  const fx = tx.fxToBase && tx.fxToBase > 0 ? tx.fxToBase : 1;
+  const fx = resolveTxFxToBase(tx);
   if (tx.action === "buy") {
     const currency = tx.tradeCurrency ?? inferCurrencyFromTicker(ticker) ?? baseCurrency;
     const cur = holdings.get(ticker) ?? { shares: 0, totalCost: 0, currency };
@@ -134,9 +134,15 @@ export function markEquityValue(params: {
   lastClose: Map<string, number>;
   baseCurrency?: CurrencyCode;
   fxRatesByCurrency?: ReadonlyMap<string, readonly DailyFxRatePoint[]>;
-}): { equityValue: number; basis: NavBasis; marksByTicker: Map<string, DailyPositionMark> } {
+}): {
+  equityValue: number;
+  basis: NavBasis;
+  marksByTicker: Map<string, DailyPositionMark>;
+  fxMissingCurrencies: Set<string>;
+} {
   let equityValue = 0;
   const counts = { fxStale: 0, cost: 0, stale: 0 };
+  const fxMissingCurrencies = new Set<string>();
   const marksByTicker = new Map<string, DailyPositionMark>();
   const baseCurrency = params.baseCurrency ?? "USD";
   const fxMap = params.fxRatesByCurrency ?? new Map();
@@ -152,9 +158,10 @@ export function markEquityValue(params: {
     );
     equityValue += marked.value;
     if (marked.mark) marksByTicker.set(ticker, marked.mark);
+    if (marked.kind === "fx_stale") fxMissingCurrencies.add(h.currency);
     recordBasisCount(counts, marked.kind);
   }
-  return { equityValue, basis: resolveBasisFromCounts(counts), marksByTicker };
+  return { equityValue, basis: resolveBasisFromCounts(counts), marksByTicker, fxMissingCurrencies };
 }
 
 export function groupTxsByDay(txs: readonly ReplayTxInput[]): Map<string, ReplayTxInput[]> {
@@ -174,14 +181,14 @@ export function snapshotShares(holdings: ReadonlyMap<string, HoldingState>): Map
 }
 
 export function emptyPerformance(
-  accountId: string,
+  accountId: string | null,
   baseCurrency: CurrencyCode = "USD",
 ): PortfolioPerformanceResponse {
   return buildUnavailablePerformanceResponse(accountId, baseCurrency, [], "empty");
 }
 
 export function buildUnavailablePerformanceResponse(
-  accountId: string,
+  accountId: string | null,
   baseCurrency: CurrencyCode,
   rawPoints: ReadonlyArray<{
     date: string;
@@ -192,6 +199,7 @@ export function buildUnavailablePerformanceResponse(
     basis: NavBasis;
   }>,
   basis: "rebase_pending" | "fx_stale" | "empty",
+  fxGaps: PortfolioPerformanceResponse["fxGaps"] = [],
 ): PortfolioPerformanceResponse {
   const last = rawPoints[rawPoints.length - 1];
   return {
@@ -223,5 +231,6 @@ export function buildUnavailablePerformanceResponse(
       drawdownPct: null,
     })),
     unrecordedDividends: [],
+    fxGaps,
   };
 }

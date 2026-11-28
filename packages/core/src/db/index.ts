@@ -70,8 +70,14 @@ export {
   SERVERLESS_QUOTE_CACHE_TTL_MS,
   upsertCachedMarketQuotes,
 } from "./repositories/market/quote-cache-store";
-export * from "./repositories/portfolio/basis-normalize-store";
+export { getQueueFreshness } from "./repositories/ops/queue-freshness";
+export * from "./repositories/portfolio/analytics-context-store";
 export * from "./repositories/portfolio/decision-snapshot-store";
+export {
+  findEarliestAccountTradeDate,
+  findEarliestForeignLedgerDate,
+  findFxBackfillStart,
+} from "./repositories/portfolio/fx-coverage-store";
 export {
   type DailyUsdPerUnitRate,
   loadFxRatesHistory,
@@ -194,5 +200,6 @@ export {
 export * from "./repositories/warehouse/watchlist-enqueue";
 export * from "./repositories/workflows/alert-evaluator-store";
 export * from "./repositories/workflows/inbox-and-forecasts-store";
+export { confirmLegacyAccountCurrency } from "./repositories/workflows/ledger-legacy-confirm";
 export * from "./repositories/workflows/portfolio-ledger-store";
 export * from "./schema";
