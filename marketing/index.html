@@ -2144,8 +2144,8 @@
       </div>
 
       <div class="cinema-box reveal" id="cinemaBox">
-        <video id="launchFilm" preload="metadata" playsinline poster="./assets/film-poster.jpg">
-          <source src="./assets/kanon-brand-film.mp4" type="video/mp4" />
+        <video id="launchFilm" preload="metadata" playsinline poster="./assets/film-poster.jpg?v=2">
+          <source src="./assets/kanon-brand-film.mp4?v=2" type="video/mp4" />
         </video>
         <div class="cinema-veil" id="cinemaVeil">
           <button type="button" class="cinema-play" id="cinemaPlayBtn" aria-label="播放品牌影片">
@@ -2153,12 +2153,12 @@
               <path d="M6.5 4.5 19.5 12 6.5 19.5V4.5Z" fill="currentColor" />
             </svg>
           </button>
-          <span style="font-size:13px; letter-spacing:0.18em; color:rgba(243,241,235,0.84);">播放品牌影片 · 00:36</span>
+          <span style="font-size:13px; letter-spacing:0.18em; color:rgba(243,241,235,0.84);">播放品牌影片 · 01:12</span>
         </div>
       </div>
 
       <div class="cinema-bar num">
-        <span id="filmClock">00:00 / 00:36</span>
+        <span id="filmClock">00:00 / 01:12</span>
         <button id="muteBtn" aria-pressed="false" style="color: var(--ink-2);">声音已开启</button>
       </div>
     </div>
@@ -2835,11 +2835,19 @@
         film.controls = false;
         cinemaVeil.classList.remove("hidden");
       });
-      film.addEventListener("timeupdate", () => {
+      function formatClock(totalSec) {
+        const s = Math.max(0, Math.floor(totalSec));
+        const mm = Math.floor(s / 60);
+        const ss = s % 60;
+        return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+      }
+      function updateFilmClock() {
         const s = Math.floor(film.currentTime || 0);
-        const d = isFinite(film.duration) && film.duration > 0 ? Math.round(film.duration) : 36;
-        filmClock.textContent = `00:${String(s).padStart(2, "0")} / 00:${String(d).padStart(2, "0")}`;
-      });
+        const d = isFinite(film.duration) && film.duration > 0 ? Math.round(film.duration) : 72;
+        filmClock.textContent = `${formatClock(s)} / ${formatClock(d)}`;
+      }
+      film.addEventListener("loadedmetadata", updateFilmClock);
+      film.addEventListener("timeupdate", updateFilmClock);
       muteBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         film.muted = !film.muted;

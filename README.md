@@ -24,7 +24,7 @@
     &nbsp;&nbsp;·&nbsp;&nbsp;
     <a href="https://app.kanon.hk/sample/nvda"><strong>免登录示例档案 (NVDA) ↗</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
-    <a href="https://kanon.hk/#film"><strong>观看 36s 旗舰品牌影片 ▶</strong></a>
+    <a href="https://kanon.hk/#film"><strong>观看 72s 4K60 旗舰影片 ▶</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
     <a href="./docs/PRD.md">产品白皮书 PRD</a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -43,26 +43,24 @@
 
 ---
 
-## Brand Film · 品牌影片（1080p · 60fps · 48 kHz 管弦卡农原声）
+## Brand Film · 品牌影片（4K · 60fps · 48 kHz 合成卡农原声）
 
 <div align="center">
   <a href="https://kanon.hk/#film">
     <img
-      alt="KANON Brand Film — Luxury Institutional Showcase Reel"
+      alt="KANON Brand Film — 4K60 Product Film Showcase"
       src="./docs/assets/kanon-github-reel.gif"
       width="100%"
     />
   </a>
   <p>
     <sub>
-      八幕奢侈品级建筑光影与实景产品叙事：<strong>原色钛金静默序曲 → 建筑研究空间宣言 → 双主题买方驾驶舱光幕切换 → SEC EDGAR 10-K 原件双向溯源 → 双引擎估值与 3D 5×5 敏感度矩阵 → 四声部 AI 投委会人机签批 → 0.00× 零杠杆机械锁闭 → KANON 钛金徽标终幕</strong>。<br />
-      <a href="https://kanon.hk/#film"><strong>在官网全屏观看 36s 旗舰版（含 48 kHz 立体声管弦原声）↗</strong></a>
+      72 秒纯代码生成 4K60 产品影片（画面、字体动效与 48 kHz 卡农原声全程序合成）：<strong>市场噪音急停归寂 → 单点珊瑚红音符起调 → 01 商业质量评估 → 02 核心假设与催化剂 → 03 SEC 10-K 原件溯源 → 04 Reverse-DCF 与 5×5 估值矩阵 → 05 四声部投委会人机签批 → 0.00× 完整工作台卡农华彩 → Conviction, composed.</strong><br />
+      <a href="https://kanon.hk/#film"><strong>在官网全屏观看 72s 4K60 旗舰版（含 48 kHz 立体声卡农原声）↗</strong></a>
       &nbsp;&nbsp;·&nbsp;&nbsp;
-      <a href="./docs/assets/kanon-github-film.mp4">GitHub 精编版 <code>22s · 1080p60</code></a>
+      <a href="./marketing/assets/kanon-brand-film.mp4">官网旗舰原片 <code>72s · 4K60</code></a>
       &nbsp;&nbsp;·&nbsp;&nbsp;
-      <a href="./marketing/assets/kanon-brand-film.mp4">官网旗舰原片 <code>36s · 1080p60</code></a>
-      &nbsp;&nbsp;·&nbsp;&nbsp;
-      <a href="./promo-video/">纯代码片源与管弦合成器</a>
+      <a href="./promo-video/product-film/">纯代码 4K60 片源与卡农合成器</a>
     </sub>
   </p>
 </div>
@@ -177,9 +175,9 @@ kanon/
 │   ├── ui/                # BoardUI × HeroUI v3 统一组件与 Swiss Titanium Token 系统（零业务依赖）
 │   ├── core/              # Drizzle PostgreSQL / PGlite · 扩展式迁移 · Zod 契约 · 金融纯函数内核
 │   └── ai/                # 多源可插拔行情引擎 · SEC EDGAR 解析 · Vercel AI SDK 9 工具 IC Agent
-├── marketing/             # 品牌官方网站源码（kanon.hk）与 36s 旗舰品牌影片
-├── promo-video/           # 1080p 60fps 双版本品牌片引擎与 48 kHz 管弦卡农合成器
-└── docs/                  # PRD 白皮书、架构蓝图、GitHub 22s 宣传片与 README 动态样片
+├── marketing/             # 品牌官方网站源码（kanon.hk）与 72s 4K60 旗舰产品影片
+├── promo-video/           # 4K60 纯代码产品影片引擎与 48 kHz 合成卡农原声
+└── docs/                  # PRD 白皮书、架构蓝图与 README 样片
 ```
 
 - **五层自动化门禁（`pnpm check`）**：`Biome` 代码与认知复杂度检查 + `TypeScript` 跨包严格类型校验 + `Dependency Cruiser` 架构防腐蚀（含 G31 公开样本零 DB 守卫）+ `AST / Security / Editorial / Optical` 守卫 **G1–G31**（逐 Handler CSRF、递归扩展式迁移、审美与体量、数据完整性与入口零死导出守门）+ `Knip` 零死代码检测
