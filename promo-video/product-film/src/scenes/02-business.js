@@ -46,14 +46,14 @@
       K.fade(this.heroLabel, b, 15.05, { exitAt, exitDur: 0.4 });
       const heroWrap = this.hero.el;
       K.fade(heroWrap, b, 15.3, { dur: 0.5, rise: 0, exitAt, exitDur: 0.45, exitRise: -16 });
-      this.hero.update(K.seg(b, 15.3, 17.0), { ease: K.ease.outQuart, blurK: 0.016 });
+      this.hero.update(K.seg(b, 15.3, 17.0), { ease: K.ease.outQuart, dur: 1.7 });
       this.pct.style.opacity = K.ease.kanon(K.seg(b, 15.6, 16.4)).toFixed(4);
       K.draw(this.divider, K.ease.kanon(K.seg(b, 17.2, 18.1)), K.ease.exit(K.seg(b, exitAt, exitAt + 0.4)));
       this.side.forEach((s, i) => {
         const t0 = 17.45 + i * 0.75;
         K.fade(s.label, b, t0, { exitAt, exitDur: 0.4 });
         K.fade(s.roller.el, b, t0 + 0.05, { dur: 0.4, rise: 0, exitAt, exitDur: 0.4 });
-        s.roller.update(K.seg(b, t0 + 0.05, t0 + 1.05), { blurK: 0.01 });
+        s.roller.update(K.seg(b, t0 + 0.05, t0 + 1.05), { dur: 1.0 });
       });
       // the note travels into the decimal point as the number lands
       const g = K.glyphBox(this.decimal);

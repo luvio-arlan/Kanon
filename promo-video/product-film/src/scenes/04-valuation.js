@@ -81,10 +81,10 @@
       const blockOut = 41.9;
       K.fade(this.priceLabel, b, 38.3, { exitAt: blockOut, exitDur: 0.4 });
       K.fade(this.price.el, b, 38.35, { dur: 0.3, rise: 0, exitAt: blockOut, exitDur: 0.4 });
-      this.price.update(K.seg(b, 38.35, 39.35), { ease: K.ease.outCubic, blurK: 0.02 });
+      this.price.update(K.seg(b, 38.35, 39.35), { ease: K.ease.outCubic, dur: 1.0 });
       K.fade(this.impLabel, b, 40.4, { exitAt: blockOut, exitDur: 0.4 });
       K.fade(this.imp.el, b, 40.5, { dur: 0.3, rise: 0, exitAt: blockOut, exitDur: 0.4 });
-      this.imp.update(K.seg(b, 40.5, 41.5), { blurK: 0.016 });
+      this.imp.update(K.seg(b, 40.5, 41.5), { dur: 1.0 });
       K.fade(this.impNote, b, 41.0, { exitAt: blockOut, exitDur: 0.4 });
       // geometry for the reverse line
       const pr = K.rect(this.price.el);
@@ -117,7 +117,7 @@
         const t0 = 44.75 + n * 0.25;
         K.fade(r.label, b, t0, { exitAt: 45.6, exitDur: 0.4 });
         K.fade(r.roller.el, b, t0 + 0.05, { dur: 0.3, rise: 0, exitAt: 45.6, exitDur: 0.4 });
-        r.roller.update(K.seg(b, t0 + 0.05, t0 + 0.85), { blurK: 0.01 });
+        r.roller.update(K.seg(b, t0 + 0.05, t0 + 0.85), { dur: 0.8 });
       });
       this.trackDot(b, { xs, xe, mid });
     },

@@ -215,8 +215,34 @@
   };
 
   // ---------- rolling numerals (NumberFlow-like, deterministic) ----------
+  // Directional (vertical-only) motion blur: a bank of SVG filters, σ in 0.75 px steps.
+  let vblur = false;
+  const ensureVBlur = () => {
+    if (vblur) return;
+    vblur = true;
+    const s = document.createElementNS(SVGNS, "svg");
+    s.setAttribute("width", 0);
+    s.setAttribute("height", 0);
+    s.style.position = "absolute";
+    const defs = document.createElementNS(SVGNS, "defs");
+    for (let n = 1; n <= 48; n++) {
+      const f = document.createElementNS(SVGNS, "filter");
+      f.setAttribute("id", `vb${n}`);
+      f.setAttribute("x", "-5%");
+      f.setAttribute("width", "110%");
+      f.setAttribute("y", "-40%");
+      f.setAttribute("height", "180%");
+      const g = document.createElementNS(SVGNS, "feGaussianBlur");
+      g.setAttribute("stdDeviation", `0 ${(n * 0.75).toFixed(2)}`);
+      f.appendChild(g);
+      defs.appendChild(f);
+    }
+    s.appendChild(defs);
+    document.body.appendChild(s);
+  };
   // text: final string. Digits roll from `from` digits (default 0) with extra laps on lower orders.
   K.roller = (el, text, o = {}) => {
+    ensureVBlur();
     el.textContent = "";
     el.classList.add("roll");
     const chars = Array.from(text);
@@ -260,8 +286,11 @@
           const speed = Math.abs(pos2 - pos) / 0.004; // digits per unit progress
           const m = ((pos % 10) + 10) % 10;
           c.strip.style.transform = `translate3d(0, ${(-m * 1.2).toFixed(4)}em, 0)`;
-          const bl = Math.min(opts.maxBlur ?? 9, speed * (opts.blurK ?? 0.012) * (opts.scale ?? 1));
-          c.strip.style.filter = bl > 0.15 ? `blur(${bl.toFixed(2)}px)` : "none";
+          // px travelled per output frame → vertical streak; the 4 temporal samples fill the rest
+          if (!api.fontPx) api.fontPx = Number.parseFloat(getComputedStyle(el).fontSize);
+          const pxPerFrame = (speed / ((opts.dur ?? 1) * 60)) * 1.2 * api.fontPx;
+          const nb = Math.min(48, Math.round((pxPerFrame * 0.16) / 0.75));
+          c.strip.style.filter = nb >= 1 ? `url(#vb${nb})` : "none";
         }
       },
     };
