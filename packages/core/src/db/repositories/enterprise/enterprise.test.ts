@@ -56,12 +56,18 @@ describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Appe
         passwordHash: "test-hash",
       })
       .onConflictDoNothing();
-    const inv = await createOrgInvitation(db, { orgId, inviteeUserId: userId, role, invitedBy });
-    await acceptOrgInvitation(db, { userId, invitationId: inv.id });
+    const inv = await withTenantContext(db, invitedBy, (tx) =>
+      createOrgInvitation(tx, { orgId, inviteeUserId: userId, role, invitedBy }),
+    );
+    await withTenantContext(db, userId, (tx) =>
+      acceptOrgInvitation(tx, { userId, invitationId: inv.id }),
+    );
   }
 
   it("enforces org capability RBAC, thesis-bound IC approvals, maker-checker, state machine & TRUNCATE-proof audit_log", async () => {
-    const org = await createOrganization(db, { name: "Kanon Capital", createdBy: "user-pm" });
+    const org = await withTenantContext(db, "user-pm", (tx) =>
+      createOrganization(tx, { name: "Kanon Capital", createdBy: "user-pm" }),
+    );
     await joinOrg(org.id, "user-pm", "user-analyst", "analyst");
     await joinOrg(org.id, "user-pm", "user-comp", "compliance");
     expect((await listUserOrganizations(db, "user-analyst"))[0]?.role).toBe("analyst");
@@ -180,7 +186,9 @@ describe("Enterprise Teams, Capability RBAC, IC Approval, Restricted List & Appe
   });
 
   it("Wave M: shares org-assigned theses with org members, blocks outsiders, and sets RLS tenant context", async () => {
-    const team = await createOrganization(db, { name: "Shared Desk", createdBy: "user-owner" });
+    const team = await withTenantContext(db, "user-owner", (tx) =>
+      createOrganization(tx, { name: "Shared Desk", createdBy: "user-owner" }),
+    );
     await joinOrg(team.id, "user-owner", "user-member", "analyst");
 
     const [seed] = await listTheses(db);

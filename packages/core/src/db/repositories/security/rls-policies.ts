@@ -31,7 +31,7 @@ export function kanonThesesPolicies() {
   return [
     pgPolicy("kanon_rls_theses_select", {
       for: "select",
-      using: sql`kanon_rls_is_system() OR kanon_rls_open() OR user_id = kanon_rls_uid() OR (org_id IS NOT NULL AND EXISTS (SELECT 1 FROM memberships m WHERE m.org_id = theses.org_id AND m.user_id = kanon_rls_uid() AND m.accepted_at IS NOT NULL))`,
+      using: sql`kanon_rls_is_system() OR kanon_rls_open() OR user_id = kanon_rls_uid() OR (org_id IS NOT NULL AND kanon_org_role(org_id) IS NOT NULL)`,
     }),
     pgPolicy("kanon_rls_theses_insert", {
       for: "insert",
@@ -40,7 +40,7 @@ export function kanonThesesPolicies() {
     pgPolicy("kanon_rls_theses_update", {
       for: "update",
       using: sql`kanon_rls_is_system() OR kanon_rls_open() OR kanon_thesis_writable(id)`,
-      withCheck: sql`kanon_rls_is_system() OR kanon_rls_open() OR (user_id = kanon_rls_uid() AND (org_id IS NULL OR EXISTS (SELECT 1 FROM memberships m WHERE m.org_id = theses.org_id AND m.user_id = kanon_rls_uid() AND m.accepted_at IS NOT NULL AND m.role IN ('owner', 'pm', 'analyst')))) OR (org_id IS NOT NULL AND EXISTS (SELECT 1 FROM memberships m WHERE m.org_id = theses.org_id AND m.user_id = kanon_rls_uid() AND m.accepted_at IS NOT NULL AND m.role IN ('owner', 'pm', 'analyst')))`,
+      withCheck: sql`kanon_rls_is_system() OR kanon_rls_open() OR (user_id = kanon_rls_uid() AND (org_id IS NULL OR kanon_org_role(org_id) IN ('owner', 'pm', 'analyst'))) OR (org_id IS NOT NULL AND kanon_org_role(org_id) IN ('owner', 'pm', 'analyst'))`,
     }),
     pgPolicy("kanon_rls_theses_delete", {
       for: "delete",
@@ -119,6 +119,51 @@ export function kanonAuditLogPolicies() {
     pgPolicy("kanon_rls_audit_log_insert", {
       for: "insert",
       withCheck: sql`kanon_rls_is_system() OR kanon_rls_open() OR actor_user_id = kanon_rls_uid()`,
+    }),
+  ];
+}
+
+export function kanonMembershipsPolicies() {
+  const ownerPred = sql`kanon_rls_is_system() OR kanon_rls_open() OR kanon_org_role(org_id) = 'owner'`;
+  return [
+    pgPolicy("kanon_rls_memberships_select", {
+      for: "select",
+      using: sql`kanon_rls_is_system() OR kanon_rls_open() OR user_id = kanon_rls_uid() OR kanon_org_role(org_id) IS NOT NULL`,
+    }),
+    pgPolicy("kanon_rls_memberships_write", {
+      for: "all",
+      using: ownerPred,
+      withCheck: ownerPred,
+    }),
+  ];
+}
+
+export function kanonOrgInvitationsPolicies() {
+  const mgrPred = sql`kanon_rls_is_system() OR kanon_rls_open() OR kanon_org_role(org_id) IN ('owner', 'pm')`;
+  return [
+    pgPolicy("kanon_rls_org_invitations_select", {
+      for: "select",
+      using: sql`kanon_rls_is_system() OR kanon_rls_open() OR invitee_user_id = kanon_rls_uid() OR kanon_org_role(org_id) IN ('owner', 'pm')`,
+    }),
+    pgPolicy("kanon_rls_org_invitations_write", {
+      for: "all",
+      using: mgrPred,
+      withCheck: mgrPred,
+    }),
+  ];
+}
+
+export function kanonRestrictedListPolicies() {
+  const compPred = sql`kanon_rls_is_system() OR kanon_rls_open() OR kanon_org_role(org_id) IN ('owner', 'compliance')`;
+  return [
+    pgPolicy("kanon_rls_restricted_list_select", {
+      for: "select",
+      using: sql`kanon_rls_is_system() OR kanon_rls_open() OR kanon_org_role(org_id) IS NOT NULL`,
+    }),
+    pgPolicy("kanon_rls_restricted_list_write", {
+      for: "all",
+      using: compPred,
+      withCheck: compPred,
     }),
   ];
 }

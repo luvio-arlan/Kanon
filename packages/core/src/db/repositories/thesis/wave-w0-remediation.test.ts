@@ -20,6 +20,7 @@ import {
   removeOrgMember,
   revokeOrgInvitation,
   updateOrgMemberRole,
+  withTenantContext,
 } from "../enterprise/organizations-and-rls-store";
 import { saveAgentRun } from "../review-and-agent-store";
 import { consumePersistentRateLimit } from "../security/rate-limit-store";
@@ -84,7 +85,9 @@ describe("Wave W0 Remediation (Q5-1..Q5-12 & Migration 0026)", () => {
     const outsider = await reg("+8613900010003", "Outsider");
     const sockpuppet = await reg("+8613900010004", "Sockpuppet");
 
-    const org = await createOrganization(db, { name: "Vault Capital", createdBy: ownerA.id });
+    const org = await withTenantContext(db, ownerA.id, (tx) =>
+      createOrganization(tx, { name: "Vault Capital", createdBy: ownerA.id }),
+    );
     // Q5-1: update_role on non-member returns false and does NOT insert a membership row
     expect(
       await updateOrgMemberRole(db, {
@@ -107,7 +110,9 @@ describe("Wave W0 Remediation (Q5-1..Q5-12 & Migration 0026)", () => {
       role: "owner",
       invitedBy: ownerA.id,
     });
-    await acceptOrgInvitation(db, { userId: ownerB.id, invitationId: invB.id });
+    await withTenantContext(db, ownerB.id, (tx) =>
+      acceptOrgInvitation(tx, { userId: ownerB.id, invitationId: invB.id }),
+    );
 
     // Q5-2a: ownerA invites sockpuppet as owner, then ownerB removes ownerA -> accept fails with 409
     const evilInv = await createOrgInvitation(db, {
@@ -120,7 +125,9 @@ describe("Wave W0 Remediation (Q5-1..Q5-12 & Migration 0026)", () => {
       await removeOrgMember(db, { orgId: org.id, userId: ownerA.id, actorUserId: ownerB.id }),
     ).toBe(true);
     await expect(
-      acceptOrgInvitation(db, { userId: sockpuppet.id, invitationId: evilInv.id }),
+      withTenantContext(db, sockpuppet.id, (tx) =>
+        acceptOrgInvitation(tx, { userId: sockpuppet.id, invitationId: evilInv.id }),
+      ),
     ).rejects.toMatchObject({ code: "INVALID_INVITATION", status: 409 });
 
     // Q5-1: update_role on removed member returns false
@@ -148,7 +155,9 @@ describe("Wave W0 Remediation (Q5-1..Q5-12 & Migration 0026)", () => {
       }),
     ).toBe(true);
     await expect(
-      acceptOrgInvitation(db, { userId: outsider.id, invitationId: manualInv.id }),
+      withTenantContext(db, outsider.id, (tx) =>
+        acceptOrgInvitation(tx, { userId: outsider.id, invitationId: manualInv.id }),
+      ),
     ).rejects.toMatchObject({ code: "INVALID_INVITATION", status: 409 });
     const logs = await listAuditLogs(db, ownerB.id, 30);
     expect(logs.some((l) => l.action === "org.revoke_invite" && l.targetId === manualInv.id)).toBe(
@@ -162,7 +171,9 @@ describe("Wave W0 Remediation (Q5-1..Q5-12 & Migration 0026)", () => {
       role: "owner",
       invitedBy: ownerB.id,
     });
-    await acceptOrgInvitation(db, { userId: ownerA.id, invitationId: invA2.id });
+    await withTenantContext(db, ownerA.id, (tx) =>
+      acceptOrgInvitation(tx, { userId: ownerA.id, invitationId: invA2.id }),
+    );
     const demotedInv = await createOrgInvitation(db, {
       orgId: org.id,
       inviteeUserId: sockpuppet.id,
@@ -178,7 +189,9 @@ describe("Wave W0 Remediation (Q5-1..Q5-12 & Migration 0026)", () => {
       }),
     ).toBe(true);
     await expect(
-      acceptOrgInvitation(db, { userId: sockpuppet.id, invitationId: demotedInv.id }),
+      withTenantContext(db, sockpuppet.id, (tx) =>
+        acceptOrgInvitation(tx, { userId: sockpuppet.id, invitationId: demotedInv.id }),
+      ),
     ).rejects.toMatchObject({ code: "INVALID_INVITATION", status: 409 });
 
     // Last owner demotion still throws 409 LAST_OWNER_PROTECTED
@@ -506,14 +519,18 @@ describe("Wave W0 Remediation (Q5-1..Q5-12 & Migration 0026)", () => {
     // Q5-12: targeted jsonb_set preserves sibling businessFilter keys & creates nullable draft catalyst
     const owner = await reg("+8613900010011", "ApplyOwner");
     const viewer = await reg("+8613900010012", "ApplyViewer");
-    const org = await createOrganization(db, { name: "Apply Org", createdBy: owner.id });
+    const org = await withTenantContext(db, owner.id, (tx) =>
+      createOrganization(tx, { name: "Apply Org", createdBy: owner.id }),
+    );
     const inv = await createOrgInvitation(db, {
       orgId: org.id,
       inviteeUserId: viewer.id,
       role: "viewer",
       invitedBy: owner.id,
     });
-    await acceptOrgInvitation(db, { userId: viewer.id, invitationId: inv.id });
+    await withTenantContext(db, viewer.id, (tx) =>
+      acceptOrgInvitation(tx, { userId: viewer.id, invitationId: inv.id }),
+    );
     const thesis = await createThesis(
       db,
       { ticker: "APLY", companyName: "Apply Corp", sectorTag: "Tech", currentPrice: 100 },

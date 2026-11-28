@@ -120,7 +120,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
     }
   }
 
-  const RLS_STAGE6_PENDING = new Set(["memberships", "org_invitations", "restricted_list"]);
+  const RLS_STAGE6_PENDING = new Set<string>();
   const RLS_SYSTEM_EXEMPT = new Set(["jobs"]);
   const TENANT_COLUMN_NAMES = new Set([
     "user_id",
@@ -191,7 +191,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
         discoveredNames,
       );
     }
-    expect(rlsCoveredTables.size).toBe(37);
+    expect(rlsCoveredTables.size).toBe(40);
     for (const pending of RLS_STAGE6_PENDING) {
       expect(discoveredNames.has(pending), `Stale pending table "${pending}"`).toBe(true);
       expect(rlsCoveredTables.has(pending), `Remove "${pending}" from RLS_STAGE6_PENDING`).toBe(
@@ -229,12 +229,19 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
       "kanon_thesis_readable",
       "kanon_thesis_writable",
       "kanon_thesis_deletable",
+      "kanon_org_role",
+      "kanon_audit_chain_tail",
+      "kanon_create_organization",
+      "kanon_accept_invitation",
+      "kanon_ticker_restricted",
     ];
     const pgProcRes = await db.execute(sql`
       SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname = 'public' AND p.proname IN (
         'kanon_rls_is_system', 'kanon_rls_uid', 'kanon_rls_open',
-        'kanon_thesis_readable', 'kanon_thesis_writable', 'kanon_thesis_deletable'
+        'kanon_thesis_readable', 'kanon_thesis_writable', 'kanon_thesis_deletable',
+        'kanon_org_role', 'kanon_audit_chain_tail',
+        'kanon_create_organization', 'kanon_accept_invitation', 'kanon_ticker_restricted'
       )
     `);
     const foundFns = new Set(

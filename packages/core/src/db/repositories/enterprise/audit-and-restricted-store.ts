@@ -170,11 +170,16 @@ export async function isTickerRestricted(
   now = new Date(),
 ): Promise<boolean> {
   const tickers = await resolveEquivalentTickers(db, ticker);
-  const rows = await db
-    .select({ expiresAt: restrictedListTable.expiresAt })
-    .from(restrictedListTable)
-    .where(and(eq(restrictedListTable.orgId, orgId), inArray(restrictedListTable.ticker, tickers)));
-  return rows.some((r) => !r.expiresAt || r.expiresAt.getTime() >= now.getTime());
+  if (tickers.length === 0) return false;
+  const tickerList = sql.join(
+    tickers.map((t) => sql`${t}`),
+    sql`, `,
+  );
+  const res = await db.execute(
+    sql`SELECT kanon_ticker_restricted(${orgId}, ARRAY[${tickerList}]::text[], ${now.toISOString()}::timestamptz) AS restricted`,
+  );
+  const row = (Array.isArray(res) ? res : res.rows)[0] as { restricted?: unknown } | undefined;
+  return Boolean(row?.restricted);
 }
 
 export async function listRestrictedTickers(db: KanonDb, orgId: string) {

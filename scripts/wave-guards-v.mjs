@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { buildCodebaseMap } from "./generate-codebase-map.mjs";
 import {
   collectTsFiles,
   extractNumericLiteralValue,
@@ -153,6 +154,24 @@ export function checkG41HostedAiQuotaGateAst(rel, content, errors) {
   }
 }
 
+/** G42: auto-generated `docs/CODEBASE_MAP.md` must stay byte-for-byte synced with live repo topology. */
+export function checkG42CodebaseMapParity(root, errors) {
+  const mapPath = path.join(root, "docs/CODEBASE_MAP.md");
+  if (!fs.existsSync(mapPath)) {
+    errors.push(
+      'docs/CODEBASE_MAP.md [G42-codebase-map-parity] Missing auto-generated codebase map. Run "pnpm map:update" so AI agents can locate every route, table, slice and guard.',
+    );
+    return;
+  }
+  const actual = fs.readFileSync(mapPath, "utf8");
+  const expected = buildCodebaseMap(root);
+  if (actual !== expected) {
+    errors.push(
+      'docs/CODEBASE_MAP.md [G42-codebase-map-parity] Codebase map drifted from live repository topology. Run "pnpm map:update" to regenerate.',
+    );
+  }
+}
+
 export function checkWaveGuardsV(root, errors) {
   const files = [];
   for (const dir of ["apps", "packages"]) collectTsFiles(path.join(root, dir), files);
@@ -165,4 +184,5 @@ export function checkWaveGuardsV(root, errors) {
     checkG41HostedAiQuotaGateAst(rel, content, errors);
   }
   checkG32LiveHealthPostureWatch(root, errors);
+  checkG42CodebaseMapParity(root, errors);
 }

@@ -61,30 +61,42 @@ export async function GET(request: Request) {
     return jsonError("请输入有效的美股代码（如 NVDA / AVGO）。", 400, startedAt, "INVALID");
   }
 
-  const [secLive, quoteRes, secCached, sparkline] = await Promise.all([
-    fetchSecEdgarSnapshot(rawTicker),
-    fetchMarketQuote(rawTicker, { creds: parseMarketHeaders(request) }),
-    auth.withDb((tx) => getSecSnapshotForUser(tx, rawTicker, auth.user.id)),
-    fetchMarketSparkline(rawTicker),
-  ]);
-  const snapshot = await resolveBootstrapSec(auth.withDb, secLive, secCached);
-  const quote = quoteRes.ok ? quoteRes.quote : null;
-  const latestEps = latestAnnualEps(snapshot?.annuals ?? []);
-  const years = snapshot?.annuals.length ?? 0;
+  try {
+    const [secLive, quoteRes, secCached, sparkline] = await Promise.all([
+      fetchSecEdgarSnapshot(rawTicker).catch(() => ({
+        ok: false as const,
+        error: "SEC_UPSTREAM_ERROR",
+        errorKind: "transient" as const,
+      })),
+      fetchMarketQuote(rawTicker, { creds: parseMarketHeaders(request) }).catch(() => ({
+        ok: false as const,
+        quote: null,
+      })),
+      auth.withDb((tx) => getSecSnapshotForUser(tx, rawTicker, auth.user.id)),
+      fetchMarketSparkline(rawTicker).catch(() => []),
+    ]);
+    const snapshot = await resolveBootstrapSec(auth.withDb, secLive, secCached);
+    const quote = quoteRes.ok ? quoteRes.quote : null;
+    const latestEps = latestAnnualEps(snapshot?.annuals ?? []);
+    const years = snapshot?.annuals.length ?? 0;
 
-  return jsonOk(
-    MarketBootstrapResponseSchema.parse({
-      ticker: rawTicker,
-      companyName: snapshot?.entityName || quote?.companyName || "",
-      currentPrice: quote?.effectivePrice ?? null,
-      priceSource: quote?.source ?? "none",
-      latestEps,
-      secYearsCovered: years,
-      secCached: Boolean(snapshot),
-      notice: buildBootstrapNotice(years, latestEps, quote),
-      quote,
-      sparkline: sparkline.length >= 2 ? sparkline : undefined,
-    }),
-    startedAt,
-  );
+    return jsonOk(
+      MarketBootstrapResponseSchema.parse({
+        ticker: rawTicker,
+        companyName: snapshot?.entityName || quote?.companyName || "",
+        currentPrice: quote?.effectivePrice ?? null,
+        priceSource: quote?.source ?? "none",
+        latestEps,
+        secYearsCovered: years,
+        secCached: Boolean(snapshot),
+        notice: buildBootstrapNotice(years, latestEps, quote),
+        quote,
+        sparkline: sparkline.length >= 2 ? sparkline : undefined,
+      }),
+      startedAt,
+    );
+  } catch (err) {
+    void err;
+    return jsonError("检索标的外部行情失败，请稍后重试。", 500, startedAt, "BOOTSTRAP_FAILED");
+  }
 }

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
 import {
@@ -72,12 +72,10 @@ export async function createOrganization(
   const id = `org_${crypto.randomUUID()}`;
   const slug = slugifyOrgName(input.name);
   const name = input.name.trim() || "KANON Team";
-  const now = new Date();
   await runInTransaction(db, async (tx) => {
-    await tx.insert(organizationsTable).values({ id, name, slug, createdBy: input.createdBy });
-    await tx
-      .insert(membershipsTable)
-      .values({ orgId: id, userId: input.createdBy, role: "owner", acceptedAt: now });
+    await tx.execute(
+      sql`SELECT kanon_create_organization(${id}, ${name}, ${slug}, ${input.createdBy})`,
+    );
   });
   return { id, name, slug, role: "owner" };
 }

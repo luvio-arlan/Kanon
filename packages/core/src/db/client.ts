@@ -51,6 +51,7 @@ END $$;
 GRANT USAGE ON SCHEMA public TO kanon_app_local;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kanon_app_local;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kanon_app_local;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO kanon_app_local;
 REVOKE UPDATE, DELETE ON audit_log FROM kanon_app_local;
 SET ROLE kanon_app_local;
 `;

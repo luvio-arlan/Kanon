@@ -15,6 +15,7 @@ import {
   OrgPolicyError,
   removeOrgMember,
   updateOrgMemberRole,
+  withTenantContext,
 } from "../enterprise/organizations-and-rls-store";
 import { createResearchNote, listResearchNotes } from "../library/research-notes-store";
 import { createQuarterlyReview, saveAgentRun } from "../review-and-agent-store";
@@ -61,8 +62,12 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
     userId: string,
     role: "owner" | "pm" | "analyst" | "viewer" | "compliance",
   ) {
-    const inv = await createOrgInvitation(db, { orgId, inviteeUserId: userId, role, invitedBy });
-    await acceptOrgInvitation(db, { userId, invitationId: inv.id });
+    const inv = await withTenantContext(db, invitedBy, (tx) =>
+      createOrgInvitation(tx, { orgId, inviteeUserId: userId, role, invitedBy }),
+    );
+    await withTenantContext(db, userId, (tx) =>
+      acceptOrgInvitation(tx, { userId, invitationId: inv.id }),
+    );
   }
 
   it("blocks viewer/compliance from mutating discipline, reviews, steps, and agent apply while allowing analyst writes", async () => {
@@ -72,7 +77,9 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
     const viewer = await reg("+8613800001004", "Viewer");
     const compliance = await reg("+8613800001005", "Compliance");
 
-    const org = await createOrganization(db, { name: "Alpha Fund", createdBy: owner.id });
+    const org = await withTenantContext(db, owner.id, (tx) =>
+      createOrganization(tx, { name: "Alpha Fund", createdBy: owner.id }),
+    );
     await joinOrg(org.id, owner.id, pm.id, "pm");
     await joinOrg(org.id, owner.id, analyst.id, "analyst");
     await joinOrg(org.id, owner.id, viewer.id, "viewer");
@@ -256,7 +263,9 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
     // Submit IC while personal (orgId = null)
     const sub = await submitIcApproval(db, { thesisId: personal.id, submittedBy: victim.id });
     // Now share thesis to an org
-    const org = await createOrganization(db, { name: "Handover Org", createdBy: victim.id });
+    const org = await withTenantContext(db, victim.id, (tx) =>
+      createOrganization(tx, { name: "Handover Org", createdBy: victim.id }),
+    );
     await joinOrg(org.id, victim.id, viewer.id, "viewer");
     await assignThesisToOrganization(db, {
       thesisId: personal.id,
@@ -328,7 +337,9 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
     ).rejects.toThrow(/已变更/);
 
     // P0-4: Attacker creates org, invites victim (unaccepted!), restricts NVDA -> victim's personal account buys NVDA freely
-    const evilOrg = await createOrganization(db, { name: "Evil Org", createdBy: attacker.id });
+    const evilOrg = await withTenantContext(db, attacker.id, (tx) =>
+      createOrganization(tx, { name: "Evil Org", createdBy: attacker.id }),
+    );
     const inv = await createOrgInvitation(db, {
       orgId: evilOrg.id,
       inviteeUserId: victim.id,
@@ -359,7 +370,9 @@ describe("Wave O RBAC Matrix, Invitation Isolation & Queue Resilience", () => {
     expect(buyRes.cashBalance).toBe(9000);
 
     // Even after accepting invitation, victim's personal account is STILL unaffected; org-scoped account IS restricted
-    await acceptOrgInvitation(db, { userId: victim.id, invitationId: inv.id });
+    await withTenantContext(db, victim.id, (tx) =>
+      acceptOrgInvitation(tx, { userId: victim.id, invitationId: inv.id }),
+    );
     const orgAcct = await createPortfolioAccount(db, {
       userId: victim.id,
       orgId: evilOrg.id,

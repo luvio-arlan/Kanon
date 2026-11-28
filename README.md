@@ -180,8 +180,8 @@ kanon/
 └── docs/                  # PRD 白皮书、架构蓝图与 README 样片
 ```
 
-- **五层自动化门禁（`pnpm check`）**：`Biome` 代码与认知复杂度检查 + `TypeScript` 跨包严格类型校验 + `Dependency Cruiser` 架构防腐蚀（含 G31 公开样本零 DB 守卫）+ `AST / Security / Editorial / Optical` 守卫 **G1–G41**（逐 Handler CSRF、递归扩展式迁移、审美与体量、数据完整性与入口零死导出、生产 RLS 姿态巡检、账本口径单一来源、零捏造回落、托管 AI 额度门禁）+ `Knip` 零死代码检测
-- **确定性验证闭环（`pnpm test` / `pnpm eval` / `pnpm test:api` / `pnpm test:e2e`）**：金融估值/多币种账本重放/TWR+FX 归因/Ledoit-Wolf 协方差/2×2 决策归因黄金单测 + 28 例对抗检索评测 + Drizzle 与 42 条扩展式迁移（`0001`–`0042`）1:1 动态列/索引/37 表 RLS 反射校验 + 50 路由 HTTP / CSRF / OCC / `X-Request-Id` / Fail-Closed RLS 实测 + 10 章 Playwright 端到端黄金路径
+- **五层自动化门禁（`pnpm check`）**：`Biome` 代码与认知复杂度检查 + `TypeScript` 跨包严格类型校验 + `Dependency Cruiser` 架构防腐蚀（含 G31 公开样本零 DB 守卫）+ `AST / Security / Editorial / Optical` 守卫 **G1–G42**（逐 Handler CSRF、递归扩展式迁移、审美与体量、数据完整性与入口零死导出、生产 RLS 姿态巡检、账本口径单一来源、零捏造回落、托管 AI 额度门禁、`docs/CODEBASE_MAP.md` 零漂移校验）+ `Knip` 零死代码检测
+- **确定性验证闭环（`pnpm test` / `pnpm eval` / `pnpm test:api` / `pnpm test:e2e`）**：金融估值/多币种账本重放/TWR+FX 归因/Ledoit-Wolf 协方差/2×2 决策归因黄金单测 + 28 例对抗检索评测 + Drizzle 与 43 条扩展式迁移（`0001`–`0043`）1:1 动态列/索引/40 表全覆盖 RLS 反射校验 + 50 路由 HTTP / CSRF / OCC / `X-Request-Id` / Fail-Closed RLS 实测 + 10 章 Playwright 端到端黄金路径
 
 ---
 

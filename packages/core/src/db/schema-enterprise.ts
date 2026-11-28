@@ -11,6 +11,9 @@ import {
 } from "drizzle-orm/pg-core";
 import {
   kanonAuditLogPolicies,
+  kanonMembershipsPolicies,
+  kanonOrgInvitationsPolicies,
+  kanonRestrictedListPolicies,
   kanonThesisChildPolicies,
   kanonThesisCommentsPolicies,
 } from "./repositories/security/rls-policies";
@@ -37,8 +40,8 @@ export const membershipsTable = pgTable(
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.orgId, table.userId] })],
-);
+  (table) => [primaryKey({ columns: [table.orgId, table.userId] }), ...kanonMembershipsPolicies()],
+).enableRLS();
 
 export const orgInvitationsTable = pgTable(
   "org_invitations",
@@ -57,8 +60,11 @@ export const orgInvitationsTable = pgTable(
     revokedBy: text("revoked_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("idx_org_invitations_invitee").on(table.inviteeUserId, table.acceptedAt)],
-);
+  (table) => [
+    index("idx_org_invitations_invitee").on(table.inviteeUserId, table.acceptedAt),
+    ...kanonOrgInvitationsPolicies(),
+  ],
+).enableRLS();
 
 export const icApprovalsTable = pgTable(
   "ic_approvals",
@@ -131,5 +137,8 @@ export const restrictedListTable = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("idx_restricted_list_org_ticker").on(table.orgId, table.ticker)],
-);
+  (table) => [
+    uniqueIndex("idx_restricted_list_org_ticker").on(table.orgId, table.ticker),
+    ...kanonRestrictedListPolicies(),
+  ],
+).enableRLS();

@@ -17,7 +17,8 @@
       "!**/.agents/skills",
       "!**/marketing",
       "!**/promo-video",
-      "!**/sec/press/fixtures"
+      "!**/sec/press/fixtures",
+      "!docs/CODEBASE_MAP.md"
     ]
   },
   "formatter": {

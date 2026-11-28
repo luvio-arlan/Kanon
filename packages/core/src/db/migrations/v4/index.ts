@@ -6,6 +6,7 @@ import { KANON_WAVE_V0_NUMERIC_EXCHANGE_REFLAG_SQL } from "./0039-numeric-exchan
 import { KANON_WAVE_V1_GUIDANCE_CANDIDATE_RETRACTION_SQL } from "./0040-guidance-candidate-retraction";
 import { KANON_WAVE_V2_STAGE6B_AUTH_AUDIT_RLS_SQL } from "./0041-stage6b-auth-audit-rls";
 import { KANON_WAVE_V2_AI_USAGE_KEY_SOURCE_SQL } from "./0042-ai-usage-key-source";
+import { KANON_WAVE_V2_STAGE6B_ORG_RLS_SQL } from "./0043-stage6b-org-rls";
 
 export const KANON_V4_MIGRATIONS: ReadonlyArray<{
   id: string;
@@ -59,5 +60,11 @@ export const KANON_V4_MIGRATIONS: ReadonlyArray<{
     description:
       "Wave V2-2 expand-only ai_usage.key_source (byok | hosted) for hosted-AI daily quota",
     sql: KANON_WAVE_V2_AI_USAGE_KEY_SOURCE_SQL,
+  },
+  {
+    id: "0043_stage6b_org_rls",
+    description:
+      "Wave V2-1 Stage 6b complete: RLS on memberships, org_invitations, restricted_list + definer flows (40/40)",
+    sql: KANON_WAVE_V2_STAGE6B_ORG_RLS_SQL,
   },
 ];

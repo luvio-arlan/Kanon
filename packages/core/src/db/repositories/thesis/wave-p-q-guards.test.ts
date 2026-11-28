@@ -149,14 +149,20 @@ describe("Wave P1 & Wave Q Negative Security, Data Integrity & RLS Tests", () =>
       ).user;
     const owner = await reg("+8613800003001", "AlertOwner");
     const member = await reg("+8613800003002", "AlertMember");
-    const org = await createOrganization(db, { name: "Alert Org", createdBy: owner.id });
-    const inv = await createOrgInvitation(db, {
-      orgId: org.id,
-      inviteeUserId: member.id,
-      role: "viewer",
-      invitedBy: owner.id,
-    });
-    await acceptOrgInvitation(db, { userId: member.id, invitationId: inv.id });
+    const org = await withTenantContext(db, owner.id, (tx) =>
+      createOrganization(tx, { name: "Alert Org", createdBy: owner.id }),
+    );
+    const inv = await withTenantContext(db, owner.id, (tx) =>
+      createOrgInvitation(tx, {
+        orgId: org.id,
+        inviteeUserId: member.id,
+        role: "viewer",
+        invitedBy: owner.id,
+      }),
+    );
+    await withTenantContext(db, member.id, (tx) =>
+      acceptOrgInvitation(tx, { userId: member.id, invitationId: inv.id }),
+    );
     const thesis = await createThesis(
       db,
       { ticker: "EDGE", companyName: "Edge Corp", sectorTag: "Tech", currentPrice: 80 },
@@ -207,7 +213,9 @@ describe("Wave P1 & Wave Q Negative Security, Data Integrity & RLS Tests", () =>
     }
 
     // Ledger Q4 negative checks
-    const org = await createOrganization(db, { name: "Comp Org", createdBy: u.id });
+    const org = await withTenantContext(db, u.id, (tx) =>
+      createOrganization(tx, { name: "Comp Org", createdBy: u.id }),
+    );
     await addRestrictedTicker(db, {
       orgId: org.id,
       ticker: "BRK.B",

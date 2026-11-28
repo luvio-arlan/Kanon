@@ -7,9 +7,9 @@
 - **KANON（卡农）** — `Conviction, composed.` / `在噪音里，谱出自己的确定性。`
 - Desktop-first fundamental value-investing OS for serious individual investors & buy-side teams: 5-step guided research canvas, forensic SEC XBRL verification, multi-role IC Agent & red-teaming, dual-engine valuation + Reverse-DCF + 5×5 sensitivity workbench, zero-leverage discipline & quarterly cognitive review, and portfolio risk controls.
 - **Hard Non-Goals**: No live candlestick trading terminal or broker execution, no buy/sell fortune-telling chat, no gamified streaks, no social feed.
-- **Docs**: [docs/PRD.md](docs/PRD.md) · [docs/PRODUCT_ARCHITECTURE_V3.md](docs/PRODUCT_ARCHITECTURE_V3.md) · [docs/TOP_TIER_ROADMAP.md](docs/TOP_TIER_ROADMAP.md) · [docs/NEXT_STAGE_PLAN.md](docs/NEXT_STAGE_PLAN.md) · [docs/WAVE_U_PLAN.md](docs/WAVE_U_PLAN.md) · [docs/WAVE_V_PLAN.md](docs/WAVE_V_PLAN.md) · [.rules/editorial-craft.md](.rules/editorial-craft.md) · [.rules/postmortems.md](.rules/postmortems.md) · [deploy/README.md](deploy/README.md)
+- **Docs**: [docs/CODEBASE_MAP.md](docs/CODEBASE_MAP.md) (auto-generated full index · G42) · [docs/PRD.md](docs/PRD.md) · [docs/PRODUCT_ARCHITECTURE_V3.md](docs/PRODUCT_ARCHITECTURE_V3.md) · [docs/TOP_TIER_ROADMAP.md](docs/TOP_TIER_ROADMAP.md) · [docs/NEXT_STAGE_PLAN.md](docs/NEXT_STAGE_PLAN.md) · [docs/WAVE_U_PLAN.md](docs/WAVE_U_PLAN.md) · [docs/WAVE_V_PLAN.md](docs/WAVE_V_PLAN.md) · [.rules/editorial-craft.md](.rules/editorial-craft.md) · [.rules/postmortems.md](.rules/postmortems.md) · [deploy/README.md](deploy/README.md)
 
-## 2. Architecture Map (Enforced by `.dependency-cruiser.cjs`)
+## 2. Architecture & Instant Codebase Router (Enforced by `.dependency-cruiser.cjs` & G42)
 
 ```text
 apps/web/src/
@@ -22,6 +22,23 @@ packages/
 └── ai/           # SEC EDGAR XBRL parser + Vercel AI SDK multi-step agent & copilot (server-only runtime)
 ```
 
+> **Need exact file paths?** Read [docs/CODEBASE_MAP.md](docs/CODEBASE_MAP.md) (1 file, always synced with live repo via `pnpm map:update` / G42).
+
+| Looking for…                                                               | Go straight to                                                                                                                             |
+| :------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
+| Web pages (Cockpit, Canvas, Present, Auth, Sample)                         | `apps/web/src/app/{page,thesis/[id],thesis/[id]/present,(auth),sample/[slug]}/page.tsx`                                                    |
+| Frontend UI slices (Cockpit, Steps 1–5, Valuation, Ledger, Settings)       | `apps/web/src/features/{cockpit,thesis,research-steps,valuation,journal,portfolio,ai-settings,auth,glossary,thesis-present}/`              |
+| Client fetch / autosave / dirty-guard primitives                           | `apps/web/src/shared/{lib/kanon-fetch.ts,hooks/use-thesis-step-draft.ts}`                                                                  |
+| API route handlers (50 routes) & auth/CSRF/RLS wrappers                    | `apps/web/src/app/api/<domain>/route.ts` · shared helpers in `apps/web/src/app/api/_lib/`                                                  |
+| Drizzle tables (40 RLS-protected) & expand-only migrations (`0001`–`0043`) | `packages/core/src/db/schema*.ts` · `packages/core/src/db/migrations/{,v2,v3,v4}/`                                                         |
+| DB repositories & RLS policies/helpers                                     | `packages/core/src/db/repositories/{account,agent,enterprise,intel,library,market,ops,portfolio,sec,security,thesis,warehouse,workflows}/` |
+| Pure financial formulas (DCF, TWR, FX, Forensics, Guidance, Risk)          | `packages/core/src/math/{attribution,calibration,dcf,forensics,guidance,performance,risk,valuation}/`                                      |
+| Shared Zod API / AI / Analytics / Intel contracts                          | `packages/core/src/contracts/` · `packages/core/src/schemas/`                                                                              |
+| SEC EDGAR XBRL / 8-K press guidance / FTS / IC Agent / Market quotes       | `packages/ai/src/{sec,guidance,retrieval,agent,copilot,market}/`                                                                           |
+| Design tokens, HeroUI v3 wrappers & charts                                 | `packages/ui/src/{styles/tokens.css,components,charts,lib/motion.ts}`                                                                      |
+| Mechanical quality guards (G1–G42) & API contract verifier                 | `scripts/{check-design-and-limits,garden-guards,api-security-guards,wave-guards*,verify-api-contracts}.mjs`                                |
+| Production deploy, Neon `kanon_app` RLS role & break-glass SQL             | `deploy/{README.md,rls-provision-app-role.sql,rls-verify.sql,rls-break-glass.sql}`                                                         |
+
 ## 3. Single Source of Truth & Operational Conventions
 
 - **Contracts & Math**: Shared API/SSE/AI Zod contracts live in `packages/core/src/contracts/`; all financial formulas live strictly as pure functions in `packages/core/src/math/`.
@@ -33,7 +50,8 @@ packages/
 ## 4. Verification Gates & Auto-Delivery Protocol (Single Source of Truth)
 
 ```bash
-pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards (G1–G41) + knip (zero-skip, zero-ratchet)
+pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards (G1–G42) + knip (zero-skip, zero-ratchet)
+pnpm map:update   # Regenerate docs/CODEBASE_MAP.md (byte-for-byte verified by G42 in pnpm check)
 pnpm test         # Vitest: financial math goldens, dynamic DDL/RLS parity, zero-leverage & AI/API contracts
 pnpm eval         # 28-case adversarial Golden Eval (bilingual FTS + strict claim grounding + refusal)
 pnpm build        # Full Turborepo production build

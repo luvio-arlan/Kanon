@@ -17,6 +17,7 @@
     "typecheck": "turbo run typecheck",
     "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs",
     "design:check": "node scripts/wave-guards.test.mjs && node scripts/wave-guards-rs.test.mjs && node scripts/wave-guards-u.test.mjs && node scripts/wave-guards-v.test.mjs && node scripts/check-design-and-limits.mjs",
+    "map:update": "node scripts/generate-codebase-map.mjs",
     "knip": "knip",
     "check": "pnpm lint && pnpm typecheck && pnpm depcruise && pnpm design:check && pnpm knip",
     "db:push": "pnpm --filter @kanon/core db:push",

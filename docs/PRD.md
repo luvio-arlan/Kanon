@@ -72,8 +72,8 @@
 - **Monorepo**：`Turborepo + pnpm`（`apps/web` + `packages/ui` + `packages/core` + `packages/ai`）
 - **数据层**：PostgreSQL（支持外部 `DATABASE_URL` 或本地持久化 PGlite）+ Drizzle ORM + 严格 Expand-Only 版本化迁移 + 动态反射 1:1 DDL 校验。
 - **全自动机械门禁（零豁免、零回退）**：
-  - `pnpm check`：`Biome` + `tsc --noEmit` + `dependency-cruiser` + AST 规模/安全/数据完整性/审美守卫 **G1–G41**（`<= 250` 行/文件、`<= 50` 行/函数、嵌套 `<= 3`、单目录 `<= 12` 文件、逐 Handler AST CSRF 门禁、递归 Expand-Only 迁移检查、公开样本零 DB 访问、入口零无调用导出、零未校验 JSON 强转、零静默空 `catch`、零客户端 `@kanon/ai` 运行时导入、文档同步校验）+ `knip` 死代码清零。
-  - `pnpm test`：Vitest 金融数学 Golden 测试、多币种账本/FX 归因/8-K 新闻稿指引候选测试、1:1 动态 DDL 与 37 表 RLS 反射校验、零杠杆铁律与 AI/DB 契约测试。
+  - `pnpm check`：`Biome` + `tsc --noEmit` + `dependency-cruiser` + AST 规模/安全/数据完整性/审美守卫 **G1–G42**（`<= 250` 行/文件、`<= 50` 行/函数、嵌套 `<= 3`、单目录 `<= 12` 文件、逐 Handler AST CSRF 门禁、递归 Expand-Only 迁移检查、公开样本零 DB 访问、入口零无调用导出、零未校验 JSON 强转、零静默空 `catch`、零客户端 `@kanon/ai` 运行时导入、自动代码库索引零漂移校验）+ `knip` 死代码清零。
+  - `pnpm test`：Vitest 金融数学 Golden 测试、多币种账本/FX 归因/8-K 新闻稿指引候选测试、1:1 动态 DDL 与 40/40 表 RLS 反射校验、零杠杆铁律与 AI/DB 契约测试。
   - `pnpm test:api`：动态盘点全部 50 个 API 路由并在隔离数据库实例（`KANON_RLS_ENFORCE_LOCAL=1`）中端到端校验 HTTP 契约、CSRF、`X-Request-Id`、OCC、MCP 作用域、不可篡改预测账本、零杠杆多币种 FIFO 账本、客户端错误遥测、IC 审批与 SSR 渲染（含 `/sample/nvda` 免登录公开样本与 `/thesis/[id]/present` 全屏只读演示）。
   - `pnpm eval`：离线确定性 AI 回归套件（混合 RRF 检索、PGlite GIN FTS 真实召回、逐句数值溯源校验、提示词注入隔离与 10-K 红线差异），并支持夜间 `pnpm eval:live` 在线路径评测。
-  - `pnpm db:migrate`：基于 PostgreSQL 事务级咨询锁的幂等 Expand-Only 迁移 CLI（已覆盖 `0001`–`0037` 全 37 个版本）。
+  - `pnpm db:migrate`：基于 PostgreSQL 事务级咨询锁的幂等 Expand-Only 迁移 CLI（已覆盖 `0001`–`0043` 全 43 个版本）。

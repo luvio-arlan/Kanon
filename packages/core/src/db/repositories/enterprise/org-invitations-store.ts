@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq, gt, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
 import { runInTransaction } from "../../client";
 import {
@@ -162,88 +162,66 @@ export async function listPendingOrgInvitations(db: KanonDb, userId: string) {
     .orderBy(desc(orgInvitationsTable.createdAt));
 }
 
-function buildInvitationLookupWhere(input: {
-  userId: string;
-  invitationId?: string;
-  token?: string;
-}) {
-  if (input.token) {
-    const tokenHash = crypto.createHash("sha256").update(input.token.trim()).digest("hex");
-    return eq(orgInvitationsTable.tokenHash, tokenHash);
+function mapAcceptInvitationError(status: string): OrgPolicyError {
+  if (status === "MISSING_CREDENTIAL") {
+    return new OrgPolicyError("INVALID_INVITATION", "缺少有效的邀请凭证。", 400);
   }
-  if (input.invitationId) {
-    return and(
-      eq(orgInvitationsTable.id, input.invitationId),
-      eq(orgInvitationsTable.inviteeUserId, input.userId),
-    );
+  if (status === "NOT_FOUND") {
+    return new OrgPolicyError("INVALID_INVITATION", "邀请不存在。", 404);
   }
-  return null;
+  if (status === "FORBIDDEN") {
+    return new OrgPolicyError("FORBIDDEN", "该邀请不属于当前登录账号。", 403);
+  }
+  if (status === "INVITER_REVOKED") {
+    return new OrgPolicyError("INVALID_INVITATION", "邀请人权限已变更，该邀请已失效。", 409);
+  }
+  return new OrgPolicyError("INVALID_INVITATION", "邀请已使用、已撤销或已过期。", 409);
 }
 
-async function assertInviterStillCanManage(tx: KanonDb, orgId: string, invitedBy: string) {
-  const [inviter] = await tx
-    .select({ role: membershipsTable.role })
-    .from(membershipsTable)
-    .where(
-      and(
-        eq(membershipsTable.orgId, orgId),
-        eq(membershipsTable.userId, invitedBy),
-        isNotNull(membershipsTable.acceptedAt),
-      ),
-    )
-    .limit(1);
-  if (inviter?.role !== "owner") {
-    throw new OrgPolicyError("INVALID_INVITATION", "邀请人权限已变更，该邀请已失效。", 409);
+function parseAcceptResult(res: unknown): {
+  invitationId: string;
+  orgId: string;
+  role: OrgRole;
+} {
+  const rows = Array.isArray(res) ? res : ((res as { rows?: unknown[] }).rows ?? []);
+  const row = rows[0] as
+    | { status?: unknown; invitation_id?: unknown; org_id?: unknown; role?: unknown }
+    | undefined;
+  const status = typeof row?.status === "string" ? row.status : "EXPIRED_OR_USED";
+  if (status !== "OK" || typeof row?.org_id !== "string" || typeof row?.role !== "string") {
+    throw mapAcceptInvitationError(status);
   }
+  return {
+    invitationId: String(row.invitation_id ?? ""),
+    orgId: row.org_id,
+    role: row.role as OrgRole,
+  };
 }
 
 export async function acceptOrgInvitation(
   db: KanonDb,
   input: { userId: string; invitationId?: string; token?: string },
 ) {
+  const tokenHash = input.token
+    ? crypto.createHash("sha256").update(input.token.trim()).digest("hex")
+    : null;
+  const invId = tokenHash ? null : (input.invitationId ?? null);
+  if (!tokenHash && !invId) {
+    throw new OrgPolicyError("INVALID_INVITATION", "缺少有效的邀请凭证。", 400);
+  }
   return runInTransaction(db, async (tx) => {
-    const now = new Date();
-    const cond = buildInvitationLookupWhere(input);
-    if (!cond) throw new OrgPolicyError("INVALID_INVITATION", "缺少有效的邀请凭证。", 400);
-    const [inv] = await tx.select().from(orgInvitationsTable).where(cond).limit(1);
-    if (!inv) throw new OrgPolicyError("INVALID_INVITATION", "邀请不存在。", 404);
-    if (inv.inviteeUserId && inv.inviteeUserId !== input.userId) {
-      throw new OrgPolicyError("FORBIDDEN", "该邀请不属于当前登录账号。", 403);
-    }
-    if (inv.acceptedAt || inv.revokedAt || inv.expiresAt.getTime() <= now.getTime()) {
-      throw new OrgPolicyError("INVALID_INVITATION", "邀请已使用、已撤销或已过期。", 409);
-    }
-    await assertInviterStillCanManage(tx, inv.orgId, inv.invitedBy);
-    const claimed = await tx
-      .update(orgInvitationsTable)
-      .set({ acceptedAt: now })
-      .where(
-        and(
-          eq(orgInvitationsTable.id, inv.id),
-          eq(orgInvitationsTable.orgId, inv.orgId),
-          isNull(orgInvitationsTable.acceptedAt),
-          isNull(orgInvitationsTable.revokedAt),
-        ),
-      )
-      .returning();
-    if (claimed.length === 0) {
-      throw new OrgPolicyError("INVALID_INVITATION", "邀请已被使用或撤销。", 409);
-    }
-    await tx
-      .insert(membershipsTable)
-      .values({ orgId: inv.orgId, userId: input.userId, role: inv.role, acceptedAt: now })
-      .onConflictDoUpdate({
-        target: [membershipsTable.orgId, membershipsTable.userId],
-        set: { role: inv.role, acceptedAt: now },
-      });
+    const res = await tx.execute(
+      sql`SELECT out_status AS status, out_invitation_id AS invitation_id, out_org_id AS org_id, out_role AS role FROM kanon_accept_invitation(${input.userId}, ${invId}, ${tokenHash})`,
+    );
+    const accepted = parseAcceptResult(res);
     await appendAuditLog(tx, {
       actorUserId: input.userId,
-      orgId: inv.orgId,
+      orgId: accepted.orgId,
       action: "org.accept_invite",
       targetType: "membership",
       targetId: input.userId,
-      metadata: { invitationId: inv.id, role: inv.role },
+      metadata: { invitationId: accepted.invitationId, role: accepted.role },
     });
-    return { orgId: inv.orgId, role: inv.role };
+    return { orgId: accepted.orgId, role: accepted.role };
   });
 }

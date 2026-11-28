@@ -7,12 +7,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { buildCodebaseMap } from "./generate-codebase-map.mjs";
 import {
   checkG32LiveHealthPostureWatch,
   checkG33LedgerReplayInputSingleSourceAst,
   checkG34NoFabricatedFallbackTernaryAst,
   checkG39TelemetryIsolatedFromJobStateAst,
   checkG41HostedAiQuotaGateAst,
+  checkG42CodebaseMapParity,
 } from "./wave-guards-v.mjs";
 
 function expectCaught(fn, rule, label) {
@@ -193,6 +195,43 @@ expectClean(
   "G41 clean",
 );
 
+// G42 — 3 negatives + 1 positive
+withTempRepo({ "apps/web/src/app/api/ping/route.ts": "export async function GET() {}" }, (root) =>
+  expectCaught(
+    (e) => checkG42CodebaseMapParity(root, e),
+    "G42-codebase-map-parity",
+    "G42 missing map",
+  ),
+);
+withTempRepo(
+  {
+    "apps/web/src/app/api/ping/route.ts": "export async function GET() {}",
+    "docs/CODEBASE_MAP.md": "# stale map\n",
+  },
+  (root) =>
+    expectCaught(
+      (e) => checkG42CodebaseMapParity(root, e),
+      "G42-codebase-map-parity",
+      "G42 stale content",
+    ),
+);
+withTempRepo({ "apps/web/src/app/api/ping/route.ts": "export async function GET() {}" }, (root) => {
+  fs.mkdirSync(path.join(root, "docs"), { recursive: true });
+  fs.writeFileSync(path.join(root, "docs/CODEBASE_MAP.md"), buildCodebaseMap(root));
+  expectClean((e) => checkG42CodebaseMapParity(root, e), "G42 clean");
+  // Adding a new API route without regenerating must immediately fail G42
+  fs.mkdirSync(path.join(root, "apps/web/src/app/api/new-route"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "apps/web/src/app/api/new-route/route.ts"),
+    "export async function POST() {}",
+  );
+  expectCaught(
+    (e) => checkG42CodebaseMapParity(root, e),
+    "G42-codebase-map-parity",
+    "G42 new route drift",
+  );
+});
+
 process.stdout.write(
-  "✓ wave-guards-v.test.mjs: all G32, G33, G34, G39 & G41 adversarial fixtures caught and clean examples passed.\n",
+  "✓ wave-guards-v.test.mjs: all G32, G33, G34, G39, G41 & G42 adversarial fixtures caught and clean examples passed.\n",
 );
