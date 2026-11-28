@@ -354,6 +354,16 @@ expectCaught(
   "G17-hitl-confirm-only",
   "G17 raw SQL setting confirmed on guidance_commitments",
 );
+expectCaught(
+  (e) =>
+    checkG17HitlConfirmOnlyAst(
+      "packages/core/src/db/repositories/intel/guidance-candidates-store.ts",
+      'export async function adoptGuidanceCandidate(db) { return db.insert(guidanceCommitmentsTable).values({ status: "confirmed" }); }',
+      e,
+    ),
+  "G17-hitl-confirm-only",
+  "G17 adoptGuidanceCandidate writing status confirmed banned",
+);
 expectClean(
   (e) =>
     checkG17HitlConfirmOnlyAst(

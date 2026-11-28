@@ -1,20 +1,25 @@
+import { fetchEcbReferenceFxRates } from "@kanon/ai";
 import {
   pruneStaleFilingChunks,
   type QueuedJobRow,
   resolvePendingGuidanceCommitments,
+  upsertFxRates,
 } from "@kanon/core/db";
 import { withSystemDb } from "../../../_lib/db-context";
 import { runSyncDailyBarsForTicker, runSyncSecForTicker } from "../../../_lib/on-demand-sync";
 import { runBuildRedlineJob, runSyncSegmentsJob } from "../../../_lib/sec-intel-jobs";
 import { executeAlertFanoutJobInSystemDb } from "../../../_lib/sec-warehouse-sync";
+import { runExtractPressGuidanceJob } from "./segment-sync-job";
 
 export const NON_ALERT_JOB_KINDS = [
+  "sync_fx_rates",
   "sync_daily_bars",
   "sync_sec",
   "fanout_8k",
   "fanout_filing_redflag",
   "build_redline",
   "sync_segments",
+  "extract_press_guidance",
   "resolve_guidance",
   "prune_chunks",
   "backfill_bars",
@@ -23,11 +28,13 @@ export const NON_ALERT_JOB_KINDS = [
 
 /** Estimated execution budget per job kind (ms) used to prevent mid-job Vercel 60s kills (U0-2). */
 export const JOB_COST_MS: Readonly<Record<string, number>> = {
+  sync_fx_rates: 5_000,
   sync_daily_bars: 6_000,
   backfill_bars: 10_000,
   sync_sec: 25_000,
   build_redline: 30_000,
   sync_segments: 20_000,
+  extract_press_guidance: 15_000,
   fanout_8k: 5_000,
   fanout_filing_redflag: 5_000,
   resolve_guidance: 5_000,
@@ -44,6 +51,13 @@ export type JobRunner = (job: QueuedJobRow, signal: AbortSignal) => Promise<JobO
 
 const JOB_RUNNERS: Record<string, JobRunner> = {
   noop: async () => "done",
+  sync_fx_rates: async (_job, signal) => {
+    const rows = await fetchEcbReferenceFxRates({ signal });
+    if (rows.length > 0) {
+      await withSystemDb("cron_tick", (tx) => upsertFxRates(tx, rows));
+    }
+    return "done";
+  },
   fanout_8k: async (job) => {
     await executeAlertFanoutJobInSystemDb("fanout_8k", job.payload);
     return "done";
@@ -76,6 +90,10 @@ const JOB_RUNNERS: Record<string, JobRunner> = {
   },
   sync_segments: async (job, signal) => {
     await runSyncSegmentsJob(job.payload, "cron_tick", signal);
+    return "done";
+  },
+  extract_press_guidance: async (job, signal) => {
+    await runExtractPressGuidanceJob(job.payload, "cron_tick", signal);
     return "done";
   },
   resolve_guidance: async () => {

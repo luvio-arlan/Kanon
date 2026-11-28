@@ -1,6 +1,11 @@
 "use client";
 
-import type { GuidanceCommitment, GuidanceCredibility, ResearchNote } from "@kanon/core";
+import type {
+  GuidanceCandidate,
+  GuidanceCommitment,
+  GuidanceCredibility,
+  ResearchNote,
+} from "@kanon/core";
 import { Badge, Button } from "@kanon/ui";
 import { IconSparkles } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
@@ -104,8 +109,34 @@ function ConfirmedGuidanceSection(p: {
   );
 }
 
+function PressCandidatesStrip(p: {
+  candidates: readonly GuidanceCandidate[];
+  busy: boolean;
+  onAdopt: (candidateId: string) => void;
+}) {
+  if (p.candidates.length === 0) return null;
+  return (
+    <div className="divide-y divide-hairline border-b border-hairline bg-canvas/20 text-xs">
+      {p.candidates.slice(0, 6).map((c) => (
+        <div
+          key={c.id}
+          className="flex flex-wrap items-center justify-between gap-2 px-6 py-2 sm:px-7"
+        >
+          <span className="min-w-0 flex-1 truncate text-ink-secondary">
+            来自 8-K · {c.issuedOn} · FY{c.targetFiscalYear} {c.targetFiscalPeriod} · {c.quote}
+          </span>
+          <Button variant="outline" size="xs" disabled={p.busy} onClick={() => p.onAdopt(c.id)}>
+            <span>采纳</span>
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function useGuidanceLedger(thesisId: string) {
   const [items, setItems] = useState<GuidanceCommitment[]>([]);
+  const [candidates, setCandidates] = useState<GuidanceCandidate[]>([]);
   const [credibility, setCredibility] = useState<GuidanceCredibility | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -117,6 +148,7 @@ function useGuidanceLedger(thesisId: string) {
       if (ctrl.signal.aborted) return;
       if (res.ok) {
         setItems(res.data.items);
+        setCandidates(res.data.candidates ?? []);
         setCredibility(res.data.credibility);
       }
       setLoading(false);
@@ -130,11 +162,12 @@ function useGuidanceLedger(thesisId: string) {
     setBusy(false);
     if (!res.ok) return void toast.error(res.error);
     setItems(res.data.items);
+    setCandidates(res.data.candidates ?? []);
     setCredibility(res.data.credibility);
     toast.success(successMsg);
   }
 
-  return { items, credibility, loading, busy, runOp };
+  return { items, candidates, credibility, loading, busy, runOp };
 }
 
 export function GuidanceLedgerList({
@@ -144,7 +177,7 @@ export function GuidanceLedgerList({
   thesisId: string;
   selectedNote: ResearchNote | null;
 }) {
-  const { items, credibility, loading, busy, runOp } = useGuidanceLedger(thesisId);
+  const { items, candidates, credibility, loading, busy, runOp } = useGuidanceLedger(thesisId);
   const [draftsOpen, setDraftsOpen] = useState(true);
   const drafts = items.filter((i) => i.status === "draft_ai" || i.status === "draft_legacy");
   const confirmed = items.filter((i) => i.status === "confirmed");
@@ -159,6 +192,13 @@ export function GuidanceLedgerList({
           selectedNote
             ? void runOp({ op: "draft_from_note", noteId: selectedNote.id }, "已抽取待确认指引草稿")
             : undefined
+        }
+      />
+      <PressCandidatesStrip
+        candidates={candidates}
+        busy={busy}
+        onAdopt={(candidateId) =>
+          void runOp({ op: "adopt_candidate", candidateId }, "已采纳为待确认草稿")
         }
       />
       <PendingDraftsSection

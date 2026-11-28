@@ -158,6 +158,7 @@ export interface FxRateInput {
   rateDate: string;
   usdPerUnit: number;
   source?: string;
+  sourceLicense?: string;
 }
 
 export async function upsertFxRates(db: KanonDb, rates: readonly FxRateInput[]): Promise<number> {
@@ -172,10 +173,15 @@ export async function upsertFxRates(db: KanonDb, rates: readonly FxRateInput[]):
         rateDate: rate.rateDate,
         usdPerUnit: rate.usdPerUnit,
         source: rate.source ?? "ecb",
+        sourceLicense: rate.sourceLicense ?? "ecb_reference",
       })
       .onConflictDoUpdate({
         target: [fxRatesDailyTable.currency, fxRatesDailyTable.rateDate],
-        set: { usdPerUnit: rate.usdPerUnit, source: rate.source ?? "ecb" },
+        set: {
+          usdPerUnit: rate.usdPerUnit,
+          source: rate.source ?? "ecb",
+          sourceLicense: rate.sourceLicense ?? "ecb_reference",
+        },
       });
   }
   return rates.length;

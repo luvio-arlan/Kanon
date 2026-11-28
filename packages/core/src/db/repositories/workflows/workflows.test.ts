@@ -18,6 +18,7 @@ import {
   createPortfolioAccount,
   listPortfolioPositions,
   recordPortfolioTransaction,
+  reversePortfolioTransaction,
 } from "./portfolio-ledger-store";
 
 describe("Research Inbox, Immutable Forecasts & Zero-Leverage Portfolio Ledger (Stages 4-6)", () => {
@@ -256,5 +257,52 @@ describe("Research Inbox, Immutable Forecasts & Zero-Leverage Portfolio Ledger (
         noLeverageConfirmed: true,
       }),
     ).rejects.toThrow(/严禁做空/);
+
+    // U1-1: missing FX rate fails closed (409 FX_UNAVAILABLE); reversal & double-reversal guard
+    const eurAcct = await createPortfolioAccount(db, {
+      userId: DEFAULT_WORKSPACE_USER_ID,
+      name: "欧元账户",
+      baseCurrency: "EUR",
+      initialCash: 5000,
+    });
+    await expect(
+      recordPortfolioTransaction(db, {
+        accountId: eurAcct.id,
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        ticker: "NVDA",
+        action: "buy",
+        quantity: 2,
+        price: 100,
+        tradeCurrency: "USD",
+        tradeDate: "2026-03-11",
+        noLeverageConfirmed: true,
+      }),
+    ).rejects.toMatchObject({ code: "FX_UNAVAILABLE", status: 409 });
+
+    const bought = await recordPortfolioTransaction(db, {
+      accountId: eurAcct.id,
+      userId: DEFAULT_WORKSPACE_USER_ID,
+      ticker: "NVDA",
+      action: "buy",
+      quantity: 2,
+      price: 100,
+      tradeCurrency: "USD",
+      fxToBase: 0.9,
+      tradeDate: "2026-03-11",
+      noLeverageConfirmed: true,
+    });
+    const rev = await reversePortfolioTransaction(db, {
+      accountId: eurAcct.id,
+      userId: DEFAULT_WORKSPACE_USER_ID,
+      transactionId: bought.transactionId,
+    });
+    expect(rev.cashBalance).toBe(5000);
+    await expect(
+      reversePortfolioTransaction(db, {
+        accountId: eurAcct.id,
+        userId: DEFAULT_WORKSPACE_USER_ID,
+        transactionId: bought.transactionId,
+      }),
+    ).rejects.toMatchObject({ code: "ALREADY_REVERSED", status: 409 });
   });
 });

@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
-import type {
-  MarketDataSource,
-  MarketProviderPreference,
-  MarketProviderTestResponse,
+import {
+  getDataSourceLicenseClass,
+  type MarketDataSource,
+  type MarketProviderPreference,
+  type MarketProviderTestResponse,
 } from "@kanon/core";
 import { finnhubAdapter } from "./finnhub-adapter";
 import { fmpAdapter } from "./fmp-adapter";
@@ -31,17 +32,20 @@ function resolveConfiguredProvider(creds?: MarketAdapterCredentials): MarketProv
   return "auto";
 }
 
+/**
+ * Builds the ordered provider chain without silently falling back to Yahoo when an explicit
+ * commercial provider is configured (U1-3).
+ */
 function buildAdapterChain(creds?: MarketAdapterCredentials): MarketDataAdapter[] {
   const pref = resolveConfiguredProvider(creds);
   if (pref !== "auto") {
-    const primary = ADAPTER_MAP[pref];
-    return pref === "yahoo" ? [primary] : [primary, yahooFinanceAdapter];
+    return [ADAPTER_MAP[pref]];
   }
   const chain: MarketDataAdapter[] = [];
   if (process.env.POLYGON_API_KEY?.trim()) chain.push(polygonAdapter);
   if (process.env.FMP_API_KEY?.trim()) chain.push(fmpAdapter);
   if (process.env.FINNHUB_API_KEY?.trim()) chain.push(finnhubAdapter);
-  chain.push(yahooFinanceAdapter);
+  if (chain.length === 0) chain.push(yahooFinanceAdapter);
   return chain;
 }
 
@@ -102,8 +106,15 @@ export async function fetchMarketQuote(
     const apiKey = i === 0 ? options?.creds?.apiKey : undefined;
     const res = await adapter.fetchQuote(ticker, apiKey, fetchImpl);
     if (res.ok) {
-      setBoundedCache(key, res);
-      return res;
+      const enriched: MarketSnapshotResult = {
+        ok: true,
+        quote: {
+          ...res.quote,
+          licenseClass: getDataSourceLicenseClass(res.quote.source),
+        },
+      };
+      setBoundedCache(key, enriched);
+      return enriched;
     }
     lastFail = res;
   }

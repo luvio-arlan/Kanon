@@ -94,6 +94,7 @@ const BASIS_BADGE_LABELS: Record<string, string> = {
   cost_fallback: "成本估值",
   partial_bars: "部分行情",
   rebase_pending: "待重基",
+  fx_stale: "汇率缺失",
 };
 
 export function LedgerPerformanceLine({

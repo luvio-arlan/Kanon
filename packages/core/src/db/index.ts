@@ -53,6 +53,7 @@ export {
 } from "./repositories/discipline-mutations";
 export * from "./repositories/enterprise/ic-and-compliance-store";
 export * from "./repositories/enterprise/organizations-and-rls-store";
+export * from "./repositories/intel/guidance-candidates-store";
 export * from "./repositories/intel/guidance-resolver";
 export * from "./repositories/intel/guidance-store";
 export * from "./repositories/intel/redline-store";
@@ -71,6 +72,10 @@ export {
 } from "./repositories/market/quote-cache-store";
 export * from "./repositories/portfolio/basis-normalize-store";
 export * from "./repositories/portfolio/decision-snapshot-store";
+export {
+  type DailyUsdPerUnitRate,
+  loadFxRatesHistory,
+} from "./repositories/portfolio/fx-rates-reader";
 export * from "./repositories/portfolio/hypothesis-events-store";
 export { replayAndCommitAccountTransaction } from "./repositories/portfolio/ledger-replay-store";
 export * from "./repositories/portfolio/performance-inputs-store";
@@ -178,6 +183,7 @@ export {
   markSecuritySecStatus,
   type SecurityRecord,
   type UpsertSecurityInput,
+  upsertFxRates,
   upsertSecurity,
 } from "./repositories/warehouse/securities-and-fx-store";
 export * from "./repositories/warehouse/watchlist-enqueue";

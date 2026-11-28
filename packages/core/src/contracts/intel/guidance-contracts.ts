@@ -170,6 +170,25 @@ export const GuidanceCredibilitySchema = z.object({
 });
 export type GuidanceCredibility = z.infer<typeof GuidanceCredibilitySchema>;
 
+export const GuidanceCandidateSchema = z.object({
+  id: z.string(),
+  securityId: z.string(),
+  accession: z.string(),
+  chunkId: z.string(),
+  metric: GuidanceMetricSchema,
+  basis: GuidanceBasisSchema,
+  unit: GuidanceUnitSchema,
+  currency: z.string(),
+  targetFiscalYear: z.number().int(),
+  targetFiscalPeriod: GuidanceFiscalPeriodSchema,
+  low: z.number().finite().nullable(),
+  high: z.number().finite().nullable(),
+  quote: z.string(),
+  extractor: z.enum(["rule/1", "llm/1"]),
+  issuedOn: IsoDateSchema,
+});
+export type GuidanceCandidate = z.infer<typeof GuidanceCandidateSchema>;
+
 export const GuidancePostRequestSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("create"), input: GuidanceInputSchema }),
   z.object({
@@ -179,6 +198,7 @@ export const GuidancePostRequestSchema = z.discriminatedUnion("op", [
   }),
   z.object({ op: z.literal("withdraw"), id: z.string().min(1) }),
   z.object({ op: z.literal("draft_from_note"), noteId: z.string().min(1) }),
+  z.object({ op: z.literal("adopt_candidate"), candidateId: z.string().min(1) }),
   z.object({
     op: z.literal("record_actual"),
     id: z.string().min(1),
@@ -205,5 +225,6 @@ export type GuidancePatchRequest = z.infer<typeof GuidancePatchRequestSchema>;
 export const GuidanceLedgerResponseSchema = z.object({
   items: z.array(GuidanceCommitmentSchema).max(400),
   credibility: GuidanceCredibilitySchema,
+  candidates: z.array(GuidanceCandidateSchema).max(60).default([]),
 });
 export type GuidanceLedgerResponse = z.infer<typeof GuidanceLedgerResponseSchema>;

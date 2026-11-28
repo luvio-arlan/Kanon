@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { IsoDateSchema } from "../intel/primitives";
+import { CurrencyCodeSchema, IsoDateSchema } from "../intel/primitives";
 
-export const NavBasisSchema = z.enum(["full_bars", "partial_bars", "cost_fallback"]);
+export const NavBasisSchema = z.enum(["full_bars", "partial_bars", "cost_fallback", "fx_stale"]);
 export type NavBasis = z.infer<typeof NavBasisSchema>;
 
 export const NavPointSchema = z.object({
@@ -28,6 +28,7 @@ export type UnrecordedDividend = z.infer<typeof UnrecordedDividendSchema>;
 
 export const PortfolioPerformanceResponseSchema = z.object({
   accountId: z.string().nullable(),
+  baseCurrency: CurrencyCodeSchema.default("USD"),
   status: z.enum(["ready", "empty", "insufficient_bars", "no_account"]),
   totalNav: z.number().finite().nullable(),
   cashBalance: z.number().finite().nullable(),
@@ -37,12 +38,23 @@ export const PortfolioPerformanceResponseSchema = z.object({
   annualizedTwrPct: z.number().finite().nullable(),
   spyTrPct: z.number().finite().nullable(),
   excessReturnPct: z.number().finite().nullable(),
+  localContribution: z.number().finite().nullable().default(null),
+  fxContribution: z.number().finite().nullable().default(null),
+  localContributionPct: z.number().finite().nullable().default(null),
+  fxContributionPct: z.number().finite().nullable().default(null),
   maxDrawdownPct: z.number().finite().nullable(),
   maxDrawdownPeakDate: IsoDateSchema.nullable(),
   maxDrawdownTroughDate: IsoDateSchema.nullable(),
   currentDrawdownPct: z.number().finite().nullable(),
   tradingDays: z.number().int().min(0),
-  basis: z.enum(["full_bars", "partial_bars", "cost_fallback", "rebase_pending", "empty"]),
+  basis: z.enum([
+    "full_bars",
+    "partial_bars",
+    "cost_fallback",
+    "rebase_pending",
+    "fx_stale",
+    "empty",
+  ]),
   series: z.array(NavPointSchema),
   unrecordedDividends: z.array(UnrecordedDividendSchema),
 });

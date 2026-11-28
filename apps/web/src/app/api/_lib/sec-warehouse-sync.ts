@@ -97,6 +97,22 @@ async function enqueuePostCommitJobs(tx: KanonDb, prepared: PreparedSecCommit) {
       });
     }
   }
+  for (const f of prepared.snapshot.filings) {
+    const items = prepared.filingItemsByAcc.get(f.accessionNumber) ?? [];
+    if (!f.form.startsWith("8-K") || !items.includes("2.02")) continue;
+    await enqueueJob(tx, {
+      id: `extract_press_guidance:${f.accessionNumber}`,
+      kind: "extract_press_guidance",
+      payload: {
+        ticker: prepared.snapshot.ticker,
+        cik: prepared.snapshot.cik,
+        accession: f.accessionNumber,
+        issuedOn: f.filingDate,
+      },
+      priority: 55,
+      maxAttempts: 3,
+    });
+  }
 }
 
 async function persistWarehouseData(

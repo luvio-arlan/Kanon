@@ -22,6 +22,7 @@ import { KANON_WAVE_I_SECURITY_SQL } from "./v2/0021-wave-i-security";
 import { KANON_WAVE_L_M_VECTORS_RLS_SQL } from "./v2/0022-wave-l-m-vectors-rls";
 import { KANON_WAVE_O_INVITATIONS_QUEUE_ALERTS_SQL } from "./v2/0023-wave-o-invitations-queue-alerts";
 import { KANON_V3_MIGRATIONS } from "./v3";
+import { KANON_V4_MIGRATIONS } from "./v4";
 
 export interface KanonMigration {
   id: string;
@@ -172,6 +173,7 @@ export const KANON_MIGRATIONS: readonly KanonMigration[] = [
     sql: KANON_WAVE_O_INVITATIONS_QUEUE_ALERTS_SQL,
   },
   ...KANON_V3_MIGRATIONS,
+  ...KANON_V4_MIGRATIONS,
 ];
 
 export const KANON_POSTGRES_DDL = KANON_MIGRATIONS.map((m) => m.sql).join("\n\n");

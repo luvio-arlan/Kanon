@@ -1,9 +1,11 @@
-import { extractSegmentReports } from "@kanon/ai";
+import { extractSegmentReports, fetchAndExtractPressGuidance } from "@kanon/ai";
 import {
   getSecurityByTicker,
   type KanonDb,
   listPeriodicFilingsBySecurity,
   selectPrimaryPeriodicFiling,
+  upsertFilingChunks,
+  upsertGuidanceCandidates,
   upsertSegmentReportWithLines,
 } from "@kanon/core/db";
 import { withSystemDb } from "../../../_lib/db-context";
@@ -117,6 +119,72 @@ export async function runSyncSegmentsJob(
   });
   await runSystemSyncDb(reason, (tx) =>
     persistExtractedSegments(tx, loaded.sec, loaded.filing, extracted),
+  );
+  return true;
+}
+
+async function persistPressGuidanceOutput(
+  tx: KanonDb,
+  params: {
+    securityId: string;
+    ticker: string;
+    accession: string;
+    extracted: Awaited<ReturnType<typeof fetchAndExtractPressGuidance>>;
+  },
+) {
+  await upsertFilingChunks(
+    tx,
+    params.extracted.chunks.map((c) => ({
+      id: c.id,
+      accession: params.accession,
+      ticker: params.ticker,
+      sectionCode: "ex99_1",
+      paraIndex: c.paraIndex,
+      text: c.text,
+      extractVersion: "press/1",
+    })),
+  );
+  if (params.extracted.candidates.length === 0) return;
+  await upsertGuidanceCandidates(
+    tx,
+    params.extracted.candidates.map((c) => ({
+      securityId: params.securityId,
+      accession: params.accession,
+      chunkId: c.chunkId,
+      metric: c.metric,
+      basis: c.basis,
+      unit: c.unit,
+      currency: c.currency,
+      targetFiscalYear: c.targetFiscalYear,
+      targetFiscalPeriod: c.targetFiscalPeriod,
+      low: c.low,
+      high: c.high,
+      quote: c.quote,
+      extractor: c.extractor,
+      issuedOn: c.issuedOn,
+    })),
+  );
+}
+
+/** Runs R3b 8-K Ex-99.1 press release guidance candidate extraction in 3 phases (U1-2 / G10). */
+export async function runExtractPressGuidanceJob(
+  payload: Record<string, unknown>,
+  reason: SystemSyncReason = "cron_tick",
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const ticker = String(payload.ticker ?? "")
+    .trim()
+    .toUpperCase();
+  const accession = String(payload.accession ?? "").trim();
+  const issuedOn = String(payload.issuedOn ?? "").trim() || new Date().toISOString().slice(0, 10);
+  if (!ticker || !accession) return false;
+  const sec = await runSystemSyncDb(reason, (tx) => getSecurityByTicker(tx, ticker));
+  const cik = String(payload.cik ?? sec?.cik ?? "").trim();
+  if (!sec || !cik) return false;
+  const extracted = await fetchAndExtractPressGuidance({ cik, accession, issuedOn, signal });
+  if (extracted.chunks.length === 0) return false;
+  await runSystemSyncDb(reason, (tx) =>
+    persistPressGuidanceOutput(tx, { securityId: sec.id, ticker, accession, extracted }),
   );
   return true;
 }

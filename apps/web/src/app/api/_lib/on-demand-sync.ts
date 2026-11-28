@@ -6,6 +6,7 @@ import {
 } from "@kanon/ai";
 import {
   completeJob,
+  getLatestPriceBar,
   getPriceBarCoverage,
   getSecurityByTicker,
   type KanonDb,
@@ -66,13 +67,16 @@ async function detectBasisDriftOrNewEvents(
 ): Promise<boolean> {
   const firstDate = bundle.bars[0]?.barDate;
   const lastDate = bundle.bars[bundle.bars.length - 1]?.barDate;
+  const incomingSource = bundle.bars[0]?.source;
   if (!firstDate || !lastDate) return false;
-  const [existingBars, existingActions] = await withSystemDb("on_demand_sync", (tx) =>
+  const [existingBars, existingActions, latestBar] = await withSystemDb("on_demand_sync", (tx) =>
     Promise.all([
       listPriceBars(tx, securityId, { fromDate: firstDate, toDate: lastDate }),
       listCorporateActions(tx, securityId),
+      getLatestPriceBar(tx, securityId),
     ]),
   );
+  if (incomingSource && latestBar && latestBar.source !== incomingSource) return true;
   const actionIds = new Set(existingActions.map((a) => a.id));
   const hasNewSplit = bundle.splits.some(
     (sp) => !actionIds.has(`split:${securityId}:${sp.exDate}`),

@@ -120,7 +120,7 @@ describe("KANON Multi-Provider Market Data Engine", () => {
     }
   });
 
-  it("falls back automatically from failing paid provider to Free Yahoo Extended-Hours", async () => {
+  it("U1-3: refuses silent fallback to Yahoo when an explicit paid provider fails", async () => {
     const fallbackFetch: typeof fetch = async (input) => {
       const url = String(input);
       if (url.includes("polygon.io")) return mockJsonResponse({ error: "unauthorized" }, 401);
@@ -136,11 +136,8 @@ describe("KANON Multi-Provider Market Data Engine", () => {
       fetchImpl: fallbackFetch,
       bypassCache: true,
     });
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.quote.source).toBe("yahoo");
-      expect(res.quote.regularPrice).toBe(112.4);
-    }
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.source).toBe("polygon");
 
     const testRes = await testMarketProviderConnection({
       provider: "yahoo",

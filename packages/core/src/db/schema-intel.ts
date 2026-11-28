@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
@@ -8,6 +9,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type {
   GuidanceBasis,
@@ -122,6 +124,42 @@ export const segmentLinesTable = pgTable(
   ],
 ).enableRLS();
 
+export const guidanceCandidatesTable = pgTable(
+  "guidance_candidates",
+  {
+    id: text("id").primaryKey(),
+    securityId: text("security_id")
+      .notNull()
+      .references(() => securitiesTable.id, { onDelete: "cascade" }),
+    accession: text("accession")
+      .notNull()
+      .references(() => filingsTable.accession, { onDelete: "cascade" }),
+    chunkId: text("chunk_id").notNull(),
+    metric: text("metric").$type<GuidanceMetric>().notNull(),
+    basis: text("basis").$type<GuidanceBasis>().notNull(),
+    unit: text("unit").$type<"usd" | "pct" | "usd_per_share">().notNull(),
+    currency: text("currency").notNull().default("USD"),
+    targetFiscalYear: integer("target_fiscal_year").notNull(),
+    targetFiscalPeriod: text("target_fiscal_period").$type<GuidanceFiscalPeriod>().notNull(),
+    low: doublePrecision("low"),
+    high: doublePrecision("high"),
+    quote: text("quote").notNull(),
+    extractor: text("extractor").$type<"rule/1" | "llm/1">().notNull(),
+    issuedOn: text("issued_on").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_guidance_candidates_dedupe").on(
+      table.accession,
+      table.metric,
+      table.targetFiscalYear,
+      table.targetFiscalPeriod,
+      table.basis,
+    ),
+    ...kanonPublicDerivedPolicies("guidance_candidates"),
+  ],
+).enableRLS();
+
 export const guidanceCommitmentsTable = pgTable(
   "guidance_commitments",
   {
@@ -146,6 +184,9 @@ export const guidanceCommitmentsTable = pgTable(
     quote: text("quote").notNull().default(""),
     status: text("status").$type<GuidanceStatus>().notNull(),
     supersedesId: text("supersedes_id"),
+    candidateId: text("candidate_id").references(() => guidanceCandidatesTable.id, {
+      onDelete: "set null",
+    }),
     extractionJson: jsonb("extraction_json").$type<Record<string, unknown> | null>(),
     confirmedBy: text("confirmed_by"),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
@@ -165,6 +206,9 @@ export const guidanceCommitmentsTable = pgTable(
       table.targetFiscalYear,
       table.targetFiscalPeriod,
     ),
+    uniqueIndex("idx_guidance_commit_candidate")
+      .on(table.thesisId, table.candidateId)
+      .where(sql`${table.candidateId} IS NOT NULL`),
     ...kanonThesisChildPolicies("guidance_commitments"),
   ],
 ).enableRLS();

@@ -1,24 +1,35 @@
 import type { NavBasis, NavPoint, PortfolioPerformanceResponse } from "../../contracts/analytics";
+import type { CurrencyCode } from "../../contracts/intel/primitives";
 import { roundTo } from "../valuation-scenarios";
-import {
-  buildTotalReturnIndex,
-  type CashDividendEvent,
-  type CloseBarPoint,
-  rebaseTotalReturnPct,
-} from "./benchmark-tr";
+import type { CashDividendEvent, CloseBarPoint } from "./benchmark-tr";
 import { detectUnrecordedDividends } from "./dividend-audit";
-import { computeMaxDrawdown } from "./drawdown";
+import {
+  accumulateDailyFxAttribution,
+  computeBenchmarkAndSeries,
+  type DailyFxRatePoint,
+  type DailyPositionMark,
+} from "./fx-attribution";
 import { type ReplayTxInput, type SplitActionInput, sortReplayTxs } from "./ledger-replay";
-import { applyDayTxs, buildCloseLookup, type HoldingState, markEquityValue } from "./nav-helpers";
+import {
+  applyDayTxs,
+  buildCloseLookup,
+  buildUnavailablePerformanceResponse,
+  emptyPerformance,
+  groupTxsByDay,
+  type HoldingState,
+  markEquityValue,
+  snapshotShares,
+} from "./nav-helpers";
 import { detectSplitRebaseCliffs, normalizeTransactionsToSplitBasis } from "./split-basis";
-import { computeDailyTwr } from "./twr";
 
 export interface PerformanceSeriesInput {
   accountId: string;
+  baseCurrency?: CurrencyCode;
   transactions: readonly ReplayTxInput[];
   barsByTicker: ReadonlyMap<string, readonly CloseBarPoint[]>;
   splitsByTicker: ReadonlyMap<string, readonly SplitActionInput[]>;
   dividendsByTicker: ReadonlyMap<string, readonly CashDividendEvent[]>;
+  fxRatesByCurrency?: ReadonlyMap<string, readonly DailyFxRatePoint[]>;
   spyBars: readonly CloseBarPoint[];
   spyDividends: readonly CashDividendEvent[];
   asOfDate: string;
@@ -50,113 +61,54 @@ function simulateDailyNav(
   normalizedTxs: readonly ReplayTxInput[],
   dates: readonly string[],
 ) {
-  const txsByDay = new Map<string, ReplayTxInput[]>();
-  for (const tx of normalizedTxs) {
-    const arr = txsByDay.get(tx.tradeDate) ?? [];
-    arr.push(tx);
-    txsByDay.set(tx.tradeDate, arr);
-  }
+  const txsByDay = groupTxsByDay(normalizedTxs);
   const closeLookup = buildCloseLookup(input.barsByTicker);
   const holdings = new Map<string, HoldingState>();
   const lastClose = new Map<string, number>();
   const sharesAtDate = new Map<string, Map<string, number>>();
+  const baseCurrency = input.baseCurrency ?? "USD";
   let cash = 0;
+  let localContribution = 0;
+  let fxContribution = 0;
+  let prevMarks = new Map<string, DailyPositionMark>();
   const rawPoints: RawNavRow[] = [];
 
   for (const day of dates) {
-    const snap = new Map<string, number>();
-    for (const [t, h] of holdings) if (h.shares > 1e-6) snap.set(t, h.shares);
-    sharesAtDate.set(day, snap);
-    const { cashDelta, netFlow } = applyDayTxs({
-      dayTxs: txsByDay.get(day) ?? [],
+    sharesAtDate.set(day, snapshotShares(holdings));
+    const dayFlow = applyDayTxs({ dayTxs: txsByDay.get(day) ?? [], holdings, baseCurrency });
+    cash = roundTo(cash + dayFlow.cashDelta, 2);
+    const marked = markEquityValue({
+      day,
       holdings,
+      closeLookup,
+      lastClose,
+      baseCurrency,
+      fxRatesByCurrency: input.fxRatesByCurrency,
     });
-    cash = roundTo(cash + cashDelta, 2);
-    const { equityValue, basis } = markEquityValue({ day, holdings, closeLookup, lastClose });
+    const attr = accumulateDailyFxAttribution({
+      prevByTicker: prevMarks,
+      currByTicker: marked.marksByTicker,
+      dayTradeFlowBaseByTicker: dayFlow.dayTradeFlowBaseByTicker,
+    });
+    localContribution += attr.localDelta;
+    fxContribution += attr.fxDelta;
+    prevMarks = marked.marksByTicker;
     rawPoints.push({
       date: day,
-      nav: roundTo(cash + equityValue, 2),
+      nav: roundTo(cash + marked.equityValue, 2),
       cash,
-      equityValue: roundTo(equityValue, 2),
-      netFlow: roundTo(netFlow, 2),
-      basis,
+      equityValue: roundTo(marked.equityValue, 2),
+      netFlow: roundTo(dayFlow.netFlow, 2),
+      basis: marked.basis,
     });
   }
-  return { rawPoints, sharesAtDate };
-}
-
-function emptyPerformance(accountId: string): PortfolioPerformanceResponse {
-  return {
-    accountId,
-    status: "empty",
-    totalNav: 0,
-    cashBalance: 0,
-    equityValue: 0,
-    twrPct: null,
-    modifiedDietzPct: null,
-    annualizedTwrPct: null,
-    spyTrPct: null,
-    excessReturnPct: null,
-    maxDrawdownPct: null,
-    maxDrawdownPeakDate: null,
-    maxDrawdownTroughDate: null,
-    currentDrawdownPct: null,
-    tradingDays: 0,
-    basis: "empty",
-    series: [],
-    unrecordedDividends: [],
-  };
+  return { rawPoints, sharesAtDate, localContribution, fxContribution };
 }
 
 function resolveOverallBasis(series: readonly NavPoint[]): NavBasis {
+  if (series.some((p) => p.basis === "fx_stale")) return "fx_stale";
   if (series.some((p) => p.basis === "cost_fallback")) return "cost_fallback";
   return series.some((p) => p.basis === "partial_bars") ? "partial_bars" : "full_bars";
-}
-
-function buildFinalNavPoints(
-  rawPoints: readonly RawNavRow[],
-  twrCum: ReadonlyArray<number | null>,
-  spySeries: ReadonlyArray<number | null>,
-  ddSeries: ReadonlyArray<number | null>,
-): NavPoint[] {
-  return rawPoints.map((p, i) => ({
-    ...p,
-    twrCumPct: twrCum[i] ?? null,
-    spyTrCumPct: spySeries[i] ?? null,
-    drawdownPct: ddSeries[i] ?? null,
-  }));
-}
-
-function buildRebasePendingResponse(
-  accountId: string,
-  rawPoints: readonly RawNavRow[],
-): PortfolioPerformanceResponse {
-  const last = rawPoints[rawPoints.length - 1];
-  return {
-    accountId,
-    status: "insufficient_bars",
-    totalNav: last?.nav ?? 0,
-    cashBalance: last?.cash ?? 0,
-    equityValue: last?.equityValue ?? 0,
-    twrPct: null,
-    modifiedDietzPct: null,
-    annualizedTwrPct: null,
-    spyTrPct: null,
-    excessReturnPct: null,
-    maxDrawdownPct: null,
-    maxDrawdownPeakDate: null,
-    maxDrawdownTroughDate: null,
-    currentDrawdownPct: null,
-    tradingDays: 0,
-    basis: "rebase_pending",
-    series: rawPoints.map((p) => ({
-      ...p,
-      twrCumPct: null,
-      spyTrCumPct: null,
-      drawdownPct: null,
-    })),
-    unrecordedDividends: [],
-  };
 }
 
 function hasHeldSplitCliff(
@@ -171,36 +123,34 @@ function hasHeldSplitCliff(
   );
 }
 
-/**
- * Builds daily NAV, TWR, Modified Dietz, Max Drawdown, and SPY total-return comparison on a unified
- * latest split-adjusted close-bar basis (never `.adjClose` — U0-5 / G16 / G23).
- */
-export function buildPortfolioPerformanceSeries(
-  input: PerformanceSeriesInput,
-): PortfolioPerformanceResponse {
-  if (input.transactions.length === 0) return emptyPerformance(input.accountId);
-  const sortedTxs = sortReplayTxs(input.transactions);
-  const normalizedTxs = normalizeTransactionsToSplitBasis(sortedTxs, input.splitsByTicker);
-  const dates = collectDateGrid(input, sortedTxs[0]?.tradeDate ?? input.asOfDate);
-  const { rawPoints, sharesAtDate } = simulateDailyNav(input, normalizedTxs, dates);
-  if (hasHeldSplitCliff(sortedTxs, input))
-    return buildRebasePendingResponse(input.accountId, rawPoints);
+interface ReadyPerfArgs {
+  input: PerformanceSeriesInput;
+  baseCurrency: CurrencyCode;
+  sortedTxs: readonly ReplayTxInput[];
+  dates: readonly string[];
+  rawPoints: readonly RawNavRow[];
+  sharesAtDate: ReadonlyMap<string, ReadonlyMap<string, number>>;
+  localContribution: number;
+  fxContribution: number;
+}
 
-  const twr = computeDailyTwr(rawPoints);
-  const spySeries = rebaseTotalReturnPct(
-    buildTotalReturnIndex(input.spyBars, input.spyDividends),
-    dates,
-  );
-  const dd = computeMaxDrawdown(
-    rawPoints.map((p, i) => ({ date: p.date, twrCumPct: twr.cumSeries[i] ?? null })),
-  );
-  const series = buildFinalNavPoints(rawPoints, twr.cumSeries, spySeries, dd.perDayDrawdownPct);
+function buildReadyResponse(p: ReadyPerfArgs): PortfolioPerformanceResponse {
+  const { twr, dd, series } = computeBenchmarkAndSeries({
+    spyBars: p.input.spyBars,
+    spyDividends: p.input.spyDividends,
+    fxRatesByCurrency: p.input.fxRatesByCurrency,
+    baseCurrency: p.baseCurrency,
+    dates: p.dates,
+    rawPoints: p.rawPoints,
+  });
   const last = series[series.length - 1];
   const spyTrPct = last?.spyTrCumPct ?? null;
-  const excess =
-    twr.twrPct !== null && spyTrPct !== null ? roundTo(twr.twrPct - spyTrPct, 2) : null;
+  const netCapital = p.rawPoints.reduce((acc, row) => acc + row.netFlow, 0);
+  const ratioPct = (amt: number) =>
+    netCapital > 1e-6 ? roundTo((amt / netCapital) * 100, 2) : null;
   return {
-    accountId: input.accountId,
+    accountId: p.input.accountId,
+    baseCurrency: p.baseCurrency,
     status: twr.tradingDays > 0 || (last?.nav ?? 0) > 0 ? "ready" : "insufficient_bars",
     totalNav: last?.nav ?? 0,
     cashBalance: last?.cash ?? 0,
@@ -209,7 +159,12 @@ export function buildPortfolioPerformanceSeries(
     modifiedDietzPct: twr.modifiedDietzPct,
     annualizedTwrPct: twr.annualizedTwrPct,
     spyTrPct,
-    excessReturnPct: excess,
+    excessReturnPct:
+      twr.twrPct !== null && spyTrPct !== null ? roundTo(twr.twrPct - spyTrPct, 2) : null,
+    localContribution: roundTo(p.localContribution, 2),
+    fxContribution: roundTo(p.fxContribution, 2),
+    localContributionPct: ratioPct(p.localContribution),
+    fxContributionPct: ratioPct(p.fxContribution),
     maxDrawdownPct: dd.maxDrawdownPct,
     maxDrawdownPeakDate: dd.peakDate,
     maxDrawdownTroughDate: dd.troughDate,
@@ -218,9 +173,41 @@ export function buildPortfolioPerformanceSeries(
     basis: resolveOverallBasis(series),
     series,
     unrecordedDividends: detectUnrecordedDividends({
-      transactions: sortedTxs,
-      dividendsByTicker: input.dividendsByTicker,
-      sharesAtDate,
+      transactions: p.sortedTxs,
+      dividendsByTicker: p.input.dividendsByTicker,
+      sharesAtDate: p.sharesAtDate,
     }),
   };
+}
+
+/**
+ * Builds daily NAV, TWR, Modified Dietz, Max Drawdown, FX attribution, and base-currency SPY comparison
+ * on a unified latest split-adjusted close-bar basis (never `.adjClose` — U0-5 / U1-1 / G16 / G23).
+ */
+export function buildPortfolioPerformanceSeries(
+  input: PerformanceSeriesInput,
+): PortfolioPerformanceResponse {
+  const baseCurrency = input.baseCurrency ?? "USD";
+  const sortedTxs = sortReplayTxs(input.transactions);
+  if (sortedTxs.length === 0) return emptyPerformance(input.accountId, baseCurrency);
+  const normalizedTxs = normalizeTransactionsToSplitBasis(sortedTxs, input.splitsByTicker);
+  const dates = collectDateGrid(input, sortedTxs[0]?.tradeDate ?? input.asOfDate);
+  const sim = simulateDailyNav(input, normalizedTxs, dates);
+  if (hasHeldSplitCliff(sortedTxs, input)) {
+    return buildUnavailablePerformanceResponse(
+      input.accountId,
+      baseCurrency,
+      sim.rawPoints,
+      "rebase_pending",
+    );
+  }
+  if (sim.rawPoints.some((p) => p.basis === "fx_stale")) {
+    return buildUnavailablePerformanceResponse(
+      input.accountId,
+      baseCurrency,
+      sim.rawPoints,
+      "fx_stale",
+    );
+  }
+  return buildReadyResponse({ input, baseCurrency, sortedTxs, dates, ...sim });
 }

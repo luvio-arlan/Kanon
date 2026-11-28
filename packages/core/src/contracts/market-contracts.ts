@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { type DataLicenseClass, DataLicenseClassSchema } from "./intel/primitives";
 
 export const MarketSessionStateSchema = z.enum(["PRE", "REGULAR", "POST", "CLOSED"]);
 export type MarketSessionState = z.infer<typeof MarketSessionStateSchema>;
@@ -42,6 +43,7 @@ export const MarketQuoteSnapshotSchema = z.object({
   fiftyTwoWeekPositionPct: z.number().finite().min(0).max(100).nullable(),
   volume: z.number().finite().nonnegative().nullable(),
   source: MarketDataSourceSchema,
+  licenseClass: DataLicenseClassSchema.optional(),
   tier: MarketProviderTierSchema,
   asOf: z.string().min(1),
   latencyMs: z.number().nonnegative(),
@@ -93,15 +95,24 @@ export type RefreshPricesRequest = z.input<typeof RefreshPricesRequestSchema>;
 export interface MarketProviderLicenseMeta {
   provider: MarketDataSource;
   displayName: string;
+  licenseClass: DataLicenseClass;
   licensedForProduction: boolean;
   badgeLabel: string;
   notice: string;
+}
+
+export function getDataSourceLicenseClass(source: string): DataLicenseClass {
+  const s = source.trim().toLowerCase();
+  if (s === "polygon" || s === "fmp" || s === "finnhub") return "licensed";
+  if (s === "sec" || s === "ecb" || s === "ecb_reference") return "public_reference";
+  return "unofficial";
 }
 
 export const MARKET_PROVIDER_LICENSES: Record<MarketDataSource, MarketProviderLicenseMeta> = {
   yahoo: {
     provider: "yahoo",
     displayName: "Yahoo Finance (v8/chart)",
+    licenseClass: "unofficial",
     licensedForProduction: false,
     badgeLabel: "非授权参考源",
     notice: "非官方免费接口，仅推荐本地开发或个人研究参考；生产机构使用请切换商业授权数据源。",
@@ -109,6 +120,7 @@ export const MARKET_PROVIDER_LICENSES: Record<MarketDataSource, MarketProviderLi
   finnhub: {
     provider: "finnhub",
     displayName: "Finnhub",
+    licenseClass: "licensed",
     licensedForProduction: true,
     badgeLabel: "商业授权通道",
     notice: "官方授权 API 通道，按用户自有订阅条款提供实时报价与公司指标。",
@@ -116,6 +128,7 @@ export const MARKET_PROVIDER_LICENSES: Record<MarketDataSource, MarketProviderLi
   fmp: {
     provider: "fmp",
     displayName: "Financial Modeling Prep",
+    licenseClass: "licensed",
     licensedForProduction: true,
     badgeLabel: "商业授权通道",
     notice: "官方授权基本面与盘后行情 API，支持扩展时段成交与财务数据。",
@@ -123,6 +136,7 @@ export const MARKET_PROVIDER_LICENSES: Record<MarketDataSource, MarketProviderLi
   polygon: {
     provider: "polygon",
     displayName: "Polygon.io (Massive)",
+    licenseClass: "licensed",
     licensedForProduction: true,
     badgeLabel: "机构授权通道",
     notice: "官方美股 SIP 商业授权快照与历史日线通道，适用于生产环境。",

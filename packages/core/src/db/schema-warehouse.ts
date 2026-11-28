@@ -30,6 +30,7 @@ export const securitiesTable = pgTable(
     name: text("name").notNull(),
     shareClass: text("share_class"),
     currency: text("currency").notNull().default("USD"),
+    tradingCurrency: text("trading_currency"),
     country: text("country").notNull().default("US"),
     adrRatio: doublePrecision("adr_ratio").notNull().default(1),
     adrRatioSource: text("adr_ratio_source").notNull().default("default"),
@@ -51,6 +52,7 @@ export const fxRatesDailyTable = pgTable(
     rateDate: text("rate_date").notNull(),
     usdPerUnit: doublePrecision("usd_per_unit").notNull(),
     source: text("source").notNull().default("ecb"),
+    sourceLicense: text("source_license").notNull().default("ecb_reference"),
   },
   (table) => [primaryKey({ columns: [table.currency, table.rateDate] })],
 );

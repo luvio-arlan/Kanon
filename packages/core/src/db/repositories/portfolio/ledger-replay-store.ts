@@ -114,6 +114,10 @@ type NewReplayTx = ReplayTxInput & {
   externalRef: string | null;
   noLeverageConfirmed: boolean;
   note: string;
+  tradeCurrency: string;
+  fxToBase: number;
+  fxSource: string;
+  reversesTxId: string | null;
 };
 
 async function insertReplayedTransaction(
@@ -136,6 +140,10 @@ async function insertReplayedTransaction(
     realizedPnl,
     externalRef: newTx.externalRef,
     tradeDate: newTx.tradeDate,
+    tradeCurrency: newTx.tradeCurrency,
+    fxToBase: newTx.fxToBase,
+    fxSource: newTx.fxSource,
+    reversesTxId: newTx.reversesTxId,
     noLeverageConfirmed: newTx.noLeverageConfirmed,
     note: newTx.note,
   });
@@ -149,6 +157,9 @@ function toReplayInput(r: typeof transactionsTable.$inferSelect): ReplayTxInput 
     quantity: r.quantity,
     price: r.price,
     fees: r.fees,
+    tradeCurrency: r.tradeCurrency,
+    fxToBase: r.fxToBase,
+    reversesTxId: r.reversesTxId,
     tradeDate: r.tradeDate,
     createdAtMs: r.createdAt.getTime(),
     isOpeningBalance: r.externalRef === "opening_balance",

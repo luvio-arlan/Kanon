@@ -63,6 +63,7 @@ function buildAttributionReport(
       quantity: t.quantity,
       price: t.price,
       fees: t.fees,
+      reversesTxId: t.reversesTxId,
       tradeDate: t.tradeDate,
       createdAtMs: t.createdAt.getTime(),
     })),

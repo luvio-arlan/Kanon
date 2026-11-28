@@ -7,6 +7,7 @@ import {
   GuidancePostRequestSchema,
 } from "@kanon/core";
 import {
+  adoptGuidanceCandidate,
   confirmGuidanceCommitment,
   createGuidanceDraft,
   GuidancePolicyError,
@@ -16,6 +17,7 @@ import {
   type KanonDb,
   listGuidanceCommitments,
   listResearchNotes,
+  listUnadoptedGuidanceCandidates,
   patchGuidanceDraft,
   recordManualGuidanceActual,
   withdrawGuidanceCommitment,
@@ -33,11 +35,17 @@ function handlePolicyError(err: unknown, startedAt: number): Response {
   throw err;
 }
 
-async function loadLedgerPayload(tx: KanonDb, thesisId: string) {
-  const items = await listGuidanceCommitments(tx, thesisId);
+async function loadLedgerPayload(tx: KanonDb, thesisId: string, userId?: string) {
+  const [items, thesis] = await Promise.all([
+    listGuidanceCommitments(tx, thesisId),
+    userId ? getThesisById(tx, thesisId, userId) : Promise.resolve(null),
+  ]);
+  const sec = thesis ? await getSecurityByTicker(tx, thesis.ticker) : null;
+  const candidates = sec ? await listUnadoptedGuidanceCandidates(tx, thesisId, sec.id) : [];
   return GuidanceLedgerResponseSchema.parse({
     items,
     credibility: computeGuidanceCredibility(items),
+    candidates,
   });
 }
 
@@ -68,6 +76,10 @@ async function applyGuidanceOp(
       confirmedBy: userId,
       expectedUpdatedAt: req.expectedUpdatedAt,
     });
+    return true;
+  }
+  if (req.op === "adopt_candidate") {
+    await adoptGuidanceCandidate(tx, { thesisId, userId, candidateId: req.candidateId });
     return true;
   }
   if (req.op === "withdraw") return withdrawGuidanceCommitment(tx, { id: req.id, thesisId });
@@ -129,7 +141,7 @@ async function handleDraftFromNote(params: {
       drafts: extracted.accepted,
     });
     return {
-      ...(await loadLedgerPayload(tx, params.thesisId)),
+      ...(await loadLedgerPayload(tx, params.thesisId, params.userId)),
       createdCount: inserted.length,
       rejectedCount: extracted.rejectedCount,
     };
@@ -145,7 +157,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const result = await auth.withDb(async (tx) => {
     const guard = await requireThesisAccess(tx, thesisId, auth.user.id, "read", startedAt);
     if (!guard.ok) return { ok: false as const, response: guard.response };
-    return { ok: true as const, data: await loadLedgerPayload(tx, thesisId) };
+    return { ok: true as const, data: await loadLedgerPayload(tx, thesisId, auth.user.id) };
   });
   return result.ok ? jsonOk(result.data, startedAt) : result.response;
 }
@@ -183,7 +195,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           ok: false as const,
           response: jsonError("指引条目不存在。", 404, startedAt, "NOT_FOUND"),
         };
-      return { ok: true as const, data: await loadLedgerPayload(tx, thesisId) };
+      return { ok: true as const, data: await loadLedgerPayload(tx, thesisId, auth.user.id) };
     });
     return result.ok
       ? jsonOk(result.data, startedAt, opReq.op === "create" ? 201 : 200)
@@ -216,7 +228,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const guard = await requireThesisAccess(tx, thesisId, auth.user.id, "write", startedAt);
       if (!guard.ok) return { ok: false as const, response: guard.response };
       await patchGuidanceDraft(tx, thesisId, parsed.data);
-      return { ok: true as const, data: await loadLedgerPayload(tx, thesisId) };
+      return { ok: true as const, data: await loadLedgerPayload(tx, thesisId, auth.user.id) };
     });
     return result.ok ? jsonOk(result.data, startedAt) : result.response;
   } catch (err) {

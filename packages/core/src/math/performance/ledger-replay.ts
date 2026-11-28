@@ -11,6 +11,9 @@ export interface ReplayTxInput {
   tradeDate: string;
   createdAtMs: number;
   isOpeningBalance?: boolean;
+  tradeCurrency?: string | null;
+  fxToBase?: number | null;
+  reversesTxId?: string | null;
 }
 
 export interface SplitActionInput {
@@ -54,12 +57,23 @@ const SAME_DAY_ACTION_RANK: Record<LedgerAction, number> = {
   withdraw: 4,
 };
 
+/** Filters out reversal rows and their reversed target transactions so replay is bit-identical to never recording them (U1-1). */
+export function filterActiveReplayTxs<T extends { id: string; reversesTxId?: string | null }>(
+  txs: readonly T[],
+): T[] {
+  const reversedIds = new Set<string>();
+  for (const tx of txs) {
+    if (tx.reversesTxId) reversedIds.add(tx.reversesTxId);
+  }
+  return txs.filter((tx) => !tx.reversesTxId && !reversedIds.has(tx.id));
+}
+
 /**
  * Deterministic end-of-day settlement ordering for ledger replay (U0-11 / P2-5):
  * opening balance -> tradeDate -> (deposit/dividend -> sell -> buy -> withdraw) -> createdAt -> id.
  */
 export function sortReplayTxs(txs: readonly ReplayTxInput[]): ReplayTxInput[] {
-  return [...txs].sort(
+  return [...filterActiveReplayTxs(txs)].sort(
     (a, b) =>
       Number(Boolean(b.isOpeningBalance)) - Number(Boolean(a.isOpeningBalance)) ||
       a.tradeDate.localeCompare(b.tradeDate) ||
@@ -69,15 +83,16 @@ export function sortReplayTxs(txs: readonly ReplayTxInput[]): ReplayTxInput[] {
   );
 }
 
-/** Computes net cash delta for a single transaction. */
+/** Computes net cash delta in account base currency for a single transaction (U1-1). */
 export function computeTxCashDelta(tx: ReplayTxInput): number {
+  const fx = tx.fxToBase && tx.fxToBase > 0 ? tx.fxToBase : 1;
   if (tx.action === "deposit" || tx.action === "dividend") {
-    return tx.quantity * tx.price - tx.fees;
+    return (tx.quantity * tx.price - tx.fees) * fx;
   }
   if (tx.action === "withdraw" || tx.action === "buy") {
-    return -(tx.quantity * tx.price + tx.fees);
+    return -(tx.quantity * tx.price + tx.fees) * fx;
   }
-  return tx.quantity * tx.price - tx.fees;
+  return (tx.quantity * tx.price - tx.fees) * fx;
 }
 
 /** Validates chronological cash path C_k >= -0.005 across all transactions in O(n) (S0). */
@@ -178,8 +193,9 @@ function processSingleReplayTx(
   const lots = lotsByTicker.get(ticker) ?? [];
   lotsByTicker.set(ticker, lots);
   applySplitsThroughDate(lots, splitsByTicker.get(ticker) ?? [], tx.tradeDate);
+  const fx = tx.fxToBase && tx.fxToBase > 0 ? tx.fxToBase : 1;
   if (tx.action === "buy") {
-    const outlay = tx.quantity * tx.price + tx.fees;
+    const outlay = (tx.quantity * tx.price + tx.fees) * fx;
     lots.push({
       openDate: tx.tradeDate,
       qty: tx.quantity,
@@ -199,7 +215,10 @@ function processSingleReplayTx(
       message: `严禁做空或倒填卖出：${tx.tradeDate} ${ticker} 可卖股数 (${roundTo(consumed.available, 4)}) 不足 ${tx.quantity}。`,
     };
   }
-  realizedPnlByTxId.set(tx.id, roundTo(tx.quantity * tx.price - tx.fees - consumed.costSold, 2));
+  realizedPnlByTxId.set(
+    tx.id,
+    roundTo((tx.quantity * tx.price - tx.fees) * fx - consumed.costSold, 2),
+  );
   return null;
 }
 

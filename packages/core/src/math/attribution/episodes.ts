@@ -1,4 +1,4 @@
-import type { SplitActionInput } from "../performance/ledger-replay";
+import { filterActiveReplayTxs, type SplitActionInput } from "../performance/ledger-replay";
 import { roundTo } from "../valuation-scenarios";
 
 export interface EpisodeTxInput {
@@ -11,6 +11,7 @@ export interface EpisodeTxInput {
   fees: number;
   tradeDate: string;
   createdAtMs: number;
+  reversesTxId?: string | null;
 }
 
 export interface SnapshotRefInput {
@@ -154,7 +155,7 @@ export function buildDecisionEpisodes(params: {
   latestCloseByTicker: ReadonlyMap<string, number>;
   asOfDate: string;
 }): RawDecisionEpisode[] {
-  const sorted = [...params.transactions]
+  const sorted = filterActiveReplayTxs(params.transactions)
     .filter((t) => t.action === "buy" || t.action === "sell" || t.action === "dividend")
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.createdAtMs - b.createdAtMs);
   const activeByTicker = new Map<string, ActiveEp>();

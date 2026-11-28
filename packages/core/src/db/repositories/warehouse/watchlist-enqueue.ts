@@ -78,6 +78,7 @@ async function enqueueGlobalDailyJobs(db: KanonDb, day: string, isSunday: boolea
     maxAttempts: 4,
   });
   const daily = [
+    ["sync_fx_rates", 40, 3],
     ["resolve_guidance", 80, 3],
     ["prune_chunks", 95, 2],
     ["evaluate_alerts", 90, 3],
@@ -87,7 +88,7 @@ async function enqueueGlobalDailyJobs(db: KanonDb, day: string, isSunday: boolea
     await supersedeOlderPendingGlobalJob(db, kind, id);
     await enqueueJob(db, { id, kind, payload: { day }, priority, maxAttempts });
   }
-  return 4;
+  return 5;
 }
 
 /**

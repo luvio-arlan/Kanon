@@ -138,6 +138,10 @@ export const transactionsTable = pgTable(
     realizedPnl: doublePrecision("realized_pnl"),
     externalRef: text("external_ref"),
     tradeDate: text("trade_date").notNull(),
+    tradeCurrency: text("trade_currency"),
+    fxToBase: doublePrecision("fx_to_base"),
+    fxSource: text("fx_source"),
+    reversesTxId: text("reverses_tx_id"),
     noLeverageConfirmed: boolean("no_leverage_confirmed").notNull().default(true),
     note: text("note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -147,6 +151,9 @@ export const transactionsTable = pgTable(
     uniqueIndex("idx_transactions_account_external_ref")
       .on(table.accountId, table.externalRef)
       .where(sql`${table.externalRef} IS NOT NULL`),
+    uniqueIndex("idx_transactions_reverses")
+      .on(table.reversesTxId)
+      .where(sql`${table.reversesTxId} IS NOT NULL`),
     ...kanonUserOwnedPolicies("transactions"),
   ],
 ).enableRLS();

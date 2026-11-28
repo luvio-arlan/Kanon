@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { todayIsoUtc } from "../../../contracts/workflow-contracts";
 import { roundTo } from "../../../math/valuation-scenarios";
 import type { KanonDb } from "../../bootstrap";
@@ -10,22 +10,51 @@ import {
   normalizeCanonicalTicker,
 } from "../enterprise/ic-and-compliance-store";
 import { lockDecisionSnapshotForBuy } from "../portfolio/decision-snapshot-store";
+import { resolveTxCurrencyAndFx } from "../portfolio/fx-rates-reader";
 import { replayAndCommitAccountTransaction } from "../portfolio/ledger-replay-store";
 import { assertThesisAccess, getThesisIdentity } from "../thesis/thesis-lookups";
 import {
   assertValidLedgerNumbers,
   buildNewReplayTx,
   LedgerPolicyError,
+  lockAccountForUpdate,
   type RecordTransactionInput,
 } from "./ledger-fifo-helpers";
 
 export { LedgerPolicyError, type RecordTransactionInput } from "./ledger-fifo-helpers";
+export { reversePortfolioTransaction } from "./ledger-reversal-store";
 
 export interface PortfolioPositionSummary {
   ticker: string;
   shares: number;
   avgCostBasis: number;
   totalCost: number;
+}
+
+async function insertOpeningCashTx(
+  tx: KanonDb,
+  params: { accountId: string; userId: string; cashBalance: number; baseCurrency: string },
+) {
+  if (params.cashBalance <= 0.005) return;
+  await tx.insert(transactionsTable).values({
+    id: `tx_open_${params.accountId}`,
+    accountId: params.accountId,
+    userId: params.userId,
+    thesisId: null,
+    ticker: "CASH",
+    action: "deposit",
+    quantity: params.cashBalance,
+    price: 1,
+    fees: 0,
+    realizedPnl: null,
+    externalRef: "opening_balance",
+    tradeDate: todayIsoUtc(),
+    tradeCurrency: params.baseCurrency,
+    fxToBase: 1,
+    fxSource: "identity",
+    noLeverageConfirmed: true,
+    note: "账户期初现金",
+  });
 }
 
 export async function createPortfolioAccount(
@@ -45,6 +74,7 @@ export async function createPortfolioAccount(
   }
   const cashBalance = roundTo(initialCash, 2);
   const id = `acct_${crypto.randomUUID()}`;
+  const baseCurrency = (input.baseCurrency ?? "USD").toUpperCase();
   const now = new Date();
   await runInTransaction(db, async (tx) => {
     await tx.insert(portfolioAccountsTable).values({
@@ -52,28 +82,16 @@ export async function createPortfolioAccount(
       userId: input.userId,
       orgId: input.orgId ?? null,
       name: input.name.trim() || "主投研账户",
-      baseCurrency: (input.baseCurrency ?? "USD").toUpperCase(),
+      baseCurrency,
       cashBalance,
       noLeverageAcknowledgedAt: input.noLeverageConfirmed === false ? null : now,
     });
-    if (cashBalance > 0.005) {
-      await tx.insert(transactionsTable).values({
-        id: `tx_open_${id}`,
-        accountId: id,
-        userId: input.userId,
-        thesisId: null,
-        ticker: "CASH",
-        action: "deposit",
-        quantity: cashBalance,
-        price: 1,
-        fees: 0,
-        realizedPnl: null,
-        externalRef: "opening_balance",
-        tradeDate: todayIsoUtc(),
-        noLeverageConfirmed: true,
-        note: "账户期初现金",
-      });
-    }
+    await insertOpeningCashTx(tx, {
+      accountId: id,
+      userId: input.userId,
+      cashBalance,
+      baseCurrency,
+    });
   });
   return { id, cashBalance, orgId: input.orgId ?? null };
 }
@@ -84,33 +102,6 @@ export async function listPortfolioAccounts(db: KanonDb, userId: string) {
     .from(portfolioAccountsTable)
     .where(eq(portfolioAccountsTable.userId, userId))
     .orderBy(asc(portfolioAccountsTable.createdAt));
-}
-
-async function lockAccountForUpdate(tx: KanonDb, accountId: string, userId: string) {
-  const locked = await tx.execute(sql`
-    SELECT id, org_id, cash_balance, no_leverage_acknowledged_at
-    FROM portfolio_accounts
-    WHERE id = ${accountId} AND user_id = ${userId}
-    FOR UPDATE
-  `);
-  const rows = (Array.isArray(locked) ? locked : locked.rows) as Array<{
-    id?: string;
-    org_id?: string | null;
-    cash_balance?: number;
-    no_leverage_acknowledged_at?: unknown;
-  }>;
-  const acct = rows[0];
-  if (!acct?.id) throw new LedgerPolicyError("ACCOUNT_NOT_FOUND", "投资组合账户不存在。", 404);
-  const cashBalance = Number(acct.cash_balance);
-  if (!Number.isFinite(cashBalance)) {
-    throw new LedgerPolicyError("CORRUPTED_BALANCE", "账户现金余额异常，已阻断交易。");
-  }
-  return {
-    id: acct.id,
-    orgId: acct.org_id ?? null,
-    cashBalance,
-    acknowledged: Boolean(acct.no_leverage_acknowledged_at),
-  };
 }
 
 async function assertBuyAndThesisGuards(
@@ -166,11 +157,19 @@ export async function recordPortfolioTransaction(db: KanonDb, input: RecordTrans
     const acct = await lockAccountForUpdate(tx, input.accountId, input.userId);
     const effectiveNoLeverage = input.noLeverageConfirmed || acct.acknowledged;
     await assertBuyAndThesisGuards(tx, acct, input, ticker, effectiveNoLeverage);
+    const resolvedFx = await resolveTxCurrencyAndFx(tx, {
+      baseCurrency: acct.baseCurrency,
+      ticker,
+      tradeDate: input.tradeDate,
+      tradeCurrency: input.tradeCurrency,
+      fxToBase: input.fxToBase,
+      fxSource: input.fxSource,
+    });
     const txId = `tx_${crypto.randomUUID()}`;
     const { cashBalance, realizedPnl } = await replayAndCommitAccountTransaction(tx, {
       accountId: acct.id,
       userId: input.userId,
-      newTx: buildNewReplayTx(txId, input, ticker, fees, effectiveNoLeverage),
+      newTx: buildNewReplayTx(txId, input, ticker, fees, effectiveNoLeverage, resolvedFx),
       asOfDate: todayIsoUtc(),
     });
     const snap =

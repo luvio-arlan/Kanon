@@ -36,6 +36,7 @@ export {
   fetchDailyPriceBarsWithEvents,
   type PolygonSplitEvent,
 } from "./market/daily-bars";
+export { type EcbFxRateRow, fetchEcbReferenceFxRates } from "./market/fx-ecb";
 export {
   clearMarketQuoteCache,
   fetchMarketQuote,
@@ -99,6 +100,10 @@ export {
   type Form8kSeverity,
   parseForm8kItemCodes,
 } from "./sec/form8k-parser";
+export {
+  type ExtractedPressGuidanceCandidate,
+  fetchAndExtractPressGuidance,
+} from "./sec/press";
 export * from "./sec/redline";
 export {
   type FetchSecOptions,

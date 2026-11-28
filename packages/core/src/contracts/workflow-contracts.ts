@@ -1,12 +1,11 @@
 import { z } from "zod";
 import { TickerSymbolSchema } from "../schemas/research";
-import { IsoDateSchema } from "./intel/primitives";
+import { CurrencyCodeSchema, IsoDateSchema, inferCurrencyFromTicker } from "./intel/primitives";
 
 export const todayIsoUtc = () => new Date().toISOString().slice(0, 10);
 /** Max allowed trade date using UTC+14 so UTC+8 early-morning entries are never rejected (U0-11 / P2-5). */
 export const maxTradeDateIsoUtc14 = () =>
   new Date(Date.now() + 14 * 3600 * 1000).toISOString().slice(0, 10);
-const NON_US_EXCHANGE_SUFFIX_RE = /\.(HK|SS|SZ|T|L|PA|DE|AS|SW|TO|AX|TW|KS)$/i;
 
 export const IsoCalendarDateSchema = IsoDateSchema;
 
@@ -16,9 +15,16 @@ export const LedgerCreateAccountRequestSchema = z.object({
   op: z.literal("create_account"),
   orgId: z.string().trim().min(1).nullable().optional(),
   name: z.string().trim().min(1, "账户名称不能为空。").max(60).default("主投研账户"),
-  baseCurrency: z.literal("USD").default("USD"),
+  baseCurrency: CurrencyCodeSchema.default("USD"),
   initialCash: z.number().finite().min(0, "初始现金不能为负数。").max(1e12).default(0),
   noLeverageConfirmed: z.boolean().default(true),
+});
+
+export const LedgerReverseTransactionRequestSchema = z.object({
+  op: z.literal("reverse_transaction"),
+  accountId: z.string().trim().min(1, "缺少账户 ID。"),
+  transactionId: z.string().trim().min(1, "缺少原成交 ID。"),
+  note: z.string().trim().max(200).default(""),
 });
 
 export const LedgerTransactionRequestSchema = z
@@ -36,6 +42,8 @@ export const LedgerTransactionRequestSchema = z
       .min(0, "手续费不能为负数。")
       .max(1e8)
       .default(0),
+    tradeCurrency: CurrencyCodeSchema.optional(),
+    fxToBase: z.number().finite().positive().max(1e6).optional(),
     tradeDate: IsoCalendarDateSchema.optional(),
     noLeverageConfirmed: z.boolean().default(false),
     note: z.string().trim().max(240).default(""),
@@ -58,11 +66,12 @@ export const LedgerTransactionRequestSchema = z
           message: "买卖成交必须提供合法的标的代码。",
         });
       }
-      if (NON_US_EXCHANGE_SUFFIX_RE.test(val.ticker)) {
+      if (!val.tradeCurrency && inferCurrencyFromTicker(val.ticker) === null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["ticker"],
-          message: "CURRENCY_UNSUPPORTED: 当前仅支持美元计价标的，跨币种账本即将上线。",
+          message:
+            "CURRENCY_UNSUPPORTED: 该交易所币种暂未覆盖（ECB 覆盖 USD/HKD/CNY/EUR/GBP/JPY）。",
         });
       }
       if (val.price <= 0) {
@@ -77,6 +86,7 @@ export const LedgerTransactionRequestSchema = z
 
 export const LedgerPostRequestSchema = z.union([
   LedgerCreateAccountRequestSchema,
+  LedgerReverseTransactionRequestSchema,
   LedgerTransactionRequestSchema,
 ]);
 

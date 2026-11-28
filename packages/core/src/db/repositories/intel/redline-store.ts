@@ -129,6 +129,8 @@ export async function pruneStaleFilingChunks(db: KanonDb): Promise<number> {
       UNION
       SELECT split_part(source_ref, ':', 1) FROM guidance_commitments
       WHERE source_kind = 'filing_chunk' AND source_ref IS NOT NULL
+      UNION
+      SELECT accession FROM guidance_candidates
     ),
     keep AS (
       SELECT accession FROM ranked

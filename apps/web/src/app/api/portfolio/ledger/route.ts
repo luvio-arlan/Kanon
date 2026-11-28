@@ -8,6 +8,7 @@ import {
   listPortfolioPositions,
   listPortfolioTransactions,
   recordPortfolioTransaction,
+  reversePortfolioTransaction,
 } from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
@@ -61,6 +62,15 @@ async function handleLedgerPost(
 ) {
   if (data.op === "create_account") return handleCreateAccount(db, userId, data, startedAt);
   try {
+    if (data.op === "reverse_transaction") {
+      const result = await reversePortfolioTransaction(db, {
+        userId,
+        accountId: data.accountId,
+        transactionId: data.transactionId,
+        note: data.note,
+      });
+      return jsonOk({ result }, startedAt, 201);
+    }
     const result = await recordPortfolioTransaction(db, {
       userId,
       accountId: data.accountId,
@@ -70,6 +80,8 @@ async function handleLedgerPost(
       quantity: data.quantity,
       price: data.price,
       fees: data.fees,
+      tradeCurrency: data.tradeCurrency,
+      fxToBase: data.fxToBase,
       tradeDate: data.tradeDate ?? todayIsoUtc(),
       noLeverageConfirmed: data.noLeverageConfirmed,
       note: data.note,
