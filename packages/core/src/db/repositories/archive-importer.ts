@@ -15,6 +15,7 @@ import {
   thesisCatalystsTable,
   valuationScenariosTable,
 } from "../schema";
+import { appendHypothesisStatusEvent } from "./portfolio/hypothesis-events-store";
 import { recordThesisRevision } from "./revision-queries";
 import { restoreArchiveExtras, safeImportDate } from "./thesis/archive-extras-restorer";
 import { getThesisById } from "./thesis-queries";
@@ -41,9 +42,10 @@ async function replaceDisciplineEntries(tx: KanonDb, targetId: string, source: T
   );
 }
 
-async function replacePrimaryChildren(
+async function insertArchiveHypotheses(
   tx: KanonDb,
   targetId: string,
+  userId: string,
   source: ThesisDetail,
 ): Promise<Map<string, string>> {
   await tx.delete(hypothesesTable).where(eq(hypothesesTable.thesisId, targetId));
@@ -56,8 +58,28 @@ async function replacePrimaryChildren(
       sortOrder: idx,
     },
   }));
-  const hypIdMap = new Map(hypRows.map((entry) => [entry.oldId, entry.row.id]));
   await tx.insert(hypothesesTable).values(hypRows.map((entry) => entry.row));
+  for (const entry of hypRows) {
+    await appendHypothesisStatusEvent(tx, {
+      thesisId: targetId,
+      hypothesisId: entry.row.id,
+      fromStatus: null,
+      toStatus: entry.row.status,
+      source: "import",
+      actorUserId: userId,
+      note: "归档导入初始假设",
+    });
+  }
+  return new Map(hypRows.map((entry) => [entry.oldId, entry.row.id]));
+}
+
+async function replacePrimaryChildren(
+  tx: KanonDb,
+  targetId: string,
+  userId: string,
+  source: ThesisDetail,
+): Promise<Map<string, string>> {
+  const hypIdMap = await insertArchiveHypotheses(tx, targetId, userId, source);
   await tx.delete(thesisCatalystsTable).where(eq(thesisCatalystsTable.thesisId, targetId));
   if (source.catalysts.length > 0) {
     await tx.insert(thesisCatalystsTable).values(
@@ -163,7 +185,7 @@ export async function importThesisArchive(
   return runInTransaction(db, async (tx) => {
     const now = new Date();
     const { targetId, appliedMode } = await resolveTargetRow(tx, userId, source, parsed.mode, now);
-    const hypIdMap = await replacePrimaryChildren(tx, targetId, source);
+    const hypIdMap = await replacePrimaryChildren(tx, targetId, userId, source);
     await upsertValuationFromSource(tx, targetId, source);
     await restoreArchiveExtras({
       tx,

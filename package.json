@@ -16,12 +16,13 @@
     "format": "biome check --write .",
     "typecheck": "turbo run typecheck",
     "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs",
-    "design:check": "node scripts/wave-guards.test.mjs && node scripts/wave-guards-rs.test.mjs && node scripts/check-design-and-limits.mjs",
+    "design:check": "node scripts/wave-guards.test.mjs && node scripts/wave-guards-rs.test.mjs && node scripts/wave-guards-u.test.mjs && node scripts/check-design-and-limits.mjs",
     "knip": "knip",
     "check": "pnpm lint && pnpm typecheck && pnpm depcruise && pnpm design:check && pnpm knip",
     "db:push": "pnpm --filter @kanon/core db:push",
     "db:migrate": "pnpm --filter @kanon/core db:migrate",
     "eval": "node packages/ai/evals/run-evals.mjs --offline",
+    "eval:live": "node packages/ai/evals/run-evals.mjs --live",
     "prepare": "lefthook install || true"
   },
   "devDependencies": {

@@ -15,7 +15,8 @@ export interface DecisionSnapshotPayload {
 }
 
 const ownOrSys = sql`kanon_rls_is_system() OR kanon_rls_open() OR user_id = kanon_rls_uid()`;
-const readThesisOrSys = sql`kanon_rls_is_system() OR kanon_rls_open() OR kanon_thesis_readable(thesis_id)`;
+const ownReadableOrSys = sql`kanon_rls_is_system() OR kanon_rls_open() OR (user_id = kanon_rls_uid() AND kanon_thesis_readable(thesis_id))`;
+const readThesisOrSnapshotOrSys = sql`kanon_rls_is_system() OR kanon_rls_open() OR kanon_thesis_readable(thesis_id) OR EXISTS (SELECT 1 FROM decision_snapshots ds WHERE ds.thesis_id = hypothesis_status_events.thesis_id AND ds.user_id = kanon_rls_uid())`;
 const writeThesisOrSys = sql`kanon_rls_is_system() OR kanon_rls_open() OR kanon_thesis_writable(thesis_id)`;
 
 /** Immutable decision snapshot locked atomically at buy execution (S3). */
@@ -36,8 +37,9 @@ export const decisionSnapshotsTable = pgTable(
   (table) => [
     index("idx_decision_snapshots_user_ticker").on(table.userId, table.ticker, table.tradeDate),
     index("idx_decision_snapshots_thesis").on(table.thesisId),
+    index("idx_decision_snapshots_thesis_user").on(table.thesisId, table.userId),
     pgPolicy("kanon_decision_snapshots_select", { for: "select", using: ownOrSys }),
-    pgPolicy("kanon_decision_snapshots_insert", { for: "insert", withCheck: ownOrSys }),
+    pgPolicy("kanon_decision_snapshots_insert", { for: "insert", withCheck: ownReadableOrSys }),
   ],
 ).enableRLS();
 
@@ -58,7 +60,7 @@ export const hypothesisStatusEventsTable = pgTable(
   (table) => [
     index("idx_hyp_events_thesis_time").on(table.thesisId, table.recordedAt),
     index("idx_hyp_events_hyp_time").on(table.hypothesisId, table.recordedAt),
-    pgPolicy("kanon_hyp_events_select", { for: "select", using: readThesisOrSys }),
+    pgPolicy("kanon_hyp_events_select", { for: "select", using: readThesisOrSnapshotOrSys }),
     pgPolicy("kanon_hyp_events_insert", { for: "insert", withCheck: writeThesisOrSys }),
   ],
 ).enableRLS();

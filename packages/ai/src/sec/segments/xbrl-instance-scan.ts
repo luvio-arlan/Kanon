@@ -17,7 +17,7 @@ export interface XbrlContext {
 export interface XbrlFact {
   concept: string;
   contextRef: string;
-  unitRef: string;
+  unitRef: string | null;
   value: number;
 }
 
@@ -106,7 +106,7 @@ export function scanXbrlInstanceXml(xml: string): ParsedXbrlInstance {
     const rawVal = (m[3] ?? "").trim();
     if (!isSegmentFactCandidate(concept)) continue;
     const contextRef = readAttr(attrs, "contextRef");
-    const unitRef = readAttr(attrs, "unitRef") ?? "USD";
+    const unitRef = readAttr(attrs, "unitRef");
     const num = Number(rawVal);
     if (!contextRef || !Number.isFinite(num)) continue;
     facts.push({ concept, contextRef, unitRef, value: num });

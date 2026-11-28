@@ -25,15 +25,11 @@ import { saveAgentRun } from "../review-and-agent-store";
 import { consumePersistentRateLimit } from "../security/rate-limit-store";
 import { createThesis, updateThesisStepChecked } from "../thesis-mutations";
 import { getThesisById } from "../thesis-queries";
-import {
-  detectFactRestatements,
-  upsertFiling,
-  upsertFinancialFacts,
-} from "../warehouse/facts-pit-store";
+import { detectFactRestatements, upsertFinancialFacts } from "../warehouse/facts-pit-store";
+import { upsertFiling } from "../warehouse/filings-store";
 import {
   claimDueJobs,
   enqueueJob,
-  enqueueWatchlistJobs,
   getAlertEvalCursor,
   getJobQueueHealth,
   setAlertEvalCursor,
@@ -48,6 +44,7 @@ import {
   upsertPriceBars,
 } from "../warehouse/price-bars-store";
 import { markSecuritySecStatus, upsertSecurity } from "../warehouse/securities-and-fx-store";
+import { enqueueWatchlistJobs } from "../warehouse/watchlist-enqueue";
 import { evaluateAlertRules } from "../workflows/alert-evaluator-store";
 import { listInboxItems, upsertAlertRule } from "../workflows/inbox-and-forecasts-store";
 import {

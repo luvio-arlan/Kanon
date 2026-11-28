@@ -1,7 +1,7 @@
 "use client";
 
 import type { NavPoint, PortfolioPerformanceResponse } from "@kanon/core";
-import { Badge, cn } from "@kanon/ui";
+import { Badge, cn, formatMoney } from "@kanon/ui";
 
 function buildPolylinePoints(
   values: ReadonlyArray<number | null>,
@@ -75,41 +75,52 @@ function resolveTwrTone(twrPct: number | null | undefined): string {
 
 function UnrecordedDividendAlert({
   items,
+  currency,
 }: {
   items: PortfolioPerformanceResponse["unrecordedDividends"];
+  currency: string;
 }) {
   const first = items[0];
   if (!first) return null;
   return (
     <p className="text-xs text-status-warn">
-      发现 {items.length} 笔未入账除息分红（最近：{first.ticker} {first.exDate} 约 $
-      {first.estimatedTotal}）。
+      发现 {items.length} 笔未入账除息分红（最近：{first.ticker} {first.exDate} 约{" "}
+      {formatMoney(first.estimatedTotal, currency)}）。
     </p>
   );
 }
+
+const BASIS_BADGE_LABELS: Record<string, string> = {
+  cost_fallback: "成本估值",
+  partial_bars: "部分行情",
+  rebase_pending: "待重基",
+};
 
 export function LedgerPerformanceLine({
   perf,
   accountName,
   cashBalance,
+  baseCurrency = "USD",
 }: {
   perf: PortfolioPerformanceResponse | null;
   accountName: string;
   cashBalance: number;
+  baseCurrency?: string;
 }) {
   const nav = perf?.totalNav ?? cashBalance;
   const series = perf?.series ?? [];
+  const basisLabel = perf?.basis ? (BASIS_BADGE_LABELS[perf.basis] ?? null) : null;
   return (
     <div className="space-y-3 rounded-panel border border-hairline bg-canvas/50 p-4 text-xs">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-ink-primary">{accountName}</span>
           <span className="font-mono text-ink-muted tabular-nums">
-            现金 ${cashBalance.toLocaleString()}
+            现金 {formatMoney(cashBalance, baseCurrency, { maximumFractionDigits: 0 })}
           </span>
         </div>
         <span className="font-mono text-sm font-semibold text-ink-primary tabular-nums">
-          净值 ${nav.toLocaleString()}
+          净值 {formatMoney(nav, baseCurrency, { maximumFractionDigits: 0 })}
         </span>
       </div>
       {series.length >= 2 ? <NavSvgSparkline series={series} /> : null}
@@ -121,9 +132,9 @@ export function LedgerPerformanceLine({
         <span className="text-ink-muted">
           最大回撤 {fmtSignedPct(perf?.maxDrawdownPct ?? null)}
         </span>
-        {perf?.basis === "cost_fallback" ? <Badge variant="titanium">成本估值</Badge> : null}
+        {basisLabel ? <Badge variant="titanium">{basisLabel}</Badge> : null}
       </div>
-      <UnrecordedDividendAlert items={perf?.unrecordedDividends ?? []} />
+      <UnrecordedDividendAlert items={perf?.unrecordedDividends ?? []} currency={baseCurrency} />
     </div>
   );
 }

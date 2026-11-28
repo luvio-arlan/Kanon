@@ -93,7 +93,6 @@ function buildContribRows(params: {
   });
 }
 
-/** Decomposes portfolio risk into annualized vol, DR, ENH, Meucci ENB, Beta, and MCR/PCR (S2). */
 export function decomposePortfolioRisk(params: {
   tickers: readonly string[];
   weights: readonly number[];
@@ -102,19 +101,22 @@ export function decomposePortfolioRisk(params: {
   spyReturns?: readonly number[] | null;
 }): RiskDecompositionOutput {
   const n = params.tickers.length;
-  const wSum = params.weights.reduce((s, w) => s + Math.max(0, w), 0);
-  const normW = wSum > 1e-9 ? params.weights.map((w) => Math.max(0, w) / wSum) : params.weights;
-  const sigmaW = Array.from({ length: n }, (_, i) => dotVec(params.covariance[i] ?? [], normW));
-  const portVar = dotVec(normW, sigmaW);
-  const weightedStandaloneVol = normW.reduce(
+  const clamped = params.weights.map((w) => Math.max(0, w));
+  const wSum = clamped.reduce((s, w) => s + w, 0);
+  // Risk-asset normalized weights for ENH/ENB; actual NAV weights (<= 1, cash var = 0) for sigma_p and beta (U0-9).
+  const normW = wSum > 1e-9 ? clamped.map((w) => w / wSum) : clamped;
+  const effW = wSum > 1 + 1e-6 ? normW : clamped;
+  const sigmaW = Array.from({ length: n }, (_, i) => dotVec(params.covariance[i] ?? [], effW));
+  const portVar = dotVec(effW, sigmaW);
+  const weightedStandaloneVol = effW.reduce(
     (s, w, i) => s + w * Math.sqrt(Math.max(0, params.covariance[i]?.[i] ?? 0)),
     0,
   );
   const dailyVol = Math.sqrt(Math.max(0, portVar));
   const contributions = buildContribRows({
     tickers: params.tickers,
-    rawWeights: params.weights,
-    normW,
+    rawWeights: effW,
+    normW: effW,
     sigmaW,
     covariance: params.covariance,
     dailyVol,
@@ -122,11 +124,11 @@ export function decomposePortfolioRisk(params: {
     assetReturns: params.assetReturns,
     spyReturns: params.spyReturns,
   });
-  const sumW2 = dotVec(normW, normW);
+  const sumNormW2 = dotVec(normW, normW);
   const portfolioBeta =
     params.spyReturns && contributions.every((c) => c.betaVsSpy !== null)
       ? roundTo(
-          contributions.reduce((s, c, i) => s + (normW[i] ?? 0) * (c.betaVsSpy ?? 0), 0),
+          contributions.reduce((s, c, i) => s + (effW[i] ?? 0) * (c.betaVsSpy ?? 0), 0),
           2,
         )
       : null;
@@ -134,7 +136,7 @@ export function decomposePortfolioRisk(params: {
     annualizedVolPct: roundTo(dailyVol * Math.sqrt(252) * 100, 2),
     diversificationRatio:
       dailyVol > 1e-12 ? roundTo(Math.max(1, weightedStandaloneVol / dailyVol), 2) : 1,
-    effectiveNumHoldings: sumW2 > 1e-9 ? roundTo(1 / sumW2, 2) : 0,
+    effectiveNumHoldings: sumNormW2 > 1e-9 ? roundTo(1 / sumNormW2, 2) : 0,
     effectiveNumBets: computeMeucciEnb(normW, params.covariance),
     portfolioBeta,
     contributions,

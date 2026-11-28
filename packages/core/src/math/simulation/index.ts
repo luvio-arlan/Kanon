@@ -1,2 +1,6 @@
 export * from "./monte-carlo";
-export * from "./prng";
+export {
+  choleskyDecompose,
+  createMulberry32,
+  sampleCorrelatedNormals,
+} from "./prng";

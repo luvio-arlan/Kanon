@@ -263,4 +263,104 @@ describe("S3 Decision x Outcome 2x2 Attribution & PIT Beta", () => {
     });
     expect(report.skillRatePct).toBe(25);
   });
+
+  it("U0-8: falls back to excess_vs_spy when pitBeta is null, marks no-snapshot episodes pending, and clamps 0033 backfill look-ahead", () => {
+    const episodes = buildDecisionEpisodes({
+      transactions: [
+        {
+          id: "b-nosnap",
+          thesisId: "th-1",
+          ticker: "AAA",
+          action: "buy",
+          quantity: 10,
+          price: 100,
+          fees: 0,
+          tradeDate: "2025-01-02",
+          createdAtMs: 1,
+        },
+        {
+          id: "s-nosnap",
+          thesisId: "th-1",
+          ticker: "AAA",
+          action: "sell",
+          quantity: 10,
+          price: 130,
+          fees: 0,
+          tradeDate: "2025-02-01",
+          createdAtMs: 2,
+        },
+        {
+          id: "b-prehist",
+          thesisId: "th-2",
+          ticker: "BBB",
+          action: "buy",
+          quantity: 10,
+          price: 100,
+          fees: 0,
+          tradeDate: "2025-01-02",
+          createdAtMs: 3,
+        },
+        {
+          id: "s-prehist",
+          thesisId: "th-2",
+          ticker: "BBB",
+          action: "sell",
+          quantity: 10,
+          price: 130,
+          fees: 0,
+          tradeDate: "2025-02-01",
+          createdAtMs: 4,
+        },
+      ],
+      snapshotsByTxId: new Map([
+        [
+          "b-prehist",
+          {
+            transactionId: "b-prehist",
+            thesisId: "th-2",
+            snapshotHash: "h-pre",
+            hypothesisIds: ["hyp-pre"],
+          },
+        ],
+      ]),
+      splitsByTicker: new Map(),
+      latestCloseByTicker: new Map(),
+      asOfDate: "2025-03-01",
+    });
+    const report = classifyDecisionMatrix({
+      episodes,
+      hypothesisEvents: [
+        {
+          thesisId: "th-1",
+          hypothesisId: "hyp-post",
+          toStatus: "validated",
+          recordedAt: "2025-01-10T00:00:00Z",
+        },
+        {
+          thesisId: "th-2",
+          hypothesisId: "hyp-pre",
+          toStatus: "validated",
+          source: "import",
+          recordedAt: "2025-01-01T00:00:00Z",
+        },
+      ],
+      barsByTicker: new Map(),
+      dividendsByTicker: new Map(),
+      spyBars: [
+        { barDate: "2025-01-02", close: 500 },
+        { barDate: "2025-02-01", close: 505 },
+      ],
+      spyDividends: [],
+      asOfDate: "2025-03-01",
+      migration0033AppliedAt: "2025-06-01T00:00:00Z",
+    });
+    const noSnap = report.episodes.find((e) => e.ticker === "AAA");
+    const preHist = report.episodes.find((e) => e.ticker === "BBB");
+    expect(noSnap?.quadrant).toBe("pending");
+    expect(noSnap?.pendingReason).toBe("no_snapshot");
+    expect(noSnap?.outcomeBasis).toBe("excess_vs_spy");
+    expect(noSnap?.pitBeta).toBeNull();
+    expect(preHist?.quadrant).toBe("pending");
+    expect(preHist?.pendingReason).toBe("pre_history");
+  });
 });

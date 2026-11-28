@@ -1,9 +1,10 @@
 import type {
   DecisionEpisode,
   DecisionQuadrant,
+  EpisodePendingReason,
+  OutcomeBasis,
   PortfolioAttributionResponse,
 } from "../../contracts/analytics";
-import type { HypothesisStatus } from "../../schemas/thesis";
 import {
   buildTotalReturnIndex,
   type CashDividendEvent,
@@ -12,51 +13,33 @@ import {
 import { roundTo } from "../valuation-scenarios";
 import { computePitBeta } from "./beta-pit";
 import type { RawDecisionEpisode } from "./episodes";
+import {
+  evaluatePitJudgment,
+  type HypothesisStatusEventInput,
+  type JudgmentEval,
+} from "./pit-judgment";
 
-export interface HypothesisStatusEventInput {
-  thesisId: string;
-  hypothesisId: string;
-  toStatus: HypothesisStatus;
-  recordedAt: string;
-}
+export type { HypothesisStatusEventInput } from "./pit-judgment";
 
-function evaluatePitJudgment(
-  ep: RawDecisionEpisode,
-  events: readonly HypothesisStatusEventInput[],
-  cutoffIso: string,
-): {
-  verdict: "right" | "wrong" | "pending";
-  total: number;
-  validated: number;
-  invalidated: number;
-} {
-  if (!ep.thesisId) return { verdict: "pending", total: 0, validated: 0, invalidated: 0 };
-  const latestByHyp = new Map<string, HypothesisStatus>();
-  const relevant = events
-    .filter((e) => e.thesisId === ep.thesisId && e.recordedAt.slice(0, 10) <= cutoffIso)
-    .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
-  for (const ev of relevant) latestByHyp.set(ev.hypothesisId, ev.toStatus);
-  const ids =
-    ep.snapshotHypothesisIds.length > 0 ? ep.snapshotHypothesisIds : [...latestByHyp.keys()];
-  if (ids.length === 0) return { verdict: "pending", total: 0, validated: 0, invalidated: 0 };
-  let validated = 0;
-  let invalidated = 0;
-  for (const id of ids) {
-    const st = latestByHyp.get(id);
-    if (st === "validated") validated += 1;
-    else if (st === "invalidated") invalidated += 1;
-  }
-  if (invalidated > 0) return { verdict: "wrong", total: ids.length, validated, invalidated };
-  if (validated / ids.length >= 0.6)
-    return { verdict: "right", total: ids.length, validated, invalidated };
-  return { verdict: "pending", total: ids.length, validated, invalidated };
+interface MatrixContext {
+  hypothesisEvents: readonly HypothesisStatusEventInput[];
+  barsByTicker: ReadonlyMap<string, readonly CloseBarPoint[]>;
+  dividendsByTicker: ReadonlyMap<string, readonly CashDividendEvent[]>;
+  spyBars: readonly CloseBarPoint[];
+  spyDividends: readonly CashDividendEvent[];
+  asOfDate: string;
+  migration0033AppliedAt?: string | null;
 }
 
 function mapQuadrant(
   verdict: "right" | "wrong" | "pending",
-  outcomePositive: boolean,
+  outcomeBasis: OutcomeBasis,
+  idioReturnPct: number | null,
 ): DecisionQuadrant {
-  if (verdict === "pending") return "pending";
+  if (verdict === "pending" || outcomeBasis === "unavailable" || idioReturnPct === null) {
+    return "pending";
+  }
+  const outcomePositive = idioReturnPct >= 0;
   if (verdict === "right") return outcomePositive ? "skill" : "good_process_bad_luck";
   return outcomePositive ? "lucky" : "mistake";
 }
@@ -76,31 +59,36 @@ function lookupSpyReturnPct(
   return roundTo(((endVal - startVal) / startVal) * 100, 2);
 }
 
-function classifySingleEpisode(
+function computeOutcomeMetric(
+  totalReturnPct: number,
+  spyReturnPct: number | null,
+  pitBeta: number | null,
+): { outcomeBasis: OutcomeBasis; idioReturnPct: number | null } {
+  if (spyReturnPct === null) return { outcomeBasis: "unavailable", idioReturnPct: null };
+  if (pitBeta !== null) {
+    return {
+      outcomeBasis: "idiosyncratic",
+      idioReturnPct: roundTo(totalReturnPct - pitBeta * spyReturnPct, 2),
+    };
+  }
+  return {
+    outcomeBasis: "excess_vs_spy",
+    idioReturnPct: roundTo(totalReturnPct - spyReturnPct, 2),
+  };
+}
+
+function buildEpisodeRow(
   ep: RawDecisionEpisode,
-  spyTr: ReadonlyMap<string, number>,
-  params: {
-    hypothesisEvents: readonly HypothesisStatusEventInput[];
-    barsByTicker: ReadonlyMap<string, readonly CloseBarPoint[]>;
-    dividendsByTicker: ReadonlyMap<string, readonly CashDividendEvent[]>;
-    spyBars: readonly CloseBarPoint[];
-    spyDividends: readonly CashDividendEvent[];
-    asOfDate: string;
+  calc: {
+    spyReturnPct: number | null;
+    pitBeta: number | null;
+    idioReturnPct: number | null;
+    outcomeBasis: OutcomeBasis;
+    pendingReason: EpisodePendingReason | null;
+    quadrant: DecisionQuadrant;
+    judgment: JudgmentEval;
   },
 ): DecisionEpisode {
-  const endDate = ep.closeDate ?? params.asOfDate;
-  const spyReturnPct = lookupSpyReturnPct(spyTr, ep.openDate, endDate);
-  const pitBeta = computePitBeta({
-    assetBars: params.barsByTicker.get(ep.ticker) ?? [],
-    assetDividends: params.dividendsByTicker.get(ep.ticker) ?? [],
-    spyBars: params.spyBars,
-    spyDividends: params.spyDividends,
-    openDate: ep.openDate,
-  });
-  const idioReturnPct =
-    spyReturnPct !== null ? roundTo(ep.totalReturnPct - (pitBeta ?? 1) * spyReturnPct, 2) : null;
-  const judgment = evaluatePitJudgment(ep, params.hypothesisEvents, endDate);
-  const quadrant = mapQuadrant(judgment.verdict, (idioReturnPct ?? ep.totalReturnPct) >= 0);
   return {
     id: ep.id,
     thesisId: ep.thesisId,
@@ -111,47 +99,91 @@ function classifySingleEpisode(
     entryPrice: ep.entryPrice,
     exitOrMarkPrice: ep.exitOrMarkPrice,
     totalReturnPct: ep.totalReturnPct,
-    spyReturnPct,
-    pitBeta,
-    idioReturnPct,
-    judgmentVerdict: judgment.verdict,
-    quadrant,
+    spyReturnPct: calc.spyReturnPct,
+    pitBeta: calc.pitBeta,
+    idioReturnPct: calc.idioReturnPct,
+    outcomeBasis: calc.outcomeBasis,
+    pendingReason: calc.pendingReason,
+    judgmentVerdict: calc.judgment.verdict,
+    quadrant: calc.quadrant,
     snapshotHash: ep.snapshotHash,
-    hypothesesCount: judgment.total,
-    validatedCount: judgment.validated,
-    invalidatedCount: judgment.invalidated,
+    hypothesesCount: calc.judgment.total,
+    validatedCount: calc.judgment.validated,
+    invalidatedCount: calc.judgment.invalidated,
   };
 }
 
-/** Classifies investment episodes into the 2x2 Decision x Outcome matrix with PIT Beta & PIT hypothesis verdicts (S3). */
-export function classifyDecisionMatrix(params: {
-  episodes: readonly RawDecisionEpisode[];
-  hypothesisEvents: readonly HypothesisStatusEventInput[];
-  barsByTicker: ReadonlyMap<string, readonly CloseBarPoint[]>;
-  dividendsByTicker: ReadonlyMap<string, readonly CashDividendEvent[]>;
-  spyBars: readonly CloseBarPoint[];
-  spyDividends: readonly CashDividendEvent[];
-  asOfDate: string;
-}): PortfolioAttributionResponse {
+function classifySingleEpisode(
+  ep: RawDecisionEpisode,
+  spyTr: ReadonlyMap<string, number>,
+  params: MatrixContext,
+): DecisionEpisode {
+  const endDate = ep.closeDate ?? params.asOfDate;
+  const spyReturnPct = lookupSpyReturnPct(spyTr, ep.openDate, endDate);
+  const pitBeta = computePitBeta({
+    assetBars: params.barsByTicker.get(ep.ticker) ?? [],
+    assetDividends: params.dividendsByTicker.get(ep.ticker) ?? [],
+    spyBars: params.spyBars,
+    spyDividends: params.spyDividends,
+    openDate: ep.openDate,
+  });
+  const { outcomeBasis, idioReturnPct } = computeOutcomeMetric(
+    ep.totalReturnPct,
+    spyReturnPct,
+    pitBeta,
+  );
+  const judgment = evaluatePitJudgment(
+    ep,
+    params.hypothesisEvents,
+    endDate,
+    params.migration0033AppliedAt,
+  );
+  const quadrant = mapQuadrant(judgment.verdict, outcomeBasis, idioReturnPct);
+  const pendingReason: EpisodePendingReason | null =
+    quadrant === "pending"
+      ? (judgment.pendingReason ?? (outcomeBasis === "unavailable" ? "no_benchmark" : null))
+      : null;
+  return buildEpisodeRow(ep, {
+    spyReturnPct,
+    pitBeta,
+    idioReturnPct,
+    outcomeBasis,
+    pendingReason,
+    quadrant,
+    judgment,
+  });
+}
+
+/**
+ * Classifies investment episodes into the 2x2 Decision x Outcome matrix with honest PIT Beta,
+ * explicit outcomeBasis, anti-lookahead import timestamps, and strict snapshot-only hypotheses (U0-8 / G21).
+ */
+export function classifyDecisionMatrix(
+  params: MatrixContext & { episodes: readonly RawDecisionEpisode[] },
+): PortfolioAttributionResponse {
   if (params.episodes.length === 0) {
     return {
       status: "empty",
       counts: { skill: 0, good_process_bad_luck: 0, lucky: 0, mistake: 0, pending: 0 },
+      outcomeBasisCounts: { idiosyncratic: 0, excess_vs_spy: 0, unavailable: 0 },
       skillRatePct: null,
       episodes: [],
     };
   }
   const spyTr = buildTotalReturnIndex(params.spyBars, params.spyDividends);
   const counts = { skill: 0, good_process_bad_luck: 0, lucky: 0, mistake: 0, pending: 0 };
+  const outcomeBasisCounts = { idiosyncratic: 0, excess_vs_spy: 0, unavailable: 0 };
   const classified = params.episodes.map((ep) => {
     const row = classifySingleEpisode(ep, spyTr, params);
     counts[row.quadrant] += 1;
+    outcomeBasisCounts[row.outcomeBasis] += 1;
     return row;
   });
   const resolved = counts.skill + counts.good_process_bad_luck + counts.lucky + counts.mistake;
   return {
     status: "ready",
     counts,
+    outcomeBasisCounts,
     skillRatePct: resolved > 0 ? roundTo((counts.skill / resolved) * 100, 1) : null,
     episodes: classified,
   };

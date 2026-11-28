@@ -1,22 +1,14 @@
 import { z } from "zod";
 import { TickerSymbolSchema } from "../schemas/research";
+import { IsoDateSchema } from "./intel/primitives";
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const todayIsoUtc = () => new Date().toISOString().slice(0, 10);
+/** Max allowed trade date using UTC+14 so UTC+8 early-morning entries are never rejected (U0-11 / P2-5). */
+export const maxTradeDateIsoUtc14 = () =>
+  new Date(Date.now() + 14 * 3600 * 1000).toISOString().slice(0, 10);
+const NON_US_EXCHANGE_SUFFIX_RE = /\.(HK|SS|SZ|T|L|PA|DE|AS|SW|TO|AX|TW|KS)$/i;
 
-function isValidCalendarDate(iso: string): boolean {
-  if (!ISO_DATE_RE.test(iso)) return false;
-  const parsed = new Date(`${iso}T00:00:00.000Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === iso;
-}
-
-export function todayIsoUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-export const IsoCalendarDateSchema = z
-  .string()
-  .trim()
-  .refine(isValidCalendarDate, { message: "日期必须为合法的 YYYY-MM-DD 格式。" });
+export const IsoCalendarDateSchema = IsoDateSchema;
 
 export const LedgerActionSchema = z.enum(["deposit", "withdraw", "buy", "sell", "dividend"]);
 
@@ -24,7 +16,7 @@ export const LedgerCreateAccountRequestSchema = z.object({
   op: z.literal("create_account"),
   orgId: z.string().trim().min(1).nullable().optional(),
   name: z.string().trim().min(1, "账户名称不能为空。").max(60).default("主投研账户"),
-  baseCurrency: z.string().trim().toUpperCase().min(3).max(6).default("USD"),
+  baseCurrency: z.literal("USD").default("USD"),
   initialCash: z.number().finite().min(0, "初始现金不能为负数。").max(1e12).default(0),
   noLeverageConfirmed: z.boolean().default(true),
 });
@@ -51,7 +43,7 @@ export const LedgerTransactionRequestSchema = z
   })
   .superRefine((val, ctx) => {
     const tradeDate = val.tradeDate ?? todayIsoUtc();
-    if (tradeDate > todayIsoUtc()) {
+    if (tradeDate > maxTradeDateIsoUtc14()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["tradeDate"],
@@ -64,6 +56,13 @@ export const LedgerTransactionRequestSchema = z
           code: z.ZodIssueCode.custom,
           path: ["ticker"],
           message: "买卖成交必须提供合法的标的代码。",
+        });
+      }
+      if (NON_US_EXCHANGE_SUFFIX_RE.test(val.ticker)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["ticker"],
+          message: "CURRENCY_UNSUPPORTED: 当前仅支持美元计价标的，跨币种账本即将上线。",
         });
       }
       if (val.price <= 0) {

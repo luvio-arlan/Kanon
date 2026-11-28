@@ -6,7 +6,7 @@ import {
   suggestKellyCappedWeight,
   type ThesisDetail,
 } from "@kanon/core";
-import { Badge, Button, cn, Input } from "@kanon/ui";
+import { Badge, Button, cn, formatMoney, Input } from "@kanon/ui";
 import { IconAdjustmentsHorizontal, IconCheck } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { apiUpdatePortfolioPosition } from "../lib/portfolio-api";
@@ -46,26 +46,29 @@ function PositionSummaryGrid({
   thesis: ThesisDetail;
   kelly: KellyWeightSuggestion;
 }) {
+  const cells = [
+    {
+      label: "当前 / 上限",
+      val: `${thesis.currentWeightPct}% / ${thesis.targetMaxWeightPct}%`,
+      cls: "text-ink-primary",
+    },
+    {
+      label: "持仓均价",
+      val: thesis.avgCostBasis
+        ? formatMoney(thesis.avgCostBasis, "USD", { maximumFractionDigits: 1 })
+        : "未建仓",
+      cls: "text-ink-primary",
+    },
+    { label: "半凯利建议", val: `${kelly.minPct}%–${kelly.maxPct}%`, cls: "text-status-pass" },
+  ];
   return (
     <div className="grid grid-cols-3 gap-2 font-mono text-xs tabular-nums">
-      <div className="rounded-control bg-muted/50 px-2.5 py-2">
-        <div className="font-sans text-ink-muted">当前 / 上限</div>
-        <div className="mt-0.5 font-semibold text-ink-primary">
-          {thesis.currentWeightPct}% / {thesis.targetMaxWeightPct}%
+      {cells.map((c) => (
+        <div key={c.label} className="rounded-control bg-muted/50 px-2.5 py-2">
+          <div className="font-sans text-ink-muted">{c.label}</div>
+          <div className={`mt-0.5 font-semibold ${c.cls}`}>{c.val}</div>
         </div>
-      </div>
-      <div className="rounded-control bg-muted/50 px-2.5 py-2">
-        <div className="font-sans text-ink-muted">持仓均价</div>
-        <div className="mt-0.5 font-semibold text-ink-primary">
-          {thesis.avgCostBasis ? `$${thesis.avgCostBasis.toFixed(1)}` : "未建仓"}
-        </div>
-      </div>
-      <div className="rounded-control bg-muted/50 px-2.5 py-2">
-        <div className="font-sans text-ink-muted">半凯利建议</div>
-        <div className="mt-0.5 font-semibold text-status-pass">
-          {kelly.minPct}%–{kelly.maxPct}%
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
@@ -82,7 +85,7 @@ function PositionNumericInputs({
       {[
         { id: "pos-weight", label: "当前仓位 (%)", key: "weight" as const, step: 0.5, ph: "0" },
         { id: "pos-cap", label: "单票上限 (%)", key: "cap" as const, step: 1, ph: "15" },
-        { id: "pos-cost", label: "持仓成本 ($)", key: "cost" as const, step: 0.5, ph: "可选" },
+        { id: "pos-cost", label: "持仓成本 (USD)", key: "cost" as const, step: 0.5, ph: "可选" },
       ].map((f) => (
         <div key={f.id} className="space-y-1">
           <label htmlFor={f.id} className="text-xs text-ink-muted">
@@ -104,17 +107,11 @@ function PositionNumericInputs({
   );
 }
 
-function PositionEditForm({
-  draft,
-  saving,
-  rationale,
-  onPatch,
-  onSave,
-}: {
+function PositionEditForm(p: {
   draft: PositionDraft;
   saving: boolean;
   rationale: string;
-  onPatch: (p: Partial<PositionDraft>) => void;
+  onPatch: (patch: Partial<PositionDraft>) => void;
   onSave: () => Promise<void>;
 }) {
   return (
@@ -124,10 +121,10 @@ function PositionEditForm({
           <button
             key={opt.id}
             type="button"
-            onClick={() => onPatch({ role: opt.id })}
+            onClick={() => p.onPatch({ role: opt.id })}
             className={cn(
               "cursor-pointer rounded-pill border px-2.5 py-1 text-xs transition-colors",
-              draft.role === opt.id
+              p.draft.role === opt.id
                 ? "border-ink-primary bg-ink-primary font-medium text-ink-inverse"
                 : "border-hairline bg-surface text-ink-secondary hover:border-strong",
             )}
@@ -136,30 +133,25 @@ function PositionEditForm({
           </button>
         ))}
       </div>
-      <PositionNumericInputs draft={draft} onPatch={onPatch} />
+      <PositionNumericInputs draft={p.draft} onPatch={p.onPatch} />
       <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0 flex-1 text-xs leading-relaxed text-ink-muted">{rationale}</span>
+        <span className="min-w-0 flex-1 text-xs leading-relaxed text-ink-muted">{p.rationale}</span>
         <Button
           variant="titanium"
           size="sm"
-          disabled={saving}
-          onClick={() => void onSave()}
+          disabled={p.saving}
+          onClick={() => void p.onSave()}
           className="shrink-0 whitespace-nowrap"
         >
           <IconCheck size={13} stroke={1.5} />
-          <span>{saving ? "保存中..." : "保存仓位"}</span>
+          <span>{p.saving ? "保存中..." : "保存仓位"}</span>
         </Button>
       </div>
     </div>
   );
 }
 
-function PositionPanelHeader({
-  role,
-  overCap,
-  expanded,
-  onToggle,
-}: {
+function PositionPanelHeader(p: {
   role: PortfolioRole;
   overCap: boolean;
   expanded: boolean;
@@ -169,16 +161,16 @@ function PositionPanelHeader({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-ink-primary">组合仓位与纪律上限</span>
-        <Badge variant={overCap ? "fail" : "titanium"}>{roleLabelOf(role)}</Badge>
-        {overCap ? <Badge variant="warn">超上限</Badge> : null}
+        <Badge variant={p.overCap ? "fail" : "titanium"}>{roleLabelOf(p.role)}</Badge>
+        {p.overCap ? <Badge variant="warn">超上限</Badge> : null}
       </div>
       <button
         type="button"
-        onClick={onToggle}
+        onClick={p.onToggle}
         className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-ink-secondary hover:text-ink-primary"
       >
         <IconAdjustmentsHorizontal size={13} stroke={1.5} />
-        <span>{expanded ? "收起" : "编辑仓位"}</span>
+        <span>{p.expanded ? "收起" : "编辑仓位"}</span>
       </button>
     </div>
   );
@@ -190,18 +182,8 @@ function usePositionEditor(thesis: ThesisDetail, onUpdated: (updated: ThesisDeta
   const [draft, setDraft] = useState<PositionDraft>(() => toDraft(thesis));
 
   useEffect(() => {
-    setDraft({
-      role: thesis.portfolioRole,
-      weight: String(thesis.currentWeightPct),
-      cap: String(thesis.targetMaxWeightPct),
-      cost: thesis.avgCostBasis !== null ? String(thesis.avgCostBasis) : "",
-    });
-  }, [
-    thesis.portfolioRole,
-    thesis.currentWeightPct,
-    thesis.targetMaxWeightPct,
-    thesis.avgCostBasis,
-  ]);
+    setDraft(toDraft(thesis));
+  }, [thesis]);
 
   async function handleSave() {
     const parsedCost = Number(draft.cost);

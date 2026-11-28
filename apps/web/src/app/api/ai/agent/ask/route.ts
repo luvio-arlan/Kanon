@@ -54,15 +54,18 @@ async function loadAskContextInTx(
 ) {
   const thesis = await getThesisById(tx, params.thesisId, params.userId);
   if (!thesis) return null;
+  const hasTerms = params.tsQuery.trim().length > 0;
   const [secSnapshot, cachedFilings, researchNotes, ftsRows, byok] = await Promise.all([
     getSecSnapshot(tx, thesis.ticker),
     listCachedSecFilingDocsByTicker(tx, thesis.ticker, 3),
     listResearchNotes(tx, thesis.id, 12),
-    searchFilingChunksFts(tx, {
-      ticker: thesis.ticker,
-      tsQuery: params.tsQuery || thesis.ticker,
-      limit: 60,
-    }),
+    hasTerms
+      ? searchFilingChunksFts(tx, {
+          ticker: thesis.ticker,
+          tsQuery: params.tsQuery,
+          limit: 60,
+        })
+      : Promise.resolve([]),
     resolveEffectiveByok(tx, params.userId, params.request),
   ]);
   return {
@@ -70,6 +73,7 @@ async function loadAskContextInTx(
     secSnapshot,
     cachedFilings,
     researchNotes,
+    retrievalStatus: hasTerms ? ("fts" as const) : ("no_terms" as const),
     warehouseChunks: ftsRows.map((r) => ({
       id: r.id,
       accession: r.accession,

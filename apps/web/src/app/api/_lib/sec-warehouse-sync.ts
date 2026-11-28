@@ -43,7 +43,7 @@ export function prepareSecSnapshotCommit(snapshot: SecSnapshot): PreparedSecComm
   const filingItemsByAcc = new Map<string, string[]>();
   const fanout8kJobs: PreparedSecCommit["fanout8kJobs"] = [];
   const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
-  for (const f of snapshot.filings.slice(0, 10)) {
+  for (const f of snapshot.filings) {
     if (!f.form.startsWith("8-K")) continue;
     filingItemsByAcc.set(f.accessionNumber, parseForm8kItemCodes(f.description ?? ""));
     if (f.filingDate < cutoff) continue;
@@ -87,13 +87,15 @@ async function enqueuePostCommitJobs(tx: KanonDb, prepared: PreparedSecCommit) {
   }
   const target = prepared.snapshot.filings.find((f) => /^(?:10-K|10-Q|20-F)$/i.test(f.form));
   if (target) {
-    await enqueueJob(tx, {
-      id: `build_redline:${target.accessionNumber}`,
-      kind: "build_redline",
-      payload: { ticker: prepared.snapshot.ticker, accession: target.accessionNumber },
-      priority: 40,
-      maxAttempts: 3,
-    });
+    for (const section of ["risk_factors", "mda"] as const) {
+      await enqueueJob(tx, {
+        id: `build_redline:${target.accessionNumber}:${section}`,
+        kind: "build_redline",
+        payload: { ticker: prepared.snapshot.ticker, accession: target.accessionNumber, section },
+        priority: 40,
+        maxAttempts: 3,
+      });
+    }
   }
 }
 
@@ -111,7 +113,7 @@ async function persistWarehouseData(
     adrRatio: snapshot.adrRatio,
     secStatus: "active",
   });
-  for (const f of snapshot.filings.slice(0, 10)) {
+  for (const f of snapshot.filings) {
     await upsertFiling(tx, {
       accession: f.accessionNumber,
       securityId: security.id,

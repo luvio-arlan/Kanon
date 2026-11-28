@@ -10,6 +10,7 @@ import {
 } from "../schema";
 import { SEED_THESIS_RECORDS } from "../seeds/seed-theses";
 import type { SeedThesisRecord } from "../seeds/seed-types";
+import { appendHypothesisStatusEvent } from "./portfolio/hypothesis-events-store";
 
 function buildUserScopedId(userId: string, baseId: string): string {
   const suffix = userId.replace(/[^a-zA-Z0-9]/g, "").slice(-8) || "u";
@@ -130,4 +131,15 @@ export async function provisionStarterWorkspaceForUser(tx: KanonDb, userId: stri
       ? tx.insert(disciplineEntriesTable).values(children.disciplines).onConflictDoNothing()
       : Promise.resolve(),
   ]);
+  for (const h of children.hypotheses) {
+    await appendHypothesisStatusEvent(tx, {
+      thesisId: h.thesisId,
+      hypothesisId: h.id,
+      fromStatus: null,
+      toStatus: h.status,
+      source: "import",
+      actorUserId: userId,
+      note: "模板预置初始假设",
+    });
+  }
 }

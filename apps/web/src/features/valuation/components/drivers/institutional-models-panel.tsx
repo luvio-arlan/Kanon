@@ -1,7 +1,7 @@
 "use client";
 
 import type { SecAnnualFinancial } from "@kanon/core";
-import { Button, Input } from "@kanon/ui";
+import { Button, formatMoney, Input } from "@kanon/ui";
 import { IconBookmark, IconHistory } from "@tabler/icons-react";
 import type { SavedModelVersion } from "../../lib/model-versions-api";
 import { type CoreModelInputs, useInstitutionalModels } from "../../lib/use-institutional-models";
@@ -65,8 +65,11 @@ function ModelVersionsList({ versions }: { versions: readonly SavedModelVersion[
               v{v.versionNum} · {v.label}
             </span>
             <span className="font-mono text-ink-secondary tabular-nums">
-              DCF ${Number(v.outputs.fairValuePerShare ?? 0).toFixed(1)} ·{" "}
-              {v.createdAt.slice(0, 10)}
+              DCF{" "}
+              {formatMoney(Number(v.outputs.fairValuePerShare ?? 0), "USD", {
+                maximumFractionDigits: 1,
+              })}{" "}
+              · {v.createdAt.slice(0, 10)}
             </span>
           </div>
         ))}

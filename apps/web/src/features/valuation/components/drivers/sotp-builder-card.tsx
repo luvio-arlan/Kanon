@@ -1,7 +1,7 @@
 "use client";
 
 import { calculateSotpValuation, type SotpSegment, type SotpValuationResult } from "@kanon/core";
-import { Badge, Button, Card, Input } from "@kanon/ui";
+import { Badge, Button, Card, formatMoney, Input } from "@kanon/ui";
 import { IconArrowDownRight, IconLayersSubtract, IconPlus, IconTrash } from "@tabler/icons-react";
 import { DriverNumInput } from "../ev-owner-fcf-card";
 import { SotpSecImport } from "./sotp-sec-import";
@@ -11,7 +11,7 @@ const SEG_NUM_FIELDS: ReadonlyArray<{
   label: (metricLabel: string) => string;
   step: number;
 }> = [
-  { key: "metricValueB", label: (m) => `${m} ($B)`, step: 0.5 },
+  { key: "metricValueB", label: (m) => `${m} (B)`, step: 0.5 },
   { key: "bearMultiple", label: () => "悲观×", step: 1 },
   { key: "baseMultiple", label: () => "中性×", step: 1 },
   { key: "bullMultiple", label: () => "乐观×", step: 1 },
@@ -46,7 +46,9 @@ function SotpSegmentRow(p: {
       ))}
       <div className="flex items-center justify-between sm:col-span-1 sm:flex-col sm:items-end">
         <span className="font-mono text-xs text-ink-primary tabular-nums">
-          {p.baseValB !== null ? `$${p.baseValB}B` : "—"}
+          {p.baseValB !== null
+            ? formatMoney(p.baseValB * 1e9, "USD", { scale: "B", maximumFractionDigits: 1 })
+            : "—"}
         </span>
         <div className="flex items-center gap-1">
           <span className="font-mono text-xs text-ink-muted">
@@ -74,7 +76,9 @@ function SotpHeader(p: { netCashB: number; disc: number; onDisc: (v: number) => 
         <h3 className="text-sm font-semibold text-ink-primary">SOTP 分部加总估值</h3>
       </div>
       <div className="flex items-center gap-2">
-        <Badge variant="titanium">净现金 ${p.netCashB.toFixed(1)}B</Badge>
+        <Badge variant="titanium">
+          净现金 {formatMoney(p.netCashB * 1e9, "USD", { scale: "B", maximumFractionDigits: 1 })}
+        </Badge>
         <div className="w-28">
           <DriverNumInput label="控股折价%" value={p.disc} step={1} onChange={p.onDisc} />
         </div>
@@ -103,11 +107,11 @@ function SotpFooter(p: {
           </Button>
         ) : null}
         <span className="font-mono text-xs text-ink-secondary tabular-nums">
-          悲观 {p.res.bearTargetPrice !== null ? `$${p.res.bearTargetPrice}` : "—"} · 中性{" "}
+          悲观 {formatMoney(p.res.bearTargetPrice, "USD", { maximumFractionDigits: 1 })} · 中性{" "}
           <strong className="text-accent-coral">
-            {p.res.baseTargetPrice !== null ? `$${p.res.baseTargetPrice}` : "—"}
+            {formatMoney(p.res.baseTargetPrice, "USD", { maximumFractionDigits: 1 })}
           </strong>{" "}
-          · 乐观 {p.res.bullTargetPrice !== null ? `$${p.res.bullTargetPrice}` : "—"}
+          · 乐观 {formatMoney(p.res.bullTargetPrice, "USD", { maximumFractionDigits: 1 })}
         </span>
       </div>
       <Button variant="primary" size="sm" disabled={!ready} onClick={p.onApply}>

@@ -8,13 +8,9 @@ import {
 } from "./benchmark-tr";
 import { detectUnrecordedDividends } from "./dividend-audit";
 import { computeMaxDrawdown } from "./drawdown";
-import type { ReplayTxInput, SplitActionInput } from "./ledger-replay";
-import {
-  applyDayTxsAndSplits,
-  buildCloseLookup,
-  type HoldingState,
-  markEquityValue,
-} from "./nav-helpers";
+import { type ReplayTxInput, type SplitActionInput, sortReplayTxs } from "./ledger-replay";
+import { applyDayTxs, buildCloseLookup, type HoldingState, markEquityValue } from "./nav-helpers";
+import { detectSplitRebaseCliffs, normalizeTransactionsToSplitBasis } from "./split-basis";
 import { computeDailyTwr } from "./twr";
 
 export interface PerformanceSeriesInput {
@@ -51,11 +47,11 @@ function collectDateGrid(input: PerformanceSeriesInput, firstTxDate: string): st
 
 function simulateDailyNav(
   input: PerformanceSeriesInput,
-  sortedTxs: readonly ReplayTxInput[],
+  normalizedTxs: readonly ReplayTxInput[],
   dates: readonly string[],
 ) {
   const txsByDay = new Map<string, ReplayTxInput[]>();
-  for (const tx of sortedTxs) {
+  for (const tx of normalizedTxs) {
     const arr = txsByDay.get(tx.tradeDate) ?? [];
     arr.push(tx);
     txsByDay.set(tx.tradeDate, arr);
@@ -63,7 +59,6 @@ function simulateDailyNav(
   const closeLookup = buildCloseLookup(input.barsByTicker);
   const holdings = new Map<string, HoldingState>();
   const lastClose = new Map<string, number>();
-  const appliedSplits = new Set<string>();
   const sharesAtDate = new Map<string, Map<string, number>>();
   let cash = 0;
   const rawPoints: RawNavRow[] = [];
@@ -72,12 +67,9 @@ function simulateDailyNav(
     const snap = new Map<string, number>();
     for (const [t, h] of holdings) if (h.shares > 1e-6) snap.set(t, h.shares);
     sharesAtDate.set(day, snap);
-    const { cashDelta, netFlow } = applyDayTxsAndSplits({
-      day,
+    const { cashDelta, netFlow } = applyDayTxs({
       dayTxs: txsByDay.get(day) ?? [],
       holdings,
-      splitsByTicker: input.splitsByTicker,
-      appliedSplits,
     });
     cash = roundTo(cash + cashDelta, 2);
     const { equityValue, basis } = markEquityValue({ day, holdings, closeLookup, lastClose });
@@ -135,16 +127,65 @@ function buildFinalNavPoints(
   }));
 }
 
-/** Builds daily NAV, TWR, Modified Dietz, Max Drawdown, and SPY total-return comparison strictly from unadjusted closes (S1 / G16). */
+function buildRebasePendingResponse(
+  accountId: string,
+  rawPoints: readonly RawNavRow[],
+): PortfolioPerformanceResponse {
+  const last = rawPoints[rawPoints.length - 1];
+  return {
+    accountId,
+    status: "insufficient_bars",
+    totalNav: last?.nav ?? 0,
+    cashBalance: last?.cash ?? 0,
+    equityValue: last?.equityValue ?? 0,
+    twrPct: null,
+    modifiedDietzPct: null,
+    annualizedTwrPct: null,
+    spyTrPct: null,
+    excessReturnPct: null,
+    maxDrawdownPct: null,
+    maxDrawdownPeakDate: null,
+    maxDrawdownTroughDate: null,
+    currentDrawdownPct: null,
+    tradingDays: 0,
+    basis: "rebase_pending",
+    series: rawPoints.map((p) => ({
+      ...p,
+      twrCumPct: null,
+      spyTrCumPct: null,
+      drawdownPct: null,
+    })),
+    unrecordedDividends: [],
+  };
+}
+
+function hasHeldSplitCliff(
+  sortedTxs: readonly ReplayTxInput[],
+  input: PerformanceSeriesInput,
+): boolean {
+  const heldTickers = new Set(
+    sortedTxs.filter((t) => t.action === "buy").map((t) => t.ticker.trim().toUpperCase()),
+  );
+  return detectSplitRebaseCliffs(input.barsByTicker, input.splitsByTicker).some((t) =>
+    heldTickers.has(t),
+  );
+}
+
+/**
+ * Builds daily NAV, TWR, Modified Dietz, Max Drawdown, and SPY total-return comparison on a unified
+ * latest split-adjusted close-bar basis (never `.adjClose` — U0-5 / G16 / G23).
+ */
 export function buildPortfolioPerformanceSeries(
   input: PerformanceSeriesInput,
 ): PortfolioPerformanceResponse {
   if (input.transactions.length === 0) return emptyPerformance(input.accountId);
-  const sortedTxs = [...input.transactions].sort(
-    (a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.createdAtMs - b.createdAtMs,
-  );
+  const sortedTxs = sortReplayTxs(input.transactions);
+  const normalizedTxs = normalizeTransactionsToSplitBasis(sortedTxs, input.splitsByTicker);
   const dates = collectDateGrid(input, sortedTxs[0]?.tradeDate ?? input.asOfDate);
-  const { rawPoints, sharesAtDate } = simulateDailyNav(input, sortedTxs, dates);
+  const { rawPoints, sharesAtDate } = simulateDailyNav(input, normalizedTxs, dates);
+  if (hasHeldSplitCliff(sortedTxs, input))
+    return buildRebasePendingResponse(input.accountId, rawPoints);
+
   const twr = computeDailyTwr(rawPoints);
   const spySeries = rebaseTotalReturnPct(
     buildTotalReturnIndex(input.spyBars, input.spyDividends),

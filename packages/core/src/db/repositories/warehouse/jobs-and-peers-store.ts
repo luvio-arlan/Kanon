@@ -1,16 +1,20 @@
 import crypto from "node:crypto";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { KanonDb } from "../../bootstrap";
-import { type JobStatus, jobsTable, securitiesTable, thesesTable } from "../../schema";
+import { type JobStatus, jobsTable } from "../../schema";
 import { SYSTEM_META_JOB_KINDS } from "./job-queue-helpers";
 
 export {
   ALERT_CURSOR_JOB_ID,
+  ensureFirstSeen,
+  FIRST_SEEN_JOB_ID,
   getAlertEvalCursor,
+  getCronHealth,
   getDbSizePct,
   getJobQueueHealth,
   type JobQueueHealth,
-  recordTickHeartbeat,
+  recordTickCompleted,
+  recordTickStarted,
   requeueJobForCursor,
   setAlertEvalCursor,
   skipJob,
@@ -57,6 +61,21 @@ export async function enqueueJob(
   return { id, inserted: inserted.length > 0 };
 }
 
+export async function getJobById(db: KanonDb, jobId: string): Promise<QueuedJobRow | null> {
+  const [row] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId)).limit(1);
+  if (!row) return null;
+  return {
+    id: row.id,
+    kind: row.kind,
+    payload: row.payload ?? {},
+    priority: row.priority,
+    attempts: row.attempts,
+    maxAttempts: row.maxAttempts,
+    status: row.status,
+    lastError: row.lastError ?? null,
+  };
+}
+
 export async function countUserPendingJobs(db: KanonDb, userId: string): Promise<number> {
   const [row] = await db
     .select({ cnt: sql<number>`count(*)::int` })
@@ -65,81 +84,6 @@ export async function countUserPendingJobs(db: KanonDb, userId: string): Promise
   return Number(row?.cnt ?? 0);
 }
 
-async function enqueueTickerDailyPair(
-  db: KanonDb,
-  params: { ticker: string; day: string; isSunday: boolean; isSecRegistrant: boolean },
-): Promise<number> {
-  await enqueueJob(db, {
-    id: `sync_daily_bars:${params.ticker}:${params.day}`,
-    kind: "sync_daily_bars",
-    payload: params.isSunday
-      ? { ticker: params.ticker, forceFullRebase: true }
-      : { ticker: params.ticker },
-    priority: 50,
-    maxAttempts: 4,
-  });
-  if (!params.isSecRegistrant) return 1;
-  await enqueueJob(db, {
-    id: `sync_sec:${params.ticker}:${params.day}`,
-    kind: "sync_sec",
-    payload: { ticker: params.ticker },
-    priority: 60,
-    maxAttempts: 4,
-  });
-  return 2;
-}
-
-async function enqueueGlobalDailyJobs(db: KanonDb, day: string, isSunday: boolean) {
-  await enqueueJob(db, {
-    id: `sync_daily_bars:SPY:${day}`,
-    kind: "sync_daily_bars",
-    payload: isSunday ? { ticker: "SPY", forceFullRebase: true } : { ticker: "SPY" },
-    priority: 45,
-    maxAttempts: 4,
-  });
-  const daily = [["evaluate_alerts", 90, 3]] as const;
-  for (const [kind, priority, maxAttempts] of daily) {
-    await enqueueJob(db, { id: `${kind}:${day}`, kind, payload: { day }, priority, maxAttempts });
-  }
-  return 2;
-}
-
-/**
- * Fans out daily idempotent watchlist jobs (daily bars, SEC sync, guidance resolution, chunk prune, alerts)
- * for all distinct tickers across non-archived theses.
- */
-export async function enqueueWatchlistJobs(db: KanonDb, dateKey?: string): Promise<number> {
-  const day = dateKey ?? new Date().toISOString().slice(0, 10);
-  const isSunday = new Date(`${day}T00:00:00Z`).getUTCDay() === 0;
-  const [rows, nonSecRows] = await Promise.all([
-    db
-      .selectDistinct({ ticker: thesesTable.ticker })
-      .from(thesesTable)
-      .where(ne(thesesTable.status, "archived_veto")),
-    db
-      .select({ ticker: securitiesTable.ticker })
-      .from(securitiesTable)
-      .where(eq(securitiesTable.secStatus, "not_registrant")),
-  ]);
-  const nonSecSet = new Set(nonSecRows.map((r) => r.ticker.trim().toUpperCase()));
-  let enqueued = 0;
-  for (const row of rows) {
-    const ticker = row.ticker.trim().toUpperCase();
-    if (!ticker) continue;
-    enqueued += await enqueueTickerDailyPair(db, {
-      ticker,
-      day,
-      isSunday,
-      isSecRegistrant: !nonSecSet.has(ticker),
-    });
-  }
-  return enqueued + (await enqueueGlobalDailyJobs(db, day, isSunday));
-}
-
-/**
- * Terminates poisoned jobs whose lease expired after exhausting max_attempts,
- * then atomically claims due jobs using `FOR UPDATE SKIP LOCKED`.
- */
 function mapRawJobRow(r: Record<string, unknown>): QueuedJobRow {
   return {
     id: String(r.id),
@@ -151,6 +95,28 @@ function mapRawJobRow(r: Record<string, unknown>): QueuedJobRow {
     status: String(r.status) as JobStatus,
     lastError: r.last_error ? String(r.last_error) : null,
   };
+}
+
+/** Atomically claims a specific job by ID if pending/expired so on-demand & cron share one lease (U0-4). */
+export async function claimJobById(
+  db: KanonDb,
+  params: { jobId: string; workerId: string; leaseSeconds?: number },
+): Promise<QueuedJobRow | null> {
+  const leaseSec = Math.max(15, Math.min(600, params.leaseSeconds ?? 120));
+  const res = await db.execute(sql`
+    UPDATE jobs
+    SET status = 'running',
+        locked_by = ${params.workerId},
+        locked_until = NOW() + (${leaseSec} * INTERVAL '1 second'),
+        attempts = attempts + 1
+    WHERE id = ${params.jobId}
+      AND attempts < max_attempts
+      AND ((status = 'pending' AND run_at <= NOW())
+        OR (status = 'running' AND locked_until IS NOT NULL AND locked_until < NOW()))
+    RETURNING id, kind, payload, priority, attempts, max_attempts, status, last_error
+  `);
+  const rawRows = (Array.isArray(res) ? res : res.rows) as Record<string, unknown>[];
+  return rawRows[0] ? mapRawJobRow(rawRows[0]) : null;
 }
 
 export async function claimDueJobs(

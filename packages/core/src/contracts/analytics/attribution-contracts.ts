@@ -10,6 +10,17 @@ export const DecisionQuadrantSchema = z.enum([
 ]);
 export type DecisionQuadrant = z.infer<typeof DecisionQuadrantSchema>;
 
+export const OutcomeBasisSchema = z.enum(["idiosyncratic", "excess_vs_spy", "unavailable"]);
+export type OutcomeBasis = z.infer<typeof OutcomeBasisSchema>;
+
+export const EpisodePendingReasonSchema = z.enum([
+  "no_snapshot",
+  "pre_history",
+  "hypotheses_open",
+  "no_benchmark",
+]);
+export type EpisodePendingReason = z.infer<typeof EpisodePendingReasonSchema>;
+
 export const DecisionEpisodeSchema = z.object({
   id: z.string().min(1),
   thesisId: z.string().nullable(),
@@ -23,6 +34,8 @@ export const DecisionEpisodeSchema = z.object({
   spyReturnPct: z.number().finite().nullable(),
   pitBeta: z.number().finite().nullable(),
   idioReturnPct: z.number().finite().nullable(),
+  outcomeBasis: OutcomeBasisSchema.default("unavailable"),
+  pendingReason: EpisodePendingReasonSchema.nullable().default(null),
   judgmentVerdict: z.enum(["right", "wrong", "pending"]),
   quadrant: DecisionQuadrantSchema,
   snapshotHash: z.string().nullable(),
@@ -41,6 +54,13 @@ export const PortfolioAttributionResponseSchema = z.object({
     mistake: z.number().int().min(0),
     pending: z.number().int().min(0),
   }),
+  outcomeBasisCounts: z
+    .object({
+      idiosyncratic: z.number().int().min(0),
+      excess_vs_spy: z.number().int().min(0),
+      unavailable: z.number().int().min(0),
+    })
+    .default({ idiosyncratic: 0, excess_vs_spy: 0, unavailable: 0 }),
   skillRatePct: z.number().finite().nullable(),
   episodes: z.array(DecisionEpisodeSchema),
 });

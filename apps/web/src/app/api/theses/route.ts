@@ -8,7 +8,6 @@ import {
   listTheses,
   upsertAlertRule,
 } from "@kanon/core/db";
-import { after } from "next/server";
 import { requireWorkspaceContext } from "../_lib/auth-session";
 import {
   formatZodError,
@@ -19,6 +18,7 @@ import {
 } from "../_lib/http";
 import { generateRequestId, logStructuredApiEvent } from "../_lib/logger";
 import { checkPersistentRateLimit, verifySameOrigin } from "../_lib/request-guards";
+import { scheduleBackgroundAfterTask } from "../internal/jobs/tick/job-once";
 
 export const dynamic = "force-dynamic";
 
@@ -89,7 +89,7 @@ async function enqueueInitialSyncJobs(
 
 function scheduleAfterSync(ticker: string, day: string, startedAt: number) {
   try {
-    after(async () => {
+    scheduleBackgroundAfterTask(`/api/theses/sync/${ticker}`, async () => {
       const { runSingleTickerSyncBestEffort } = await import("../_lib/on-demand-sync");
       await runSingleTickerSyncBestEffort(ticker, day);
     });

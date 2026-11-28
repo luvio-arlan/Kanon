@@ -6,35 +6,35 @@ import {
   TickerSymbolSchema,
 } from "@kanon/core";
 import {
-  enqueueJob,
+  getJobById,
   getSecurityByTicker,
-  listFilingsBySecurity,
   listLatestSegmentReportsBySecurity,
+  listPeriodicFilingsBySecurity,
+  selectPrimaryPeriodicFiling,
 } from "@kanon/core/db";
-import { after } from "next/server";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
-import { withSystemDb } from "../../../_lib/db-context";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../../_lib/http";
 import { checkPersistentRateLimit, verifySameOrigin } from "../../../_lib/request-guards";
 import { runSyncSegmentsJob } from "../../../_lib/sec-intel-jobs";
+import { scheduleJobOnce } from "../../../internal/jobs/tick/job-once";
 
 export const dynamic = "force-dynamic";
 
 const SEGMENTS_RATE_POLICY = { bucket: "sec_segments", maxRequests: 20, windowMs: 60 * 1000 };
+const ANNUAL_FORMS = ["10-K", "10-K/A", "20-F", "20-F/A"] as const;
+const QUARTER_FORMS = ["10-Q", "10-Q/A"] as const;
 
-async function enqueueSegmentSync(ticker: string, accession: string) {
-  await withSystemDb("user_triggered_sync", (tx) =>
-    enqueueJob(tx, {
-      id: `sync_segments:${accession}`,
-      kind: "sync_segments",
-      payload: { ticker, accession },
-      priority: 35,
-      maxAttempts: 3,
-    }),
-  );
-  after(() =>
-    runSyncSegmentsJob({ ticker, accession }, "user_triggered_sync").catch(() => undefined),
-  );
+async function triggerSegmentSync(ticker: string, accession: string) {
+  await scheduleJobOnce({
+    id: `sync_segments:${accession}`,
+    kind: "sync_segments",
+    payload: { ticker, accession },
+    priority: 35,
+    maxAttempts: 3,
+    run: async (signal) => {
+      await runSyncSegmentsJob({ ticker, accession }, "user_triggered_sync", signal);
+    },
+  });
 }
 
 function parseSegmentQuery(request: Request, rawTicker: string, startedAt: number) {
@@ -61,12 +61,40 @@ function parseSegmentQuery(request: Request, rawTicker: string, startedAt: numbe
       response: jsonError("asOf 日期格式需为 YYYY-MM-DD。", 400, startedAt, "INVALID"),
     };
   }
+  const periodKind = sp.get("period") === "quarter" ? ("quarter" as const) : ("annual" as const);
   return {
     ok: true as const,
     ticker: parsedTicker.data,
     axis: parsedAxis.data,
+    periodKind,
     asOf: parsedAsOf?.success ? parsedAsOf.data : undefined,
   };
+}
+
+async function loadSegmentsState(
+  tx: Parameters<Parameters<typeof import("../../../_lib/db-context").withUserDb>[1]>[0],
+  q: {
+    ticker: string;
+    axis: "business" | "geography" | "product";
+    periodKind: "annual" | "quarter";
+    asOf?: string;
+  },
+) {
+  const sec = await getSecurityByTicker(tx, q.ticker);
+  if (!sec) return { sec: null, reports: [], latestAcc: null, job: null };
+  const forms = q.periodKind === "quarter" ? QUARTER_FORMS : ANNUAL_FORMS;
+  const [reports, filings] = await Promise.all([
+    listLatestSegmentReportsBySecurity(tx, {
+      securityId: sec.id,
+      axis: q.axis,
+      asOf: q.asOf,
+      periodKind: q.periodKind,
+    }),
+    listPeriodicFilingsBySecurity(tx, sec.id, { forms, limit: 16 }),
+  ]);
+  const latestAcc = selectPrimaryPeriodicFiling(filings)?.accession ?? null;
+  const job = latestAcc ? await getJobById(tx, `sync_segments:${latestAcc}`) : null;
+  return { sec, reports, latestAcc, job };
 }
 
 export async function GET(request: Request, context: { params: Promise<{ ticker: string }> }) {
@@ -75,25 +103,19 @@ export async function GET(request: Request, context: { params: Promise<{ ticker:
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-
   const q = parseSegmentQuery(request, (await context.params).ticker, startedAt);
   if (!q.ok) return q.response;
-  const loaded = await auth.withDb(async (tx) => {
-    const sec = await getSecurityByTicker(tx, q.ticker);
-    if (!sec) return { sec: null, reports: [], latestAcc: null };
-    const [reports, filings] = await Promise.all([
-      listLatestSegmentReportsBySecurity(tx, { securityId: sec.id, axis: q.axis, asOf: q.asOf }),
-      listFilingsBySecurity(tx, sec.id, 12),
-    ]);
-    return {
-      sec,
-      reports,
-      latestAcc: filings.find((f) => /^(?:10-K|20-F|10-Q)$/i.test(f.form))?.accession ?? null,
-    };
-  });
-
+  const loaded = await auth.withDb((tx) => loadSegmentsState(tx, q));
   if (loaded.reports.length === 0 && loaded.sec?.cik && loaded.latestAcc) {
-    await enqueueSegmentSync(q.ticker, loaded.latestAcc);
+    if (loaded.job?.status === "failed") {
+      return jsonOk(
+        SegmentsResponseSchema.parse({ ticker: q.ticker, status: "unavailable", reports: [] }),
+        startedAt,
+      );
+    }
+    if (loaded.job?.status !== "pending" && loaded.job?.status !== "running") {
+      await triggerSegmentSync(q.ticker, loaded.latestAcc);
+    }
     return jsonOk(
       SegmentsResponseSchema.parse({ ticker: q.ticker, status: "pending", reports: [] }),
       startedAt,
@@ -137,11 +159,14 @@ export async function POST(request: Request, context: { params: Promise<{ ticker
     const sec = await getSecurityByTicker(tx, ticker);
     if (!sec?.cik) return null;
     if (parsed.data.accession) return parsed.data.accession;
-    const filings = await listFilingsBySecurity(tx, sec.id, 12);
-    return filings.find((f) => /^(?:10-K|20-F|10-Q)$/i.test(f.form))?.accession ?? null;
+    const filings = await listPeriodicFilingsBySecurity(tx, sec.id, {
+      forms: ANNUAL_FORMS,
+      limit: 16,
+    });
+    return selectPrimaryPeriodicFiling(filings)?.accession ?? null;
   });
   if (!acc) return jsonError("该标的暂无可解析的 SEC 申报文件。", 404, startedAt, "NOT_FOUND");
-  await enqueueSegmentSync(ticker, acc);
+  await triggerSegmentSync(ticker, acc);
   return jsonOk(
     SegmentsResponseSchema.parse({ ticker, status: "pending", reports: [] }),
     startedAt,

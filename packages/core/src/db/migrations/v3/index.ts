@@ -8,6 +8,7 @@ import { KANON_SEGMENT_REPORTS_SQL } from "./0030-segment-reports";
 import { KANON_GUIDANCE_LEDGER_SQL } from "./0031-guidance-ledger";
 import { KANON_FILING_CHUNKS_FTS_SQL } from "./0032-filing-chunks-fts";
 import { KANON_DECISION_SNAPSHOTS_SQL } from "./0033-decision-snapshots";
+import { KANON_WAVE_U0_INTEGRITY_SQL } from "./0034-wave-u0-integrity";
 
 export const KANON_V3_MIGRATIONS = [
   {
@@ -67,5 +68,11 @@ export const KANON_V3_MIGRATIONS = [
     description:
       "Expand-only immutable decision_snapshots & append-only hypothesis_status_events with triggers, RLS & backfill (S3)",
     sql: KANON_DECISION_SNAPSHOTS_SQL,
+  },
+  {
+    id: "0034_wave_u0_integrity",
+    description:
+      "Expand-only Wave U0 integrity: segment profit_reconciled/period_kind, guidance basis/freeze, snapshot survivorship RLS & legacy mixed-currency account flag",
+    sql: KANON_WAVE_U0_INTEGRITY_SQL,
   },
 ] as const;

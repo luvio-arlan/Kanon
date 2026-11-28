@@ -46,11 +46,24 @@ export type LedgerReplayResult = LedgerReplaySuccess | LedgerReplayFailure;
 const CASH_EPS = 0.005;
 const QTY_EPS = 1e-6;
 
-function sortReplayTxs(txs: readonly ReplayTxInput[]): ReplayTxInput[] {
+const SAME_DAY_ACTION_RANK: Record<LedgerAction, number> = {
+  deposit: 0,
+  dividend: 1,
+  sell: 2,
+  buy: 3,
+  withdraw: 4,
+};
+
+/**
+ * Deterministic end-of-day settlement ordering for ledger replay (U0-11 / P2-5):
+ * opening balance -> tradeDate -> (deposit/dividend -> sell -> buy -> withdraw) -> createdAt -> id.
+ */
+export function sortReplayTxs(txs: readonly ReplayTxInput[]): ReplayTxInput[] {
   return [...txs].sort(
     (a, b) =>
       Number(Boolean(b.isOpeningBalance)) - Number(Boolean(a.isOpeningBalance)) ||
       a.tradeDate.localeCompare(b.tradeDate) ||
+      SAME_DAY_ACTION_RANK[a.action] - SAME_DAY_ACTION_RANK[b.action] ||
       a.createdAtMs - b.createdAtMs ||
       a.id.localeCompare(b.id),
   );

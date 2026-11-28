@@ -1,6 +1,6 @@
 "use client";
 
-import { Input } from "@kanon/ui";
+import { formatMoney, Input } from "@kanon/ui";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { useState } from "react";
 
@@ -100,17 +100,17 @@ function BandAxisTrack({
         style={{ left: `${pct(mcP10)}%`, width: `${Math.max(2, pct(mcP90) - pct(mcP10))}%` }}
       />
       <div
-        title={`蒙特卡洛 P50 现值 $${mcP50.toFixed(1)}`}
+        title={`蒙特卡洛 P50 现值 ${formatMoney(mcP50, "USD", { maximumFractionDigits: 1 })}`}
         className="absolute top-1.5 h-3 w-0.5 bg-ink-secondary"
         style={{ left: `${pct(mcP50)}%` }}
       />
       <div
-        title={`FCFF DCF 现值 $${dcfFairValue.toFixed(1)}`}
+        title={`FCFF DCF 现值 ${formatMoney(dcfFairValue, "USD", { maximumFractionDigits: 1 })}`}
         className="absolute top-1 h-4 w-1 rounded-pill bg-ink-primary"
         style={{ left: `${pct(dcfFairValue)}%` }}
       />
       <div
-        title={`当前价格 $${currentPrice.toFixed(1)}`}
+        title={`当前价格 ${formatMoney(currentPrice, "USD", { maximumFractionDigits: 1 })}`}
         className="absolute top-0.5 h-5 w-1 rounded-pill bg-accent-coral"
         style={{ left: `${pct(currentPrice)}%` }}
       />
@@ -136,11 +136,15 @@ export function UnifiedValuationBand(p: UnifiedValuationBandProps) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex flex-wrap items-baseline gap-4 font-mono tabular-nums">
           <span className="text-ink-primary">
-            DCF 现值 <strong className="text-sm">${p.dcfFairValue.toFixed(1)}</strong>
+            DCF 现值{" "}
+            <strong className="text-sm">
+              {formatMoney(p.dcfFairValue, "USD", { maximumFractionDigits: 1 })}
+            </strong>
           </span>
           <span className="text-ink-secondary">
-            分布现值 P10 ${p.mcP10.toFixed(0)} · P50 ${p.mcP50.toFixed(1)} · P90 $
-            {p.mcP90.toFixed(0)}
+            分布现值 P10 {formatMoney(p.mcP10, "USD", { maximumFractionDigits: 0 })} · P50{" "}
+            {formatMoney(p.mcP50, "USD", { maximumFractionDigits: 1 })} · P90{" "}
+            {formatMoney(p.mcP90, "USD", { maximumFractionDigits: 0 })}
           </span>
         </div>
         <span className="font-mono text-ink-secondary tabular-nums">
@@ -156,7 +160,8 @@ export function UnifiedValuationBand(p: UnifiedValuationBandProps) {
       />
       <div className="flex flex-wrap items-center justify-between gap-2 text-ink-muted">
         <span className="font-mono tabular-nums">
-          现价 ${p.currentPrice.toFixed(1)}（珊瑚标线） · 终值占比 {p.terminalSharePct}%
+          现价 {formatMoney(p.currentPrice, "USD", { maximumFractionDigits: 1 })}（珊瑚标线） ·
+          终值占比 {p.terminalSharePct}%
         </span>
         {p.valueDestroyingGrowth ? (
           <span className="text-status-warn">注意：终值 RONIC 低于 WACC，增长将稀释价值</span>

@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../contracts/auth-contracts";
-import { roundTo } from "../../math/valuation-scenarios";
 import {
   type CreateThesisInput,
   CreateThesisInputSchema,
@@ -12,8 +11,14 @@ import {
 } from "../../schemas/research";
 import { type KanonDb, runInTransaction } from "../client";
 import { hypothesesTable, thesesTable, valuationScenariosTable } from "../schema";
+import { appendHypothesisStatusEvent } from "./portfolio/hypothesis-events-store";
 import { listThesisRevisions, recordThesisRevision } from "./revision-queries";
 import { buildThesisWriteAccessWhere } from "./thesis/thesis-access";
+import {
+  buildNewThesisRow,
+  buildStarterHypotheses,
+  buildStarterValuation,
+} from "./thesis/thesis-starters";
 import { getThesisById } from "./thesis-queries";
 import {
   writeBusinessFilterStep,
@@ -24,108 +29,6 @@ import {
   writePriceAnchorStep,
   writeValuationStep,
 } from "./thesis-step-writers";
-
-function buildStarterHypotheses(thesisId: string, companyName: string) {
-  return [
-    {
-      id: `${thesisId}-h1`,
-      thesisId,
-      sortOrder: 0,
-      title: `${companyName} 核心产品保持份额扩张与定价权`,
-      metricLabel: "核心业务营收增速",
-      threshold: "> 15% 同比",
-      status: "watching" as const,
-      note: "请在财报电话会与 10-K 分部收入中核对量价拆解。",
-    },
-    {
-      id: `${thesisId}-h2`,
-      thesisId,
-      sortOrder: 1,
-      title: "毛利率与自由现金流维持护城河水准",
-      metricLabel: "毛利率 / FCF",
-      threshold: "不低于近 3 年中枢",
-      status: "watching" as const,
-      note: "重点观察资本开支转化效率与竞争对手降价压力。",
-    },
-    {
-      id: `${thesisId}-h3`,
-      thesisId,
-      sortOrder: 2,
-      title: "管理层资本配置纪律清晰且无盲目并购",
-      metricLabel: "ROIC / 回购节奏",
-      threshold: "ROIC > 18%",
-      status: "watching" as const,
-      note: "核查 10-K 现金流量表中的回购、分红与研发投入比例。",
-    },
-  ];
-}
-
-function buildStarterValuation(
-  thesisId: string,
-  price: number,
-  latestSecEps?: number,
-  priceHistory?: ReadonlyArray<{ label: string; price: number }>,
-) {
-  const trailingEps = latestSecEps && latestSecEps > 0 ? latestSecEps : roundTo(price / 22, 2);
-  const rawPe = Math.min(35, Math.max(12, Math.round(price / trailingEps)));
-  const basePe = Math.min(32, Math.max(14, rawPe));
-  return {
-    thesisId,
-    bearEps: roundTo(Math.max(0.05, trailingEps * 0.9), 2),
-    bearPe: Math.max(10, basePe - 5),
-    bearProb: 0.25,
-    baseEps: roundTo(Math.max(0.08, trailingEps * 1.38), 2),
-    basePe,
-    baseProb: 0.5,
-    bullEps: roundTo(Math.max(0.12, trailingEps * 1.8), 2),
-    bullPe: Math.min(42, basePe + 5),
-    bullProb: 0.25,
-    priceHistory:
-      priceHistory && priceHistory.length >= 2
-        ? [...priceHistory]
-        : [
-            { label: "6M前", price: roundTo(price * 0.88, 2) },
-            { label: "4M前", price: roundTo(price * 0.94, 2) },
-            { label: "2M前", price: roundTo(price * 0.97, 2) },
-            { label: "现价", price: roundTo(price, 2) },
-          ],
-  };
-}
-
-function buildNewThesisRow(
-  id: string,
-  userId: string,
-  indexOrder: number,
-  parsed: ReturnType<typeof CreateThesisInputSchema.parse>,
-) {
-  return {
-    id,
-    userId,
-    indexOrder,
-    ticker: parsed.ticker,
-    companyName: parsed.companyName,
-    sectorTag: parsed.sectorTag,
-    currentPrice: parsed.currentPrice,
-    horizonYears: 3,
-    convictionSummary:
-      parsed.convictionSummary ??
-      `待完善 ${parsed.companyName}（${parsed.ticker}）的核心护城河与 3 年盈利驱动逻辑。`,
-    status: "active" as const,
-    businessFilter: {
-      recurringRevenue: "watch" as const,
-      pricingPower: "watch" as const,
-      capitalReturn: "watch" as const,
-      governance: "watch" as const,
-      notes: "",
-      vetoReason: "",
-      consensusView: "",
-      variantPerception: "",
-      keyDebate: "",
-      preMortem: "",
-    },
-    lastReviewedLabel: "刚刚创建 · 待初筛",
-  };
-}
 
 export async function createThesis(
   db: KanonDb,
@@ -144,7 +47,19 @@ export async function createThesis(
     const nextOrder = existing.reduce((max, row) => Math.max(max, row.indexOrder), 0) + 1;
 
     await tx.insert(thesesTable).values(buildNewThesisRow(id, userId, nextOrder, parsed));
-    await tx.insert(hypothesesTable).values(buildStarterHypotheses(id, parsed.companyName));
+    const starterHyps = buildStarterHypotheses(id, parsed.companyName);
+    await tx.insert(hypothesesTable).values(starterHyps);
+    for (const h of starterHyps) {
+      await appendHypothesisStatusEvent(tx, {
+        thesisId: id,
+        hypothesisId: h.id,
+        fromStatus: null,
+        toStatus: h.status,
+        source: "import",
+        actorUserId: userId,
+        note: "建档初始假设",
+      });
+    }
     await tx
       .insert(valuationScenariosTable)
       .values(

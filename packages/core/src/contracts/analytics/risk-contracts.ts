@@ -20,8 +20,10 @@ export const CorrelationClusterSchema = z.object({
 export type CorrelationCluster = z.infer<typeof CorrelationClusterSchema>;
 
 export const PortfolioRiskResponseSchema = z.object({
+  accountId: z.string().nullable().default(null),
   status: z.enum(["ready", "insufficient_history", "empty"]),
-  basis: z.enum(["daily_cov", "sector_tag"]),
+  basis: z.enum(["ledger_daily_cov", "insufficient_history", "empty"]),
+  cashWeightPct: z.number().finite().nullable().default(null),
   windowDays: z.number().int().min(0),
   annualizedVolPct: z.number().finite().nullable(),
   portfolioBeta: z.number().finite().nullable(),

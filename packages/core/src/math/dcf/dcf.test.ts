@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  calculateEquityBridge,
-  calculateMultiStageFcffDcf,
-  calculateTsmOptionDilution,
-  calculateWacc,
-  evaluateValueAtCapYears,
-  solveMauboussinImpliedCap,
-} from "./index";
+import { calculateEquityBridge, calculateTsmOptionDilution } from "./equity-bridge";
+import { calculateMultiStageFcffDcf } from "./fcff-dcf";
+import { evaluateValueAtCapYears, solveMauboussinImpliedCap } from "./reverse-dcf-cap";
+import { calculateWacc } from "./wacc";
 
 describe("Institutional DCF, WACC, Equity Bridge & Mauboussin CAP (W2.1-W2.2)", () => {
   it("computes Damodaran-standard market-value-weighted WACC", () => {

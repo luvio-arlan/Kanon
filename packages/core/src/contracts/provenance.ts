@@ -53,19 +53,3 @@ export interface ProvenancedMetric {
   provenance: Provenance;
   asOf: string;
 }
-
-export function createProvenancedMetric(
-  value: number | null,
-  provenance: Provenance,
-  asOf = new Date().toISOString(),
-): ProvenancedMetric {
-  return { value, provenance, asOf };
-}
-
-export function formatProvenanceSourceLabel(p: Provenance): string {
-  if (p.kind === "sec_fact") return `SEC XBRL (${p.xbrlTag})`;
-  if (p.kind === "derived") return `公式计算：${p.formula}`;
-  if (p.kind === "vendor") return `外部数据源：${p.provider}`;
-  if (p.kind === "user_input") return "研究员手工录入";
-  return `兜底回退：${p.reason}`;
-}

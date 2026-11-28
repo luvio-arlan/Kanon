@@ -1,4 +1,8 @@
-import { type ComparableFilingCandidate, findComparablePriorFiling } from "@kanon/ai";
+import {
+  type ComparableFilingCandidate,
+  findComparablePriorFiling,
+  REDLINE_ALGO_VERSION,
+} from "@kanon/ai";
 import {
   FilingRedlineResponseSchema,
   type RedlineSection,
@@ -6,18 +10,18 @@ import {
   TickerSymbolSchema,
 } from "@kanon/core";
 import {
-  enqueueJob,
   getFilingRedline,
+  getJobById,
   getSecurityByTicker,
   type KanonDb,
-  listFilingsBySecurity,
+  listPeriodicFilingsBySecurity,
+  selectPrimaryPeriodicFiling,
 } from "@kanon/core/db";
-import { after } from "next/server";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
-import { withSystemDb } from "../../../_lib/db-context";
 import { jsonError, jsonOk } from "../../../_lib/http";
 import { checkPersistentRateLimit } from "../../../_lib/request-guards";
 import { runBuildRedlineJob } from "../../../_lib/sec-intel-jobs";
+import { scheduleJobOnce } from "../../../internal/jobs/tick/job-once";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +33,14 @@ function toRef(f: ComparableFilingCandidate) {
 
 function makeStatusResponse(
   ticker: string,
-  status: "no_comparable" | "pending",
+  status: "no_comparable" | "pending" | "failed",
   current: ComparableFilingCandidate | null,
   previous: ComparableFilingCandidate | null,
 ) {
   return FilingRedlineResponseSchema.parse({
     ticker,
     status,
-    algoVersion: "redline/1",
+    algoVersion: REDLINE_ALGO_VERSION,
     current: current ? toRef(current) : null,
     previous: previous ? toRef(previous) : null,
     stats: null,
@@ -51,36 +55,34 @@ async function resolvePairAndCached(
   requestedAcc: string | null,
 ) {
   const sec = await getSecurityByTicker(tx, ticker);
-  const filings = sec ? await listFilingsBySecurity(tx, sec.id, 24) : [];
-  const target =
-    (requestedAcc ? filings.find((f) => f.accession === requestedAcc) : null) ??
-    filings.find((f) => /^(?:10-K|10-Q|20-F)/i.test(f.form)) ??
-    null;
+  const filings = sec ? await listPeriodicFilingsBySecurity(tx, sec.id, { limit: 32 }) : [];
+  const target = selectPrimaryPeriodicFiling(filings, requestedAcc);
   const previous = target ? findComparablePriorFiling({ target, filings, section }) : null;
-  if (!target || !previous) return { target, previous: null, cached: null };
-  const cached = await getFilingRedline(tx, {
-    currentAccession: target.accession,
-    previousAccession: previous.accession,
-    sectionCode: section,
-  });
-  return { target, previous, cached };
+  if (!target || !previous) return { target, previous: null, cached: null, job: null };
+  const jobId = `build_redline:${target.accession}:${section}`;
+  const [cached, job] = await Promise.all([
+    getFilingRedline(tx, {
+      currentAccession: target.accession,
+      previousAccession: previous.accession,
+      sectionCode: section,
+      algoVersion: REDLINE_ALGO_VERSION,
+    }),
+    getJobById(tx, jobId),
+  ]);
+  return { target, previous, cached, job };
 }
 
-async function enqueueRedlineBuild(ticker: string, accession: string, section: RedlineSection) {
-  await withSystemDb("user_triggered_sync", (tx) =>
-    enqueueJob(tx, {
-      id: `build_redline:${accession}`,
-      kind: "build_redline",
-      payload: { ticker, accession, section },
-      priority: 30,
-      maxAttempts: 3,
-    }),
-  );
-  after(() =>
-    runBuildRedlineJob({ ticker, accession, section }, "user_triggered_sync").catch(
-      () => undefined,
-    ),
-  );
+async function scheduleMissingRedline(ticker: string, accession: string, section: RedlineSection) {
+  await scheduleJobOnce({
+    id: `build_redline:${accession}:${section}`,
+    kind: "build_redline",
+    payload: { ticker, accession, section },
+    priority: 30,
+    maxAttempts: 3,
+    run: async (signal) => {
+      await runBuildRedlineJob({ ticker, accession, section }, "user_triggered_sync", signal);
+    },
+  });
 }
 
 export async function GET(request: Request, context: { params: Promise<{ ticker: string }> }) {
@@ -89,7 +91,6 @@ export async function GET(request: Request, context: { params: Promise<{ ticker:
   if (rateErr) return rateErr;
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-
   const parsedTicker = TickerSymbolSchema.safeParse((await context.params).ticker);
   if (!parsedTicker.success) return jsonError("股票代码格式不合法。", 400, startedAt, "INVALID");
   const url = new URL(request.url);
@@ -97,21 +98,18 @@ export async function GET(request: Request, context: { params: Promise<{ ticker:
     url.searchParams.get("section") ?? "risk_factors",
   );
   if (!parsedSec.success) return jsonError("不支持的年季报章节参数。", 400, startedAt, "INVALID");
-
   const ticker = parsedTicker.data;
   const section = parsedSec.data;
-  const requestedAcc = url.searchParams.get("current")?.trim() || null;
-  const { target, previous, cached } = await auth.withDb((tx) =>
-    resolvePairAndCached(tx, ticker, section, requestedAcc),
+  const { target, previous, cached, job } = await auth.withDb((tx) =>
+    resolvePairAndCached(tx, ticker, section, url.searchParams.get("current")?.trim() || null),
   );
-  if (!target || !previous) {
+  if (!target || !previous)
     return jsonOk(makeStatusResponse(ticker, "no_comparable", target, null), startedAt);
-  }
   if (cached) {
     const body = FilingRedlineResponseSchema.parse({
       ticker,
       status: cached.status,
-      algoVersion: "redline/1",
+      algoVersion: cached.algoVersion,
       current: toRef(target),
       previous: toRef(previous),
       stats: cached.stats,
@@ -119,6 +117,10 @@ export async function GET(request: Request, context: { params: Promise<{ ticker:
     });
     return jsonOk(body, startedAt);
   }
-  await enqueueRedlineBuild(ticker, target.accession, section);
+  if (job?.status === "failed")
+    return jsonOk(makeStatusResponse(ticker, "failed", target, previous), startedAt);
+  if (job?.status !== "pending" && job?.status !== "running") {
+    await scheduleMissingRedline(ticker, target.accession, section);
+  }
   return jsonOk(makeStatusResponse(ticker, "pending", target, previous), startedAt, 202);
 }

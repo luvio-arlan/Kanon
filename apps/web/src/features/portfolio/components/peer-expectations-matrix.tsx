@@ -7,7 +7,7 @@ import {
   type PeerCompsMedians,
   type ThesisDetail,
 } from "@kanon/core";
-import { Badge, buttonVariants, Card, cn, MarketSessionBadge } from "@kanon/ui";
+import { Badge, buttonVariants, Card, cn, formatMoney, MarketSessionBadge } from "@kanon/ui";
 import { IconArrowUpRight, IconChartHistogram } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -31,7 +31,9 @@ function PeerMetricsCells({ row }: { row: PeerCompRow }) {
         {formatPct(row.drawdownFrom52wHighPct)}
       </td>
       <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm tabular-nums">
-        <div className="font-semibold text-ink-primary">${row.baseTargetPrice.toFixed(1)}</div>
+        <div className="font-semibold text-ink-primary">
+          {formatMoney(row.baseTargetPrice, "USD", { maximumFractionDigits: 1 })}
+        </div>
         <div
           className={row.upsidePct >= 0 ? "text-xs text-status-pass" : "text-xs text-status-fail"}
         >
@@ -82,7 +84,7 @@ function PeerCompTr({ row }: { row: PeerCompRow }) {
         <div className="mt-0.5 text-xs text-ink-muted">{row.sectorTag}</div>
       </td>
       <td className="whitespace-nowrap px-3 py-3.5 text-right font-mono text-sm tabular-nums">
-        <div className="font-medium text-ink-primary">${row.livePrice.toFixed(2)}</div>
+        <div className="font-medium text-ink-primary">{formatMoney(row.livePrice, "USD")}</div>
         <div className="mt-0.5 flex items-center justify-end gap-1.5">
           {row.sessionState ? <MarketSessionBadge session={row.sessionState} compact /> : null}
           {row.belowHurdle15 ? (

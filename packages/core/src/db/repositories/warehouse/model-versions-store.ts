@@ -91,20 +91,3 @@ export async function listModelVersions(
     createdAt: r.createdAt.toISOString(),
   }));
 }
-
-/** Computes a deterministic key-by-key diff between two model version snapshots. */
-export function diffModelVersions(
-  older: Readonly<Record<string, unknown>>,
-  newer: Readonly<Record<string, unknown>>,
-): ModelVersionDiffItem[] {
-  const keys = new Set([...Object.keys(older), ...Object.keys(newer)]);
-  const diffs: ModelVersionDiffItem[] = [];
-  for (const key of [...keys].sort()) {
-    const a = older[key];
-    const b = newer[key];
-    if (JSON.stringify(a) !== JSON.stringify(b)) {
-      diffs.push({ key, before: a, after: b });
-    }
-  }
-  return diffs;
-}

@@ -43,6 +43,10 @@ const CONCEPT_CUES: ReadonlyArray<readonly [RegExp, string]> = [
   [/毛利率|gross\s+margin/i, "gross_margin"],
   [/税率|tax\s+rate/i, "tax_rate"],
   [/营业利润率|经营利润率|operating\s+margin|ebit\s+margin/i, "operating_margin"],
+  [
+    /营业利润|经营利润|operating\s+income|operating\s+profit|\bebit\b(?!\s*margin)/i,
+    "operating_income",
+  ],
   [/净利率|net\s+margin/i, "net_margin"],
   [/营收|营业收入|收入|revenue|sales/i, "revenue"],
   [/净利润|net\s+income/i, "net_income"],

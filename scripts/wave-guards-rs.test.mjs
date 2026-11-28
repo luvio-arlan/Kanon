@@ -436,6 +436,36 @@ expectCaught(
   "G14-hypothesis-status-event-pairing",
   "G14 agent apply without event pairing",
 );
+expectCaught(
+  (e) =>
+    checkG14HypothesisEventPairingAst(
+      "packages/core/src/db/repositories/thesis-mutations.ts",
+      'export const writeHyp = async (tx) => tx.update(hypothesesTable).set({ status: "validated" });',
+      e,
+    ),
+  "G14-hypothesis-status-event-pairing",
+  "G14+ arrow function mutation without event pairing",
+);
+expectCaught(
+  (e) =>
+    checkG14HypothesisEventPairingAst(
+      "packages/core/src/db/repositories/archive-importer.ts",
+      "class Store { async save(tx) { await tx.insert(hypothesesTable).values([]); } }",
+      e,
+    ),
+  "G14-hypothesis-status-event-pairing",
+  "G14+ class method mutation without event pairing",
+);
+expectCaught(
+  (e) =>
+    checkG14HypothesisEventPairingAst(
+      "packages/core/src/db/repositories/starter-workspace.ts",
+      "const repo = { async seed(tx) { await tx.insert(hypothesesTable).values([]); } };",
+      e,
+    ),
+  "G14-hypothesis-status-event-pairing",
+  "G14+ object method mutation without event pairing",
+);
 expectClean(
   (e) =>
     checkG14HypothesisEventPairingAst(

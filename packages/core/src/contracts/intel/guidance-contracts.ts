@@ -152,6 +152,14 @@ export const GuidanceCredibilitySchema = z.object({
   kept: z.number().int().min(0),
   beat: z.number().int().min(0),
   miss: z.number().int().min(0),
+  initialKeptRatio: z
+    .string()
+    .regex(/^\d+\/\d+$/)
+    .nullable(),
+  latestKeptRatio: z
+    .string()
+    .regex(/^\d+\/\d+$/)
+    .nullable(),
   keptRatio: z
     .string()
     .regex(/^\d+\/\d+$/)

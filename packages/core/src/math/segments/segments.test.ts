@@ -113,20 +113,54 @@ describe("R2 Segment Reconciliation & SOTP Mapping", () => {
     });
     expect(fxMissing.revenue).toBe(false);
     expect(fxMissing.blockers).toContain("fx_missing");
+    const quarterly = evaluateSotpImportEligibility({
+      status: "reconciled",
+      periodKind: "quarter",
+      currency: "USD",
+      fxToUsd: 1,
+      profitIsStandard: true,
+      profitReconciled: true,
+      eliminationsMaterial: false,
+      lines: [
+        {
+          memberQname: "a:S1",
+          label: "S1",
+          labelSource: "qname",
+          kind: "segment",
+          revenue: 50e9,
+          operatingIncome: 10e9,
+        },
+        {
+          memberQname: "a:S2",
+          label: "S2",
+          labelSource: "qname",
+          kind: "segment",
+          revenue: 50e9,
+          operatingIncome: 10e9,
+        },
+      ],
+    });
+    expect(quarterly.revenue).toBe(false);
+    expect(quarterly.operatingIncome).toBe(false);
+    expect(quarterly.blockers).toContain("quarterly_period");
   });
 
   it("maps reconciled segments to SOTP with null multiples and preserves source provenance", () => {
     const report: SegmentReport = {
       accession: "0001045810-25-000023",
       form: "10-K",
+      periodKind: "annual",
       axis: "business",
       periodStart: "2024-01-29",
       periodEnd: "2025-01-26",
       currency: "USD",
       fxToUsd: 1,
+      revenueConcept: "us-gaap:Revenues",
+      profitConcept: "us-gaap:OperatingIncomeLoss",
       status: "reconciled",
       diffPct: 0,
       profitIsStandard: true,
+      profitReconciled: true,
       lines: [
         {
           memberQname: "nvda:CN",

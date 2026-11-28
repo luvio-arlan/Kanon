@@ -4,6 +4,7 @@ import { roundTo } from "../valuation-scenarios";
 
 export interface SotpImportEligibilityInput {
   status: SegmentReportStatus;
+  periodKind?: "annual" | "quarter";
   currency: string;
   fxToUsd: number | null;
   profitIsStandard: boolean;
@@ -26,6 +27,8 @@ export function evaluateSotpImportEligibility(
   input: SotpImportEligibilityInput,
 ): SotpImportEligibility {
   const blockers: SegmentImportBlocker[] = [];
+  const isAnnual = (input.periodKind ?? "annual") === "annual";
+  if (!isAnnual) blockers.push("quarterly_period");
   if (input.status === "single_segment") blockers.push("single_segment");
   else if (input.status !== "reconciled") blockers.push("unreconciled");
   const fxOk = hasFxRate(input.currency, input.fxToUsd);
@@ -37,11 +40,11 @@ export function evaluateSotpImportEligibility(
     (l) => l.kind === "segment" && l.operatingIncome !== null && l.operatingIncome <= 0,
   );
   if (hasNegOi) blockers.push("negative_profit_segment");
-  const baseOk = input.status === "reconciled" && fxOk;
+  const baseOk = isAnnual && input.status === "reconciled" && fxOk;
   return {
     revenue: baseOk && !input.eliminationsMaterial,
     operatingIncome: baseOk && profitOk && !hasNegOi,
-    blockers: blockers.slice(0, 6),
+    blockers: blockers.slice(0, 7),
   };
 }
 

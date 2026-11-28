@@ -1,7 +1,7 @@
 "use client";
 
 import type { MarketQuoteSnapshot } from "@kanon/core";
-import { MarketSessionBadge, RangePositionBar } from "@kanon/ui";
+import { formatMoney, MarketSessionBadge, RangePositionBar } from "@kanon/ui";
 
 export function LiveQuoteSnapshotPanel({ quote }: { quote?: MarketQuoteSnapshot }) {
   if (!quote) return null;
@@ -13,23 +13,25 @@ export function LiveQuoteSnapshotPanel({ quote }: { quote?: MarketQuoteSnapshot 
           <span className="font-mono text-xs text-ink-muted uppercase">{quote.source}</span>
         </div>
         <span className="font-mono text-sm font-semibold text-ink-primary tabular-nums">
-          ${quote.effectivePrice.toFixed(2)}
+          {formatMoney(quote.effectivePrice, quote.currency ?? "USD")}
         </span>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-ink-secondary tabular-nums">
-        <span>常规 ${quote.regularPrice.toFixed(2)}</span>
+        <span>常规 {formatMoney(quote.regularPrice, quote.currency ?? "USD")}</span>
         {quote.preMarketPrice !== null ? (
-          <span>盘前 ${quote.preMarketPrice.toFixed(2)}</span>
+          <span>盘前 {formatMoney(quote.preMarketPrice, quote.currency ?? "USD")}</span>
         ) : null}
         {quote.postMarketPrice !== null ? (
-          <span>盘后 ${quote.postMarketPrice.toFixed(2)}</span>
+          <span>盘后 {formatMoney(quote.postMarketPrice, quote.currency ?? "USD")}</span>
         ) : null}
       </div>
       {quote.fiftyTwoWeekPositionPct !== null && quote.fiftyTwoWeekLow && quote.fiftyTwoWeekHigh ? (
         <RangePositionBar
           positionPct={quote.fiftyTwoWeekPositionPct}
-          lowLabel={`52W $${quote.fiftyTwoWeekLow.toFixed(0)}`}
-          highLabel={`$${quote.fiftyTwoWeekHigh.toFixed(0)}`}
+          lowLabel={`52W ${formatMoney(quote.fiftyTwoWeekLow, quote.currency ?? "USD", { maximumFractionDigits: 0 })}`}
+          highLabel={formatMoney(quote.fiftyTwoWeekHigh, quote.currency ?? "USD", {
+            maximumFractionDigits: 0,
+          })}
         />
       ) : null}
     </div>

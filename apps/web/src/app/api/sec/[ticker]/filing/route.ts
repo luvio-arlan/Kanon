@@ -6,7 +6,6 @@ import {
   upsertCachedSecFilingDoc,
   upsertSecSnapshot,
 } from "@kanon/core/db";
-import { after } from "next/server";
 import { requireWorkspaceContext } from "../../../_lib/auth-session";
 import { withSystemDb } from "../../../_lib/db-context";
 import { jsonError, jsonOk } from "../../../_lib/http";
@@ -16,6 +15,7 @@ import {
   persistFilingDocChunksAndEnqueueFanout,
   prepareFilingDocChunks,
 } from "../../../_lib/sec-warehouse-sync";
+import { scheduleBackgroundAfterTask } from "../../../internal/jobs/tick/job-once";
 
 export const dynamic = "force-dynamic";
 
@@ -110,9 +110,9 @@ export async function GET(request: Request, context: { params: Promise<{ ticker:
     refresh: url.searchParams.get("refresh") === "1",
   });
   if (shouldDrainFanout) {
-    after(async () => {
-      await drainAlertFanoutJobsBestEffort(2).catch(() => undefined);
-    });
+    scheduleBackgroundAfterTask("/api/sec/[ticker]/filing", () =>
+      drainAlertFanoutJobsBestEffort(2),
+    );
   }
   return jsonOk(readerData, startedAt);
 }

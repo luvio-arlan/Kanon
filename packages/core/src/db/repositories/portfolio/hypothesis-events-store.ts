@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { asc, inArray } from "drizzle-orm";
+import { asc, inArray, sql } from "drizzle-orm";
 import type { HypothesisStatus } from "../../../schemas/thesis";
 import type { KanonDb } from "../../bootstrap";
 import { type HypothesisEventSource, hypothesisStatusEventsTable } from "../../schema";
@@ -41,4 +41,20 @@ export async function listHypothesisStatusEventsByThesisIds(
     .from(hypothesisStatusEventsTable)
     .where(inArray(hypothesisStatusEventsTable.thesisId, [...thesisIds]))
     .orderBy(asc(hypothesisStatusEventsTable.recordedAt));
+}
+
+/** Returns the ISO timestamp when migration `0033_decision_snapshots` ran to clamp backfill look-ahead (U0-8 / P1-7). */
+export async function getMigration0033AppliedAt(tx: KanonDb): Promise<string | null> {
+  try {
+    const res = await tx.execute(
+      sql`SELECT applied_at::text AS applied_at FROM schema_migrations WHERE id = '0033_decision_snapshots' LIMIT 1`,
+    );
+    const rows = (Array.isArray(res) ? res : res.rows) as Array<{ applied_at?: string }>;
+    const raw = rows[0]?.applied_at;
+    return typeof raw === "string" && Number.isFinite(Date.parse(raw))
+      ? new Date(raw).toISOString()
+      : null;
+  } catch {
+    return null;
+  }
 }

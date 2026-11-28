@@ -7,7 +7,7 @@ import {
   SegmentsResponseSchema,
   type SotpSegment,
 } from "@kanon/core";
-import { Badge, Button, cn } from "@kanon/ui";
+import { Badge, Button, cn, formatMoney } from "@kanon/ui";
 import { IconCloudDownload, IconRefresh } from "@tabler/icons-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,18 +16,16 @@ import { kanonFetch } from "@/shared/lib/kanon-fetch";
 const BLOCKER_LABELS: Record<SegmentImportBlocker, string> = {
   single_segment: "该公司按单一经营分部披露，暂不支持分部拆解",
   unreconciled: "分部加总与合并营收差异超 1%，暂不可自动带入",
-  custom_profit_measure: "分部利润为非标准口径，仅可按营收带入",
+  custom_profit_measure: "分部利润为非标准口径或未对账，仅可按营收带入",
   negative_profit_segment: "含亏损分部，带入 EBIT 请核对倍数",
   has_eliminations: "含重大分部间抵消项，暂不可自动带入",
-  fx_missing: "缺少期末汇率，暂无法折算美元",
+  fx_missing: "缺少汇率数据，暂无法折算美元",
+  quarterly_period: "季度分部报表仅供查阅，仅年度报告支持带入 SOTP",
 };
-
-function formatSegBillions(val: number | null): string {
-  return val !== null ? `$${(val / 1e9).toFixed(2)}B` : "—";
-}
 
 function SegmentMetricToggle(p: {
   metric: "revenue" | "operatingIncome";
+  currency: string;
   canOperatingIncome: boolean;
   onChange: (m: "revenue" | "operatingIncome") => void;
 }) {
@@ -44,7 +42,7 @@ function SegmentMetricToggle(p: {
             p.metric === m ? "bg-titanium font-medium text-ink-primary" : "text-ink-muted",
           )}
         >
-          {m === "revenue" ? "营收 ($B)" : "EBIT ($B)"}
+          {m === "revenue" ? `营收 (${p.currency})` : `EBIT (${p.currency})`}
         </button>
       ))}
     </div>
@@ -53,15 +51,18 @@ function SegmentMetricToggle(p: {
 
 function SegmentPreviewRows(p: {
   lines: SegmentReport["lines"];
+  currency: string;
   metric: "revenue" | "operatingIncome";
 }) {
   return (
     <div className="divide-y divide-hairline">
       {p.lines.map((line) => (
         <div key={line.memberQname} className="flex items-center justify-between py-1.5">
-          <span className="text-ink-primary">{line.label}</span>
-          <span className="font-mono text-ink-secondary tabular-nums">
-            {formatSegBillions(p.metric === "revenue" ? line.revenue : line.operatingIncome)}
+          <span className="truncate pr-3 text-ink-primary">{line.label}</span>
+          <span className="shrink-0 font-mono text-ink-secondary tabular-nums">
+            {formatMoney(p.metric === "revenue" ? line.revenue : line.operatingIncome, p.currency, {
+              scale: "B",
+            })}
           </span>
         </div>
       ))}
@@ -79,19 +80,21 @@ function SegmentPreviewBox(p: {
   const canImport =
     p.metric === "revenue" ? p.report.importable.revenue : p.report.importable.operatingIncome;
   const segLines = p.report.lines.filter((l) => l.kind === "segment");
+  const diffBadgeVariant = p.report.status === "reconciled" ? "pass" : "warn";
   return (
     <div className="space-y-3 rounded-card border border-hairline bg-canvas/45 p-3.5 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-mono text-ink-secondary">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-ink-secondary">
           <span>
-            {p.report.form} · {p.report.periodEnd}
+            {p.report.form} · {p.report.periodEnd} · {p.report.currency}
           </span>
           {p.report.diffPct !== null ? (
-            <Badge variant="pass">校验差 {p.report.diffPct}%</Badge>
+            <Badge variant={diffBadgeVariant}>校验差 {p.report.diffPct}%</Badge>
           ) : null}
         </div>
         <SegmentMetricToggle
           metric={p.metric}
+          currency={p.report.currency}
           canOperatingIncome={p.report.importable.operatingIncome}
           onChange={p.onMetric}
         />
@@ -101,7 +104,7 @@ function SegmentPreviewBox(p: {
           {p.report.importable.blockers.map((b) => BLOCKER_LABELS[b]).join("；")}
         </p>
       ) : null}
-      <SegmentPreviewRows lines={segLines} metric={p.metric} />
+      <SegmentPreviewRows lines={segLines} currency={p.report.currency} metric={p.metric} />
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="xs" onClick={p.onClose}>
           取消
@@ -121,24 +124,36 @@ function useSecSegmentLoader(ticker: string) {
   const [report, setReport] = useState<SegmentReport | null>(null);
   const [metric, setMetric] = useState<"revenue" | "operatingIncome">("revenue");
 
+  async function fetchCurrent() {
+    const base = `/api/sec/${encodeURIComponent(ticker)}/segments`;
+    return kanonFetch(`${base}?axis=business`, SegmentsResponseSchema, {
+      fallbackError: "加载 SEC 分部失败",
+    });
+  }
+
+  async function requestSegments(refresh: boolean) {
+    const base = `/api/sec/${encodeURIComponent(ticker)}/segments`;
+    if (!refresh) return fetchCurrent();
+    const first = await kanonFetch(base, SegmentsResponseSchema, {
+      method: "POST",
+      body: { op: "refresh" },
+      fallbackError: "刷新 SEC 分部失败",
+    });
+    if (!first.ok || first.data.status !== "pending") return first;
+    await new Promise((r) => setTimeout(r, 1500));
+    return fetchCurrent();
+  }
+
   async function loadSegments(refresh = false) {
     setOpen(true);
     setLoading(true);
     setStatusMsg(null);
-    const base = `/api/sec/${encodeURIComponent(ticker)}/segments`;
-    const res = refresh
-      ? await kanonFetch(base, SegmentsResponseSchema, {
-          method: "POST",
-          body: { op: "refresh" },
-          fallbackError: "刷新 SEC 分部失败",
-        })
-      : await kanonFetch(`${base}?axis=business`, SegmentsResponseSchema, {
-          fallbackError: "加载 SEC 分部失败",
-        });
+    const res = await requestSegments(refresh);
     setLoading(false);
     if (!res.ok) return void setStatusMsg(res.error);
-    if (res.data.status === "pending")
+    if (res.data.status === "pending") {
       return void setStatusMsg("正在解析 SEC XBRL 分部报表，请稍后刷新。");
+    }
     const first = res.data.reports[0] ?? null;
     if (!first) return void setStatusMsg("暂无可核对的 SEC XBRL 业务分部数据。");
     setReport(first);
@@ -150,11 +165,13 @@ function useSecSegmentLoader(ticker: string) {
 
 function mapReportToSotpSegments(report: SegmentReport, metric: "revenue" | "operatingIncome") {
   const mode = metric === "revenue" ? "revenue" : "operating_income";
+  const concept =
+    mode === "revenue" ? report.revenueConcept : (report.profitConcept ?? report.revenueConcept);
   return mapSegmentsToSotp({
     accession: report.accession,
     periodEnd: report.periodEnd,
     mode,
-    concept: mode === "revenue" ? "us-gaap:Revenues" : "us-gaap:OperatingIncomeLoss",
+    concept,
     currency: report.currency,
     fxToUsd: report.fxToUsd,
     lines: report.lines,

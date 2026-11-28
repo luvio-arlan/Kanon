@@ -1,7 +1,7 @@
 "use client";
 
 import { checkScenarioMonotonicity, type SecAnnualFinancial } from "@kanon/core";
-import { KANON_LENS_VARIANTS } from "@kanon/ui";
+import { formatMoney, KANON_LENS_VARIANTS } from "@kanon/ui";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -61,7 +61,7 @@ function ScenariosCoreSection({
         onSelectBaseCell={(eps, peMultiple) => {
           onExpandCeiling(eps);
           d.patchCase("base", { eps, peMultiple });
-          toast.success(`已锚定中性基准 EPS $${eps.toFixed(2)} × ${peMultiple}x`);
+          toast.success(`已锚定中性基准 EPS ${formatMoney(eps, "USD")} × ${peMultiple}x`);
         }}
       />
     </>
@@ -93,7 +93,9 @@ function applyEvAnchor(
   onExpandCeiling(maxImplied);
   d.applyEvTargetPrices(targets);
   onSwitchToScenarios();
-  toast.success(`已联动锚定三情景（中性 $${targets.base.toFixed(1)}）`);
+  toast.success(
+    `已联动锚定三情景（中性 ${formatMoney(targets.base, "USD", { maximumFractionDigits: 1 })}）`,
+  );
 }
 
 function renderLensPanel(p: ValuationLensBodyProps) {

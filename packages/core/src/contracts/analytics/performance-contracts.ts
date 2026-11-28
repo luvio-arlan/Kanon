@@ -42,7 +42,7 @@ export const PortfolioPerformanceResponseSchema = z.object({
   maxDrawdownTroughDate: IsoDateSchema.nullable(),
   currentDrawdownPct: z.number().finite().nullable(),
   tradingDays: z.number().int().min(0),
-  basis: z.enum(["full_bars", "partial_bars", "cost_fallback", "empty"]),
+  basis: z.enum(["full_bars", "partial_bars", "cost_fallback", "rebase_pending", "empty"]),
   series: z.array(NavPointSchema),
   unrecordedDividends: z.array(UnrecordedDividendSchema),
 });

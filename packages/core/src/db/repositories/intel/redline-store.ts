@@ -23,7 +23,7 @@ export async function getFilingRedline(
     algoVersion?: string;
   },
 ): Promise<StoredFilingRedline | null> {
-  const algoVersion = params.algoVersion ?? "redline/1";
+  const algoVersion = params.algoVersion ?? "redline/2";
   const [row] = await db
     .select()
     .from(filingRedlinesTable)
@@ -65,7 +65,7 @@ export async function upsertFilingRedline(
     changes: readonly RedlineChange[];
   },
 ): Promise<void> {
-  const algoVersion = input.algoVersion ?? "redline/1";
+  const algoVersion = input.algoVersion ?? "redline/2";
   const statsJson = input.stats ?? {};
   const changesJson = [...input.changes];
   await db
@@ -96,25 +96,50 @@ export async function upsertFilingRedline(
     });
 }
 
-/** Retains only the most recent 2 annual + 4 quarterly filings' chunks per security (R1 storage budget). */
+/**
+ * Retains recent 3 annual + 6 quarterly periodic filings, recent 8 Form 8-K/6-K filings,
+ * and every accession referenced by `filing_redlines` or `guidance_commitments` (U0-1 / G24).
+ */
 export async function pruneStaleFilingChunks(db: KanonDb): Promise<number> {
   const res = await db.execute(sql`
-    WITH ranked AS (
-      SELECT accession, security_id,
-        CASE WHEN form IN ('10-K', '10-K/A', '20-F', '20-F/A') THEN 'annual' ELSE 'quarter' END AS bucket,
-        ROW_NUMBER() OVER (
-          PARTITION BY security_id,
-            CASE WHEN form IN ('10-K', '10-K/A', '20-F', '20-F/A') THEN 'annual' ELSE 'quarter' END
-          ORDER BY filed_at DESC
-        ) AS rn
+    WITH periodic AS (
+      SELECT accession, security_id, filed_at,
+        CASE WHEN form IN ('10-K', '10-K/A', '20-F', '20-F/A') THEN 'annual'
+             WHEN form IN ('10-Q', '10-Q/A') THEN 'quarter' END AS bucket
       FROM filings
+      WHERE form IN ('10-K', '10-K/A', '20-F', '20-F/A', '10-Q', '10-Q/A')
     ),
-    keep_acc AS (
+    ranked AS (
+      SELECT accession, bucket,
+        ROW_NUMBER() OVER (PARTITION BY security_id, bucket ORDER BY filed_at DESC) AS rn
+      FROM periodic
+    ),
+    recent_8k AS (
+      SELECT accession FROM (
+        SELECT accession,
+          ROW_NUMBER() OVER (PARTITION BY security_id ORDER BY filed_at DESC) AS rn
+        FROM filings
+        WHERE form IN ('8-K', '8-K/A', '6-K')
+      ) x WHERE rn <= 8
+    ),
+    protected AS (
+      SELECT current_accession AS accession FROM filing_redlines
+      UNION
+      SELECT previous_accession FROM filing_redlines
+      UNION
+      SELECT split_part(source_ref, ':', 1) FROM guidance_commitments
+      WHERE source_kind = 'filing_chunk' AND source_ref IS NOT NULL
+    ),
+    keep AS (
       SELECT accession FROM ranked
-      WHERE (bucket = 'annual' AND rn <= 2) OR (bucket = 'quarter' AND rn <= 4)
+      WHERE (bucket = 'annual' AND rn <= 3) OR (bucket = 'quarter' AND rn <= 6)
+      UNION
+      SELECT accession FROM recent_8k
+      UNION
+      SELECT accession FROM protected
     )
     DELETE FROM filing_chunks
-    WHERE accession NOT IN (SELECT accession FROM keep_acc)
+    WHERE accession NOT IN (SELECT accession FROM keep)
     RETURNING id
   `);
   const rows = Array.isArray(res) ? res : res.rows;

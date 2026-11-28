@@ -120,7 +120,26 @@ function collectSectionRange(blocks: readonly string[], startIdx: number): strin
   return body;
 }
 
-/** Extracts full MD&A or Risk Factors section paragraphs (`sections/1`) skipping TOC and headers (R1). */
+function matchSectionHeading(
+  blocks: readonly string[],
+  idx: number,
+  startRe: RegExp,
+): number | null {
+  const line = blocks[idx] ?? "";
+  if (line.length <= 220 && startRe.test(line)) return idx;
+  if (line.length <= 40 && /^item\s*\d+[a-z]?\.?$/i.test(line)) {
+    const next = blocks[idx + 1] ?? "";
+    const combined = `${line} ${next}`.trim();
+    if (combined.length <= 220 && startRe.test(combined)) return idx + 1;
+  }
+  return null;
+}
+
+function bodyScore(paragraphs: readonly string[]): number {
+  return paragraphs.reduce((acc, p) => acc + p.length, 0);
+}
+
+/** Extracts full MD&A or Risk Factors section paragraphs (`sections/2`) supporting 2-line iXBRL headings & longest-body selection (P2-1). */
 export function extractFilingSectionParagraphs(params: {
   rawHtml: string;
   form: string;
@@ -132,10 +151,11 @@ export function extractFilingSectionParagraphs(params: {
   const blocks = htmlToCleanBlocks(params.rawHtml);
   const startRe = sectionStartRegex(params.form, params.section);
   let bestBody: string[] = [];
+  let bestLen = 0;
   for (let i = 0; i < blocks.length; i += 1) {
-    const line = blocks[i] ?? "";
-    if (!startRe.test(line) || line.length > 220) continue;
-    const candidate = collectSectionRange(blocks, i);
+    const headingEndIdx = matchSectionHeading(blocks, i, startRe);
+    if (headingEndIdx === null) continue;
+    const candidate = collectSectionRange(blocks, headingEndIdx);
     const isNoChange10q =
       params.form.toUpperCase().startsWith("10-Q") &&
       params.section === "risk_factors" &&
@@ -143,7 +163,11 @@ export function extractFilingSectionParagraphs(params: {
     if (isNoChange10q) {
       return { status: "no_material_changes", paragraphs: candidate.slice(0, 2) };
     }
-    if (candidate.length >= 3) bestBody = candidate;
+    const score = bodyScore(candidate);
+    if (candidate.length >= 3 && score > bestLen) {
+      bestBody = candidate;
+      bestLen = score;
+    }
   }
   if (bestBody.length < 3) return { status: "section_missing", paragraphs: [] };
   return { status: "ok", paragraphs: bestBody };

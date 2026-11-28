@@ -7,7 +7,6 @@ import {
   type KanonDb,
   markSecuritySecStatus,
 } from "@kanon/core/db";
-import { after } from "next/server";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { withSystemDb } from "../../_lib/db-context";
 import { formatZodError, jsonError, jsonOk, readJsonBody } from "../../_lib/http";
@@ -23,6 +22,7 @@ import {
   type PreparedSecCommit,
   prepareSecSnapshotCommit,
 } from "../../_lib/sec-warehouse-sync";
+import { scheduleBackgroundAfterTask } from "../../internal/jobs/tick/job-once";
 import { buildManualFacts, saveManualSecOverride } from "./manual-override";
 
 registerSecGlobalSlotAcquirer((signal) => acquireSecGlobalSlot(signal));
@@ -134,9 +134,9 @@ async function syncLiveSecAndRespond(
     startedAt,
   );
   if (warehouseSynced && prepared.fanout8kJobs.length > 0) {
-    after(async () => {
-      await drainAlertFanoutJobsBestEffort(prepared.fanout8kJobs.length).catch(() => undefined);
-    });
+    scheduleBackgroundAfterTask("/api/sec/[ticker]", () =>
+      drainAlertFanoutJobsBestEffort(prepared.fanout8kJobs.length),
+    );
   }
   const restatements = await withDb(async (tx) =>
     loadTickerRestatements(tx, (await getSecurityByTicker(tx, ticker))?.id),

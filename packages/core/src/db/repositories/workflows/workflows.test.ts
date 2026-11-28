@@ -3,7 +3,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_WORKSPACE_USER_ID } from "../../../contracts/auth-contracts";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
 import { forecastsTable, transactionsTable } from "../../schema";
-import { parseBrokerCsvTransactions } from "./broker-csv-parser";
 import {
   buildCatalystIcsFeed,
   createImmutableForecast,
@@ -257,11 +256,5 @@ describe("Research Inbox, Immutable Forecasts & Zero-Leverage Portfolio Ledger (
         noLeverageConfirmed: true,
       }),
     ).rejects.toThrow(/严禁做空/);
-
-    const parsedCsv = parseBrokerCsvTransactions(
-      "date,ticker,action,quantity,price,fees\n2026-01-02,MSFT,buy,10,410,1.5\n",
-    );
-    expect(parsedCsv).toHaveLength(1);
-    expect(parsedCsv[0]?.ticker).toBe("MSFT");
   });
 });

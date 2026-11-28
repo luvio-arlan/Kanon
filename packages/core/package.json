@@ -6,7 +6,8 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./db": "./src/db/index.ts"
+    "./db": "./src/db/index.ts",
+    "./testing": "./src/db/client.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

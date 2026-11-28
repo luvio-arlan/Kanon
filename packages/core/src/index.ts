@@ -66,12 +66,17 @@ export {
   ThesisMutationResponseSchema,
 } from "./contracts/api-contracts";
 export * from "./contracts/auth-contracts";
-export * from "./contracts/financial-concepts";
-export * from "./contracts/i18n";
+export type {
+  FinancialConceptSpec,
+  FinancialConceptUnitKind,
+  FinancialFactDuration,
+} from "./contracts/financial-concepts";
+export type { KanonLocale, KanonMessageKey } from "./contracts/i18n";
 export * from "./contracts/intel";
 export * from "./contracts/market-contracts";
+export * from "./contracts/ops";
 export * from "./contracts/portfolio-contracts";
-export * from "./contracts/provenance";
+export type { Provenance, ProvenancedMetric } from "./contracts/provenance";
 export * from "./contracts/sec-filing-contracts";
 export * from "./contracts/workflow-contracts";
 export * from "./contracts/workflow-response-contracts";

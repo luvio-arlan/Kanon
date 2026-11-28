@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, Button, Sheet } from "@kanon/ui";
+import { Badge, Button, formatMoney, Sheet } from "@kanon/ui";
 import { IconBell, IconCalendar, IconCheck, IconChecks, IconDots } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -60,7 +60,7 @@ function formatRuleLabel(rule: AlertRuleRow): string {
   if (rule.kind === "price_hurdle") {
     const p = Number(rule.configJson?.targetPrice);
     const dir = rule.configJson?.direction === "above" ? "≥" : "≤";
-    return Number.isFinite(p) && p > 0 ? `价格 ${dir} $${p.toFixed(2)}` : "价格阈值";
+    return Number.isFinite(p) && p > 0 ? `价格 ${dir} ${formatMoney(p, "USD")}` : "价格阈值";
   }
   if (rule.kind === "pe_band_breach") return "P/E 分位越界";
   if (rule.kind === "form8k_redflag") return "8-K 重大公告";

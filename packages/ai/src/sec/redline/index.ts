@@ -8,13 +8,19 @@ import { alignSectionParagraphs, indexParagraphs } from "./align";
 import { classifyAlignedChanges } from "./classify";
 import { computeNormHash } from "./normalize";
 import { type ComparableFilingCandidate, findComparablePriorFiling } from "./pairing";
-import { extractFilingSectionParagraphs } from "./section-extractor";
+import { readBoundedTextStream, resolvePrimaryDocUrl } from "./primary-doc";
+import { extractFilingSectionParagraphs, MAX_REDLINE_HTML_BYTES } from "./section-extractor";
+
+export const REDLINE_ALGO_VERSION = "redline/2";
 
 export {
   type ComparableFilingCandidate,
   computeNormHash,
   extractFilingSectionParagraphs,
   findComparablePriorFiling,
+  MAX_REDLINE_HTML_BYTES,
+  readBoundedTextStream,
+  resolvePrimaryDocUrl,
 };
 
 export interface BuildFilingRedlineInput {
@@ -67,7 +73,7 @@ function buildEmptyOutput(
     response: {
       ticker: input.ticker.toUpperCase(),
       status,
-      algoVersion: "redline/1",
+      algoVersion: REDLINE_ALGO_VERSION,
       current: toFilingRef(input.current),
       previous: toFilingRef(input.previous),
       stats: null,
@@ -97,7 +103,7 @@ function buildNoMaterialChangesOutput(
     response: {
       ticker: input.ticker.toUpperCase(),
       status: "ready",
-      algoVersion: "redline/1",
+      algoVersion: REDLINE_ALGO_VERSION,
       current: toFilingRef(input.current),
       previous: toFilingRef(input.previous),
       stats: { added: 0, removed: 0, modified: 0, numbersOnly: 0, critical: 0 },
@@ -145,7 +151,7 @@ export function buildFilingRedline(input: BuildFilingRedlineInput): BuildFilingR
     response: {
       ticker: input.ticker.toUpperCase(),
       status: "ready",
-      algoVersion: "redline/1",
+      algoVersion: REDLINE_ALGO_VERSION,
       current: toFilingRef(input.current),
       previous: toFilingRef(input.previous),
       stats: summarizeStats(changes),

@@ -6,10 +6,25 @@ import { useEffect, useState } from "react";
 import { fetchFilingRedline } from "../../lib/redline-api";
 import { FilingRedlineChangeRow } from "./filing-redline-change-row";
 
-const SECTION_TABS: ReadonlyArray<{ id: RedlineSection; label: string }> = [
-  { id: "risk_factors", label: "风险因素 (1A)" },
-  { id: "mda", label: "经营讨论 (7)" },
-];
+function resolveSectionTabs(form?: string): ReadonlyArray<{ id: RedlineSection; label: string }> {
+  const upper = (form ?? "").toUpperCase();
+  if (upper.startsWith("20-F")) {
+    return [
+      { id: "risk_factors", label: "风险因素 · 3.D" },
+      { id: "mda", label: "经营回顾 · 5" },
+    ];
+  }
+  if (upper.startsWith("10-Q")) {
+    return [
+      { id: "risk_factors", label: "风险因素 · 1A" },
+      { id: "mda", label: "经营讨论 · 2" },
+    ];
+  }
+  return [
+    { id: "risk_factors", label: "风险因素 · 1A" },
+    { id: "mda", label: "经营讨论 · 7" },
+  ];
+}
 
 const EMPTY_STATUS_LABELS: Record<
   Exclude<FilingRedlineResponse["status"], "ready" | "pending">,
@@ -61,16 +76,18 @@ function useRedlineQuery(ticker: string, section: RedlineSection, current?: stri
 }
 
 function RedlineToolbar(p: {
+  form?: string;
   section: RedlineSection;
   numbersOnlyCount: number;
   showNumbersOnly: boolean;
   onSection: (s: RedlineSection) => void;
   onToggleNumbers: () => void;
 }) {
+  const tabs = resolveSectionTabs(p.form);
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-1.5">
-        {SECTION_TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -141,6 +158,7 @@ export function FilingRedlineView({
   return (
     <div className="space-y-3 border-t border-hairline pt-3">
       <RedlineToolbar
+        form={data?.current?.form}
         section={section}
         numbersOnlyCount={data?.stats?.numbersOnly ?? 0}
         showNumbersOnly={showNumbersOnly}

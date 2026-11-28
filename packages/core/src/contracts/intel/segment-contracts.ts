@@ -22,6 +22,7 @@ export const SegmentImportBlockerSchema = z.enum([
   "negative_profit_segment",
   "has_eliminations",
   "fx_missing",
+  "quarterly_period",
 ]);
 export type SegmentImportBlocker = z.infer<typeof SegmentImportBlockerSchema>;
 
@@ -41,19 +42,23 @@ export type SegmentLine = z.infer<typeof SegmentLineSchema>;
 export const SegmentReportSchema = z.object({
   accession: z.string(),
   form: z.string(),
+  periodKind: z.enum(["annual", "quarter"]).default("annual"),
   axis: SegmentAxisSchema,
   periodStart: IsoDateSchema,
   periodEnd: IsoDateSchema,
   currency: z.string().length(3),
   fxToUsd: z.number().positive().nullable(),
+  revenueConcept: z.string().default("us-gaap:Revenues"),
+  profitConcept: z.string().nullable().default(null),
   status: SegmentReportStatusSchema,
   diffPct: z.number().finite().nullable(),
   profitIsStandard: z.boolean(),
+  profitReconciled: z.boolean().default(false),
   lines: z.array(SegmentLineSchema).max(40),
   importable: z.object({
     revenue: z.boolean(),
     operatingIncome: z.boolean(),
-    blockers: z.array(SegmentImportBlockerSchema).max(6),
+    blockers: z.array(SegmentImportBlockerSchema).max(7),
   }),
 });
 export type SegmentReport = z.infer<typeof SegmentReportSchema>;

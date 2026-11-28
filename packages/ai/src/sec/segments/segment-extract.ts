@@ -2,10 +2,18 @@ import {
   reconcileSegmentReport,
   type SegmentAxis,
   type SegmentLine,
-  type SegmentLineKind,
   type SegmentReportStatus,
 } from "@kanon/core";
 import { resolveMemberLabel } from "./member-labels";
+import {
+  AXIS_QNAMES,
+  classifyMemberKind,
+  EXT_PROFIT_RE,
+  isTargetDuration,
+  matchSingleAxisMember,
+  REVENUE_PRIORITY,
+  STANDARD_PROFIT_PRIORITY,
+} from "./segment-rules";
 import type { ParsedXbrlInstance, XbrlContext, XbrlFact } from "./xbrl-instance-scan";
 
 export interface ExtractedAxisReport {
@@ -17,6 +25,7 @@ export interface ExtractedAxisReport {
   revenueConcept: string;
   profitConcept: string | null;
   profitIsStandard: boolean;
+  profitReconciled: boolean;
   consolidatedRevenue: number | null;
   segmentRevenueSum: number | null;
   diffPct: number | null;
@@ -29,55 +38,6 @@ interface ScopedAxisFact {
   ctx: XbrlContext;
   axisQname: string;
   member: string;
-}
-
-const AXIS_QNAMES: Record<SegmentAxis, readonly string[]> = {
-  business: ["us-gaap:StatementBusinessSegmentsAxis", "ifrs-full:SegmentsAxis"],
-  geography: ["srt:StatementGeographicalAxis", "ifrs-full:GeographicalAreasAxis"],
-  product: ["srt:ProductOrServiceAxis", "ifrs-full:ProductsAndServicesAxis"],
-};
-
-const CONSOLIDATION_AXIS_RE = /(?:ConsolidationItemsAxis|SegmentConsolidationItemsAxis)$/i;
-const OPERATING_SEGMENTS_MEMBER_RE = /OperatingSegmentsMember$/i;
-
-const REVENUE_PRIORITY = [
-  "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
-  "us-gaap:Revenues",
-  "ifrs-full:Revenue",
-];
-const STANDARD_PROFIT_PRIORITY = [
-  "us-gaap:OperatingIncomeLoss",
-  "ifrs-full:ProfitLossFromOperatingActivities",
-];
-
-function isTargetDuration(ctx: XbrlContext, isQuarterly: boolean): boolean {
-  if (!ctx.startDate || !ctx.endDate) return false;
-  const ms = Date.parse(`${ctx.endDate}T00:00:00Z`) - Date.parse(`${ctx.startDate}T00:00:00Z`);
-  if (!Number.isFinite(ms)) return false;
-  const days = Math.round(ms / 86_400_000);
-  return isQuarterly ? days >= 65 && days <= 120 : days >= 320 && days <= 395;
-}
-
-function classifyMemberKind(memberQname: string): SegmentLineKind {
-  if (/IntersegmentElimination|EliminationOfIntersegment/i.test(memberQname)) return "elimination";
-  if (/CorporateNonSegment|UnallocatedAmounts/i.test(memberQname)) return "corporate";
-  if (/MaterialReconcilingItems|ReconcilingItems/i.test(memberQname)) return "reconciling";
-  return "segment";
-}
-
-function matchSingleAxisMember(
-  ctx: XbrlContext,
-  allowedAxes: readonly string[],
-): { axisQname: string; member: string } | null {
-  const targetDims = ctx.dimensions.filter((d) => allowedAxes.includes(d.dimension));
-  if (targetDims.length !== 1) return null;
-  const othersAllowed = ctx.dimensions
-    .filter((d) => !allowedAxes.includes(d.dimension))
-    .every(
-      (d) => CONSOLIDATION_AXIS_RE.test(d.dimension) && OPERATING_SEGMENTS_MEMBER_RE.test(d.member),
-    );
-  const target = targetDims[0];
-  return othersAllowed && target ? { axisQname: target.dimension, member: target.member } : null;
 }
 
 function collectScopedFacts(
@@ -96,12 +56,8 @@ function collectScopedFacts(
   return matched;
 }
 
-function pickWinningConcept(
-  facts: readonly XbrlFact[],
-  priority: readonly string[],
-): string | null {
-  return priority.find((c) => facts.some((f) => f.concept === c)) ?? null;
-}
+const pickWinningConcept = (facts: readonly XbrlFact[], priority: readonly string[]) =>
+  priority.find((c) => facts.some((f) => f.concept === c)) ?? null;
 
 function findConsolidatedValue(
   parsed: ParsedXbrlInstance,
@@ -149,7 +105,72 @@ function buildSegmentLines(
   return [...byMember.values()];
 }
 
-/** Extracts and reconciles a single dimensional axis report from a scanned XBRL instance (R2). */
+function reconcileScopedAxis(p: {
+  parsed: ParsedXbrlInstance;
+  scoped: readonly ScopedAxisFact[];
+  axis: SegmentAxis;
+  axisQname: string;
+  periodStart: string;
+  periodEnd: string;
+  revConcept: string;
+  currency: string;
+  linkbaseLabels: ReadonlyMap<string, string>;
+}): ExtractedAxisReport {
+  const facts = p.scoped.map((m) => m.fact);
+  const stdProfit = pickWinningConcept(facts, STANDARD_PROFIT_PRIORITY);
+  const extProfit =
+    stdProfit ?? p.scoped.find((m) => EXT_PROFIT_RE.test(m.fact.concept))?.fact.concept ?? null;
+  const lines = buildSegmentLines(p.scoped, p.revConcept, extProfit, p.linkbaseLabels);
+  const consRev = findConsolidatedValue(p.parsed, p.revConcept, p.periodStart, p.periodEnd);
+  const consOi = findConsolidatedValue(p.parsed, stdProfit, p.periodStart, p.periodEnd);
+  const rec = reconcileSegmentReport({
+    lines,
+    consolidatedRevenue: consRev,
+    consolidatedOperatingIncome: consOi,
+    profitIsStandard: stdProfit !== null,
+  });
+  return {
+    axis: p.axis,
+    axisQname: p.axisQname,
+    periodStart: p.periodStart,
+    periodEnd: p.periodEnd,
+    currency: p.currency,
+    revenueConcept: p.revConcept,
+    profitConcept: extProfit,
+    profitIsStandard: stdProfit !== null,
+    profitReconciled: rec.profitReconciled,
+    consolidatedRevenue: consRev,
+    segmentRevenueSum: rec.segmentRevenueSum,
+    diffPct: rec.diffPct,
+    status: rec.status,
+    lines,
+  };
+}
+
+const makeMissingUnit = (
+  axis: SegmentAxis,
+  axisQname: string,
+  periodStart: string,
+  periodEnd: string,
+  revenueConcept: string,
+): ExtractedAxisReport => ({
+  axis,
+  axisQname,
+  periodStart,
+  periodEnd,
+  currency: "UNK",
+  revenueConcept,
+  profitConcept: null,
+  profitIsStandard: false,
+  profitReconciled: false,
+  consolidatedRevenue: null,
+  segmentRevenueSum: null,
+  diffPct: null,
+  status: "parse_failed",
+  lines: [],
+});
+
+/** Extracts and reconciles a single dimensional axis report from a scanned XBRL instance (R2 / U0-7 / P2-2). */
 export function extractAxisReport(params: {
   parsed: ParsedXbrlInstance;
   axis: SegmentAxis;
@@ -168,35 +189,24 @@ export function extractAxisReport(params: {
   const scoped = matching.filter(
     (m) => m.ctx.startDate === periodStart && m.ctx.endDate === periodEnd,
   );
-  const facts = scoped.map((m) => m.fact);
-  const revConcept = pickWinningConcept(facts, REVENUE_PRIORITY) ?? "us-gaap:Revenues";
-  const stdProfit = pickWinningConcept(facts, STANDARD_PROFIT_PRIORITY);
-  const profitConcept =
-    stdProfit ??
-    scoped.find((m) => !REVENUE_PRIORITY.includes(m.fact.concept))?.fact.concept ??
-    null;
-  const lines = buildSegmentLines(scoped, revConcept, profitConcept, linkbaseLabels);
-  const consRev = findConsolidatedValue(parsed, revConcept, periodStart, periodEnd);
-  const consOi = findConsolidatedValue(parsed, stdProfit, periodStart, periodEnd);
-  const rec = reconcileSegmentReport({
-    lines,
-    consolidatedRevenue: consRev,
-    consolidatedOperatingIncome: consOi,
-    profitIsStandard: stdProfit !== null,
-  });
-  return {
+  const revConcept = pickWinningConcept(
+    scoped.map((m) => m.fact),
+    REVENUE_PRIORITY,
+  );
+  if (!revConcept) return null;
+  const revFact = scoped.find((m) => m.fact.concept === revConcept)?.fact ?? first.fact;
+  const rawCurr = revFact.unitRef ? parsed.units.get(revFact.unitRef) : undefined;
+  const currency = rawCurr && /^[A-Z]{3}$/.test(rawCurr) ? rawCurr : null;
+  if (!currency) return makeMissingUnit(axis, first.axisQname, periodStart, periodEnd, revConcept);
+  return reconcileScopedAxis({
+    parsed,
+    scoped,
     axis,
     axisQname: first.axisQname,
     periodStart,
     periodEnd,
-    currency: (parsed.units.get(first.fact.unitRef) ?? "USD").slice(0, 3),
-    revenueConcept: revConcept,
-    profitConcept,
-    profitIsStandard: stdProfit !== null,
-    consolidatedRevenue: consRev,
-    segmentRevenueSum: rec.segmentRevenueSum,
-    diffPct: rec.diffPct,
-    status: rec.status,
-    lines,
-  };
+    revConcept,
+    currency,
+    linkbaseLabels,
+  });
 }

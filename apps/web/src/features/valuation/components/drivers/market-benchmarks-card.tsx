@@ -5,7 +5,7 @@ import {
   type MarketBenchmarkResponse,
   MarketBenchmarkResponseSchema,
 } from "@kanon/core";
-import { Button, Card } from "@kanon/ui";
+import { Button, Card, formatMoney } from "@kanon/ui";
 import { IconRefresh } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { buildMarketHeaders } from "@/shared/lib/client-provider-storage";
@@ -22,7 +22,7 @@ function PeerTableRow({ p }: { p: IndustryPeerRow }) {
         <span className="text-ink-muted">{p.companyName}</span>
       </td>
       <td className="px-3 py-3 text-right text-ink-primary">
-        {p.price ? `$${p.price.toFixed(1)}` : "—"}
+        {p.price ? formatMoney(p.price, "USD", { maximumFractionDigits: 1 }) : "—"}
       </td>
       <td className="px-3 py-3 text-right text-ink-primary">{fmtPct(p.revenueGrowthPct)}</td>
       <td className="px-3 py-3 text-right text-ink-primary">{fmtPct(p.grossMarginPct)}</td>
@@ -50,7 +50,7 @@ function PeerBenchmarksTable({
         <h3 className="text-sm font-semibold text-ink-primary">行业可比矩阵 · {sectorLabel}</h3>
         {spyPrice ? (
           <span className="font-mono text-xs text-ink-muted tabular-nums">
-            SPY ${spyPrice.toFixed(1)}
+            SPY {formatMoney(spyPrice, "USD", { maximumFractionDigits: 1 })}
           </span>
         ) : null}
       </div>

@@ -36,12 +36,19 @@ function ActiveLedgerContent({
   onToggleTxForm: () => void;
   onSubmitTx: (p: LedgerTxPayload) => void;
 }) {
+  const currency = active.baseCurrency ?? "USD";
   return (
     <div className="space-y-4">
+      {active.ledgerInconsistent ? (
+        <div className="rounded-control border border-hairline bg-canvas/60 px-3 py-2 text-xs text-status-warn">
+          账户币种待迁移
+        </div>
+      ) : null}
       <LedgerPerformanceLine
         perf={perf}
         accountName={active.name}
         cashBalance={active.cashBalance}
+        baseCurrency={currency}
       />
       <div className="flex justify-end">
         <Button variant="outline" size="xs" onClick={onToggleTxForm}>
@@ -50,7 +57,7 @@ function ActiveLedgerContent({
         </Button>
       </div>
       {txFormOpen ? <LedgerTxForm accountId={active.id} busy={busy} onSubmit={onSubmitTx} /> : null}
-      <LedgerPositionsList positions={active.positions} />
+      <LedgerPositionsList positions={active.positions} currency={currency} />
     </div>
   );
 }

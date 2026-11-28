@@ -5,20 +5,31 @@ import {
   decomposePortfolioRisk,
   estimateShrunkCovariance,
   PortfolioRiskResponseSchema,
+  todayIsoUtc,
 } from "@kanon/core";
-import { listTheses, loadUnadjustedMarketDataForTickers } from "@kanon/core/db";
+import {
+  computeLedgerPortfolioWeights,
+  type KanonDb,
+  loadTenantAccountAndTransactions,
+  loadUnadjustedMarketDataForTickers,
+} from "@kanon/core/db";
 import { requireWorkspaceContext } from "../../_lib/auth-session";
 import { jsonOk } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
-function buildSectorFallbackResponse(
-  holdings: ReadonlyArray<{ ticker: string; weightPct: number }>,
-  missingTickers: string[],
-) {
+function buildUnavailableRiskResponse(params: {
+  accountId: string | null;
+  cashWeightPct: number | null;
+  holdings: ReadonlyArray<{ ticker: string; weightPct: number }>;
+  missingTickers: string[];
+}) {
+  const isEmpty = params.holdings.length === 0;
   return PortfolioRiskResponseSchema.parse({
-    status: holdings.length === 0 ? "empty" : "insufficient_history",
-    basis: "sector_tag",
+    accountId: params.accountId,
+    status: isEmpty ? "empty" : "insufficient_history",
+    basis: isEmpty ? "empty" : "insufficient_history",
+    cashWeightPct: params.cashWeightPct,
     windowDays: 0,
     annualizedVolPct: null,
     portfolioBeta: null,
@@ -27,7 +38,7 @@ function buildSectorFallbackResponse(
     effectiveNumBets: null,
     shrinkageIntensity: null,
     clusterCapPct: CORRELATED_CLUSTER_CAP_PCT,
-    contributions: holdings.map((h) => ({
+    contributions: params.holdings.map((h) => ({
       ticker: h.ticker,
       weightPct: h.weightPct,
       standaloneVolPct: null,
@@ -36,29 +47,34 @@ function buildSectorFallbackResponse(
       betaVsSpy: null,
     })),
     clusters: [],
-    missingTickers,
+    missingTickers: params.missingTickers,
   });
 }
 
-function computeDailyCovRiskPayload(
-  holdings: ReadonlyArray<{ ticker: string; weightPct: number }>,
-  market: Awaited<ReturnType<typeof loadUnadjustedMarketDataForTickers>>,
-) {
-  const weightByTicker = new Map(holdings.map((h) => [h.ticker, h.weightPct]));
+function computeDailyCovRiskPayload(params: {
+  accountId: string;
+  cashWeightPct: number;
+  holdings: ReadonlyArray<{ ticker: string; weightPct: number }>;
+  market: Awaited<ReturnType<typeof loadUnadjustedMarketDataForTickers>>;
+}) {
   const aligned = buildAlignedDailyReturns({
-    tickers: holdings.map((h) => h.ticker),
-    barsByTicker: market.barsByTicker,
-    dividendsByTicker: market.dividendsByTicker,
-    spyBars: market.spyBars,
-    spyDividends: market.spyDividends,
+    tickers: params.holdings.map((h) => h.ticker),
+    barsByTicker: params.market.barsByTicker,
+    dividendsByTicker: params.market.dividendsByTicker,
+    spyBars: params.market.spyBars,
+    spyDividends: params.market.spyDividends,
     minDays: 60,
     maxDays: 252,
   });
-  if (aligned.includedTickers.length === 0 || aligned.dates.length < 60) {
-    return buildSectorFallbackResponse(holdings, aligned.missingTickers);
+  const cov =
+    aligned.includedTickers.length > 0 && aligned.dates.length >= 60
+      ? estimateShrunkCovariance(aligned.returnSeries)
+      : null;
+  if (!cov) {
+    return buildUnavailableRiskResponse({ ...params, missingTickers: aligned.missingTickers });
   }
+  const weightByTicker = new Map(params.holdings.map((h) => [h.ticker, h.weightPct]));
   const weightsPct = aligned.includedTickers.map((t) => weightByTicker.get(t) ?? 0);
-  const cov = estimateShrunkCovariance(aligned.returnSeries);
   const decomp = decomposePortfolioRisk({
     tickers: aligned.includedTickers,
     weights: weightsPct.map((w) => w / 100),
@@ -72,8 +88,10 @@ function computeDailyCovRiskPayload(
     correlation: cov.correlation,
   });
   return PortfolioRiskResponseSchema.parse({
+    accountId: params.accountId,
     status: "ready",
-    basis: "daily_cov",
+    basis: "ledger_daily_cov",
+    cashWeightPct: params.cashWeightPct,
     windowDays: aligned.dates.length,
     ...decomp,
     shrinkageIntensity: cov.shrinkageIntensity,
@@ -83,21 +101,60 @@ function computeDailyCovRiskPayload(
   });
 }
 
-export async function GET() {
+async function loadRiskInputs(tx: KanonDb, userId: string, accountId: string | null) {
+  const { account, transactions } = await loadTenantAccountAndTransactions(tx, userId, accountId);
+  if (!account) return null;
+  const tickers = transactions.map((t) => t.ticker).filter((t) => t !== "CASH");
+  const market = await loadUnadjustedMarketDataForTickers(tx, tickers);
+  return { account, transactions, market };
+}
+
+export async function GET(request: Request) {
   const startedAt = performance.now();
   const auth = await requireWorkspaceContext(startedAt);
   if (!auth.ok) return auth.response;
-  const { holdings, market } = await auth.withDb(async (tx) => {
-    const theses = await listTheses(tx, auth.user.id);
-    const active = theses
-      .filter((t) => t.status === "active" && t.currentWeightPct > 0)
-      .map((t) => ({ ticker: t.ticker.toUpperCase(), weightPct: t.currentWeightPct }));
-    const mkt = await loadUnadjustedMarketDataForTickers(
-      tx,
-      active.map((a) => a.ticker),
+  const accountId = new URL(request.url).searchParams.get("accountId")?.trim() || null;
+  const loaded = await auth.withDb((tx) => loadRiskInputs(tx, auth.user.id, accountId));
+  if (!loaded || loaded.transactions.length === 0) {
+    return jsonOk(
+      buildUnavailableRiskResponse({
+        accountId: loaded?.account.id ?? null,
+        cashWeightPct: loaded ? 100 : null,
+        holdings: [],
+        missingTickers: [],
+      }),
+      startedAt,
     );
-    return { holdings: active, market: mkt };
+  }
+  const weights = computeLedgerPortfolioWeights({
+    transactions: loaded.transactions.map((t) => ({
+      id: t.id,
+      ticker: t.ticker,
+      action: t.action,
+      quantity: t.quantity,
+      price: t.price,
+      fees: t.fees,
+      tradeDate: t.tradeDate,
+      createdAtMs: t.createdAt.getTime(),
+      isOpeningBalance: t.externalRef === "opening_balance",
+    })),
+    splitsByTicker: loaded.market.splitsByTicker,
+    latestCloseByTicker: loaded.market.latestCloseByTicker,
+    asOfDate: todayIsoUtc(),
   });
-  if (holdings.length === 0) return jsonOk(buildSectorFallbackResponse([], []), startedAt);
-  return jsonOk(computeDailyCovRiskPayload(holdings, market), startedAt);
+  const payload =
+    weights.holdings.length === 0
+      ? buildUnavailableRiskResponse({
+          accountId: loaded.account.id,
+          cashWeightPct: weights.cashWeightPct,
+          holdings: [],
+          missingTickers: [],
+        })
+      : computeDailyCovRiskPayload({
+          accountId: loaded.account.id,
+          cashWeightPct: weights.cashWeightPct,
+          holdings: weights.holdings,
+          market: loaded.market,
+        });
+  return jsonOk(payload, startedAt);
 }

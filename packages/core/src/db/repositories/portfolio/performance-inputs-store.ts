@@ -64,7 +64,7 @@ function indexActionRows(
   return { splitsByTicker, dividendsByTicker };
 }
 
-/** Loads unadjusted daily closes + corporate actions (splits/dividends) for tickers + SPY (NEVER adjClose — G16). */
+/** Loads split-basis daily closes + corporate actions (splits/dividends) for tickers + SPY (NEVER adjClose — U0-5 / G16). */
 export async function loadUnadjustedMarketDataForTickers(
   tx: KanonDb,
   tickers: readonly string[],

@@ -1,4 +1,5 @@
-import { createMemoryKanonDb, getSecSnapshot, getThesisById } from "@kanon/core/db";
+import { getSecSnapshot, getThesisById } from "@kanon/core/db";
+import { createMemoryKanonDb } from "@kanon/core/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { streamResearchAgent } from "./agent/run-research-agent";
 import { runThesisCopilot } from "./copilot/run-copilot";

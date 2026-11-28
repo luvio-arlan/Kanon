@@ -13,6 +13,7 @@ import {
 } from "./garden-guards.mjs";
 import { checkWaveGuards } from "./wave-guards.mjs";
 import { checkWaveGuardsRs } from "./wave-guards-rs.mjs";
+import { checkWaveGuardsU } from "./wave-guards-u.mjs";
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ["apps", "packages"];
@@ -35,7 +36,7 @@ const SPRING_LITERAL_RE = /\b(?:stiffness|damping)\s*:/;
 const BLUR_FILTER_MOTION_RE = /\bfilter\s*:\s*["']blur\(/;
 const USER_DB_JARGON_RE = /\bPostgreSQL\b|\bPostgres\b|落库/;
 const COLLOQUIAL_COPY_RE =
-  /事前验尸|商业模式滤镜|商业滤镜|水电煤|死因链条|红队挑刺|红队拷问|苛刻空头|恐慌想割|法证体检|法证排雷|印钞机|烧钱黑洞|拍脑袋|一票否决|真·反向/;
+  /事前验尸|商业模式滤镜|商业滤镜|水电煤|死因链条|红队挑刺|红队拷问|苛刻空头|恐慌想割|法证体检|法证排雷|印钞机|烧钱黑洞|拍脑袋|一票否决|真·反向|靠运气/;
 const DASHED_BANNER_RE =
   /\bborder-dashed\b.*\bbg-(?:accent-coral|status-)|\bbg-(?:accent-coral|status-).*\bborder-dashed\b/;
 const PRESS_SCALE_RE = /\bactive:scale-/;
@@ -354,6 +355,7 @@ function main() {
   checkApiMutationCsrfGuard(ROOT, errors);
   checkWaveGuards(ROOT, errors);
   checkWaveGuardsRs(ROOT, errors);
+  checkWaveGuardsU(ROOT, errors);
   for (const filePath of files) {
     const relPath = path.relative(ROOT, filePath).split(path.sep).join("/");
     const content = fs.readFileSync(filePath, "utf8");

@@ -20,9 +20,10 @@ import { createResearchNote, listResearchNotes } from "../library/research-notes
 import { createQuarterlyReview, saveAgentRun } from "../review-and-agent-store";
 import { createThesis, updateThesisStepChecked } from "../thesis-mutations";
 import { getThesisById } from "../thesis-queries";
-import { claimDueJobs, enqueueJob, enqueueWatchlistJobs } from "../warehouse/jobs-and-peers-store";
+import { claimDueJobs, enqueueJob } from "../warehouse/jobs-and-peers-store";
 import { upsertPriceBars } from "../warehouse/price-bars-store";
 import { upsertSecurity } from "../warehouse/securities-and-fx-store";
+import { enqueueWatchlistJobs } from "../warehouse/watchlist-enqueue";
 import {
   createPortfolioAccount,
   recordPortfolioTransaction,

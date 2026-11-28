@@ -14,6 +14,11 @@ import {
 
 export { GuidancePolicyError, insertAiGuidanceDrafts, patchGuidanceDraft };
 
+type GuidanceRow = typeof guidanceCommitmentsTable.$inferSelect;
+
+const byIdAndThesis = (id: string, thesisId: string) =>
+  and(eq(guidanceCommitmentsTable.id, id), eq(guidanceCommitmentsTable.thesisId, thesisId));
+
 export async function listGuidanceCommitments(
   db: KanonDb,
   thesisId: string,
@@ -62,10 +67,7 @@ export async function createGuidanceDraft(
   return mapGuidanceRow(inserted);
 }
 
-async function supersedePriorConfirmed(
-  tx: KanonDb,
-  cur: typeof guidanceCommitmentsTable.$inferSelect,
-): Promise<string | null> {
+async function supersedePriorConfirmed(tx: KanonDb, cur: GuidanceRow): Promise<string | null> {
   if (cur.targetFiscalYear === null || !cur.targetFiscalPeriod) return null;
   const prior = await tx
     .select({ id: guidanceCommitmentsTable.id })
@@ -85,25 +87,31 @@ async function supersedePriorConfirmed(
   await tx
     .update(guidanceCommitmentsTable)
     .set({ status: "superseded", updatedAt: new Date() })
-    .where(
-      and(
-        eq(guidanceCommitmentsTable.id, latest.id),
-        eq(guidanceCommitmentsTable.thesisId, cur.thesisId),
-      ),
-    );
+    .where(byIdAndThesis(latest.id, cur.thesisId));
   return latest.id;
 }
 
 function assertConfirmableDraft(
-  cur: typeof guidanceCommitmentsTable.$inferSelect | undefined,
+  cur: GuidanceRow | undefined,
   expectedUpdatedAt?: string,
-): asserts cur is typeof guidanceCommitmentsTable.$inferSelect {
+): asserts cur is GuidanceRow {
   if (!cur) throw new GuidancePolicyError("NOT_FOUND", "指引条目不存在。", 404);
   if (expectedUpdatedAt && cur.updatedAt.toISOString() !== expectedUpdatedAt) {
     throw new GuidancePolicyError("CONFLICT", "指引条目已被他人更新，请刷新后确认。", 409);
   }
   if (cur.status !== "draft_ai" && cur.status !== "draft_legacy") {
     throw new GuidancePolicyError("ALREADY_CONFIRMED", "该指引已确认或已撤回。", 409);
+  }
+  const basisRequired =
+    cur.metric === "diluted_eps" ||
+    cur.metric === "gross_margin" ||
+    cur.metric === "operating_margin";
+  if (basisRequired && cur.basis === "unspecified") {
+    throw new GuidancePolicyError(
+      "BASIS_REQUIRED",
+      "确认 EPS 或利润率指引前必须明确 GAAP / Non-GAAP 口径。",
+      422,
+    );
   }
   const missingFields =
     !cur.unit ||
@@ -125,12 +133,7 @@ export async function confirmGuidanceCommitment(
     const [cur] = await tx
       .select()
       .from(guidanceCommitmentsTable)
-      .where(
-        and(
-          eq(guidanceCommitmentsTable.id, params.id),
-          eq(guidanceCommitmentsTable.thesisId, params.thesisId),
-        ),
-      )
+      .where(byIdAndThesis(params.id, params.thesisId))
       .limit(1);
     assertConfirmableDraft(cur, params.expectedUpdatedAt);
     const supersedesId = await supersedePriorConfirmed(tx, cur);
@@ -143,12 +146,7 @@ export async function confirmGuidanceCommitment(
         supersedesId,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(guidanceCommitmentsTable.id, params.id),
-          eq(guidanceCommitmentsTable.thesisId, params.thesisId),
-        ),
-      )
+      .where(byIdAndThesis(params.id, params.thesisId))
       .returning();
     if (!updated) throw new GuidancePolicyError("CONFIRM_FAILED", "确认失败。", 500);
     return mapGuidanceRow(updated);
@@ -159,28 +157,21 @@ export async function withdrawGuidanceCommitment(
   db: KanonDb,
   params: { id: string; thesisId: string },
 ): Promise<boolean> {
+  const [cur] = await db
+    .select({ id: guidanceCommitmentsTable.id, resolvedAt: guidanceCommitmentsTable.resolvedAt })
+    .from(guidanceCommitmentsTable)
+    .where(byIdAndThesis(params.id, params.thesisId))
+    .limit(1);
+  if (!cur) return false;
+  if (cur.resolvedAt !== null) {
+    throw new GuidancePolicyError("ALREADY_RESOLVED", "已兑现的指引记录已冻结，不可撤回。", 409);
+  }
   const res = await db
     .update(guidanceCommitmentsTable)
     .set({ status: "withdrawn", updatedAt: new Date() })
-    .where(
-      and(
-        eq(guidanceCommitmentsTable.id, params.id),
-        eq(guidanceCommitmentsTable.thesisId, params.thesisId),
-      ),
-    )
+    .where(byIdAndThesis(params.id, params.thesisId))
     .returning();
   return res.length > 0;
-}
-
-function assertManualActualTarget(
-  cur: typeof guidanceCommitmentsTable.$inferSelect | undefined,
-): asserts cur is typeof guidanceCommitmentsTable.$inferSelect & {
-  unit: NonNullable<(typeof guidanceCommitmentsTable.$inferSelect)["unit"]>;
-} {
-  if (!cur) throw new GuidancePolicyError("NOT_FOUND", "指引条目不存在。", 404);
-  if (cur.status !== "confirmed" || !cur.unit) {
-    throw new GuidancePolicyError("NOT_CONFIRMED", "仅已确认的指引可录入实际结果。", 409);
-  }
 }
 
 export async function recordManualGuidanceActual(
@@ -195,14 +186,12 @@ export async function recordManualGuidanceActual(
   const [cur] = await db
     .select()
     .from(guidanceCommitmentsTable)
-    .where(
-      and(
-        eq(guidanceCommitmentsTable.id, params.id),
-        eq(guidanceCommitmentsTable.thesisId, params.thesisId),
-      ),
-    )
+    .where(byIdAndThesis(params.id, params.thesisId))
     .limit(1);
-  assertManualActualTarget(cur);
+  if (!cur) throw new GuidancePolicyError("NOT_FOUND", "指引条目不存在。", 404);
+  if (cur.status !== "confirmed" || !cur.unit) {
+    throw new GuidancePolicyError("NOT_CONFIRMED", "仅已确认的指引可录入实际结果。", 409);
+  }
   const scored = scoreGuidanceOutcome({
     metric: cur.metric,
     unit: cur.unit,
@@ -221,12 +210,7 @@ export async function recordManualGuidanceActual(
       resolutionVersion: "manual/1",
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        eq(guidanceCommitmentsTable.id, params.id),
-        eq(guidanceCommitmentsTable.thesisId, params.thesisId),
-      ),
-    )
+    .where(byIdAndThesis(params.id, params.thesisId))
     .returning();
   if (!updated) throw new GuidancePolicyError("RESOLVE_FAILED", "录入实际值失败。", 500);
   return mapGuidanceRow(updated);

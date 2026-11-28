@@ -32,6 +32,8 @@ export interface AlertRuleRow {
 export interface LedgerAccountRow {
   id: string;
   name: string;
+  baseCurrency?: string;
+  ledgerInconsistent?: boolean;
   cashBalance: number;
   noLeverageAcknowledgedAt?: string | null;
   positions: Array<{ ticker: string; shares: number; avgCostBasis: number; totalCost: number }>;

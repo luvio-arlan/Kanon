@@ -1,14 +1,25 @@
 import { spawnSync } from "node:child_process";
 
 /**
- * Offline AI Golden Eval & Prompt-Injection Regression Runner (Wave R4).
- * Runs the 28-case deterministic Golden Eval scorer + IC grounding/redline/injection tests.
+ * AI Golden Eval & Production FTS Retrieval Regression Runner (Wave R4 + U0-12).
+ * - `--offline`: Scorer self-check + production PGlite GIN FTS recall + IC grounding/injection suite.
+ * - `--live`: Fails closed if no LLM API key is present; never silently downgrades to offline.
  */
 const args = process.argv.slice(2);
-const offline = args.includes("--offline") || !process.env.GEMINI_API_KEY;
-process.stdout.write(
-  `[kanon eval] Running 28-case Golden Eval & AI IC regression suite (${offline ? "offline deterministic replay" : "live"})...\n`,
-);
+const wantsLive = args.includes("--live");
+const offline = args.includes("--offline") || !wantsLive;
+
+if (wantsLive && !process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+  process.stderr.write(
+    "[kanon eval:live] FAIL: GEMINI_API_KEY or OPENAI_API_KEY is required for live eval (refusing silent offline downgrade).\n",
+  );
+  process.exit(1);
+}
+
+const banner = offline
+  ? "[kanon eval] 评分器自检 + 生产 FTS 召回与 AI IC 防御回归 (offline scorer self-check + PGlite GIN FTS)..."
+  : "[kanon eval:live] 在线 AI IC 准确率评测 + 生产 FTS 召回回归 (live)...";
+process.stdout.write(`${banner}\n`);
 
 const res = spawnSync(
   "pnpm",
@@ -19,14 +30,20 @@ const res = spawnSync(
     "vitest",
     "run",
     "src/retrieval/golden-eval.test.ts",
+    "src/retrieval/fts-recall.test.ts",
     "src/agent/ai-ic-v2.test.ts",
   ],
-  { stdio: "inherit" },
+  {
+    stdio: "inherit",
+    env: { ...process.env, KANON_EVAL_MODE: offline ? "offline" : "live" },
+  },
 );
 
 if (res.status !== 0) {
   process.exit(res.status ?? 1);
 }
 process.stdout.write(
-  "[kanon eval] PASS: 28-case Golden Eval (CA/NE/RR/FR/Recall@6/IR) & IC gates verified.\n",
+  offline
+    ? "[kanon eval] PASS: 评分器自检 + PGlite GIN FTS Recall@6 生产检索 + IC 门禁通过。\n"
+    : "[kanon eval:live] PASS: 在线 IC 评测 + PGlite GIN FTS Recall@6 门禁通过。\n",
 );

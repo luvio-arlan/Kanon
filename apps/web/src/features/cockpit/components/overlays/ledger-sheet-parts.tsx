@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Input } from "@kanon/ui";
+import { Button, formatMoney, Input } from "@kanon/ui";
 import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -19,7 +19,13 @@ function todayDateInput(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function LedgerPositionsList({ positions }: { positions: LedgerAccountRow["positions"] }) {
+export function LedgerPositionsList({
+  positions,
+  currency = "USD",
+}: {
+  positions: LedgerAccountRow["positions"];
+  currency?: string;
+}) {
   if (positions.length === 0) return null;
   return (
     <div className="divide-y divide-hairline rounded-panel border border-hairline bg-surface text-xs">
@@ -27,7 +33,7 @@ export function LedgerPositionsList({ positions }: { positions: LedgerAccountRow
         <div key={pos.ticker} className="flex items-center justify-between px-4 py-2.5">
           <span className="font-mono font-semibold text-ink-primary">{pos.ticker}</span>
           <span className="font-mono text-ink-secondary tabular-nums">
-            {pos.shares} 股 · 均价 ${pos.avgCostBasis.toFixed(2)}
+            {pos.shares} 股 · 均价 {formatMoney(pos.avgCostBasis, currency)}
           </span>
         </div>
       ))}

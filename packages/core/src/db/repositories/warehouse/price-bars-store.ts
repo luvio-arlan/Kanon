@@ -170,8 +170,5 @@ export async function updateThesisPriceByTicker(
 
 export {
   computeRealHistoricalValuationBand,
-  type EvaluatedValuationBand,
   evaluateHistoricalValuationBand,
-  type PitEpsObservation,
-  type SplitEventRef,
 } from "./valuation-bands-store";

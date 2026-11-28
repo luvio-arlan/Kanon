@@ -8,7 +8,7 @@ import {
   type OperatingCaseDrivers,
   type SecAnnualFinancial,
 } from "@kanon/core";
-import { Badge, Button, Card } from "@kanon/ui";
+import { Badge, Button, Card, formatMoney } from "@kanon/ui";
 import { IconArrowDownRight, IconTableOptions } from "@tabler/icons-react";
 import { useState } from "react";
 import { DriverNumInput } from "../ev-owner-fcf-card";
@@ -68,6 +68,10 @@ const CORE_FIELDS: readonly NumericDriverField[] = [
   },
 ];
 
+function fmtUsdB(val: number): string {
+  return formatMoney(val * 1e9, "USD", { scale: "B", maximumFractionDigits: 1 });
+}
+
 function CaseDriverRow(p: {
   label: string;
   val: OperatingCaseDrivers;
@@ -82,10 +86,12 @@ function CaseDriverRow(p: {
       <div className="col-span-2 flex items-center justify-between sm:col-span-1 sm:block">
         <span className="text-xs font-semibold text-ink-primary">{p.label}</span>
         <div className="font-mono text-xs text-accent-coral tabular-nums">
-          ${p.targetPrice.toFixed(1)} · EPS ${p.eps.toFixed(1)}
+          {formatMoney(p.targetPrice, "USD", { maximumFractionDigits: 1 })} · EPS{" "}
+          {formatMoney(p.eps, "USD", { maximumFractionDigits: 1 })}
         </div>
         <div className="font-mono text-xs text-ink-muted tabular-nums">
-          FCF ${p.ownerFcfB}B{p.growthCapexB > 0 ? ` · 增长CapEx $${p.growthCapexB}B` : ""}
+          FCF {fmtUsdB(p.ownerFcfB)}
+          {p.growthCapexB > 0 ? ` · 增长CapEx ${fmtUsdB(p.growthCapexB)}` : ""}
         </div>
       </div>
       {CORE_FIELDS.map((f) => (
@@ -134,9 +140,10 @@ function LinkedModelBody(p: {
         <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-ink-secondary tabular-nums">
           <span>
             中性远期营收{" "}
-            <strong className="text-ink-primary">${p.model.base.endingRevenueB}B</strong> · 期间累积
-            FCF <strong className="text-ink-primary">${p.model.base.cumulativeFcfB}B</strong> · 年化{" "}
-            <strong className="text-accent-coral">{p.model.base.cagrPct}%</strong>
+            <strong className="text-ink-primary">{fmtUsdB(p.model.base.endingRevenueB)}</strong> ·
+            期间累积 FCF{" "}
+            <strong className="text-ink-primary">{fmtUsdB(p.model.base.cumulativeFcfB)}</strong> ·
+            年化 <strong className="text-accent-coral">{p.model.base.cagrPct}%</strong>
           </span>
           <button
             type="button"
@@ -185,7 +192,7 @@ function LinkedCardHeader({
         </h3>
       </div>
       {endingNetCashB !== null ? (
-        <Badge variant="titanium">中性期末净现金 ${endingNetCashB}B</Badge>
+        <Badge variant="titanium">中性期末净现金 {fmtUsdB(endingNetCashB)}</Badge>
       ) : null}
     </div>
   );

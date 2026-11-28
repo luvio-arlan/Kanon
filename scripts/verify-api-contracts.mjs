@@ -195,6 +195,20 @@ async function verifyCoreCrudAndDiscipline(cookieA, cookieB) {
   assert.equal(typeof health.data.secretsConfigured?.credentials, "boolean");
   assert.equal(typeof health.data.secretsConfigured?.cron, "boolean");
   assert.equal(typeof health.data.secretsConfigured?.secUserAgent, "boolean");
+  assert.equal(
+    health.data.db?.bypassRls,
+    false,
+    "G28: local enforced RLS must have bypassRls=false",
+  );
+  assert.equal(
+    health.data.db?.rlsFailClosed,
+    true,
+    "G28: local enforced RLS must have rlsFailClosed=true",
+  );
+  assert.ok(
+    ["ok", "grace_period", "never_ran", "stale"].includes(health.data.cron?.state),
+    `G20: unexpected health.cron.state=${health.data.cron?.state}`,
+  );
 
   const list = await fetchJson("/api/theses", {}, cookieA);
   assert.equal(list.status, 200);
@@ -806,6 +820,22 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
 
   const cronUnauth = await fetchJson("/api/internal/jobs/tick", { method: "POST" });
   assert.ok([401, 503].includes(cronUnauth.status));
+  const cronAuth = await fetchJson("/api/internal/jobs/tick", {
+    method: "POST",
+    headers: { authorization: "Bearer test-cron-secret-wave-u" },
+  });
+  assert.equal(cronAuth.status, 200, `G20: authorized tick failed with ${cronAuth.status}`);
+  const healthAfterTick = await fetchJson("/api/health");
+  assert.equal(healthAfterTick.status, 200);
+  assert.equal(
+    healthAfterTick.data.cron?.state,
+    "ok",
+    "G20: health.cron.state must be ok after authorized tick",
+  );
+  assert.ok(
+    healthAfterTick.data.cron?.lastCompletedAt,
+    "G20: health.cron.lastCompletedAt must be non-null",
+  );
 
   const peerPost = await fetchJson(
     `/api/theses/${nvdaId}/peers`,
@@ -1110,7 +1140,10 @@ async function verifyHardenedEndpoints(createdId, nvdaId, cookieA, cookieB) {
 
   const riskRes = await fetchJson("/api/portfolio/risk", {}, cookieA);
   assert.equal(riskRes.status, 200);
-  assert.ok(riskRes.data.basis === "daily_cov" || riskRes.data.basis === "sector_tag");
+  assert.ok(
+    ["ledger_daily_cov", "insufficient_history", "empty"].includes(riskRes.data.basis),
+    `Unexpected risk basis: ${riskRes.data.basis}`,
+  );
 
   const attrRes = await fetchJson("/api/portfolio/attribution", {}, cookieA);
   assert.equal(attrRes.status, 200);
@@ -1133,6 +1166,7 @@ async function main() {
       PORT: String(PORT),
       KANON_DATA_DIR: tmpDir,
       KANON_RLS_ENFORCE_LOCAL: "1",
+      CRON_SECRET: "test-cron-secret-wave-u",
     },
     stdio: "pipe",
   });

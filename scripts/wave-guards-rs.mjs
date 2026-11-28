@@ -203,7 +203,13 @@ const SYSTEM_DB_ALLOWLIST = new Map([
   ["apps/web/src/app/api/calendar/[token]/route.ts", new Set(["calendar_feed"])],
   ["apps/web/src/app/api/health/route.ts", new Set(["health"])],
   ["apps/web/src/app/api/internal/jobs/tick/job-handlers.ts", new Set(["cron_tick"])],
+  ["apps/web/src/app/api/internal/jobs/tick/job-once.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/internal/jobs/tick/route.ts", new Set(["cron_tick"])],
+  [
+    "apps/web/src/app/api/internal/jobs/tick/segment-sync-job.ts",
+    new Set(["cron_tick", "user_triggered_sync"]),
+  ],
+  ["apps/web/src/app/api/internal/jobs/tick/tick-runner.ts", new Set(["cron_tick"])],
   ["apps/web/src/app/api/sec/[ticker]/route.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/sec/[ticker]/filing/route.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/sec/[ticker]/redline/route.ts", new Set(["user_triggered_sync"])],
@@ -629,25 +635,35 @@ export function checkG18NoSubstringChunkRetrievalAst(rel, content, errors) {
   visit(sf);
 }
 
-const HYP_EVENT_EXEMPT_FILES = new Set([
-  "packages/core/src/db/repositories/archive-importer.ts",
-  "packages/core/src/db/repositories/starter-workspace.ts",
-  "packages/core/src/db/repositories/thesis-mutations.ts",
-]);
+const HYP_EVENT_EXEMPT_FILES = new Set([]);
+
+function isFunctionLikeNode(node) {
+  return (
+    ts.isFunctionDeclaration(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isMethodDeclaration(node)
+  );
+}
+
+function isHypothesesTableWrite(n, sf) {
+  return (
+    ts.isPropertyAccessExpression(n.expression) &&
+    (n.expression.name.text === "update" || n.expression.name.text === "insert") &&
+    n.arguments[0]?.getText(sf) === "hypothesesTable"
+  );
+}
 
 function inspectHypWriteInFunction(fnNode, sf, rel, errors) {
   let hasHypMutation = false;
   let hasEventAppend = false;
   let mutLine = 1;
   const walk = (n) => {
+    if (n !== fnNode && isFunctionLikeNode(n)) return;
     if (ts.isCallExpression(n)) {
       if (ts.isIdentifier(n.expression) && n.expression.text === "appendHypothesisStatusEvent") {
         hasEventAppend = true;
-      } else if (
-        ts.isPropertyAccessExpression(n.expression) &&
-        (n.expression.name.text === "update" || n.expression.name.text === "insert") &&
-        n.arguments[0]?.getText(sf) === "hypothesesTable"
-      ) {
+      } else if (isHypothesesTableWrite(n, sf)) {
         hasHypMutation = true;
         mutLine = getLine(sf, n.getStart(sf));
       }
@@ -662,7 +678,7 @@ function inspectHypWriteInFunction(fnNode, sf, rel, errors) {
   }
 }
 
-/** G14: Every repository function mutating hypothesesTable must pair appendHypothesisStatusEvent. */
+/** G14+: Every repository function/arrow/method mutating hypothesesTable must pair appendHypothesisStatusEvent (zero exemptions). */
 export function checkG14HypothesisEventPairingAst(rel, content, errors) {
   if (!rel.startsWith("packages/core/src/db/repositories/") || HYP_EVENT_EXEMPT_FILES.has(rel)) {
     return;
@@ -670,9 +686,8 @@ export function checkG14HypothesisEventPairingAst(rel, content, errors) {
   if (!content.includes("hypothesesTable")) return;
   const sf = parseTs(rel, content);
   const visit = (node) => {
-    if (ts.isFunctionDeclaration(node) && node.body) {
+    if (isFunctionLikeNode(node) && node.body) {
       inspectHypWriteInFunction(node.body, sf, rel, errors);
-      return;
     }
     ts.forEachChild(node, visit);
   };
@@ -718,7 +733,7 @@ const CLOSE_ONLY_PREFIXES = [
   "apps/web/src/app/api/portfolio/",
 ];
 
-/** G16: Portfolio NAV, risk, and attribution paths must use unadjusted `.close` + corporate_actions (never `.adjClose`). */
+/** G16: Portfolio NAV, risk, and attribution paths must use split-basis consistent `.close` (never `.adjClose`). */
 export function checkG16HoldingsUseCloseOnlyAst(rel, content, errors) {
   if (!CLOSE_ONLY_PREFIXES.some((p) => rel.startsWith(p))) return;
   const sf = parseTs(rel, content);
@@ -728,11 +743,11 @@ export function checkG16HoldingsUseCloseOnlyAst(rel, content, errors) {
       (node.name.text === "adjClose" || node.name.text === "adj_close")
     ) {
       errors.push(
-        `${rel}:${getLine(sf, node.getStart(sf))} [G16-holdings-use-close-only] Property .${node.name.text} is banned in portfolio performance/risk/attribution; use unadjusted .close + corporate_actions.`,
+        `${rel}:${getLine(sf, node.getStart(sf))} [G16-holdings-use-close-only] Property .${node.name.text} is banned in portfolio performance/risk/attribution; use split-adjusted .close consistent with split-basis.ts.`,
       );
     } else if (ts.isIdentifier(node) && (node.text === "adjClose" || node.text === "adj_close")) {
       errors.push(
-        `${rel}:${getLine(sf, node.getStart(sf))} [G16-holdings-use-close-only] Identifier ${node.text} is banned in portfolio performance/risk/attribution; use unadjusted close + corporate_actions.`,
+        `${rel}:${getLine(sf, node.getStart(sf))} [G16-holdings-use-close-only] Identifier ${node.text} is banned in portfolio performance/risk/attribution; use split-adjusted close consistent with split-basis.ts.`,
       );
     }
     ts.forEachChild(node, visit);

@@ -134,6 +134,7 @@ export {
   useTheme,
 } from "./components/primitives/theme-provider";
 export { cn } from "./lib/cn";
+export { formatMoney, type MoneyScale } from "./lib/format-money";
 export {
   KANON_CARD_HOVER,
   KANON_EDITORIAL_FADE,

@@ -24,6 +24,8 @@ export interface UpsertSegmentReportInput {
   revenueConcept: string;
   profitConcept?: string | null;
   profitIsStandard: boolean;
+  profitReconciled?: boolean;
+  periodKind?: "annual" | "quarter";
   consolidatedRevenue: number | null;
   segmentRevenueSum: number | null;
   diffPct: number | null;
@@ -33,6 +35,8 @@ export interface UpsertSegmentReportInput {
 }
 
 function buildSegmentReportValues(report: UpsertSegmentReportInput) {
+  const periodKind =
+    report.periodKind ?? (report.form.toUpperCase().startsWith("10-Q") ? "quarter" : "annual");
   return {
     id: report.id,
     securityId: report.securityId,
@@ -47,12 +51,14 @@ function buildSegmentReportValues(report: UpsertSegmentReportInput) {
     revenueConcept: report.revenueConcept,
     profitConcept: report.profitConcept ?? null,
     profitIsStandard: report.profitIsStandard,
+    profitReconciled: report.profitReconciled ?? false,
+    periodKind,
     consolidatedRevenue: report.consolidatedRevenue,
     segmentRevenueSum: report.segmentRevenueSum,
     diffPct: report.diffPct,
     status: report.status,
     filedAt: report.filedAt,
-    algoVersion: report.algoVersion ?? "segments/1",
+    algoVersion: report.algoVersion ?? "segments/2",
   };
 }
 
@@ -69,8 +75,11 @@ export async function upsertSegmentReportWithLines(
       .onConflictDoUpdate({
         target: segmentReportsTable.id,
         set: {
+          revenueConcept: values.revenueConcept,
           profitConcept: values.profitConcept,
           profitIsStandard: values.profitIsStandard,
+          profitReconciled: values.profitReconciled,
+          periodKind: values.periodKind,
           consolidatedRevenue: values.consolidatedRevenue,
           segmentRevenueSum: values.segmentRevenueSum,
           diffPct: values.diffPct,
@@ -142,38 +151,50 @@ async function hydrateSegmentReport(
   const fxToUsd = await lookupFxToUsd(db, r.currency, r.periodEnd);
   const importable = evaluateSotpImportEligibility({
     status: r.status,
+    periodKind: r.periodKind,
     currency: r.currency,
     fxToUsd,
     profitIsStandard: r.profitIsStandard,
-    profitReconciled: r.profitIsStandard && r.status === "reconciled",
+    profitReconciled: r.profitReconciled,
     eliminationsMaterial: checkEliminationsMaterial(allLines, r.consolidatedRevenue),
     lines: allLines,
   });
   return {
     accession: r.accession,
     form: r.form,
+    periodKind: r.periodKind,
     axis: r.axis,
     periodStart: r.periodStart,
     periodEnd: r.periodEnd,
     currency: r.currency,
     fxToUsd,
+    revenueConcept: r.revenueConcept,
+    profitConcept: r.profitConcept,
     status: r.status,
     diffPct: r.diffPct,
     profitIsStandard: r.profitIsStandard,
+    profitReconciled: r.profitReconciled,
     lines: r.status === "reconciled" ? [...allLines] : [],
     importable,
   };
 }
 
-/** Point-in-time query returning the latest filed segment reports per periodEnd (R2). */
+/** Point-in-time query returning the latest filed segment reports per periodEnd (R2 / U0-7). */
 export async function listLatestSegmentReportsBySecurity(
   db: KanonDb,
-  params: { securityId: string; axis: SegmentAxis; asOf?: string; limit?: number },
+  params: {
+    securityId: string;
+    axis: SegmentAxis;
+    asOf?: string;
+    periodKind?: "annual" | "quarter";
+    limit?: number;
+  },
 ): Promise<SegmentReport[]> {
   const conds = [
     eq(segmentReportsTable.securityId, params.securityId),
     eq(segmentReportsTable.axis, params.axis),
   ];
+  if (params.periodKind) conds.push(eq(segmentReportsTable.periodKind, params.periodKind));
   if (params.asOf) conds.push(lte(segmentReportsTable.filedAt, params.asOf));
   const rawReports = await db
     .select()

@@ -32,7 +32,7 @@ import {
 } from "../../schema";
 import { registerUser } from "../auth-store";
 import { upsertCopilotOutput } from "../copilot-store";
-import { addDisciplineEntry } from "../discipline-mutations";
+import { addDisciplineEntry, deleteThesis } from "../discipline-mutations";
 import { addThesisComment, submitIcApproval } from "../enterprise/ic-and-compliance-store";
 import {
   acceptOrgInvitation,
@@ -41,6 +41,7 @@ import {
   createOrgInvitation,
 } from "../enterprise/organizations-and-rls-store";
 import { createResearchNote } from "../library/research-notes-store";
+import { listHypothesisStatusEventsByThesisIds } from "../portfolio/hypothesis-events-store";
 import { createQuarterlyReview, saveAgentRun } from "../review-and-agent-store";
 import { createThesis, updateThesisStep } from "../thesis-mutations";
 import { saveModelVersion } from "../warehouse/model-versions-store";
@@ -52,6 +53,7 @@ import {
   recordPortfolioTransaction,
 } from "../workflows/portfolio-ledger-store";
 import { upsertUserAiCredential } from "./ai-credentials-and-usage-store";
+import { getDbSecurityPosture } from "./db-posture";
 import { withSystemContext, withTenantContext } from "./tenant-context";
 
 describe("RLS Phase D Fail-Closed Enforcement (PGlite NOBYPASSRLS)", () => {
@@ -523,5 +525,72 @@ describe("RLS Phase D Fail-Closed Enforcement (PGlite NOBYPASSRLS)", () => {
       if (prev === undefined) delete process.env.KANON_RUNTIME_MIGRATIONS;
       else process.env.KANON_RUNTIME_MIGRATIONS = prev;
     }
+  });
+
+  it("G26 & U0-10: snapshot holder retains hypothesis_status_events after thesis deletion while non-holder sees 0 rows, and posture reports fail-closed NOBYPASSRLS", async () => {
+    const posture = await withSystemContext(db, "health", (tx) => getDbSecurityPosture(tx));
+    expect(posture.bypassRls).toBe(false);
+    expect(posture.rlsFailClosed).toBe(true);
+
+    const holder = await registerInSystem("+8613800009091", "SnapHolder");
+    const outsider = await registerInSystem("+8613800009092", "SnapOutsider");
+
+    const thesisId = await withTenantContext(db, holder.id, async (tx) => {
+      const th = await createThesis(
+        tx,
+        { ticker: "SURV", companyName: "Survivorship Corp", sectorTag: "Tech", currentPrice: 100 },
+        holder.id,
+      );
+      const baseHyps = th.hypotheses.map((h) => ({
+        id: h.id,
+        title: h.title,
+        metricLabel: h.metricLabel,
+        status: "watching" as const,
+        threshold: h.threshold,
+        note: h.note,
+        kpiRule: null,
+      }));
+      await updateThesisStep(tx, th.id, { step: "hypotheses", hypotheses: baseHyps }, holder.id);
+      const acc = await createPortfolioAccount(tx, {
+        userId: holder.id,
+        name: "Survivorship Ledger",
+        initialCash: 10_000,
+      });
+      await recordPortfolioTransaction(tx, {
+        userId: holder.id,
+        accountId: acc.id,
+        thesisId: th.id,
+        ticker: "SURV",
+        action: "buy",
+        quantity: 10,
+        price: 100,
+        tradeDate: "2026-01-10",
+        noLeverageConfirmed: true,
+      });
+      await updateThesisStep(
+        tx,
+        th.id,
+        {
+          step: "hypotheses",
+          hypotheses: baseHyps.map((h, idx) =>
+            idx === 0 ? { ...h, status: "invalidated" as const } : h,
+          ),
+        },
+        holder.id,
+      );
+      // Delete the thesis! Under G26 the snapshot holder MUST STILL read hypothesis_status_events.
+      await deleteThesis(tx, th.id, holder.id);
+      return th.id;
+    });
+
+    const holderEvents = await withTenantContext(db, holder.id, (tx) =>
+      listHypothesisStatusEventsByThesisIds(tx, [thesisId]),
+    );
+    expect(holderEvents.some((e) => e.toStatus === "invalidated")).toBe(true);
+
+    const outsiderEvents = await withTenantContext(db, outsider.id, (tx) =>
+      listHypothesisStatusEventsByThesisIds(tx, [thesisId]),
+    );
+    expect(outsiderEvents).toHaveLength(0);
   });
 });

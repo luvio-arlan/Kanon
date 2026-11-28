@@ -1,6 +1,6 @@
 import type { NavBasis } from "../../contracts/analytics";
 import type { CloseBarPoint } from "./benchmark-tr";
-import { computeTxCashDelta, type ReplayTxInput, type SplitActionInput } from "./ledger-replay";
+import { computeTxCashDelta, type ReplayTxInput } from "./ledger-replay";
 
 export interface HoldingState {
   shares: number;
@@ -15,22 +15,6 @@ export function buildCloseLookup(barsByTicker: ReadonlyMap<string, readonly Clos
     map.set(ticker, m);
   }
   return map;
-}
-
-function applySplitsForHolding(
-  ticker: string,
-  h: HoldingState,
-  splits: readonly SplitActionInput[],
-  day: string,
-  appliedSplits: Set<string>,
-) {
-  for (const sp of splits) {
-    const key = `${ticker}:${sp.exDate}`;
-    if (sp.exDate <= day && !appliedSplits.has(key) && sp.ratio > 0) {
-      h.shares *= sp.ratio;
-      appliedSplits.add(key);
-    }
-  }
 }
 
 function applySingleDayTx(tx: ReplayTxInput, holdings: Map<string, HoldingState>) {
@@ -50,24 +34,16 @@ function applySingleDayTx(tx: ReplayTxInput, holdings: Map<string, HoldingState>
   cur.totalCost = Math.max(0, cur.shares * avg);
 }
 
-export function applyDayTxsAndSplits(params: {
-  day: string;
+/**
+ * Applies split-basis-normalized daily transactions to holdings & cash.
+ * Splits are normalized up front in `split-basis.ts` so the NAV loop NEVER mutates shares on ex-dates (U0-5 / G23).
+ */
+export function applyDayTxs(params: {
   dayTxs: readonly ReplayTxInput[];
   holdings: Map<string, HoldingState>;
-  splitsByTicker: ReadonlyMap<string, readonly SplitActionInput[]>;
-  appliedSplits: Set<string>;
 }): { cashDelta: number; netFlow: number } {
   let cashDelta = 0;
   let netFlow = 0;
-  for (const [ticker, h] of params.holdings) {
-    applySplitsForHolding(
-      ticker,
-      h,
-      params.splitsByTicker.get(ticker) ?? [],
-      params.day,
-      params.appliedSplits,
-    );
-  }
   for (const tx of params.dayTxs) {
     const delta = computeTxCashDelta(tx);
     cashDelta += delta;

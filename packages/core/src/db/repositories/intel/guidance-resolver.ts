@@ -1,81 +1,86 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
-import type { GuidanceMetric } from "../../../contracts/intel";
-import { scoreGuidanceOutcome } from "../../../math/guidance";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import type { GuidanceFiscalPeriod, GuidanceMetric } from "../../../contracts/intel";
+import {
+  type BoundPeriodFact,
+  bindPeriodFact,
+  bindQ4DerivedFact,
+  computeGuidanceEpsSplitFactor,
+  type PitFactCandidate,
+  scoreGuidanceOutcome,
+} from "../../../math/guidance";
+import type { SplitActionInput } from "../../../math/performance";
 import type { KanonDb } from "../../bootstrap";
-import { financialFactsTable, guidanceCommitmentsTable } from "../../schema";
+import { corporateActionsTable, financialFactsTable, guidanceCommitmentsTable } from "../../schema";
 
-type FactRow = typeof financialFactsTable.$inferSelect;
 type GuidanceRow = typeof guidanceCommitmentsTable.$inferSelect;
 
-interface PitMetricSnapshot {
-  periodEnd: string;
-  originalValue: number;
-  originalAccession: string;
-  restated: boolean;
+const BASIS_REQUIRED_METRICS = new Set<GuidanceMetric>([
+  "diluted_eps",
+  "gross_margin",
+  "operating_margin",
+]);
+
+function bindConcept(
+  facts: readonly PitFactCandidate[],
+  concept: string,
+  fy: number,
+  fp: GuidanceFiscalPeriod,
+): BoundPeriodFact | null {
+  return fp === "Q4"
+    ? bindQ4DerivedFact({ facts, concept, targetFiscalYear: fy })
+    : bindPeriodFact({ facts, concept, targetFiscalYear: fy, targetFiscalPeriod: fp });
 }
 
-function pickEarliestConcept(rows: readonly FactRow[], concept: string, periodEnd: string) {
-  const grp = rows
-    .filter((r) => r.concept === concept && r.periodEnd === periodEnd)
-    .sort((a, b) => a.filedAt.localeCompare(b.filedAt));
-  const first = grp[0];
-  if (!first) return null;
-  const last = grp[grp.length - 1];
-  const relDiff =
-    Math.abs((last?.value ?? first.value) - first.value) / Math.max(Math.abs(first.value), 1e-6);
-  const restated = Boolean(last && last.accession !== first.accession) && relDiff > 0.005;
-  return { val: first.value, acc: first.accession, restated };
+function computeMarginMetric(
+  numeratorConcept: "gross_profit" | "operating_income",
+  facts: readonly PitFactCandidate[],
+  fy: number,
+  fp: GuidanceFiscalPeriod,
+): BoundPeriodFact | null {
+  const num = bindConcept(facts, numeratorConcept, fy, fp);
+  const rev = bindConcept(facts, "revenue", fy, fp);
+  if (!num || !rev || rev.value <= 0) return null;
+  return { ...num, value: (num.value / rev.value) * 100, restated: num.restated || rev.restated };
 }
 
-function computeDerivedMetric(
-  metric: "gross_margin" | "free_cash_flow",
-  rows: readonly FactRow[],
-  periodEnd: string,
-): PitMetricSnapshot | null {
-  if (metric === "gross_margin") {
-    const gp = pickEarliestConcept(rows, "gross_profit", periodEnd);
-    const rev = pickEarliestConcept(rows, "revenue", periodEnd);
-    if (!gp || !rev || rev.val <= 0) return null;
-    return {
-      periodEnd,
-      originalValue: (gp.val / rev.val) * 100,
-      originalAccession: gp.acc,
-      restated: gp.restated || rev.restated,
-    };
-  }
-  const cfo = pickEarliestConcept(rows, "operating_cash_flow", periodEnd);
-  const cap = pickEarliestConcept(rows, "capex", periodEnd);
+function computeFcfMetric(
+  facts: readonly PitFactCandidate[],
+  fy: number,
+  fp: GuidanceFiscalPeriod,
+): BoundPeriodFact | null {
+  const cfo = bindConcept(facts, "operating_cash_flow", fy, fp);
+  const cap = bindConcept(facts, "capex", fy, fp);
   if (!cfo || !cap) return null;
-  return {
-    periodEnd,
-    originalValue: cfo.val - Math.abs(cap.val),
-    originalAccession: cfo.acc,
-    restated: cfo.restated || cap.restated,
-  };
+  return { ...cfo, value: cfo.value - Math.abs(cap.value), restated: cfo.restated || cap.restated };
 }
 
-function computeMetricFromRows(
+function computeBoundMetric(
   metric: GuidanceMetric,
-  rows: readonly FactRow[],
-  periodEnd: string,
-): PitMetricSnapshot | null {
-  if (metric === "gross_margin" || metric === "free_cash_flow") {
-    return computeDerivedMetric(metric, rows, periodEnd);
-  }
+  facts: readonly PitFactCandidate[],
+  fy: number,
+  fp: GuidanceFiscalPeriod,
+): BoundPeriodFact | null {
+  if (metric === "gross_margin") return computeMarginMetric("gross_profit", facts, fy, fp);
+  if (metric === "operating_margin") return computeMarginMetric("operating_income", facts, fy, fp);
+  if (metric === "free_cash_flow") return computeFcfMetric(facts, fy, fp);
   if (metric !== "revenue" && metric !== "diluted_eps" && metric !== "capex") return null;
-  const r = pickEarliestConcept(rows, metric, periodEnd);
-  if (!r) return null;
-  const originalValue = metric === "capex" ? Math.abs(r.val) : r.val;
-  return { periodEnd, originalValue, originalAccession: r.acc, restated: r.restated };
+  const bound = bindConcept(facts, metric, fy, fp);
+  if (!bound) return null;
+  return metric === "capex" ? { ...bound, value: Math.abs(bound.value) } : bound;
 }
 
-async function markRowUnresolvable(db: KanonDb, row: GuidanceRow): Promise<boolean> {
+async function markRowUnresolvable(
+  db: KanonDb,
+  row: GuidanceRow,
+  reason: string,
+): Promise<boolean> {
   await db
     .update(guidanceCommitmentsTable)
     .set({
       outcome: "unresolvable",
+      actualSourceJson: { kind: "unresolvable", reason },
       resolvedAt: new Date(),
-      resolutionVersion: "pit/1",
+      resolutionVersion: "pit/2",
       updatedAt: new Date(),
     })
     .where(
@@ -87,51 +92,95 @@ async function markRowUnresolvable(db: KanonDb, row: GuidanceRow): Promise<boole
   return true;
 }
 
-async function fetchTargetFacts(db: KanonDb, row: GuidanceRow) {
-  if (!row.securityId || row.targetFiscalYear === null || !row.targetFiscalPeriod) return [];
-  const duration = row.targetFiscalPeriod === "FY" ? "annual" : "quarter";
-  return db
-    .select()
-    .from(financialFactsTable)
-    .where(
-      and(
-        eq(financialFactsTable.securityId, row.securityId),
-        eq(financialFactsTable.duration, duration),
-        eq(financialFactsTable.fiscalYear, row.targetFiscalYear),
-        eq(financialFactsTable.fiscalPeriod, row.targetFiscalPeriod),
-      ),
-    )
-    .orderBy(asc(financialFactsTable.filedAt));
+async function fetchSecurityFactsAndSplits(
+  db: KanonDb,
+  securityId: string,
+  fy: number,
+  needSplits: boolean,
+): Promise<{ facts: PitFactCandidate[]; splits: SplitActionInput[] }> {
+  const [facts, splitRows] = await Promise.all([
+    db
+      .select({
+        accession: financialFactsTable.accession,
+        concept: financialFactsTable.concept,
+        duration: financialFactsTable.duration,
+        fiscalYear: financialFactsTable.fiscalYear,
+        fiscalPeriod: financialFactsTable.fiscalPeriod,
+        periodStart: financialFactsTable.periodStart,
+        periodEnd: financialFactsTable.periodEnd,
+        filedAt: financialFactsTable.filedAt,
+        value: financialFactsTable.value,
+      })
+      .from(financialFactsTable)
+      .where(
+        and(eq(financialFactsTable.securityId, securityId), eq(financialFactsTable.fiscalYear, fy)),
+      )
+      .orderBy(asc(financialFactsTable.filedAt)),
+    needSplits
+      ? db
+          .select({ exDate: corporateActionsTable.exDate, ratio: corporateActionsTable.ratio })
+          .from(corporateActionsTable)
+          .where(
+            and(
+              eq(corporateActionsTable.securityId, securityId),
+              eq(corporateActionsTable.kind, "split"),
+            ),
+          )
+      : Promise.resolve([]),
+  ]);
+  const splits = splitRows.flatMap((s) =>
+    typeof s.ratio === "number" && s.ratio > 0 ? [{ exDate: s.exDate, ratio: s.ratio }] : [],
+  );
+  return { facts, splits };
 }
 
-async function resolveSingleRow(db: KanonDb, row: GuidanceRow): Promise<boolean> {
-  if (!row.unit || row.targetFiscalYear === null || !row.targetFiscalPeriod) return false;
-  if (row.basis === "non_gaap" || row.metric === "custom") return markRowUnresolvable(db, row);
-  const facts = await fetchTargetFacts(db, row);
-  const targetEnd = facts[0]?.periodEnd;
-  const snap = targetEnd ? computeMetricFromRows(row.metric, facts, targetEnd) : null;
-  if (!snap) return false;
+function getUnresolvableReason(row: GuidanceRow): string | null {
+  if (row.metric === "custom" || row.metric === "operating_expenses") return "concept_unavailable";
+  if (row.basis === "non_gaap") return "non_gaap_basis";
+  if (BASIS_REQUIRED_METRICS.has(row.metric) && row.basis === "unspecified") {
+    return "basis_unspecified";
+  }
+  return null;
+}
+
+function missingConceptReason(row: GuidanceRow, facts: readonly PitFactCandidate[]): string | null {
+  const hasFy = facts.some((f) => f.duration === "annual" && f.fiscalPeriod === "FY");
+  if (!hasFy) return null;
+  if (row.targetFiscalPeriod === "Q4") return "q4_unavailable";
+  if (row.metric === "operating_margin") return "concept_unavailable";
+  return null;
+}
+
+async function persistResolvedGuidance(
+  db: KanonDb,
+  row: GuidanceRow,
+  bound: BoundPeriodFact,
+  splitFactor: number,
+) {
   const scored = scoreGuidanceOutcome({
     metric: row.metric,
-    unit: row.unit,
-    low: row.low,
-    high: row.high,
-    actual: snap.originalValue,
+    unit: row.unit as NonNullable<GuidanceRow["unit"]>,
+    low: row.low !== null ? row.low / splitFactor : null,
+    high: row.high !== null ? row.high / splitFactor : null,
+    actual: bound.value,
   });
   await db
     .update(guidanceCommitmentsTable)
     .set({
-      targetPeriodEnd: snap.periodEnd,
-      actualValue: snap.originalValue,
+      targetPeriodEnd: bound.periodEnd,
+      actualValue: bound.value,
       actualSourceJson: {
         kind: "pit_fact",
-        accession: snap.originalAccession,
-        restated: snap.restated,
+        accession: bound.accession,
+        periodEnd: bound.periodEnd,
+        splitFactor,
+        derived: bound.derived,
+        restated: bound.restated,
       },
       outcome: scored.outcome,
       surprise: scored.surprise,
       resolvedAt: new Date(),
-      resolutionVersion: "pit/1",
+      resolutionVersion: "pit/2",
       updatedAt: new Date(),
     })
     .where(
@@ -140,17 +189,43 @@ async function resolveSingleRow(db: KanonDb, row: GuidanceRow): Promise<boolean>
         eq(guidanceCommitmentsTable.thesisId, row.thesisId),
       ),
     );
+}
+
+async function resolveSingleRow(db: KanonDb, row: GuidanceRow): Promise<boolean> {
+  if (!row.unit || row.targetFiscalYear === null || !row.targetFiscalPeriod) return false;
+  const blocked = getUnresolvableReason(row);
+  if (blocked) return markRowUnresolvable(db, row, blocked);
+  if (!row.securityId) return false;
+  const { facts, splits } = await fetchSecurityFactsAndSplits(
+    db,
+    row.securityId,
+    row.targetFiscalYear,
+    row.metric === "diluted_eps",
+  );
+  const bound = computeBoundMetric(row.metric, facts, row.targetFiscalYear, row.targetFiscalPeriod);
+  if (!bound) {
+    const missingReason = missingConceptReason(row, facts);
+    return missingReason ? markRowUnresolvable(db, row, missingReason) : false;
+  }
+  const splitFactor =
+    row.metric === "diluted_eps"
+      ? computeGuidanceEpsSplitFactor(row.issuedOn, bound.filedAt, splits)
+      : 1;
+  await persistResolvedGuidance(db, row, bound, splitFactor);
   return true;
 }
 
-/** System-context daily job resolving confirmed GAAP guidance against earliest-filed PIT SEC facts (R3). */
+/**
+ * System-context daily job resolving both `confirmed` and `superseded` GAAP guidance commitments
+ * against earliest-filed current-period PIT SEC facts with EPS split normalization (`pit/2`, U0-6).
+ */
 export async function resolvePendingGuidanceCommitments(db: KanonDb): Promise<number> {
   const pending = await db
     .select()
     .from(guidanceCommitmentsTable)
     .where(
       and(
-        eq(guidanceCommitmentsTable.status, "confirmed"),
+        inArray(guidanceCommitmentsTable.status, ["confirmed", "superseded"]),
         isNull(guidanceCommitmentsTable.resolvedAt),
       ),
     );

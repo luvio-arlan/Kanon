@@ -6,7 +6,6 @@ import {
   deriveQ4FromAnnualAndYtd,
   detectFactRestatements,
   getFactsAsOf,
-  upsertFiling,
   upsertFinancialFacts,
 } from "./facts-pit-store";
 import {
@@ -14,6 +13,7 @@ import {
   upsertFilingChunks,
   upsertSectionChunks,
 } from "./filing-chunks-store";
+import { upsertFiling } from "./filings-store";
 import {
   claimDueJobs,
   completeJob,

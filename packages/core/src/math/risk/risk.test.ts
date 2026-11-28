@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { solveConstrainedMultiAssetKelly } from "./constrained-kelly";
 import {
   buildAlignedDailyReturns,
   CORRELATED_CLUSTER_CAP_PCT,
-  calculatePortfolioRiskMetrics,
   clusterCorrelations,
-  computeMeucciEnb,
   decomposePortfolioRisk,
   estimateShrunkCovariance,
   jacobiSymmetricEigen,
-  solveConstrainedMultiAssetKelly,
 } from "./index";
+import { calculatePortfolioRiskMetrics } from "./risk-contrib";
+import { computeMeucciEnb } from "./risk-decomposition";
 
 describe("Institutional Portfolio Risk & S2 Daily Covariance Engine", () => {
   it("estimates Constant-Correlation Ledoit-Wolf shrinkage covariance and computes MCTR/PCR & VaR/CVaR", () => {
@@ -18,10 +18,15 @@ describe("Institutional Portfolio Risk & S2 Daily Covariance Engine", () => {
       0.005, -0.01, 0.008, -0.005, 0.01, -0.007, 0.002, 0.006, -0.004, 0.009, -0.012, 0.005,
     ];
     const lw = estimateShrunkCovariance([rA, rB]);
+    expect(lw).not.toBeNull();
+    if (!lw) return;
     expect(lw.shrinkageIntensity).toBeGreaterThanOrEqual(0);
     expect(lw.shrinkageIntensity).toBeLessThanOrEqual(1);
     expect(lw.covariance[0]?.[0]).toBeGreaterThan(0);
     expect(lw.correlation[0]?.[1]).toBeGreaterThan(0.9);
+    // P2-4: insufficient samples (t < 2) MUST return null rather than fabricating 1% vol
+    expect(estimateShrunkCovariance([[0.01]])).toBeNull();
+    expect(estimateShrunkCovariance([])).toBeNull();
 
     const portRet = rA.map((a, i) => 0.6 * a + 0.4 * (rB[i] ?? 0));
     const report = calculatePortfolioRiskMetrics({
@@ -68,7 +73,8 @@ describe("Institutional Portfolio Risk & S2 Daily Covariance Engine", () => {
       [3, 1],
       [1, 3],
     ];
-    const { eigenvalues } = jacobiSymmetricEigen(m);
+    const { eigenvalues, converged } = jacobiSymmetricEigen(m);
+    expect(converged).toBe(true);
     expect(eigenvalues[0]).toBeCloseTo(4, 6);
     expect(eigenvalues[1]).toBeCloseTo(2, 6);
   });
@@ -112,6 +118,24 @@ describe("Institutional Portfolio Risk & S2 Daily Covariance Engine", () => {
     expect(aligned.includedTickers).toEqual(["NVDA"]);
     expect(aligned.missingTickers).toEqual(["NEWCO"]);
     expect(aligned.dates.length).toBe(69);
+
+    // P2-4: a single sparse/halted ticker with disjoint dates is pruned rather than failing the whole portfolio
+    const disjointBars = Array.from({ length: 70 }, (_, i) => ({
+      barDate: `2024-01-${String((i % 28) + 1).padStart(2, "0")}-${String(Math.floor(i / 28))}`,
+      close: 50 + i * 0.1,
+    }));
+    const pruned = buildAlignedDailyReturns({
+      tickers: ["NVDA", "HALTED"],
+      barsByTicker: new Map([
+        ["NVDA", makeBars(70, 100)],
+        ["HALTED", disjointBars],
+      ]),
+      dividendsByTicker: new Map(),
+      minDays: 60,
+    });
+    expect(pruned.includedTickers).toEqual(["NVDA"]);
+    expect(pruned.missingTickers).toContain("HALTED");
+    expect(pruned.dates.length).toBe(69);
   });
 
   it("enforces long-only, zero-leverage (sum <= 100%) and per-name cap in multi-asset Kelly", () => {

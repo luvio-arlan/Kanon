@@ -65,7 +65,7 @@ export type FilingRedlineStatus = z.infer<typeof FilingRedlineStatusSchema>;
 export const FilingRedlineResponseSchema = z.object({
   ticker: TickerSymbolSchema,
   status: FilingRedlineStatusSchema,
-  algoVersion: z.literal("redline/1"),
+  algoVersion: z.enum(["redline/1", "redline/2"]),
   current: FilingRefSchema.nullable(),
   previous: FilingRefSchema.nullable(),
   stats: RedlineStatsSchema.nullable(),

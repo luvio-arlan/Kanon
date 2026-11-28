@@ -5,8 +5,12 @@ export interface ShrunkCovarianceResult {
   shrinkageIntensity: number;
 }
 
-function computeMeans(series: readonly (readonly number[])[]): number[] {
-  return series.map((s) => (s.length > 0 ? s.reduce((a, b) => a + b, 0) / s.length : 0));
+function computeMeans(series: readonly (readonly number[])[], t: number): number[] {
+  return series.map((s) => {
+    let acc = 0;
+    for (let k = 0; k < t; k += 1) acc += s[k] ?? 0;
+    return acc / t;
+  });
 }
 
 function computeSampleCovariance(
@@ -15,7 +19,6 @@ function computeSampleCovariance(
   t: number,
 ): number[][] {
   const n = series.length;
-  const denom = Math.max(1, t - 1);
   return Array.from({ length: n }, (_, i) =>
     Array.from({ length: n }, (_, j) => {
       let acc = 0;
@@ -24,12 +27,15 @@ function computeSampleCovariance(
       const mi = means[i] ?? 0;
       const mj = means[j] ?? 0;
       for (let k = 0; k < t; k += 1) acc += ((si[k] ?? 0) - mi) * ((sj[k] ?? 0) - mj);
-      return acc / denom;
+      return acc / t;
     }),
   );
 }
 
-function buildConstantCorrelationTarget(sample: readonly (readonly number[])[]): number[][] {
+function buildConstantCorrelationTarget(sample: readonly (readonly number[])[]): {
+  target: number[][];
+  rBar: number;
+} {
   const n = sample.length;
   const vols = sample.map((row, i) => Math.sqrt(Math.max(1e-12, row[i] ?? 0)));
   let sumCorr = 0;
@@ -41,86 +47,102 @@ function buildConstantCorrelationTarget(sample: readonly (readonly number[])[]):
     }
   }
   const rBar = pairs > 0 ? Math.max(-0.99, Math.min(0.99, sumCorr / pairs)) : 0;
-  return Array.from({ length: n }, (_, i) =>
+  const target = Array.from({ length: n }, (_, i) =>
     Array.from({ length: n }, (_, j) =>
       i === j ? (sample[i]?.[i] ?? 0) : rBar * (vols[i] ?? 0) * (vols[j] ?? 0),
     ),
   );
+  return { target, rBar };
 }
 
-function computePairPi(
+function computePairStats(
   si: readonly number[],
   sj: readonly number[],
   mi: number,
   mj: number,
+  sii: number,
+  sjj: number,
   sij: number,
   t: number,
-): number {
-  let acc = 0;
+): { pi: number; thetaII: number; thetaJJ: number } {
+  let piAcc = 0;
+  let thII = 0;
+  let thJJ = 0;
   for (let k = 0; k < t; k += 1) {
-    const prod = ((si[k] ?? 0) - mi) * ((sj[k] ?? 0) - mj);
-    acc += (prod - sij) ** 2;
+    const di = (si[k] ?? 0) - mi;
+    const dj = (sj[k] ?? 0) - mj;
+    const dProd = di * dj - sij;
+    piAcc += dProd * dProd;
+    thII += (di * di - sii) * dProd;
+    thJJ += (dj * dj - sjj) * dProd;
   }
-  return acc / t;
+  return { pi: piAcc / t, thetaII: thII / t, thetaJJ: thJJ / t };
 }
 
-function computeConstantCorrShrinkage(
+function computePairRhoContribution(
+  i: number,
+  j: number,
+  sii: number,
+  sjj: number,
+  rBar: number,
+  stats: { pi: number; thetaII: number; thetaJJ: number },
+): number {
+  if (i === j) return stats.pi;
+  if (sii <= 1e-14 || sjj <= 1e-14) return 0;
+  return (rBar / 2) * (Math.sqrt(sjj / sii) * stats.thetaII + Math.sqrt(sii / sjj) * stats.thetaJJ);
+}
+
+function computeLedoitWolfDelta(
   series: readonly (readonly number[])[],
   means: readonly number[],
   sample: readonly (readonly number[])[],
   target: readonly (readonly number[])[],
+  rBar: number,
   t: number,
 ): number {
   const n = series.length;
   let piSum = 0;
+  let rhoSum = 0;
   let gammaSum = 0;
   for (let i = 0; i < n; i += 1) {
+    const sii = sample[i]?.[i] ?? 0;
     for (let j = 0; j < n; j += 1) {
+      const sjj = sample[j]?.[j] ?? 0;
       const sij = sample[i]?.[j] ?? 0;
-      const fij = target[i]?.[j] ?? 0;
-      gammaSum += (fij - sij) ** 2;
-      piSum += computePairPi(
+      gammaSum += ((target[i]?.[j] ?? 0) - sij) ** 2;
+      const stats = computePairStats(
         series[i] ?? [],
         series[j] ?? [],
         means[i] ?? 0,
         means[j] ?? 0,
+        sii,
+        sjj,
         sij,
         t,
       );
+      piSum += stats.pi;
+      rhoSum += computePairRhoContribution(i, j, sii, sjj, rBar, stats);
     }
   }
   if (gammaSum <= 1e-14) return 0;
-  return Math.max(0, Math.min(1, piSum / (t * gammaSum)));
+  return Math.max(0, Math.min(1, (piSum - rhoSum) / (gammaSum * t)));
 }
 
 /**
- * Ledoit-Wolf (2004) analytical shrinkage covariance estimator toward the Constant-Correlation target (S2).
- * Guarantees well-conditioned PSD covariance with preserved cross-sectional correlation structure.
+ * Ledoit-Wolf (2004) analytical shrinkage covariance estimator toward the Constant-Correlation target
+ * including the exact `ρ` term (`κ = (π − ρ) / γ`, matching `covCor.m`). Returns `null` when `n = 0` or `t < 2` (P2-4 / G21).
  */
 export function estimateShrunkCovariance(
   assetReturnSeries: readonly (readonly number[])[],
-): ShrunkCovarianceResult {
+): ShrunkCovarianceResult | null {
   const n = assetReturnSeries.length;
-  if (n === 0) return { covariance: [], correlation: [], volatilities: [], shrinkageIntensity: 0 };
+  if (n === 0) return null;
   const t = Math.min(...assetReturnSeries.map((s) => s.length));
-  if (t < 2) {
-    const id = Array.from({ length: n }, (_, i) =>
-      Array.from({ length: n }, (_, j) => (i === j ? 1e-4 : 0)),
-    );
-    const corr = Array.from({ length: n }, (_, i) =>
-      Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)),
-    );
-    return {
-      covariance: id,
-      correlation: corr,
-      volatilities: Array(n).fill(0.01),
-      shrinkageIntensity: 1,
-    };
-  }
-  const means = computeMeans(assetReturnSeries);
+  if (t < 2) return null;
+  const means = computeMeans(assetReturnSeries, t);
   const sample = computeSampleCovariance(assetReturnSeries, means, t);
-  const target = buildConstantCorrelationTarget(sample);
-  const delta = computeConstantCorrShrinkage(assetReturnSeries, means, sample, target, t);
+  const { target, rBar } = buildConstantCorrelationTarget(sample);
+  const delta = computeLedoitWolfDelta(assetReturnSeries, means, sample, target, rBar, t);
   const covariance = Array.from({ length: n }, (_, i) =>
     Array.from(
       { length: n },

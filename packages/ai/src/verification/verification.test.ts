@@ -71,4 +71,26 @@ describe("R4 Strict Claim Verifier, Bilingual Retrieval Plan & R3 Quote Anchor",
       }).ok,
     ).toBe(false);
   });
+
+  it("P2-3: parses parenthesized accounting losses and percentage points without sign blindness", () => {
+    const chunkMap = new Map([
+      [
+        "c_loss",
+        "FY2025 operating income was ($1.2B) and gross margin fell 0.5 percentage points.",
+      ],
+    ]);
+    const falsePositive = verifyGroundedClaims({
+      claims: [{ text: "FY2025 营业利润达到 $1.2B。", citations: ["c_loss"] }],
+      chunkMap,
+    });
+    expect(falsePositive.results[0]?.status).toBe("unverified");
+
+    const trueNegative = verifyGroundedClaims({
+      claims: [
+        { text: "FY2025 营业利润为 -$1.2B，毛利率下降 0.5 个百分点。", citations: ["c_loss"] },
+      ],
+      chunkMap,
+    });
+    expect(trueNegative.results[0]?.status).toBe("verified");
+  });
 });

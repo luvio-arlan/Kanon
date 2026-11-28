@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
-  calculateBrinsonAttribution,
   calculateLogLoss,
   calculateMultiClassBrierScore,
   calculateMurphyDecomposition,
+  classifyProcessOutcomeMatrix,
+} from "./forecast-scoring";
+import {
+  calculateBrinsonAttribution,
   calculateMwrIrrPct,
   calculateTwrPct,
-  classifyProcessOutcomeMatrix,
-} from "./index";
+} from "./performance-attribution";
 
 describe("Forecast Scoring, Murphy Decomposition & Performance Attribution (W5.1-W5.3)", () => {
   it("computes proper multi-class Brier, log loss, and Murphy reliability/resolution/uncertainty", () => {

@@ -6,15 +6,21 @@ import type {
   StreetConsensus,
   ValuationBand,
 } from "@kanon/core";
-import { Badge, Card } from "@kanon/ui";
+import { Badge, Card, formatMoney } from "@kanon/ui";
 import { IconChartBar, IconWorld } from "@tabler/icons-react";
 import { AlertBellToggle } from "@/shared/components/alert-bell-toggle";
 
+function fmtB(v: number | null | undefined): string {
+  return v !== null && v !== undefined
+    ? formatMoney(v * 1e9, "USD", { scale: "B", maximumFractionDigits: 1 })
+    : "—";
+}
+
 function LiveConsensusGrid({ c }: { c: StreetConsensus }) {
   const cells = [
-    { label: "FY1 营收", val: c.fy1RevenueB ? `$${c.fy1RevenueB}B` : "—", accent: false },
-    { label: "FY2 营收", val: c.fy2RevenueB ? `$${c.fy2RevenueB}B` : "—", accent: false },
-    { label: "FY1 EPS", val: c.fy1Eps ? `$${c.fy1Eps}` : "—", accent: false },
+    { label: "FY1 营收", val: c.fy1RevenueB ? fmtB(c.fy1RevenueB) : "—", accent: false },
+    { label: "FY2 营收", val: c.fy2RevenueB ? fmtB(c.fy2RevenueB) : "—", accent: false },
+    { label: "FY1 EPS", val: c.fy1Eps ? formatMoney(c.fy1Eps, "USD") : "—", accent: false },
     { label: "远期 P/E", val: c.impliedForwardPe ? `${c.impliedForwardPe}×` : "—", accent: true },
   ];
   return (
@@ -38,11 +44,11 @@ function HistoricalExtrapolationGrid({ ext }: { ext: HistoricalExtrapolation }) 
     { label: "历史 CAGR", val: ext.revenueCagrPct !== null ? `${ext.revenueCagrPct}%` : "—" },
     {
       label: "外推 FY1 营收",
-      val: ext.extrapolatedFy1RevenueB !== null ? `$${ext.extrapolatedFy1RevenueB}B` : "—",
+      val: fmtB(ext.extrapolatedFy1RevenueB),
     },
     {
       label: "外推 FY1 EPS",
-      val: ext.extrapolatedFy1Eps !== null ? `$${ext.extrapolatedFy1Eps}` : "—",
+      val: ext.extrapolatedFy1Eps !== null ? formatMoney(ext.extrapolatedFy1Eps, "USD") : "—",
     },
     {
       label: "外推倍数",

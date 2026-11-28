@@ -81,4 +81,29 @@ describe("R2 XBRL Segment Extractor", () => {
       extractAxisReport({ parsed, axis: "business", form: "10-Q", linkbaseLabels: new Map() }),
     ).toBeNull();
   });
+
+  it("rejects CostOfRevenue as segment profit and returns parse_failed when unitRef is missing (P2-2)", () => {
+    const costOnlyXml = SAMPLE_XBRL.replaceAll(
+      "us-gaap:OperatingIncomeLoss",
+      "us-gaap:CostOfRevenue",
+    );
+    const costRep = extractAxisReport({
+      parsed: scanXbrlInstanceXml(costOnlyXml),
+      axis: "business",
+      form: "10-K",
+      linkbaseLabels: new Map(),
+    });
+    expect(costRep?.profitConcept).toBeNull();
+    expect(costRep?.profitReconciled).toBe(false);
+    expect(costRep?.lines.every((l) => l.operatingIncome === null)).toBe(true);
+
+    const noUnitXml = SAMPLE_XBRL.replaceAll(' unitRef="usd"', "");
+    const noUnitRep = extractAxisReport({
+      parsed: scanXbrlInstanceXml(noUnitXml),
+      axis: "business",
+      form: "10-K",
+      linkbaseLabels: new Map(),
+    });
+    expect(noUnitRep?.status).toBe("parse_failed");
+  });
 });

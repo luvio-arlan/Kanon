@@ -1,9 +1,6 @@
 export {
-  createMemoryKanonDb,
   type DbHealthStats,
-  getDbHealthStats,
   getKanonDb,
-  initExternalPostgres,
   type KanonDb,
   type KanonDbEngine,
   MigrationsPendingError,
@@ -39,8 +36,6 @@ export {
   importThesisArchive,
 } from "./repositories/archive-importer";
 export {
-  authenticateUser,
-  createUserSession,
   finalizeUserLogin,
   getSessionUser,
   registerUser,
@@ -74,9 +69,10 @@ export {
   SERVERLESS_QUOTE_CACHE_TTL_MS,
   upsertCachedMarketQuotes,
 } from "./repositories/market/quote-cache-store";
+export * from "./repositories/portfolio/basis-normalize-store";
 export * from "./repositories/portfolio/decision-snapshot-store";
 export * from "./repositories/portfolio/hypothesis-events-store";
-export * from "./repositories/portfolio/ledger-replay-store";
+export { replayAndCommitAccountTransaction } from "./repositories/portfolio/ledger-replay-store";
 export * from "./repositories/portfolio/performance-inputs-store";
 export {
   createQuarterlyReview,
@@ -84,7 +80,6 @@ export {
   listInboundCrossChecks,
   listQuarterlyReviews,
   listQuarterlyReviewsByThesisIds,
-  markAgentProposalApplied,
   saveAgentRun,
 } from "./repositories/review-and-agent-store";
 export { listThesisRevisions, recordThesisRevision } from "./repositories/revision-queries";
@@ -98,6 +93,7 @@ export {
   upsertUserSecOverride,
 } from "./repositories/sec/user-sec-overrides-store";
 export * from "./repositories/security/ai-credentials-and-usage-store";
+export { getDbSecurityPosture } from "./repositories/security/db-posture";
 export {
   consumePersistentRateLimit,
   type RateLimitCheckResult,
@@ -123,7 +119,6 @@ export {
   getThesisByTicker,
   getThesisIdentity,
   hasThesisCapability,
-  listThesisSummaries,
   listThesisWatchersByTicker,
   type ThesisAccess,
   type ThesisAccessMode,
@@ -137,15 +132,56 @@ export {
   updateThesisStepChecked,
 } from "./repositories/thesis-mutations";
 export { getThesisById, listTheses } from "./repositories/thesis-queries";
-export * from "./repositories/warehouse/facts-pit-store";
+export {
+  detectFactRestatements,
+  getFactsAsOf,
+  type UpsertFinancialFactInput,
+  upsertFinancialFacts,
+} from "./repositories/warehouse/facts-pit-store";
 export * from "./repositories/warehouse/filing-chunks-store";
+export {
+  listPeriodicFilingsBySecurity,
+  type PeriodicForm,
+  type StoredFilingRow,
+  selectPrimaryPeriodicFiling,
+  updateFilingPrimaryDocUrl,
+  upsertFiling,
+} from "./repositories/warehouse/filings-store";
 export * from "./repositories/warehouse/jobs-and-peers-store";
-export * from "./repositories/warehouse/model-versions-store";
-export * from "./repositories/warehouse/peers-and-estimates-store";
-export * from "./repositories/warehouse/price-bars-store";
-export * from "./repositories/warehouse/securities-and-fx-store";
+export {
+  listModelVersions,
+  type ModelVersionDiffItem,
+  type ModelVersionRecord,
+  saveModelVersion,
+} from "./repositories/warehouse/model-versions-store";
+export {
+  listThesisPeers,
+  removeThesisPeer,
+  type ThesisPeerRecord,
+  upsertThesisPeer,
+} from "./repositories/warehouse/peers-and-estimates-store";
+export {
+  computeRealHistoricalValuationBand,
+  type DailyPriceBarInput,
+  getLatestPriceBar,
+  getPriceBarCoverage,
+  listCorporateActions,
+  listPriceBars,
+  recordCorporateAction,
+  replacePriceBarsForSecurity,
+  updateThesisPriceByTicker,
+  upsertPriceBars,
+} from "./repositories/warehouse/price-bars-store";
+export {
+  type FxRateInput,
+  getSecurityByTicker,
+  markSecuritySecStatus,
+  type SecurityRecord,
+  type UpsertSecurityInput,
+  upsertSecurity,
+} from "./repositories/warehouse/securities-and-fx-store";
+export * from "./repositories/warehouse/watchlist-enqueue";
 export * from "./repositories/workflows/alert-evaluator-store";
-export * from "./repositories/workflows/broker-csv-parser";
 export * from "./repositories/workflows/inbox-and-forecasts-store";
 export * from "./repositories/workflows/portfolio-ledger-store";
 export * from "./schema";

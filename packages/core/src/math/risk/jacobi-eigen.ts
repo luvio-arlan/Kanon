@@ -2,23 +2,7 @@ export interface SymmetricEigenResult {
   eigenvalues: number[];
   /** Columns: eigenvectors[k] is the unit eigenvector corresponding to eigenvalues[k]. */
   eigenvectors: number[][];
-}
-
-function findLargestOffDiag(a: readonly (readonly number[])[], n: number) {
-  let maxVal = 0;
-  let p = 0;
-  let q = 1;
-  for (let i = 0; i < n; i += 1) {
-    for (let j = i + 1; j < n; j += 1) {
-      const val = Math.abs(a[i]?.[j] ?? 0);
-      if (val > maxVal) {
-        maxVal = val;
-        p = i;
-        q = j;
-      }
-    }
-  }
-  return { maxVal, p, q };
+  converged: boolean;
 }
 
 function rotateOffDiag(a: number[][], p: number, q: number, c: number, s: number, n: number) {
@@ -72,11 +56,26 @@ function applyJacobiRotation(a: number[][], v: number[][], p: number, q: number,
   rotateBasisVectors(v, p, q, c, s, n);
 }
 
-/** Cyclic Jacobi eigendecomposition for real symmetric N x N matrices (S2 Meucci ENB). */
+function runCyclicSweep(a: number[][], v: number[][], n: number): number {
+  let maxOffDiag = 0;
+  for (let p = 0; p < n; p += 1) {
+    for (let q = p + 1; q < n; q += 1) {
+      const val = Math.abs(a[p]?.[q] ?? 0);
+      if (val > maxOffDiag) maxOffDiag = val;
+      if (val > 1e-14) applyJacobiRotation(a, v, p, q, n);
+    }
+  }
+  return maxOffDiag;
+}
+
+/**
+ * Cyclic-sweep Jacobi eigendecomposition for real symmetric N x N matrices (S2 Meucci ENB / P2-4).
+ * Uses full cyclic sweeps (O(N^2) per sweep) and reports explicit convergence status.
+ */
 export function jacobiSymmetricEigen(matrix: readonly (readonly number[])[]): SymmetricEigenResult {
   const n = matrix.length;
-  if (n === 0) return { eigenvalues: [], eigenvectors: [] };
-  if (n === 1) return { eigenvalues: [matrix[0]?.[0] ?? 0], eigenvectors: [[1]] };
+  if (n === 0) return { eigenvalues: [], eigenvectors: [], converged: true };
+  if (n === 1) return { eigenvalues: [matrix[0]?.[0] ?? 0], eigenvectors: [[1]], converged: true };
 
   const a = matrix.map((row, i) =>
     row.map((_, j) => 0.5 * ((matrix[i]?.[j] ?? 0) + (matrix[j]?.[i] ?? 0))),
@@ -84,15 +83,20 @@ export function jacobiSymmetricEigen(matrix: readonly (readonly number[])[]): Sy
   const v = Array.from({ length: n }, (_, i) =>
     Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)),
   );
-  const maxIter = Math.min(2000, n * n * 25);
-  for (let iter = 0; iter < maxIter; iter += 1) {
-    const { maxVal, p, q } = findLargestOffDiag(a, n);
-    if (maxVal < 1e-12) break;
-    applyJacobiRotation(a, v, p, q, n);
+  let converged = false;
+  for (let sweep = 0; sweep < 50; sweep += 1) {
+    if (runCyclicSweep(a, v, n) < 1e-12) {
+      converged = true;
+      break;
+    }
   }
   const pairs = Array.from({ length: n }, (_, k) => ({
     val: a[k]?.[k] ?? 0,
     vec: Array.from({ length: n }, (_, i) => v[i]?.[k] ?? 0),
   })).sort((x, y) => y.val - x.val);
-  return { eigenvalues: pairs.map((p) => p.val), eigenvectors: pairs.map((p) => p.vec) };
+  return {
+    eigenvalues: pairs.map((p) => p.val),
+    eigenvectors: pairs.map((p) => p.vec),
+    converged,
+  };
 }

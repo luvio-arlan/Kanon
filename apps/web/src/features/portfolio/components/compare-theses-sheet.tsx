@@ -5,7 +5,7 @@ import {
   calculateResearchReadiness,
   type ThesisDetail,
 } from "@kanon/core";
-import { Badge, Button, Sheet } from "@kanon/ui";
+import { Badge, Button, formatMoney, Sheet } from "@kanon/ui";
 import { IconArrowUpRight } from "@tabler/icons-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -47,9 +47,9 @@ function buildPriceAndReturnRows(theses: readonly ThesisDetail[]): CompareRowSpe
           id: t.id,
           content: (
             <div className="font-mono tabular-nums">
-              <div className="font-semibold">${t.currentPrice.toFixed(2)}</div>
+              <div className="font-semibold">{formatMoney(t.currentPrice, "USD")}</div>
               <div className={exp.isBelowHurdle15 ? "text-status-pass" : "text-ink-muted"}>
-                15%买点 ${exp.hurdleEntry15.toFixed(1)}
+                15%买点 {formatMoney(exp.hurdleEntry15, "USD", { maximumFractionDigits: 1 })}
               </div>
             </div>
           ),
@@ -62,7 +62,9 @@ function buildPriceAndReturnRows(theses: readonly ThesisDetail[]): CompareRowSpe
         id: t.id,
         content: (
           <div className="font-mono tabular-nums">
-            <div className="font-semibold">${t.valuation.base.targetPrice.toFixed(1)}</div>
+            <div className="font-semibold">
+              {formatMoney(t.valuation.base.targetPrice, "USD", { maximumFractionDigits: 1 })}
+            </div>
             <div className="text-ink-secondary">{t.valuation.base.cagrPct.toFixed(1)}% / 年</div>
           </div>
         ),

@@ -82,6 +82,8 @@ export const segmentReportsTable = pgTable(
     revenueConcept: text("revenue_concept").notNull(),
     profitConcept: text("profit_concept"),
     profitIsStandard: boolean("profit_is_standard").notNull().default(false),
+    profitReconciled: boolean("profit_reconciled").notNull().default(false),
+    periodKind: text("period_kind").$type<"annual" | "quarter">().notNull().default("annual"),
     consolidatedRevenue: doublePrecision("consolidated_revenue"),
     segmentRevenueSum: doublePrecision("segment_revenue_sum"),
     diffPct: doublePrecision("diff_pct"),

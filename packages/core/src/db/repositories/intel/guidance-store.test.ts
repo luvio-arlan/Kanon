@@ -1,8 +1,12 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createMemoryKanonDb, type KanonDb } from "../../client";
+import { guidanceCommitmentsTable } from "../../schema";
+import { deleteThesis } from "../discipline-mutations";
 import { withSystemContext, withTenantContext } from "../security/tenant-context";
 import { createThesis } from "../thesis-mutations";
-import { upsertFiling, upsertFinancialFacts } from "../warehouse/facts-pit-store";
+import { upsertFinancialFacts } from "../warehouse/facts-pit-store";
+import { upsertFiling } from "../warehouse/filings-store";
 import { upsertSecurity } from "../warehouse/securities-and-fx-store";
 import { resolvePendingGuidanceCommitments } from "./guidance-resolver";
 import {
@@ -10,6 +14,7 @@ import {
   createGuidanceDraft,
   GuidancePolicyError,
   listGuidanceCommitments,
+  withdrawGuidanceCommitment,
 } from "./guidance-store";
 
 describe("R3 Guidance Store HITL, OCC, Superseding & PIT Resolver", () => {
@@ -204,13 +209,72 @@ describe("R3 Guidance Store HITL, OCC, Superseding & PIT Resolver", () => {
     const resolved = await withSystemContext(db, "cron_tick", (tx) =>
       resolvePendingGuidanceCommitments(tx),
     );
-    expect(resolved).toBe(2);
+    // U0-6: resolves confirmed (c2, dNg) AND superseded initial commitment (c1) = 3 total
+    expect(resolved).toBe(3);
 
     const all = await withTenantContext(db, userId, (tx) => listGuidanceCommitments(tx, thesis.id));
     const resolvedRev = all.find((i) => i.id === c2.id);
+    const resolvedInit = all.find((i) => i.id === c1.id);
     expect(resolvedRev?.actualValue).toBe(130e9);
     expect(resolvedRev?.actualRestated).toBe(true);
     expect(resolvedRev?.outcome).toBe("beat");
+    expect(resolvedInit?.outcome).toBe("beat");
     expect(all.find((i) => i.id === dNg.id)?.outcome).toBe("unresolvable");
+
+    // U0-6 negative: EPS with basis=unspecified cannot be confirmed (422 BASIS_REQUIRED)
+    const dEpsUnspec = await withTenantContext(db, userId, (tx) =>
+      createGuidanceDraft(tx, {
+        thesisId: thesis.id,
+        securityId: sec.id,
+        createdBy: userId,
+        input: {
+          metric: "diluted_eps",
+          basis: "unspecified",
+          unit: "usd_per_share",
+          targetFiscalYear: 2026,
+          targetFiscalPeriod: "FY",
+          issuedOn: "2025-03-01",
+          low: 4.0,
+          high: 4.5,
+          source: {
+            kind: "manual",
+            url: "https://sec.gov/eps",
+            quote: "Management guides FY26 diluted EPS of $4.00 to $4.50.",
+          },
+        },
+      }),
+    );
+    await expect(
+      withTenantContext(db, userId, (tx) =>
+        confirmGuidanceCommitment(tx, {
+          id: dEpsUnspec.id,
+          thesisId: thesis.id,
+          confirmedBy: userId,
+          expectedUpdatedAt: dEpsUnspec.updatedAt,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "BASIS_REQUIRED", status: 422 });
+
+    // U0-6 freeze: resolved guidance cannot be withdrawn (409) or updated in tenant context
+    await expect(
+      withTenantContext(db, userId, (tx) =>
+        withdrawGuidanceCommitment(tx, { id: c2.id, thesisId: thesis.id }),
+      ),
+    ).rejects.toMatchObject({ code: "ALREADY_RESOLVED", status: 409 });
+
+    await expect(
+      withTenantContext(db, userId, async (tx) => {
+        await tx
+          .update(guidanceCommitmentsTable)
+          .set({ low: 999e9 })
+          .where(eq(guidanceCommitmentsTable.id, c2.id));
+      }),
+    ).rejects.toThrow();
+
+    // U0-6 cascade safety: deleting thesis with resolved guidance MUST succeed cleanly
+    const deleted = await withTenantContext(db, userId, (tx) =>
+      deleteThesis(tx, thesis.id, userId),
+    );
+    expect(deleted).toBe(true);
   });
 });

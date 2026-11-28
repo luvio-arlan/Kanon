@@ -5,6 +5,7 @@ import {
   todayIsoUtc,
 } from "@kanon/core";
 import {
+  getMigration0033AppliedAt,
   type KanonDb,
   listDecisionSnapshotsByUser,
   listHypothesisStatusEventsByThesisIds,
@@ -30,11 +31,12 @@ async function loadAttributionData(tx: KanonDb, userId: string, accountId: strin
       ),
     ),
   ];
-  const [market, hypEvents] = await Promise.all([
+  const [market, hypEvents, migration0033AppliedAt] = await Promise.all([
     loadUnadjustedMarketDataForTickers(tx, tickers),
     listHypothesisStatusEventsByThesisIds(tx, thesisIds),
+    getMigration0033AppliedAt(tx),
   ]);
-  return { transactions, snapshots, market, hypEvents };
+  return { transactions, snapshots, market, hypEvents, migration0033AppliedAt };
 }
 
 function buildAttributionReport(
@@ -75,6 +77,7 @@ function buildAttributionReport(
       thesisId: e.thesisId,
       hypothesisId: e.hypothesisId,
       toStatus: e.toStatus,
+      source: e.source,
       recordedAt: e.recordedAt.toISOString(),
     })),
     barsByTicker: loaded.market.barsByTicker,
@@ -82,6 +85,7 @@ function buildAttributionReport(
     spyBars: loaded.market.spyBars,
     spyDividends: loaded.market.spyDividends,
     asOfDate,
+    migration0033AppliedAt: loaded.migration0033AppliedAt,
   });
 }
 
@@ -96,6 +100,7 @@ export async function GET(request: Request) {
       PortfolioAttributionResponseSchema.parse({
         status: "empty",
         counts: { skill: 0, good_process_bad_luck: 0, lucky: 0, mistake: 0, pending: 0 },
+        outcomeBasisCounts: { idiosyncratic: 0, excess_vs_spy: 0, unavailable: 0 },
         skillRatePct: null,
         episodes: [],
       }),

@@ -1,10 +1,5 @@
 export { askResearchIc } from "./agent/ask-ic";
-export * from "./agent/deterministic-tools";
-export {
-  expandBilingualFinanceQuery,
-  type FilingExcerptMatch,
-  searchFilingExcerpts,
-} from "./agent/filing-search-tool";
+export { type FilingExcerptMatch, searchFilingExcerpts } from "./agent/filing-search-tool";
 export { streamResearchAgent } from "./agent/run-research-agent";
 export { RESEARCH_AGENT_TOOLS, type ResearchToolSpec } from "./agent/tool-registry";
 export {
@@ -28,22 +23,21 @@ export {
   runThesisCopilot,
   sanitizeProviderBaseUrl,
 } from "./copilot/run-copilot";
-export * from "./guidance";
+export {
+  extractGuidanceDraftsFromText,
+  type GuidanceDraftExtractionResult,
+} from "./guidance/draft-extractor";
+export * from "./guidance/quote-anchor";
 export { buildMarketBenchmarks } from "./market/consensus-and-peers";
 export {
   type DailyBarPoint,
   type DailyPriceBarsBundle,
   type DividendEvent,
-  fetchDailyPriceBars,
   fetchDailyPriceBarsWithEvents,
-  fetchPolygonSplits,
-  mergeSplitsByExDate,
   type PolygonSplitEvent,
 } from "./market/daily-bars";
 export {
   clearMarketQuoteCache,
-  fetchMarketClosingQuote,
-  fetchMarketClosingQuotes,
   fetchMarketQuote,
   fetchMarketQuotes,
   fetchMarketSparkline,
@@ -54,8 +48,12 @@ export {
   testMarketProviderConnection,
 } from "./market/quote-client";
 export * from "./models/registry";
-export { parseStructuredOutput, type StructuredParseResult } from "./parse-structured";
-export * from "./retrieval/hybrid-search";
+export type { StructuredParseResult } from "./parse-structured";
+export {
+  type HybridSearchHit,
+  hybridSearchChunks,
+  type SearchableFilingChunk,
+} from "./retrieval/hybrid-search";
 export * from "./retrieval/query-plan";
 export {
   type ByokProvider,
@@ -91,7 +89,6 @@ export {
 export { fetchSecFilingReaderData } from "./sec/filing-reader";
 export * from "./sec/filing-redline";
 export {
-  computeFilingSectionDiff,
   countBuySideSignals,
   extractSecKeySections,
   stripSecHtmlToParagraphs,
@@ -103,6 +100,19 @@ export {
   parseForm8kItemCodes,
 } from "./sec/form8k-parser";
 export * from "./sec/redline";
-export * from "./sec/sec-http";
+export {
+  type FetchSecOptions,
+  fetchSecWithRetry,
+  registerSecGlobalSlotAcquirer,
+} from "./sec/sec-http";
 export * from "./sec/segments";
-export * from "./verification";
+export * from "./verification/citation-relevance";
+export {
+  type ConceptFactValue,
+  type GroundedClaimInput,
+  type GroundingVerificationReport,
+  type VerifiedClaimResult,
+  verifyGroundedClaims,
+} from "./verification/claim-verifier";
+export * from "./verification/cn-number-units";
+export * from "./verification/period-binding";

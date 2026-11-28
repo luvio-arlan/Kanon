@@ -1,60 +1,21 @@
-import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
 import type { FinancialFactDuration } from "../../../contracts/financial-concepts";
 import { roundTo } from "../../../math/valuation-scenarios";
 import type { KanonDb } from "../../bootstrap";
-import { corporateActionsTable, filingsTable, financialFactsTable } from "../../schema";
+import { corporateActionsTable, financialFactsTable } from "../../schema";
 import {
   evaluateFactRestatements,
   type FactRestatement,
   isSplitSensitiveConcept,
   type PitFinancialFact,
-  type UpsertFilingInput,
   type UpsertFinancialFactInput,
 } from "./facts-pit-types";
 
 export type {
   FactRestatement,
   PitFinancialFact,
-  RestatementKind,
-  UpsertFilingInput,
   UpsertFinancialFactInput,
 } from "./facts-pit-types";
-
-export async function upsertFiling(db: KanonDb, input: UpsertFilingInput): Promise<void> {
-  await db
-    .insert(filingsTable)
-    .values({
-      accession: input.accession,
-      securityId: input.securityId,
-      cik: input.cik,
-      form: input.form,
-      filedAt: input.filedAt,
-      periodEnd: input.periodEnd ?? null,
-      fiscalYear: input.fiscalYear ?? null,
-      fiscalPeriod: input.fiscalPeriod ?? null,
-      items: input.items ?? [],
-      primaryDocUrl: input.primaryDocUrl,
-      amendsAccession: input.amendsAccession ?? null,
-      parseStatus: input.parseStatus ?? "parsed",
-    })
-    .onConflictDoUpdate({
-      target: filingsTable.accession,
-      set: {
-        items: input.items ?? [],
-        parseStatus: input.parseStatus ?? "parsed",
-        amendsAccession: input.amendsAccession ?? null,
-      },
-    });
-}
-
-export async function listFilingsBySecurity(db: KanonDb, securityId: string, limit = 20) {
-  return db
-    .select()
-    .from(filingsTable)
-    .where(eq(filingsTable.securityId, securityId))
-    .orderBy(desc(filingsTable.filedAt))
-    .limit(limit);
-}
 
 const FACT_UPSERT_CHUNK_SIZE = 500;
 
