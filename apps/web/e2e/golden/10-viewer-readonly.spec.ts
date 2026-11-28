@@ -67,6 +67,31 @@ async function verifyViewerApiForbiddenAndCsrf(
   expect(csrfRes.status()).toBe(403);
 }
 
+async function verifyViewerPresentAndPublicSample(
+  browser: import("@playwright/test").Browser,
+  viewerPage: Page,
+  baseURL: string,
+  thesisId: string,
+) {
+  await viewerPage.goto(`/thesis/${thesisId}/present`);
+  await expect(viewerPage.getByText("1 / 6 · 综合结论")).toBeVisible();
+  await expect(viewerPage.locator("input, textarea")).toHaveCount(0);
+  await viewerPage.keyboard.press("ArrowRight");
+  await expect(viewerPage.getByText("2 / 6 · 三情景估值")).toBeVisible();
+
+  const anonCtx = await browser.newContext({ baseURL });
+  const anonPage = await anonCtx.newPage();
+  const apiHits: string[] = [];
+  anonPage.on("request", (req) => {
+    if (req.url().includes("/api/")) apiHits.push(req.url());
+  });
+  const res = await anonPage.goto("/sample/nvda");
+  expect(res?.status()).toBe(200);
+  await expect(anonPage.getByText("示例", { exact: true }).first()).toBeVisible();
+  expect(apiHits).toHaveLength(0);
+  await anonCtx.close();
+}
+
 test.describe
   .serial("10 · Viewer Read-Only Enforcement, CSRF & Mock Isolation", () => {
     test("enforces read-only UI and blocks all viewer writes + forged cross-origin writes", async ({
@@ -87,6 +112,7 @@ test.describe
         owner.context.request,
         thesisId,
       );
+      await verifyViewerPresentAndPublicSample(browser, page, baseURL, thesisId);
 
       await Promise.all([viewer.context.close(), owner.context.close()]);
     });

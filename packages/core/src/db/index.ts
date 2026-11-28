@@ -98,6 +98,11 @@ export {
   upsertUserSecOverride,
 } from "./repositories/sec/user-sec-overrides-store";
 export * from "./repositories/security/ai-credentials-and-usage-store";
+export {
+  countAppErrorsLast24h,
+  pruneOldAppErrorEvents,
+  recordAppErrorEvent,
+} from "./repositories/security/app-errors-store";
 export { getDbSecurityPosture } from "./repositories/security/db-posture";
 export {
   consumePersistentRateLimit,

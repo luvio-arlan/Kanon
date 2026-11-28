@@ -9,6 +9,7 @@ import {
   getCronHealth,
   getJobQueueHealth,
   type QueuedJobRow,
+  recordAppErrorEvent,
   recordTickCompleted,
   recordTickStarted,
   requeueJobForCursor,
@@ -53,10 +54,24 @@ async function runSingleJobWithDeadline(
     return true;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await withSystemDb("cron_tick", (tx) => failJobWithBackoff(tx, job.id, msg, workerId));
+    const requestId = generateRequestId();
+    await withSystemDb(
+      "cron_tick",
+      async (tx) => {
+        await failJobWithBackoff(tx, job.id, msg, workerId);
+        await recordAppErrorEvent(tx, {
+          source: "job",
+          route: "/api/internal/jobs/tick",
+          code: job.kind,
+          message: msg,
+          requestId,
+        });
+      },
+      requestId,
+    );
     logStructuredApiEvent({
       level: "warn",
-      requestId: generateRequestId(),
+      requestId,
       route: "/api/internal/jobs/tick",
       status: 500,
       durationMs: Math.round(performance.now() - startedAtPerf),
@@ -101,6 +116,40 @@ async function drainSyncQueue(params: {
   return { claimed, completed, failed };
 }
 
+async function recordTickJobFailure(params: {
+  jobId: string;
+  code: string;
+  lockOwner?: string;
+  startedAtPerf: number;
+  err: unknown;
+}) {
+  const msg = params.err instanceof Error ? params.err.message : String(params.err);
+  const requestId = generateRequestId();
+  await withSystemDb(
+    "cron_tick",
+    async (tx) => {
+      await failJobWithBackoff(tx, params.jobId, msg, params.lockOwner);
+      await recordAppErrorEvent(tx, {
+        source: "job",
+        route: "/api/internal/jobs/tick",
+        code: params.code,
+        message: msg,
+        requestId,
+      });
+    },
+    requestId,
+  );
+  logStructuredApiEvent({
+    level: "warn",
+    requestId,
+    route: "/api/internal/jobs/tick",
+    status: 500,
+    durationMs: Math.round(performance.now() - params.startedAtPerf),
+    code: params.code,
+    message: msg,
+  });
+}
+
 async function runFinalAlertPhase(
   workerId: string,
   day: string,
@@ -133,17 +182,7 @@ async function runFinalAlertPhase(
       return { triggeredCount: summary.triggeredCount, completed: true, failed: false };
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await withSystemDb("cron_tick", (tx) => failJobWithBackoff(tx, jobId, msg, lockOwner));
-    logStructuredApiEvent({
-      level: "warn",
-      requestId: generateRequestId(),
-      route: "/api/internal/jobs/tick",
-      status: 500,
-      durationMs: Math.round(performance.now() - startedAtPerf),
-      code: "evaluate_alerts",
-      message: msg,
-    });
+    await recordTickJobFailure({ jobId, code: "evaluate_alerts", lockOwner, startedAtPerf, err });
     return { triggeredCount: 0, completed: false, failed: true };
   }
 }

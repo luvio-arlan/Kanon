@@ -123,11 +123,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
   const RLS_STAGE6_PENDING = new Set([
     "sessions",
     "api_tokens",
-    "calendar_tokens",
     "user_totp_factors",
-    "user_sec_overrides",
-    "alert_rules",
-    "ai_usage",
     "memberships",
     "org_invitations",
     "audit_log",
@@ -203,7 +199,7 @@ describe("KANON PostgreSQL Repository & DDL Parity", () => {
         discoveredNames,
       );
     }
-    expect(rlsCoveredTables.size).toBe(28);
+    expect(rlsCoveredTables.size).toBe(33);
     for (const pending of RLS_STAGE6_PENDING) {
       expect(discoveredNames.has(pending), `Stale pending table "${pending}"`).toBe(true);
       expect(rlsCoveredTables.has(pending), `Remove "${pending}" from RLS_STAGE6_PENDING`).toBe(

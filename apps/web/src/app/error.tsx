@@ -3,6 +3,8 @@
 import { Button, buttonVariants, Card, KanonMark } from "@kanon/ui";
 import { IconAlertTriangle, IconHome, IconRefresh } from "@tabler/icons-react";
 import Link from "next/link";
+import { useEffect } from "react";
+import { reportClientError } from "@/shared/lib/report-client-error";
 
 export default function AppErrorBoundary({
   error,
@@ -11,6 +13,10 @@ export default function AppErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    reportClientError(error, "render");
+  }, [error]);
+
   return (
     <main className="flex min-h-dvh items-center justify-center bg-canvas px-5 py-12">
       <Card className="w-full max-w-md space-y-5 p-7 shadow-elevated">

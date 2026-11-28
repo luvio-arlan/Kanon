@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { reportClientError } from "@/shared/lib/report-client-error";
+
 export default function GlobalErrorBoundary({
   error,
   reset,
@@ -7,6 +10,10 @@ export default function GlobalErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    reportClientError(error, "unhandled");
+  }, [error]);
+
   return (
     <html lang="zh-CN">
       <body className="flex min-h-dvh items-center justify-center bg-canvas px-5 py-12 text-ink-primary antialiased">

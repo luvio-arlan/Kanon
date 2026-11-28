@@ -33,11 +33,11 @@ packages/
 ## 4. Verification Gates & Auto-Delivery Protocol (Single Source of Truth)
 
 ```bash
-pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards (G1–G19) + knip (zero-skip, zero-ratchet)
+pnpm check        # Biome + tsc + depcruise + AST/Garden/Docs guards (G1–G31) + knip (zero-skip, zero-ratchet)
 pnpm test         # Vitest: financial math goldens, dynamic DDL/RLS parity, zero-leverage & AI/API contracts
 pnpm eval         # 28-case adversarial Golden Eval (bilingual FTS + strict claim grounding + refusal)
 pnpm build        # Full Turborepo production build
-pnpm test:api     # Isolated 49-route API + SSR + Auth/MCP/CSRF/RLS contract verification
+pnpm test:api     # Isolated 50-route API + SSR + Auth/MCP/CSRF/RLS contract verification
 pnpm test:e2e     # 10-chapter Playwright Golden Path under KANON_RLS_ENFORCE_LOCAL=1 fail-closed RLS
 pnpm dev          # Local Next.js dev server (persistent PGlite when DATABASE_URL unset)
 pnpm db:migrate   # Run expand-only migrations via direct DATABASE_URL_MIGRATE (transactional lock; supports --seed)

@@ -123,7 +123,7 @@ async function verifyWaveSAnalyticsEndpoints(req: APIRequestContext, accountId: 
 
   expect(riskRes.status()).toBe(200);
   const risk = await parseApiResponse(riskRes, PortfolioRiskResponseSchema, "risk");
-  expect(["daily_cov", "sector_tag"]).toContain(risk.basis);
+  expect(["ledger_daily_cov", "insufficient_history"]).toContain(risk.basis);
   expect(risk.clusterCapPct).toBe(35);
 
   expect(attrRes.status()).toBe(200);

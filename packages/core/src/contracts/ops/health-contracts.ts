@@ -19,6 +19,14 @@ export const HealthDbPostureSchema = z.object({
 });
 export type HealthDbPosture = z.infer<typeof HealthDbPostureSchema>;
 
+export const ClientErrorReportSchema = z.object({
+  route: z.string().trim().min(1).max(120),
+  digest: z.string().regex(/^[a-f0-9]{16,64}$/),
+  kind: z.enum(["render", "fetch", "unhandled"]),
+  buildId: z.string().max(40),
+});
+export type ClientErrorReport = z.infer<typeof ClientErrorReportSchema>;
+
 export const HealthResponseSchema = z.object({
   status: z.enum(["healthy", "degraded"]),
   timestamp: z.string().datetime(),
@@ -32,6 +40,7 @@ export const HealthResponseSchema = z.object({
   cron: HealthCronSchema,
   db: HealthDbPostureSchema,
   dbSizePct: z.number().nullable(),
+  errors24h: z.number().int().nonnegative().default(0),
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 

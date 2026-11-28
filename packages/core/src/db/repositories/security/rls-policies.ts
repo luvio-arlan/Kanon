@@ -78,6 +78,17 @@ export function kanonPublicDerivedPolicies(tableName: string) {
   ];
 }
 
+export function kanonSystemOnlyPolicy(tableName: string) {
+  const sysPred = sql`kanon_rls_is_system()`;
+  return [
+    pgPolicy(`kanon_rls_${tableName}_system`, {
+      for: "all",
+      using: sysPred,
+      withCheck: sysPred,
+    }),
+  ];
+}
+
 export function kanonThesisCommentsPolicies() {
   return [
     pgPolicy("kanon_rls_thesis_comments_select", { for: "select", using: THESIS_READ_PRED }),

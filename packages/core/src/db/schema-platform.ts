@@ -3,11 +3,17 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { kanonUserOwnedPolicies } from "./repositories/security/rls-policies";
+import {
+  kanonSystemOnlyPolicy,
+  kanonUserOwnedPolicies,
+} from "./repositories/security/rls-policies";
+
+export type AppErrorSource = "server" | "client" | "job";
 
 export const aiUsageTable = pgTable(
   "ai_usage",
@@ -23,8 +29,11 @@ export const aiUsageTable = pgTable(
     costUsd: doublePrecision("cost_usd").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("idx_ai_usage_user_created").on(table.userId, table.createdAt)],
-);
+  (table) => [
+    index("idx_ai_usage_user_created").on(table.userId, table.createdAt),
+    ...kanonUserOwnedPolicies("ai_usage"),
+  ],
+).enableRLS();
 
 export const userAiCredentialsTable = pgTable(
   "user_ai_credentials",
@@ -43,5 +52,24 @@ export const userAiCredentialsTable = pgTable(
   (table) => [
     uniqueIndex("idx_user_ai_creds_user_provider").on(table.userId, table.provider),
     ...kanonUserOwnedPolicies("user_ai_credentials"),
+  ],
+).enableRLS();
+
+export const appErrorEventsTable = pgTable(
+  "app_error_events",
+  {
+    fingerprint: text("fingerprint").notNull(),
+    day: text("day").notNull(),
+    source: text("source").$type<AppErrorSource>().notNull(),
+    route: text("route").notNull(),
+    code: text("code").notNull(),
+    sampleRequestId: text("sample_request_id"),
+    count: integer("count").notNull().default(1),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.fingerprint, table.day] }),
+    ...kanonSystemOnlyPolicy("app_error_events"),
   ],
 ).enableRLS();

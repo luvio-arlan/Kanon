@@ -16,7 +16,8 @@ export function generateRequestId(): string {
 }
 
 function hashUserIdForLog(userId: string): string {
-  return crypto.createHash("sha256").update(`kanon-log:${userId}`).digest("hex").slice(0, 12);
+  const salt = process.env.KANON_LOG_SALT?.trim() || "kanon-log";
+  return crypto.createHash("sha256").update(`${salt}:${userId}`).digest("hex").slice(0, 12);
 }
 
 export function logStructuredApiEvent(entry: StructuredApiLog): void {
@@ -25,7 +26,7 @@ export function logStructuredApiEvent(entry: StructuredApiLog): void {
   const line = JSON.stringify({
     ts: new Date().toISOString(),
     service: "kanon-web",
-    ...(userId ? { userIdHash: hashUserIdForLog(userId) } : {}),
+    ...(userId ? { userHash: hashUserIdForLog(userId) } : {}),
     ...rest,
   });
   if (entry.level === "error") process.stderr.write(`${line}\n`);

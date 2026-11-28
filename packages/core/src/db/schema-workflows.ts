@@ -42,8 +42,9 @@ export const alertRulesTable = pgTable(
       sql`COALESCE(${table.thesisId}, '')`,
       table.kind,
     ),
+    ...kanonUserOwnedPolicies("alert_rules"),
   ],
-);
+).enableRLS();
 
 export const inboxItemsTable = pgTable(
   "inbox_items",
@@ -104,8 +105,9 @@ export const calendarTokensTable = pgTable(
     uniqueIndex("idx_calendar_tokens_hash")
       .on(table.tokenHash)
       .where(sql`${table.tokenHash} IS NOT NULL`),
+    ...kanonUserOwnedPolicies("calendar_tokens"),
   ],
-);
+).enableRLS();
 
 export const portfolioAccountsTable = pgTable(
   "portfolio_accounts",

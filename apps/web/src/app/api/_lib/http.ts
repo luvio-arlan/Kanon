@@ -6,6 +6,15 @@ interface ValidationIssueLike {
   message: string;
 }
 
+const VALID_REQUEST_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** Validates inbound `x-request-id` (8–64 safe chars) or generates a fresh request id (U3-1). */
+export function resolveRequestId(request?: Request): string {
+  const raw = request?.headers.get("x-request-id")?.trim();
+  if (raw && VALID_REQUEST_ID_RE.test(raw)) return raw;
+  return generateRequestId();
+}
+
 export function apiHeaders(
   startedAt: number,
   requestId = generateRequestId(),
@@ -18,12 +27,17 @@ export function apiHeaders(
   };
 }
 
-export function jsonOk<T>(data: T, startedAt: number, status = 200) {
-  return NextResponse.json(data, { status, headers: apiHeaders(startedAt) });
+export function jsonOk<T>(data: T, startedAt: number, status = 200, requestId?: string) {
+  return NextResponse.json(data, { status, headers: apiHeaders(startedAt, requestId) });
 }
 
-export function jsonError(message: string, status: number, startedAt: number, code?: string) {
-  const requestId = generateRequestId();
+export function jsonError(
+  message: string,
+  status: number,
+  startedAt: number,
+  code?: string,
+  requestId = generateRequestId(),
+) {
   const durationMs = Math.max(0, Math.round(performance.now() - startedAt));
   if (status >= 500) {
     logStructuredApiEvent({ level: "error", requestId, status, durationMs, code, message });

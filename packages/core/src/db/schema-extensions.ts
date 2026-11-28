@@ -18,6 +18,7 @@ import type {
   SecInsiderSummary,
   SecQuarterlyFinancial,
 } from "../schemas/research";
+import { kanonUserOwnedPolicies } from "./repositories/security/rls-policies";
 
 export type ApiTokenScope = "read" | "read_write";
 
@@ -107,8 +108,11 @@ export const userSecOverridesTable = pgTable(
     annuals: jsonb("annuals").$type<SecAnnualFinancial[]>().notNull().default([]),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.ticker] })],
-);
+  (table) => [
+    primaryKey({ columns: [table.userId, table.ticker] }),
+    ...kanonUserOwnedPolicies("user_sec_overrides"),
+  ],
+).enableRLS();
 
 export const userTotpFactorsTable = pgTable("user_totp_factors", {
   userId: text("user_id")

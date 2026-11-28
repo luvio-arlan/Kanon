@@ -1,44 +1,5 @@
 export * from "./contracts/account-contracts";
-export {
-  type AgentAskRequest,
-  AgentAskRequestSchema,
-  type AgentAskResponse,
-  AgentAskResponseSchema,
-  type AgentBriefing,
-  AgentBriefingSchema,
-  type AgentPartialSynthesis,
-  AgentPartialSynthesisSchema,
-  type AgentProposal,
-  AgentProposalSchema,
-  type AgentProposalTarget,
-  AgentProposalTargetSchema,
-  type AgentRequest,
-  AgentRequestSchema,
-  type AgentStreamEvent,
-  AgentStreamEventSchema,
-  type AgentTraceStep,
-  AgentTraceStepSchema,
-  type ByokProvider,
-  ByokProviderSchema,
-  type CopilotAction,
-  CopilotActionSchema,
-  type CopilotEngineMode,
-  CopilotEngineModeSchema,
-  type CopilotRequest,
-  CopilotRequestSchema,
-  type EarningsDigest,
-  EarningsDigestSchema,
-  type EarningsQuote,
-  EarningsQuoteSchema,
-  type InvestmentMemo,
-  InvestmentMemoSchema,
-  type LocalByokConfig,
-  LocalByokConfigSchema,
-  type RedTeamChallenge,
-  RedTeamChallengeSchema,
-  type RedTeamReport,
-  RedTeamReportSchema,
-} from "./contracts/ai-contracts";
+export * from "./contracts/ai-contracts";
 export * from "./contracts/analytics";
 export {
   AgentApplyRequestSchema,
@@ -80,6 +41,11 @@ export type { Provenance, ProvenancedMetric } from "./contracts/provenance";
 export * from "./contracts/sec-filing-contracts";
 export * from "./contracts/workflow-contracts";
 export * from "./contracts/workflow-response-contracts";
+export {
+  getStaticSampleDossier,
+  SAMPLE_DOSSIER_SLUGS,
+  type StaticSampleDossier,
+} from "./db/seeds/sample-dossiers";
 export {
   formatGoogleDocHtml,
   formatPortfolioCsv,

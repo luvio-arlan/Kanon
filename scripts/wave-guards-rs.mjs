@@ -189,6 +189,8 @@ const SYSTEM_ONLY_DB_FUNCS = new Set([
   "listThesisWatchersByTicker",
   "resolvePendingGuidanceCommitments",
   "pruneStaleFilingChunks",
+  "pruneOldAppErrorEvents",
+  "recordAppErrorEvent",
 ]);
 
 const SYSTEM_DB_ALLOWLIST = new Map([
@@ -214,6 +216,7 @@ const SYSTEM_DB_ALLOWLIST = new Map([
   ["apps/web/src/app/api/sec/[ticker]/filing/route.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/sec/[ticker]/redline/route.ts", new Set(["user_triggered_sync"])],
   ["apps/web/src/app/api/sec/[ticker]/segments/route.ts", new Set(["user_triggered_sync"])],
+  ["apps/web/src/app/api/telemetry/client-errors/route.ts", new Set(["telemetry"])],
 ]);
 
 const SET_CONFIG_ALLOWED_FILES = new Set([

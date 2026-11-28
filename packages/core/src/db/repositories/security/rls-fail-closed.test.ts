@@ -9,6 +9,10 @@ import {
 } from "../../client";
 import {
   agentRunsTable,
+  aiUsageTable,
+  alertRulesTable,
+  appErrorEventsTable,
+  calendarTokensTable,
   copilotOutputsTable,
   crossChecksTable,
   disciplineEntriesTable,
@@ -28,6 +32,7 @@ import {
   thesisRevisionsTable,
   transactionsTable,
   userAiCredentialsTable,
+  userSecOverridesTable,
   valuationScenariosTable,
 } from "../../schema";
 import { registerUser } from "../auth-store";
@@ -52,7 +57,8 @@ import {
   createPortfolioAccount,
   recordPortfolioTransaction,
 } from "../workflows/portfolio-ledger-store";
-import { upsertUserAiCredential } from "./ai-credentials-and-usage-store";
+import { recordAiUsage, upsertUserAiCredential } from "./ai-credentials-and-usage-store";
+import { countAppErrorsLast24h, recordAppErrorEvent } from "./app-errors-store";
 import { getDbSecurityPosture } from "./db-posture";
 import { withSystemContext, withTenantContext } from "./tenant-context";
 
@@ -592,5 +598,114 @@ describe("RLS Phase D Fail-Closed Enforcement (PGlite NOBYPASSRLS)", () => {
       listHypothesisStatusEventsByThesisIds(tx, [thesisId]),
     );
     expect(outsiderEvents).toHaveLength(0);
+  });
+
+  it("U3-2 Stage 6a & U3-1: enforces tenant RLS on alert_rules, calendar_tokens, ai_usage, user_sec_overrides and system-only RLS on app_error_events", async () => {
+    const userA = await registerInSystem("+8613800009101", "Stage6aA");
+    const userB = await registerInSystem("+8613800009102", "Stage6aB");
+
+    await withTenantContext(
+      db,
+      userA.id,
+      async (tx) => {
+        await tx.insert(alertRulesTable).values({
+          id: "ar_s6a_1",
+          userId: userA.id,
+          kind: "new_filing",
+          configJson: {},
+        });
+        await tx.insert(calendarTokensTable).values({
+          token: "tok_s6a_1",
+          userId: userA.id,
+          tokenHash: "hash_s6a_1",
+        });
+        await recordAiUsage(tx, {
+          userId: userA.id,
+          route: "/api/copilot",
+          provider: "openai",
+          model: "gpt-4o-mini",
+          promptTokens: 100,
+          completionTokens: 50,
+          costUsd: 0.001,
+        });
+        await tx.insert(userSecOverridesTable).values({
+          userId: userA.id,
+          ticker: "NVDA",
+          cik: "0001045810",
+          entityName: "NVIDIA",
+          facts: [],
+          annuals: [],
+        });
+        const reqRes = await tx.execute(
+          sql`SELECT current_setting('kanon.request_id', true) AS rid`,
+        );
+        const rid = String(
+          ((Array.isArray(reqRes) ? reqRes : reqRes.rows)[0] as Record<string, unknown>).rid ?? "",
+        );
+        expect(rid).toBe("req_stage6a_test");
+      },
+      "req_stage6a_test",
+    );
+
+    await withSystemContext(
+      db,
+      "telemetry",
+      async (tx) => {
+        await recordAppErrorEvent(tx, {
+          source: "client",
+          route: "/thesis/1",
+          code: "render:web",
+          message: "abcdef0123456789",
+          requestId: "req_telemetry_1",
+        });
+        expect(await countAppErrorsLast24h(tx)).toBeGreaterThanOrEqual(1);
+      },
+      "req_telemetry_1",
+    );
+
+    const stage6aTables = [
+      alertRulesTable,
+      calendarTokensTable,
+      aiUsageTable,
+      userSecOverridesTable,
+      appErrorEventsTable,
+    ] as const;
+
+    await withTenantContext(db, userB.id, async (tx) => {
+      for (const tbl of stage6aTables) {
+        const rows = await tx.select().from(tbl);
+        expect(rows, `Tenant B leaked rows from ${getTableName(tbl)}`).toHaveLength(0);
+      }
+    });
+
+    await expectPgError(
+      withTenantContext(db, userB.id, async (tx) => {
+        await tx.insert(alertRulesTable).values({
+          id: "ar_s6a_hijack",
+          userId: userA.id,
+          kind: "price_hurdle",
+          configJson: {},
+        });
+      }),
+      /row-level security policy/,
+    );
+    await expectPgError(
+      withTenantContext(db, userB.id, async (tx) => {
+        await tx.insert(appErrorEventsTable).values({
+          fingerprint: "fp_hijack",
+          day: "2026-11-28",
+          source: "client",
+          route: "/",
+          code: "x",
+        });
+      }),
+      /row-level security policy/,
+    );
+
+    const sysCount = await withSystemContext(db, "cron_tick", async (tx) => {
+      const rules = await tx.select().from(alertRulesTable);
+      return rules.filter((r) => r.id === "ar_s6a_1").length;
+    });
+    expect(sysCount).toBe(1);
   });
 });

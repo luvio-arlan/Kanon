@@ -1,5 +1,6 @@
 import { fetchEcbReferenceFxRates } from "@kanon/ai";
 import {
+  pruneOldAppErrorEvents,
   pruneStaleFilingChunks,
   type QueuedJobRow,
   resolvePendingGuidanceCommitments,
@@ -101,7 +102,10 @@ const JOB_RUNNERS: Record<string, JobRunner> = {
     return "done";
   },
   prune_chunks: async () => {
-    await withSystemDb("cron_tick", (tx) => pruneStaleFilingChunks(tx));
+    await withSystemDb("cron_tick", async (tx) => {
+      await pruneStaleFilingChunks(tx);
+      await pruneOldAppErrorEvents(tx, 30);
+    });
     return "done";
   },
 };

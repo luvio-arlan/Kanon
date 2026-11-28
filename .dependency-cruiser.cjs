@@ -122,6 +122,18 @@ module.exports = {
         path: "^apps/web/src/(features|app)/",
       },
     },
+    {
+      name: "public-sample-no-db",
+      severity: "error",
+      comment:
+        "Wave U2-3 / G31: Public static sample dossiers under apps/web/src/app/sample/** MUST NOT import @kanon/core/db or apps/web/src/app/api/_lib.",
+      from: {
+        path: "^apps/web/src/app/sample/",
+      },
+      to: {
+        path: "(^packages/core/src/db/index|^packages/core/src/db/client|^packages/core/src/db/repositories|^@kanon/core/db|^apps/web/src/app/api/_lib)",
+      },
+    },
   ],
   options: {
     exclude: {

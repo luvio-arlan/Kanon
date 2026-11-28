@@ -4,6 +4,7 @@ import {
   parseCronGraceHours,
 } from "@kanon/core";
 import {
+  countAppErrorsLast24h,
   getCronHealth,
   getDbSecurityPosture,
   getDbSizePct,
@@ -12,56 +13,73 @@ import {
   pingKanonDb,
 } from "@kanon/core/db";
 import { withSystemDb } from "../_lib/db-context";
-import { jsonError, jsonOk } from "../_lib/http";
+import { jsonError, jsonOk, resolveRequestId } from "../_lib/http";
 
 export const dynamic = "force-dynamic";
 
 const MAX_QUEUE_AGE_SEC = 26 * 3600;
 
-export async function GET() {
+function deriveHealthStatus(input: {
+  oldestPendingAgeSec: number | null;
+  cronState: string;
+  dbSizePct: number | null;
+  bypassRls: boolean;
+  rlsFailClosed: boolean;
+}): "healthy" | "degraded" {
+  const pendingStale =
+    input.oldestPendingAgeSec != null && input.oldestPendingAgeSec > MAX_QUEUE_AGE_SEC;
+  const cronDegraded =
+    input.cronState === "never_ran" || input.cronState === "overrun" || input.cronState === "stale";
+  const storageDegraded = input.dbSizePct !== null && input.dbSizePct > 70;
+  const isProd = process.env.VERCEL_ENV === "production";
+  const rlsDegraded = isProd && (input.bypassRls || !input.rlsFailClosed);
+  return pendingStale || cronDegraded || storageDegraded || rlsDegraded ? "degraded" : "healthy";
+}
+
+export async function GET(request: Request) {
   const startedAt = performance.now();
+  const requestId = resolveRequestId(request);
   try {
     const graceHours = parseCronGraceHours(process.env.KANON_CRON_GRACE_HOURS);
-    const { jobQueue, cron, db, dbSizePct } = await withSystemDb("health", async (tx) => {
-      await pingKanonDb(tx);
-      const [queue, cronHealth, dbPosture, sizePct] = await Promise.all([
-        getJobQueueHealth(tx),
-        getCronHealth(tx, { graceHours }),
-        getDbSecurityPosture(tx),
-        getDbSizePct(tx),
-      ]);
-      return { jobQueue: queue, cron: cronHealth, db: dbPosture, dbSizePct: sizePct };
-    });
+    const snapshot = await withSystemDb(
+      "health",
+      async (tx) => {
+        await pingKanonDb(tx);
+        const [jobQueue, cron, db, dbSizePct, errors24h] = await Promise.all([
+          getJobQueueHealth(tx),
+          getCronHealth(tx, { graceHours }),
+          getDbSecurityPosture(tx),
+          getDbSizePct(tx),
+          countAppErrorsLast24h(tx),
+        ]);
+        return { jobQueue, cron, db, dbSizePct, errors24h };
+      },
+      requestId,
+    );
     const secUserAgentConfigured = Boolean(process.env.KANON_SEC_USER_AGENT?.trim());
-    const secretsConfigured = {
-      credentials: isCredentialsMasterKeyConfigured(),
-      cron: Boolean(process.env.CRON_SECRET?.trim()),
-      secUserAgent: secUserAgentConfigured,
-    };
-    const pendingStale =
-      jobQueue.oldestPendingAgeSec != null && jobQueue.oldestPendingAgeSec > MAX_QUEUE_AGE_SEC;
-    const cronDegraded =
-      cron.state === "never_ran" || cron.state === "overrun" || cron.state === "stale";
-    const storageDegraded = dbSizePct !== null && dbSizePct > 70;
-    const isProd = process.env.VERCEL_ENV === "production";
-    const rlsDegraded = isProd && (db.bypassRls || !db.rlsFailClosed);
-    const status =
-      pendingStale || cronDegraded || storageDegraded || rlsDegraded ? "degraded" : "healthy";
+    const status = deriveHealthStatus({
+      oldestPendingAgeSec: snapshot.jobQueue.oldestPendingAgeSec,
+      cronState: snapshot.cron.state,
+      dbSizePct: snapshot.dbSizePct,
+      bypassRls: snapshot.db.bypassRls,
+      rlsFailClosed: snapshot.db.rlsFailClosed,
+    });
     const body = HealthResponseSchema.parse({
       status,
       timestamp: new Date().toISOString(),
       secUserAgentConfigured,
-      secretsConfigured,
-      jobQueue,
-      cron,
-      db,
-      dbSizePct,
+      secretsConfigured: {
+        credentials: isCredentialsMasterKeyConfigured(),
+        cron: Boolean(process.env.CRON_SECRET?.trim()),
+        secUserAgent: secUserAgentConfigured,
+      },
+      ...snapshot,
     });
-    return jsonOk(body, startedAt);
+    return jsonOk(body, startedAt, 200, requestId);
   } catch (err) {
     if (err instanceof MigrationsPendingError) {
-      return jsonError("数据库迁移尚未完成。", 503, startedAt, "MIGRATIONS_PENDING");
+      return jsonError("数据库迁移尚未完成。", 503, startedAt, "MIGRATIONS_PENDING", requestId);
     }
-    return jsonError("数据库连接自检失败。", 503, startedAt, "DB_UNAVAILABLE");
+    return jsonError("数据库连接自检失败。", 503, startedAt, "DB_UNAVAILABLE", requestId);
   }
 }

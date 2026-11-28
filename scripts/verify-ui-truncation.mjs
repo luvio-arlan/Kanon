@@ -6,12 +6,13 @@
  */
 const BASE_URL = process.argv[2] || "http://127.0.0.1:3141";
 const VIEWPORTS = [
+  { width: 1024, height: 768 },
   { width: 1280, height: 800 },
   { width: 1440, height: 900 },
   { width: 1920, height: 1080 },
 ];
 const THEMES = ["light", "dark"];
-const ROUTES = ["/login", "/register"];
+const ROUTES = ["/login", "/register", "/sample/nvda"];
 
 function collectOverflowIssues() {
   const selectors = "button, h1, h2, h3, nav a, [role='tab']";
