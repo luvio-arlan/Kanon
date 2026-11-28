@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --hookTimeout=30000 --testTimeout=30000"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.107",

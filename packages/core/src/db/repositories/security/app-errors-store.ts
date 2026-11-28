@@ -79,9 +79,9 @@ export async function recordAppErrorEvent(
 
 /** Returns total aggregated error count observed across the last 24 hours (U3-1). */
 export async function countAppErrorsLast24h(db: KanonDb): Promise<number> {
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const cutoffIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const res = await db.execute(
-    sql`SELECT COALESCE(SUM(count), 0)::int AS total FROM app_error_events WHERE last_seen_at >= ${cutoff}`,
+    sql`SELECT COALESCE(SUM(count), 0)::int AS total FROM app_error_events WHERE last_seen_at >= ${cutoffIso}::timestamptz`,
   );
   const rows = (Array.isArray(res) ? res : res.rows) as Array<Record<string, unknown>>;
   return Number(rows[0]?.total ?? 0);
@@ -89,9 +89,11 @@ export async function countAppErrorsLast24h(db: KanonDb): Promise<number> {
 
 /** Prunes error events older than `retentionDays` (default 30d; invoked inside `prune_chunks`). */
 export async function pruneOldAppErrorEvents(db: KanonDb, retentionDays = 30): Promise<number> {
-  const cutoff = new Date(Date.now() - Math.max(1, retentionDays) * 24 * 60 * 60 * 1000);
+  const cutoffIso = new Date(
+    Date.now() - Math.max(1, retentionDays) * 24 * 60 * 60 * 1000,
+  ).toISOString();
   const res = await db.execute(
-    sql`DELETE FROM app_error_events WHERE last_seen_at < ${cutoff} RETURNING fingerprint`,
+    sql`DELETE FROM app_error_events WHERE last_seen_at < ${cutoffIso}::timestamptz RETURNING fingerprint`,
   );
   const rows = Array.isArray(res) ? res : res.rows;
   return rows.length;

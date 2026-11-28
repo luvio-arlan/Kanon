@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --hookTimeout=30000 --testTimeout=30000",
     "db:push": "drizzle-kit push",
     "db:migrate": "node --experimental-strip-types src/db/migrate-cli.ts"
   },

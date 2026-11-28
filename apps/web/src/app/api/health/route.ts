@@ -14,6 +14,7 @@ import {
 } from "@kanon/core/db";
 import { withSystemDb } from "../_lib/db-context";
 import { jsonError, jsonOk, resolveRequestId } from "../_lib/http";
+import { logStructuredApiEvent } from "../_lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,23 @@ function deriveHealthStatus(input: {
   const isProd = process.env.VERCEL_ENV === "production";
   const rlsDegraded = isProd && (input.bypassRls || !input.rlsFailClosed);
   return pendingStale || cronDegraded || storageDegraded || rlsDegraded ? "degraded" : "healthy";
+}
+
+function handleHealthError(err: unknown, startedAt: number, requestId: string) {
+  if (err instanceof MigrationsPendingError) {
+    return jsonError("数据库迁移尚未完成。", 503, startedAt, "MIGRATIONS_PENDING", requestId);
+  }
+  const detail = err instanceof Error ? err.message : String(err);
+  logStructuredApiEvent({
+    level: "error",
+    requestId,
+    route: "/api/health",
+    status: 503,
+    durationMs: Math.round(performance.now() - startedAt),
+    code: "DB_UNAVAILABLE",
+    message: detail.slice(0, 240),
+  });
+  return jsonError("数据库连接自检失败。", 503, startedAt, "DB_UNAVAILABLE", requestId);
 }
 
 export async function GET(request: Request) {
@@ -77,9 +95,6 @@ export async function GET(request: Request) {
     });
     return jsonOk(body, startedAt, 200, requestId);
   } catch (err) {
-    if (err instanceof MigrationsPendingError) {
-      return jsonError("数据库迁移尚未完成。", 503, startedAt, "MIGRATIONS_PENDING", requestId);
-    }
-    return jsonError("数据库连接自检失败。", 503, startedAt, "DB_UNAVAILABLE", requestId);
+    return handleHealthError(err, startedAt, requestId);
   }
 }
